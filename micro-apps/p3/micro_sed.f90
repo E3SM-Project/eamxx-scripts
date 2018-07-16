@@ -175,10 +175,12 @@ contains
     real, dimension(kts:kte) :: V_qr, V_nr, flux_qx, flux_nx
     real, dimension(its:ite,kts:kte) :: mu_r, lamr, rhofacr, inv_dzq, rho, inv_rho
 
+    real :: start, finish
+
+    call cpu_time(start)
+
     ! constants
     odt      = 1./dt   ! inverse model time step
-
-    call p3_init()
 
     ! direction of vertical leveling:
     !if (trim(model)=='GEM' .or. trim(model)=='KIN1D') then
@@ -310,129 +312,11 @@ contains
 
     enddo i_loop_main
 
+    call cpu_time(finish)
+
+    print '("Time = ",f6.3," seconds.")', finish - start
+
   end subroutine micro_sed_func
-
-  !=============================================================================!
-  real function gamma(X)
-  !=============================================================================!
-    implicit none
-    integer :: I,N
-    logical :: l_parity
-    real ::                                                       &
-         CONV,EPS,FACT,HALF,ONE,res,sum,TWELVE,                    &
-         TWO,X,XBIG,XDEN,XINF,XMININ,XNUM,Y,Y1,YSQ,Z,ZERO
-    real, dimension(7) :: C
-    real, dimension(8) :: P
-    real, dimension(8) :: Q
-    real, parameter    :: constant1 = 0.9189385332046727417803297
-
-    !  MATHEMATICAL CONSTANTS
-    data ONE,HALF,TWELVE,TWO,ZERO/1.0E0,0.5E0,12.0E0,2.0E0,0.0E0/
-
-    !  MACHINE DEPENDENT PARAMETERS
-    data XBIG,XMININ,EPS/35.040E0,1.18E-38,1.19E-7/,XINF/3.4E38/
-
-    !  NUMERATOR AND DENOMINATOR COEFFICIENTS FOR RATIONAL MINIMAX
-    !     APPROXIMATION OVER (1,2).
-    data P/-1.71618513886549492533811E+0,2.47656508055759199108314E+1,  &
-         -3.79804256470945635097577E+2,6.29331155312818442661052E+2,  &
-         8.66966202790413211295064E+2,-3.14512729688483675254357E+4,  &
-         -3.61444134186911729807069E+4,6.64561438202405440627855E+4/
-    data Q/-3.08402300119738975254353E+1,3.15350626979604161529144E+2,  &
-         -1.01515636749021914166146E+3,-3.10777167157231109440444E+3, &
-         2.25381184209801510330112E+4,4.75584627752788110767815E+3,  &
-         -1.34659959864969306392456E+5,-1.15132259675553483497211E+5/
-
-    !  COEFFICIENTS FOR MINIMAX APPROXIMATION OVER (12, INF).
-    data C/-1.910444077728E-03,8.4171387781295E-04,                      &
-         -5.952379913043012E-04,7.93650793500350248E-04,                 &
-         -2.777777777777681622553E-03,8.333333333333333331554247E-02,    &
-         5.7083835261E-03/
-
-    !  STATEMENT FUNCTIONS FOR CONVERSION BETWEEN INTEGER AND FLOAT
-    CONV(I) = REAL(I)
-    l_parity=.FALSE.
-    FACT=ONE
-    N=0
-    Y=X
-    if (Y.LE.ZERO) then
-       !  ARGUMENT IS NEGATIVE
-       Y=-X
-       Y1=AINT(Y)
-       res=Y-Y1
-       if (res.NE.ZERO) then
-          if(Y1.NE.AINT(Y1*HALF)*TWO)l_parity=.TRUE.
-          FACT=-PI/SIN(PI*res)
-          Y=Y+ONE
-       else
-          res=XINF
-          goto 900
-       endif
-    endif
-    !  ARGUMENT IS POSITIVE
-    if (Y.LT.EPS) then
-       !  ARGUMENT .LT. EPS
-       if (Y.GE.XMININ) then
-          res=ONE/Y
-       else
-          res=XINF
-          goto 900
-       endif
-    elseif (Y.LT.TWELVE) then
-       Y1=Y
-       if (Y.LT.ONE) then
-          !  0.0 .LT. ARGUMENT .LT. 1.0
-          Z=Y
-          Y=Y+ONE
-       else
-          !  1.0 .LT. ARGUMENT .LT. 12.0, REDUCE ARGUMENT IF NECESSARY
-          N=INT(Y)-1
-          Y=Y-CONV(N)
-          Z=Y-ONE
-       endif
-
-       !  EVALUATE APPROXIMATION FOR 1.0 .LT. ARGUMENT .LT. 2.0
-       XNUM=ZERO
-       XDEN=ONE
-       do I=1,8
-          XNUM=(XNUM+P(I))*Z
-          XDEN=XDEN*Z+Q(I)
-       enddo
-       res=XNUM/XDEN+ONE
-       if (Y1.LT.Y) then
-          !  ADJUST RESULT FOR CASE  0.0 .LT. ARGUMENT .LT. 1.0
-          res=res/Y1
-       elseif (Y1.GT.Y) then
-          !  ADJUST RESULT FOR CASE  2.0 .LT. ARGUMENT .LT. 12.0
-          do I=1,N
-             res=res*Y
-             Y=Y+ONE
-          enddo
-       endif
-    else
-       !  EVALUATE FOR ARGUMENT .GE. 12.0,
-       if (Y.LE.XBIG) then
-          YSQ=Y*Y
-          sum=C(7)
-          do I=1,6
-             sum=sum/YSQ+C(I)
-          enddo
-          sum=sum/Y-Y+constant1
-          sum=sum+(Y-HALF)*log(Y)
-          res=exp(sum)
-       else
-          res=XINF
-          goto 900
-       endif
-    endif
-    !  FINAL ADJUSTMENTS AND RETURN
-    if (l_parity)res=-res
-    if (FACT.NE.ONE)res=FACT/res
-900 gamma=res
-    return
-    ! ---------- LAST LINE OF gamma ----------
-
-  end function gamma
 
   !=============================================================================!
   subroutine find_lookupTable_indices_3(dumii,dumjj,dum1,rdumii,rdumjj,inv_dum3,mu_r,lamr)
@@ -569,6 +453,8 @@ program micro_sed
   real, dimension(its:ite,kts:kte) :: qr, nr
 
   real, dimension(ni) :: prt_liq
+
+  call p3_init()
 
   call micro_sed_func(kts, kte, ni, nk, its, ite, dt, qr, nr, prt_liq)
 
