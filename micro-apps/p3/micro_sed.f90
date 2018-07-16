@@ -165,12 +165,12 @@ contains
 
     real, dimension(ni), intent(out) :: prt_liq
 
-    integer :: i,k,ktop,kbot,kdir,i_strt,k_strt,k_qxbot,k_qxtop,k_temp,tmpint1, dumii, dumjj
+    integer :: i,k,ktop,kbot,kdir,k_qxbot,k_qxtop,k_temp,tmpint1, dumii, dumjj
 
     logical :: log_qxpresent
 
     real :: Co_max, dt_left, dt_sub, dum1, dum2, rdumii, rdumjj, &
-            fluxdiv_nx, fluxdix_qx, fluxdiv_qx, inv_dum3, odt, prt_accum, tmp1, tmp2
+            fluxdiv_nx, fluxdiv_qx, inv_dum3, odt, prt_accum, tmp1, tmp2
 
     real, dimension(kts:kte) :: V_qr, V_nr, flux_qx, flux_nx
     real, dimension(its:ite,kts:kte) :: mu_r, lamr, rhofacr, inv_dzq, rho, inv_rho
@@ -179,6 +179,18 @@ contains
     odt      = 1./dt   ! inverse model time step
 
     call p3_init()
+
+    ! direction of vertical leveling:
+    !if (trim(model)=='GEM' .or. trim(model)=='KIN1D') then
+    if (.true.) then
+       ktop = kts        !k of top level
+       kbot = kte        !k of bottom level
+       kdir = -1         !(k: 1=top, nk=bottom)
+    else
+       ktop = kte        !k of top level
+       kbot = kts        !k of bottom level
+       kdir = 1          !(k: 1=bottom, nk=top)
+    endif
 
     ! Rain sedimentation:  (adaptivive substepping)
     i_loop_main: do i = its,ite
