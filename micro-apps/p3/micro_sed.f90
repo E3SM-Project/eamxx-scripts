@@ -21,8 +21,8 @@ module micro_sed_mod
   !
   ! Globals
   !
-  real, dimension(300,10) :: VN_TABLE,VM_TABLE  ! lookup table values for rain number- and mass-weighted fallspeeds
-  real, dimension(150)    :: MU_R_TABLE         ! lookup table values for rain shape parameter mu_r
+  real, dimension(300,10), target :: VN_TABLE,VM_TABLE  ! lookup table values for rain number- and mass-weighted fallspeeds
+  real, dimension(150), target    :: MU_R_TABLE         ! lookup table values for rain shape parameter mu_r
 
 contains
 
@@ -33,8 +33,16 @@ contains
     ! the lookup table is two dimensional as a function of number-weighted mean size
     ! proportional to qr/Nr and shape parameter mu_r
 
+    use array_io_mod
+    use iso_c_binding
+
     integer                      :: i,ii,jj,kk
     real                         :: lamr,lamold,mu_r,dum,dm,dum1,dum2,dum3,dum4,dum5,dd,amg,vt,dia,initlamr
+    logical :: ok
+    character(kind=c_char, len=128), parameter :: &
+         mu_r_filename = c_char_"mu_r_table.dat"//C_NULL_CHAR, &
+         vn_filename = c_char_"vn_table.dat"//C_NULL_CHAR, &
+         vm_filename = c_char_"vm_table.dat"//C_NULL_CHAR
 
     ! Generate lookup table for rain shape parameter mu_r
     ! this is very fast so it can be generated at the start of each run
@@ -42,6 +50,19 @@ contains
     ! space of a scaled mean size proportional qr/Nr -- initlamr
 
     !print*, '   Generating rain lookup-table ...'
+    
+    if ( array_io_file_exists(mu_r_filename) .and. &
+         array_io_file_exists(vn_filename) .and. &
+         array_io_file_exists(vm_filename)) then
+       ok = array_io_read(mu_r_filename, c_loc(MU_R_TABLE), size(MU_R_TABLE)) .and. &
+            array_io_read(vn_filename, c_loc(VN_TABLE), size(VN_TABLE)) .and. &
+            array_io_read(vm_filename, c_loc(VM_TABLE), size(VM_TABLE))
+       if (.not. ok) then
+          print *, 'p3_init: One more more table files exists but gave a read error; computing from scratch.'
+       else
+          return
+       end if
+    end if
 
     do i = 1,150              ! loop over lookup table values
        initlamr = 1./((real(i)*2.)*1.e-6 + 250.e-6)
@@ -140,6 +161,10 @@ contains
        enddo meansize_loop
 
     enddo mu_r_loop
+
+    ok = array_io_write(mu_r_filename, c_loc(MU_R_TABLE), size(MU_R_TABLE))
+    ok = array_io_write(vn_filename, c_loc(VN_TABLE), size(VN_TABLE))
+    ok = array_io_write(vm_filename, c_loc(VM_TABLE), size(VM_TABLE))
 
   end subroutine p3_init
 
