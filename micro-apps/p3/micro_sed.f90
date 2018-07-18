@@ -173,9 +173,20 @@ contains
 
     real, dimension(ni) :: prt_liq
 
+    real :: start, finish
+
+    print '("Running micro_sed with kts=",I0," kte=",I0," ni=",I0," nk=",I0," its=",I0," ite=",I0," dt=",I0)', &
+         kts, kte, ni, nk, its, ite, dt
+
     call populate_input(its, ite, kts, kte, qr, nr)
 
+    call cpu_time(start)
+
     call micro_sed_func(kts, kte, ni, nk, its, ite, dt, qr, nr, prt_liq)
+
+    call cpu_time(finish)
+
+    print '("Time = ",f6.3," seconds.")', finish - start
 
   end subroutine micro_sed_func_wrap
 
@@ -213,13 +224,6 @@ contains
 
     real, dimension(kts:kte) :: V_qr, V_nr, flux_qx, flux_nx
     real, dimension(its:ite,kts:kte) :: mu_r, lamr, rhofacr, inv_dzq, rho, inv_rho
-
-    real :: start, finish
-
-    print '("Running micro_sed with kts=",I0," kte=",I0," ni=",I0," nk=",I0," its=",I0," ite=",I0," dt=",I0)', &
-         kts, kte, ni, nk, its, ite, dt
-
-    call cpu_time(start)
 
     ! constants
     odt      = 1./dt   ! inverse model time step
@@ -353,10 +357,6 @@ contains
        endif qr_present
 
     enddo i_loop_main
-
-    call cpu_time(finish)
-
-    print '("Time = ",f6.3," seconds.")', finish - start
 
   end subroutine micro_sed_func
 
