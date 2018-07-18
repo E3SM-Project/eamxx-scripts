@@ -213,8 +213,9 @@ contains
     ! dt: time step
     ! qr: rain, mass mixing ratio  (in/out)
     ! nr: rain, number mixing ratio (in/out)
-    ! th: potential temperature            K
-    ! dzq: vertical grid spacing            m
+    ! th: potential temperature                    K
+    ! dzq: vertical grid spacing                   m
+    ! pres: pressure                               Pa
     ! prt_liq: precipitation rate, total liquid    m s-1  (output)
 
     integer, intent(in) :: kts, kte, ni, nk, its, ite, dt
