@@ -141,6 +141,56 @@ contains
   end subroutine p3_init
 
   !=============================================================================!
+  subroutine populate_input(its, ite, kts, kte, qr, nr)
+  !=============================================================================!
+    implicit none
+
+    integer, intent(in) :: kts, kte, its, ite
+
+    real, dimension(its:ite,kts:kte), intent(inout) :: qr, nr
+
+    integer :: i, k
+
+    ! TODO: populate with more realistic data
+
+    do i = its, ite
+       do k = kts, kte
+          qr(i,k) = 0
+          nr(i,k) = 0
+       end do
+    end do
+
+  end subroutine populate_input
+
+  !=============================================================================!
+  subroutine micro_sed_func_wrap(kts, kte, ni, nk, its, ite, dt)
+  !=============================================================================!
+    implicit none
+
+    integer, intent(in) :: kts, kte, ni, nk, its, ite, dt
+
+    real, dimension(its:ite,kts:kte) :: qr, nr
+
+    real, dimension(ni) :: prt_liq
+
+    real :: start, finish
+
+    print '("Running micro_sed with kts=",I0," kte=",I0," ni=",I0," nk=",I0," its=",I0," ite=",I0," dt=",I0)', &
+         kts, kte, ni, nk, its, ite, dt
+
+    call populate_input(its, ite, kts, kte, qr, nr)
+
+    call cpu_time(start)
+
+    call micro_sed_func(kts, kte, ni, nk, its, ite, dt, qr, nr, prt_liq)
+
+    call cpu_time(finish)
+
+    print '("Time = ",f6.3," seconds.")', finish - start
+
+  end subroutine micro_sed_func_wrap
+
+  !=============================================================================!
   subroutine micro_sed_func(kts, kte, ni, nk, its, ite, dt, qr, nr, prt_liq)
   !=============================================================================!
     implicit none
@@ -174,10 +224,6 @@ contains
 
     real, dimension(kts:kte) :: V_qr, V_nr, flux_qx, flux_nx
     real, dimension(its:ite,kts:kte) :: mu_r, lamr, rhofacr, inv_dzq, rho, inv_rho
-
-    real :: start, finish
-
-    call cpu_time(start)
 
     ! constants
     odt      = 1./dt   ! inverse model time step
@@ -312,10 +358,6 @@ contains
 
     enddo i_loop_main
 
-    call cpu_time(finish)
-
-    print '("Time = ",f6.3," seconds.")', finish - start
-
   end subroutine micro_sed_func
 
   !=============================================================================!
@@ -446,17 +488,25 @@ program micro_sed
 
   implicit none
 
-  ! TODO: realistic values for these.
-  integer, parameter :: kts=0, kte=42, ni=0, nk=42, its=0, ite=42, dt=1
+  ! kts, kte, ni, nk, its, ite, dt
+  integer, dimension(7) :: args
 
-  ! TODO: populate with data
-  real, dimension(its:ite,kts:kte) :: qr, nr
+  integer :: i
+  character(len=32) :: arg
 
-  real, dimension(ni) :: prt_liq
+  if (iargc().ne.7) then
+     write (*,*) 'Usage: micro_sed kts kte ni nk its ite dt'
+     call exit(1)
+  end if
+
+  do i = 1, 7
+     call getarg(i, arg)
+     read (arg, *) args(i)
+  end do
 
   call p3_init()
 
-  call micro_sed_func(kts, kte, ni, nk, its, ite, dt, qr, nr, prt_liq)
+  call micro_sed_func_wrap(args(1), args(2), args(3), args(4), args(5), args(6), args(7))
 
 end program micro_sed
 
