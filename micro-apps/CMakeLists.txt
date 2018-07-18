@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 2.8.11)
 
 project(SCREAM_MICRO_APPS CXX Fortran)
+set (CMAKE_CXX_STANDARD 11)
 
 include(CTest)
 
