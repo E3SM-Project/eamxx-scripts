@@ -5,16 +5,19 @@ module micro_sed_mod
   !
   ! Contstants
   !
-  real, parameter :: INV_RHOW = 1.e-3,      &
-                     RHOW     = 997.,       &
-                     THRD     = 1./3.,      &
-                     SXTH     = 1./6.,      &
-                     PI       = 3.14159265, &
-                     PIOV6    = PI*SXTH,    &
-                     CONS1    = PIOV6*RHOW, &
-                     QSMALL   = 1.e-14,     &
-                     NSMALL   = 1.e-16
-
+  real, parameter :: INV_RHOW = 1.e-3,               &
+                     RHOW     = 997.,                &
+                     THRD     = 1./3.,               &
+                     SXTH     = 1./6.,               &
+                     PI       = 3.14159265,          &
+                     PIOV6    = PI*SXTH,             &
+                     CONS1    = PIOV6*RHOW,          &
+                     QSMALL   = 1.e-14,              &
+                     NSMALL   = 1.e-16,              &
+                     RD       = 287.15,              &
+                     RHOSUR   = 100000./(RD*273.15), &
+                     CP       = 1005.,               &
+                     INV_CP   = 1./CP
   !
   ! Globals
   !
@@ -166,7 +169,60 @@ contains
   end subroutine p3_init
 
   !=============================================================================!
-  subroutine micro_sed_func(kts, kte, ni, nk, its, ite, dt, qr, nr, prt_liq)
+  subroutine populate_input(its, ite, kts, kte, qr, nr, th, dzq, pres)
+  !=============================================================================!
+    implicit none
+
+    integer, intent(in) :: kts, kte, its, ite
+
+    real, dimension(its:ite,kts:kte), intent(inout) :: qr, nr, th, dzq, pres
+
+    integer :: i, k
+
+    ! TODO: populate with more realistic data
+
+    do i = its, ite
+       do k = kts, kte
+          qr(i,k)    = 0
+          nr(i,k)    = 0
+          th(i,k)    = 0
+          dzq(i,k)   = 0
+          pres(i,k)  = 0
+       end do
+    end do
+
+  end subroutine populate_input
+
+  !=============================================================================!
+  subroutine micro_sed_func_wrap(kts, kte, ni, nk, its, ite, dt)
+  !=============================================================================!
+    implicit none
+
+    integer, intent(in) :: kts, kte, ni, nk, its, ite, dt
+
+    real, dimension(its:ite,kts:kte) :: qr, nr, th, dzq, pres
+
+    real, dimension(ni) :: prt_liq
+
+    real :: start, finish
+
+    print '("Running micro_sed with kts=",I0," kte=",I0," ni=",I0," nk=",I0," its=",I0," ite=",I0," dt=",I0)', &
+         kts, kte, ni, nk, its, ite, dt
+
+    call populate_input(its, ite, kts, kte, qr, nr, th, dzq, pres)
+
+    call cpu_time(start)
+
+    call micro_sed_func(kts, kte, ni, nk, its, ite, dt, qr, nr, th, dzq, pres, prt_liq)
+
+    call cpu_time(finish)
+
+    print '("Time = ",f6.3," seconds.")', finish - start
+
+  end subroutine micro_sed_func_wrap
+
+  !=============================================================================!
+  subroutine micro_sed_func(kts, kte, ni, nk, its, ite, dt, qr, nr, th, dzq, pres, prt_liq)
   !=============================================================================!
     implicit none
 
@@ -182,11 +238,16 @@ contains
     ! dt: time step
     ! qr: rain, mass mixing ratio  (in/out)
     ! nr: rain, number mixing ratio (in/out)
+    ! th: potential temperature                    K
+    ! dzq: vertical grid spacing                   m
+    ! pres: pressure                               Pa
     ! prt_liq: precipitation rate, total liquid    m s-1  (output)
 
     integer, intent(in) :: kts, kte, ni, nk, its, ite, dt
 
-    real, dimension(its:ite,kts:kte), intent(inout) :: qr, nr  ! is dim (ni,nk) ?
+    real, dimension(its:ite,kts:kte), intent(inout) :: qr, nr
+
+    real, intent(in),    dimension(its:ite,kts:kte) :: th, dzq, pres
 
     real, dimension(ni), intent(out) :: prt_liq
 
@@ -198,14 +259,15 @@ contains
             fluxdiv_nx, fluxdiv_qx, inv_dum3, odt, prt_accum, tmp1, tmp2
 
     real, dimension(kts:kte) :: V_qr, V_nr, flux_qx, flux_nx
-    real, dimension(its:ite,kts:kte) :: mu_r, lamr, rhofacr, inv_dzq, rho, inv_rho
+    real, dimension(its:ite,kts:kte) :: mu_r, lamr, rhofacr, inv_dzq, rho, inv_rho, t, tmparr1
 
-    real :: start, finish
-
-    call cpu_time(start)
+    inv_dzq    = 1./dzq  ! inverse of thickness of layers
 
     ! constants
     odt      = 1./dt   ! inverse model time step
+
+    tmparr1 = (pres*1.e-5)**(RD*INV_CP)
+    t       = th    *tmparr1    !compute temperature from theta (value at beginning of microphysics step)
 
     ! direction of vertical leveling:
     !if (trim(model)=='GEM' .or. trim(model)=='KIN1D') then
@@ -221,6 +283,14 @@ contains
 
     ! Rain sedimentation:  (adaptivive substepping)
     i_loop_main: do i = its,ite
+
+       k_loop_1: do k = kbot,ktop,kdir
+          rho(i,k)     = pres(i,k)/(RD*t(i,k))
+          inv_rho(i,k) = 1./rho(i,k)
+          rhofacr(i,k) = (RHOSUR*inv_rho(i,k))**0.54
+       end do k_loop_1
+
+       ! Note, we are skipping supersaturation checks
 
        log_qxpresent = .false.
        k_qxtop       = kbot
@@ -336,10 +406,6 @@ contains
        endif qr_present
 
     enddo i_loop_main
-
-    call cpu_time(finish)
-
-    print '("Time = ",f6.3," seconds.")', finish - start
 
   end subroutine micro_sed_func
 
@@ -471,17 +537,25 @@ program micro_sed
 
   implicit none
 
-  ! TODO: realistic values for these.
-  integer, parameter :: kts=0, kte=42, ni=0, nk=42, its=0, ite=42, dt=1
+  ! kts, kte, ni, nk, its, ite, dt
+  integer, dimension(7) :: args
 
-  ! TODO: populate with data
-  real, dimension(its:ite,kts:kte) :: qr, nr
+  integer :: i
+  character(len=32) :: arg
 
-  real, dimension(ni) :: prt_liq
+  if (iargc().ne.7) then
+     write (*,*) 'Usage: micro_sed kts kte ni nk its ite dt'
+     call exit(1)
+  end if
+
+  do i = 1, 7
+     call getarg(i, arg)
+     read (arg, *) args(i)
+  end do
 
   call p3_init()
 
-  call micro_sed_func(kts, kte, ni, nk, its, ite, dt, qr, nr, prt_liq)
+  call micro_sed_func_wrap(args(1), args(2), args(3), args(4), args(5), args(6), args(7))
 
 end program micro_sed
 
