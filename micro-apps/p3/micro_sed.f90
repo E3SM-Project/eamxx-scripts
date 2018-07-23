@@ -221,6 +221,17 @@ contains
 
   end subroutine micro_sed_func_wrap
 
+  subroutine micro_sed_func_c(kts, kte, ni, nk, its, ite, dt, qr, nr, th, dzq, pres, prt_liq) bind(c)
+    use iso_c_binding
+ 
+    integer(kind=c_int), intent(in) :: kts, kte, ni, nk, its, ite, dt
+    real(kind=c_float), dimension(its:ite,kts:kte), intent(inout) :: qr, nr
+    real(kind=c_float), intent(in), dimension(its:ite,kts:kte) :: th, dzq, pres
+    real(kind=c_float), dimension(ni), intent(out) :: prt_liq
+    
+    call micro_sed_func(kts, kte, ni, nk, its, ite, dt, qr, nr, th, dzq, pres, prt_liq)
+  end subroutine micro_sed_func_c
+
   !=============================================================================!
   subroutine micro_sed_func(kts, kte, ni, nk, its, ite, dt, qr, nr, th, dzq, pres, prt_liq)
   !=============================================================================!
