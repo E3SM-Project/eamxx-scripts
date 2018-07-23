@@ -3,6 +3,8 @@
 #include <stdexcept>
 #include <string>
 
+typedef float Real;
+
 int main(int argc, char** argv)
 {
   if (argc != 8) {
@@ -14,11 +16,13 @@ int main(int argc, char** argv)
       ni(atoi(argv[3])),
       nk(atoi(argv[4])),
       its(atoi(argv[5])),
-      ite(atoi(argv[6])),
-      dt(atoi(argv[7]));
+      ite(atoi(argv[6]));
 
 
-  p3::micro_sed_vanilla::micro_sed_func_vanilla_wrap<float>(kts, kte, ni, nk, its, ite, dt);
+  Real dt(atof(argv[7]));
+
+
+  p3::micro_sed_vanilla::micro_sed_func_vanilla_wrap<Real>(kts, kte, ni, nk, its, ite, dt);
 
   return 0;
 }

@@ -66,7 +66,7 @@ void populate_input(const int its, const int ite, const int kts, const int kte,
  * prt_liq: precipitation rate, total liquid    m s-1  (output)
  */
 template <typename Real>
-void micro_sed_func_vanilla(const int kts, const int kte, const int ni, const int nk, const int its, const int ite, const int dt,
+void micro_sed_func_vanilla(const int kts, const int kte, const int ni, const int nk, const int its, const int ite, const Real dt,
                             vector_2d_t<Real> & qr, vector_2d_t<Real> & nr,
                             vector_2d_t<Real> const& th, vector_2d_t<Real> const& dzq, vector_2d_t<Real> const& pres,
                             std::vector<Real> & prt_liq)
@@ -102,7 +102,7 @@ void micro_sed_func_vanilla(const int kts, const int kte, const int ni, const in
 }
 
 template <typename Real>
-void micro_sed_func_vanilla_wrap(const int kts, const int kte, const int ni, const int nk, const int its, const int ite, const int dt)
+void micro_sed_func_vanilla_wrap(const int kts, const int kte, const int ni, const int nk, const int its, const int ite, const Real dt)
 {
   const int num_vert = kte - kts;
   const int num_horz = ite - its;
