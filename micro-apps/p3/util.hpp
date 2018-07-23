@@ -6,13 +6,6 @@
 #include <memory>
 #include <exception>
 
-namespace util {
-
-struct FILECloser { void operator() (FILE* fh) { fclose(fh); } };
-using FILEPtr = std::unique_ptr<FILE, FILECloser>;
-
-}
-
 #ifndef NDEBUG
 #define micro_assert(condition) do {                                    \
     if ( ! (condition)) {                                               \
@@ -44,5 +37,22 @@ using FILEPtr = std::unique_ptr<FILE, FILECloser>;
 //     if (condition)                                                  \
 //       Kokkos::abort(#condition " led to the exception\n" message);  \
 //   } while (0)
+
+namespace util {
+struct FILECloser { void operator() (FILE* fh) { fclose(fh); } };
+using FILEPtr = std::unique_ptr<FILE, FILECloser>;
+
+template<typename T>
+void write (const T* v, size_t sz, const FILEPtr& fid) {
+  size_t nwrite = fwrite(v, sizeof(T), sz, fid.get());
+  micro_throw_if(nwrite != sz, "write: nwrite = " << nwrite << " sz = " << sz);
+}
+
+template<typename T>
+void read (T* v, size_t sz, const FILEPtr& fid) {
+  size_t nread = fread(v, sizeof(T), sz, fid.get());
+  micro_throw_if(nread != sz, "read: nread = " << nread << " sz = " << sz);
+}
+}
 
 #endif

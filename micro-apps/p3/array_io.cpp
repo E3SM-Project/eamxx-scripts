@@ -6,24 +6,12 @@
 #include <iostream>
 
 namespace array_io {
-template<typename T>
-void write (const T* v, size_t sz, const util::FILEPtr& fid) {
-  size_t nwrite = fwrite(v, sizeof(T), sz, fid.get());
-  micro_throw_if(nwrite != sz, "write: nwrite = " << nwrite << " sz = " << sz);
-}
-
-template<typename T>
-void read (T* v, size_t sz, const util::FILEPtr& fid) {
-  size_t nread = fread(v, sizeof(T), sz, fid.get());
-  micro_throw_if(nread != sz, "read: nread = " << nread << " sz = " << sz);
-}
-
 template <typename Scalar>
 void write (const char* filename, Scalar* a, const int n) {
   util::FILEPtr fid(fopen(filename, "w"));
   micro_throw_if( ! fid, "Could not open " << filename << " for writing.");
-  write<int>(&n, 1, fid);
-  write<Scalar>(a, n, fid);
+  util::write<int>(&n, 1, fid);
+  util::write<Scalar>(a, n, fid);
 }
 
 template <typename Scalar>
@@ -31,9 +19,9 @@ void read (const char* filename, Scalar* a, const int n) {
   util::FILEPtr fid(fopen(filename, "r"));
   micro_throw_if( ! fid, "Could not open " << filename << " for reading.");
   int n_file;
-  read<int>(&n_file, 1, fid);
+  util::read<int>(&n_file, 1, fid);
   micro_throw_if(n_file != n, "Expected " << n << " but got " << n_file);
-  read<Scalar>(a, n, fid);
+  util::read<Scalar>(a, n, fid);
 }
 } // namespace array_io
 
