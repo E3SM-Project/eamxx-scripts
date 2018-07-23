@@ -3,21 +3,27 @@ module micro_sed_mod
   implicit none
 
   !
-  ! Contstants
+  ! Constants
   !
-  real, parameter :: INV_RHOW = 1.e-3,               &
-                     RHOW     = 997.,                &
-                     THRD     = 1./3.,               &
-                     SXTH     = 1./6.,               &
-                     PI       = 3.14159265,          &
-                     PIOV6    = PI*SXTH,             &
-                     CONS1    = PIOV6*RHOW,          &
-                     QSMALL   = 1.e-14,              &
-                     NSMALL   = 1.e-16,              &
-                     RD       = 287.15,              &
-                     RHOSUR   = 100000./(RD*273.15), &
-                     CP       = 1005.,               &
-                     INV_CP   = 1./CP
+  real, parameter ::                   &
+       INV_RHOW = 1.e-3,               &
+       RHOW     = 997.,                & ! density liquid water [kg/m^3]
+       THRD     = 1./3.,               &
+       SXTH     = 1./6.,               &
+       PI       = 3.14159265,          &
+       PIOV6    = PI*SXTH,             &
+       CONS1    = PIOV6*RHOW,          &
+       QSMALL   = 1.e-14,              &
+       NSMALL   = 1.e-16,              &
+       RD       = 287.15,              & ! specific gas constant of dry air [J/kg/K]
+       RHOSUR   = 100000./(RD*273.15), & ! density air at ~ sea level: (p [Pa])/(R_d (T [K])) [kg/m^3]
+       CP       = 1005.,               & ! specific heat of air, const pressure, at 300 K [J/kg/K]
+       INV_CP   = 1./CP
+
+  ! Quantities:
+  !   qr (q_r) is mass mixing ratio for rain [dimensionless]. MORE EXPLANATION NEEDED.
+  !   nr (N_r) is number mixing ratio for rain [dimensionless]. MORE EXPLANATION NEEDED.
+
   !
   ! Globals
   !
@@ -198,7 +204,8 @@ contains
   !=============================================================================!
     implicit none
 
-    integer, intent(in) :: kts, kte, ni, nk, its, ite, dt
+    integer, intent(in) :: kts, kte, ni, nk, its, ite
+    real, intent(in) :: dt
 
     real, dimension(its:ite,kts:kte) :: qr, nr, th, dzq, pres
 
@@ -206,7 +213,7 @@ contains
 
     real :: start, finish
 
-    print '("Running micro_sed with kts=",I0," kte=",I0," ni=",I0," nk=",I0," its=",I0," ite=",I0," dt=",I0)', &
+    print '("Running micro_sed with kts=",I0," kte=",I0," ni=",I0," nk=",I0," its=",I0," ite=",I0," dt=",F6.2)', &
          kts, kte, ni, nk, its, ite, dt
 
     call populate_input(its, ite, kts, kte, qr, nr, th, dzq, pres)
@@ -220,6 +227,18 @@ contains
     print '("Time = ",f6.3," seconds.")', finish - start
 
   end subroutine micro_sed_func_wrap
+
+  subroutine micro_sed_func_c(kts, kte, ni, nk, its, ite, dt, qr, nr, th, dzq, pres, prt_liq) bind(c)
+    use iso_c_binding
+ 
+    integer(kind=c_int), value, intent(in) :: kts, kte, ni, nk, its, ite
+    real(kind=c_float), value, intent(in) :: dt
+    real(kind=c_float), dimension(its:ite,kts:kte), intent(inout) :: qr, nr
+    real(kind=c_float), intent(in), dimension(its:ite,kts:kte) :: th, dzq, pres
+    real(kind=c_float), dimension(ni), intent(out) :: prt_liq
+    
+    call micro_sed_func(kts, kte, ni, nk, its, ite, dt, qr, nr, th, dzq, pres, prt_liq)
+  end subroutine micro_sed_func_c
 
   !=============================================================================!
   subroutine micro_sed_func(kts, kte, ni, nk, its, ite, dt, qr, nr, th, dzq, pres, prt_liq)
@@ -243,7 +262,8 @@ contains
     ! pres: pressure                               Pa
     ! prt_liq: precipitation rate, total liquid    m s-1  (output)
 
-    integer, intent(in) :: kts, kte, ni, nk, its, ite, dt
+    integer, intent(in) :: kts, kte, ni, nk, its, ite
+    real, intent(in) :: dt
 
     real, dimension(its:ite,kts:kte), intent(inout) :: qr, nr
 
@@ -271,7 +291,7 @@ contains
 
     ! direction of vertical leveling:
     !if (trim(model)=='GEM' .or. trim(model)=='KIN1D') then
-    if (.true.) then
+    if (kts < kte) then
        ktop = kts        !k of top level
        kbot = kte        !k of bottom level
        kdir = -1         !(k: 1=top, nk=bottom)
