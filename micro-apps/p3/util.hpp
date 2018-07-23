@@ -53,6 +53,12 @@ void read (T* v, size_t sz, const FILEPtr& fid) {
   size_t nread = fread(v, sizeof(T), sz, fid.get());
   micro_throw_if(nread != sz, "read: nread = " << nread << " sz = " << sz);
 }
+
+inline bool
+eq (const std::string& a, const char* const b1, const char* const b2 = 0) {
+  return (a == std::string(b1) || (b2 && a == std::string(b2)) ||
+          a == std::string("-") + std::string(b1));
+}
 }
 
 #endif
