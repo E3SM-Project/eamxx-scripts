@@ -3,21 +3,27 @@ module micro_sed_mod
   implicit none
 
   !
-  ! Contstants
+  ! Constants
   !
-  real, parameter :: INV_RHOW = 1.e-3,               &
-                     RHOW     = 997.,                &
-                     THRD     = 1./3.,               &
-                     SXTH     = 1./6.,               &
-                     PI       = 3.14159265,          &
-                     PIOV6    = PI*SXTH,             &
-                     CONS1    = PIOV6*RHOW,          &
-                     QSMALL   = 1.e-14,              &
-                     NSMALL   = 1.e-16,              &
-                     RD       = 287.15,              &
-                     RHOSUR   = 100000./(RD*273.15), &
-                     CP       = 1005.,               &
-                     INV_CP   = 1./CP
+  real, parameter ::                   &
+       INV_RHOW = 1.e-3,               &
+       RHOW     = 997.,                & ! density liquid water [kg/m^3]
+       THRD     = 1./3.,               &
+       SXTH     = 1./6.,               &
+       PI       = 3.14159265,          &
+       PIOV6    = PI*SXTH,             &
+       CONS1    = PIOV6*RHOW,          &
+       QSMALL   = 1.e-14,              &
+       NSMALL   = 1.e-16,              &
+       RD       = 287.15,              & ! specific gas constant of dry air [J/kg/K]
+       RHOSUR   = 100000./(RD*273.15), & ! density air at ~ sea level: (p [Pa])/(R_d (T [K])) [kg/m^3]
+       CP       = 1005.,               & ! specific heat of air, const pressure, at 300 K [J/kg/K]
+       INV_CP   = 1./CP
+
+  ! Quantities:
+  !   qr (q_r) is mass mixing ratio for rain [dimensionless]. MORE EXPLANATION NEEDED.
+  !   nr (N_r) is number mixing ratio for rain [dimensionless]. MORE EXPLANATION NEEDED.
+
   !
   ! Globals
   !
