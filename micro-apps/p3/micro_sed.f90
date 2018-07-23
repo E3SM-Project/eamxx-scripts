@@ -56,7 +56,7 @@ contains
     ! space of a scaled mean size proportional qr/Nr -- initlamr
 
     !print*, '   Generating rain lookup-table ...'
-    
+
     if ( array_io_file_exists(mu_r_filename) .and. &
          array_io_file_exists(vn_filename) .and. &
          array_io_file_exists(vm_filename)) then

@@ -7,6 +7,7 @@ include(CTest)
 
 set(CMAKE_BUILD_TYPE RELEASE CACHE STRING "Select build type.")
 
+# Always add warnings
 set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -Wall")
 
 enable_testing()

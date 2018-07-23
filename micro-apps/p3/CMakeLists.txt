@@ -18,6 +18,9 @@ target_link_libraries(run_and_cmp microsed)
 add_custom_target(baseline
   COMMAND $<TARGET_FILE:run_and_cmp> -g run_and_cmp.baseline)
 
+add_executable(micro_sed_vanilla micro_sed_vanilla_driver.cpp)
+
 add_test(run_unit_test unit_test_f90)
 add_test(run_micro_sed micro_sed 1 2 3 4 5 6 1)
 add_test(micro_sed_func_regression run_and_cmp run_and_cmp.baseline)
+add_test(run_micro_sed_vanilla micro_sed_vanilla 1 2 3 4 5 6 1)
