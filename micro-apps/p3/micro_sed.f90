@@ -271,7 +271,7 @@ contains
 
     ! direction of vertical leveling:
     !if (trim(model)=='GEM' .or. trim(model)=='KIN1D') then
-    if (.true.) then
+    if (kts < kte) then
        ktop = kts        !k of top level
        kbot = kte        !k of bottom level
        kdir = -1         !(k: 1=top, nk=bottom)
