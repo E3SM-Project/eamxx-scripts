@@ -3,7 +3,7 @@
 #include <stdexcept>
 #include <string>
 
-typedef double Real;
+using Real = double;
 
 int main(int argc, char** argv)
 {
@@ -18,9 +18,7 @@ int main(int argc, char** argv)
       its(atoi(argv[5])),
       ite(atoi(argv[6]));
 
-
   Real dt(atof(argv[7]));
-
 
   p3::micro_sed_vanilla::micro_sed_func_vanilla_wrap<Real>(kts, kte, ni, nk, its, ite, dt);
 

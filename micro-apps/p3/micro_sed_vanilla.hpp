@@ -13,7 +13,7 @@ template <typename Real>
 using vector_2d_t = std::vector<std::vector<Real> >;
 
 template <typename Real>
-struct Consts
+struct Globals
 {
   static constexpr Real INV_RHOW = 1.e-3;
   static constexpr Real RHOW     = 997.0;
@@ -28,10 +28,22 @@ struct Consts
   static constexpr Real RHOSUR   = 100000.0/(RD*273.15);
   static constexpr Real CP       = 1005.0;
   static constexpr Real INV_CP   = 1.0/CP;
+
+  static vector_2d_t<Real> VN_TABLE, VM_TABLE;
+  static std::vector<Real> MU_R_TABLE;
 };
 
-vector_2d_t<double> VN_TABLE, VM_TABLE;
-std::vector<double> MU_R_TABLE;
+template <typename Real>
+vector_2d_t<Real> Globals<Real>::VN_TABLE;
+
+template <typename Real>
+vector_2d_t<Real> Globals<Real>::VM_TABLE;
+
+template <typename Real>
+std::vector<Real> Globals<Real>::MU_R_TABLE;
+
+template <typename Real>
+constexpr Real Globals<Real>::NSMALL;
 
 template <typename Real>
 void populate_input(const int its, const int ite, const int kts, const int kte,
@@ -70,7 +82,7 @@ void find_lookupTable_indices_3(int& dumii, int& dumjj, Real& rdumii, Real& rdum
     dumii  = std::min(dumii,20);
   }
   else if (dum1 > 195.e-6) {
-    inv_dum3  = Consts<Real>::THRD*0.1;           // i.e. 1/30
+    inv_dum3  = Globals<Real>::THRD*0.1;           // i.e. 1/30
     rdumii = (dum1*1.e+6-195.)*inv_dum3 + 20.;
     rdumii = std::max(rdumii, 20.);
     rdumii = std::min(rdumii,300.);
@@ -95,15 +107,14 @@ template <typename Real>
 void get_rain_dsd2(const Real qr, Real& nr, Real& mu_r, Real& rdumii, int& dumii, Real& lamr, std::vector<Real> const& mu_r_table,
                    Real& cdistr, Real& logn0r)
 {
-  if (qr >= Consts<Real>::QSMALL) {
+  if (qr >= Globals<Real>::QSMALL) {
     // use lookup table to get mu
     // mu-lambda relationship is from Cao et al. (2008), eq. (7)
 
     // find spot in lookup table
     // (scaled N/q for lookup table parameter space_
-    const Real nsmall = Consts<Real>::NSMALL; // make linker happy
-    nr = std::max(nr, nsmall);
-    Real inv_dum = std::pow(qr / (Consts<Real>::CONS1 * nr * 6.0), Consts<Real>::THRD);
+    nr = std::max(nr, Globals<Real>::NSMALL);
+    Real inv_dum = std::pow(qr / (Globals<Real>::CONS1 * nr * 6.0), Globals<Real>::THRD);
 
     if (inv_dum < 282.e-6) {
       mu_r = 8.282;
@@ -121,18 +132,18 @@ void get_rain_dsd2(const Real qr, Real& nr, Real& mu_r, Real& rdumii, int& dumii
       mu_r = 0.0;
     }
 
-    lamr   = std::pow((Consts<Real>::CONS1 *nr *(mu_r+3.0) * (mu_r+2) * (mu_r+1.)/(qr)), Consts<Real>::THRD); // recalculate slope based on mu_r
+    lamr   = std::pow((Globals<Real>::CONS1 *nr *(mu_r+3.0) * (mu_r+2) * (mu_r+1.)/(qr)), Globals<Real>::THRD); // recalculate slope based on mu_r
     Real lammax = (mu_r+1.)*1.e+5;  // check for slope
     Real lammin = (mu_r+1.)*1250.0; // set to small value since breakup is explicitly included (mean size 0.8 mm)
 
     // apply lambda limiters for rain
     if (lamr < lammin) {
       lamr = lammin;
-      nr   = std::exp(3.*std::log(lamr) + std::log(qr) + std::log(std::tgamma(mu_r+1.)) - std::log(std::tgamma(mu_r+4.)))/(Consts<Real>::CONS1);
+      nr   = std::exp(3.*std::log(lamr) + std::log(qr) + std::log(std::tgamma(mu_r+1.)) - std::log(std::tgamma(mu_r+4.)))/(Globals<Real>::CONS1);
     }
     else if (lamr > lammax) {
       lamr = lammax;
-      nr   = std::exp(3.*std::log(lamr) + std::log(qr) + std::log(std::tgamma(mu_r+1.)) - log(std::tgamma(mu_r+4.)))/(Consts<Real>::CONS1);
+      nr   = std::exp(3.*std::log(lamr) + std::log(qr) + std::log(std::tgamma(mu_r+1.)) - log(std::tgamma(mu_r+4.)))/(Globals<Real>::CONS1);
     }
 
     cdistr  = nr/std::tgamma(mu_r+1.);
@@ -187,7 +198,7 @@ void micro_sed_func_vanilla(const int kts, const int kte, const int ni, const in
   for (int i = 0; i < num_horz; ++i) {
     for (int k = 0; k < num_vert; ++k) {
       inv_dzq[i][k] = 1 / dzq[i][k];
-      t[i][k] = std::pow(pres[i][k] * 1.e-5, Consts<Real>::RD * Consts<Real>::INV_CP) * th[i][k];
+      t[i][k] = std::pow(pres[i][k] * 1.e-5, Globals<Real>::RD * Globals<Real>::INV_CP) * th[i][k];
     }
   }
 
@@ -203,9 +214,9 @@ void micro_sed_func_vanilla(const int kts, const int kte, const int ni, const in
   for (int i = 0; i < num_horz; ++i) {
 
     for (int k = kbot; k != ktop; k+=kdir) {
-      rho[i][k] = pres[i][k] / (Consts<Real>::RD * t[i][k]);
+      rho[i][k] = pres[i][k] / (Globals<Real>::RD * t[i][k]);
       inv_rho[i][k] = 1.0 / rho[i][k];
-      rhofacr[i][k] = std::pow(Consts<Real>::RHOSUR * inv_rho[i][k], 0.54);
+      rhofacr[i][k] = std::pow(Globals<Real>::RHOSUR * inv_rho[i][k], 0.54);
     }
 
     // Note, we are skipping supersaturation checks
@@ -215,7 +226,7 @@ void micro_sed_func_vanilla(const int kts, const int kte, const int ni, const in
 
     // find top, determine qxpresent
     for (int k = ktop; k != kbot; k-=kdir) {
-      if (qr[i][k] >= Consts<Real>::QSMALL) {
+      if (qr[i][k] >= Globals<Real>::QSMALL) {
         log_qxpresent = true;
         k_qxtop = k;
         break;
@@ -230,7 +241,7 @@ void micro_sed_func_vanilla(const int kts, const int kte, const int ni, const in
 
       // find bottom
       for (int k = kbot; k != k_qxtop; k+=kdir) {
-        if (qr[i][k] >= Consts<Real>::QSMALL) {
+        if (qr[i][k] >= Globals<Real>::QSMALL) {
           k_qxbot = k;
           break;
         }
@@ -244,24 +255,27 @@ void micro_sed_func_vanilla(const int kts, const int kte, const int ni, const in
         }
 
         for (int k = k_qxtop; k != k_qxbot; k-=kdir) {
-          if (qr[i][k] > Consts<Real>::QSMALL) {
+          if (qr[i][k] > Globals<Real>::QSMALL) {
             // Compute Vq, Vn:
-            const Real nsmall = Consts<Real>::NSMALL; // make linker happy
-            nr[i][k] = std::max(nr[i][k], nsmall);
+            nr[i][k] = std::max(nr[i][k], Globals<Real>::NSMALL);
             Real rdumii, tmp1, tmp2, rdumjj, inv_dum3;
             int dumii, dumjj;
-            get_rain_dsd2(qr[i][k], nr[i][k], mu_r[i][k], rdumii, dumii, lamr[i][k], MU_R_TABLE, tmp1, tmp2);
+            get_rain_dsd2(qr[i][k], nr[i][k], mu_r[i][k], rdumii, dumii, lamr[i][k], Globals<Real>::MU_R_TABLE, tmp1, tmp2);
             find_lookupTable_indices_3(dumii, dumjj, rdumii, rdumjj, inv_dum3, mu_r[i][k], lamr[i][k]);
 
             // mass-weighted fall speed:
-            Real dum1 = VM_TABLE[dumii][dumjj] + (rdumii-dumii) * inv_dum3 * (VM_TABLE[dumii+1][dumjj] - VM_TABLE[dumii][dumjj]);
-            Real dum2 = VM_TABLE[dumii][dumjj+1] + (rdumii-dumii) * inv_dum3 * (VM_TABLE[dumii+1][dumjj+1] - VM_TABLE[dumii][dumjj+1]);
+            Real dum1 = Globals<Real>::VM_TABLE[dumii][dumjj] + (rdumii-dumii) * inv_dum3 * \
+              (Globals<Real>::VM_TABLE[dumii+1][dumjj] - Globals<Real>::VM_TABLE[dumii][dumjj]);
+            Real dum2 = Globals<Real>::VM_TABLE[dumii][dumjj+1] + (rdumii-dumii) * inv_dum3 * \
+              (Globals<Real>::VM_TABLE[dumii+1][dumjj+1] - Globals<Real>::VM_TABLE[dumii][dumjj+1]);
 
             V_qr[k] = (dum1 + (rdumjj - dumjj) * (dum2 - dum1)) * rhofacr[i][k];
 
             // number-weighted fall speed:
-            dum1 = VN_TABLE[dumii][dumjj] + (rdumii-dumii) * inv_dum3 * (VN_TABLE[dumii+1][dumjj] - VN_TABLE[dumii][dumjj]);
-            dum2 = VN_TABLE[dumii][dumjj+1] + (rdumii-dumii) * inv_dum3 * (VN_TABLE[dumii+1][dumjj+1] - VN_TABLE[dumii][dumjj+1]);
+            dum1 = Globals<Real>::VN_TABLE[dumii][dumjj] + (rdumii-dumii) * inv_dum3 * \
+              (Globals<Real>::VN_TABLE[dumii+1][dumjj] - Globals<Real>::VN_TABLE[dumii][dumjj]);
+            dum2 = Globals<Real>::VN_TABLE[dumii][dumjj+1] + (rdumii-dumii) * inv_dum3 * \
+              (Globals<Real>::VN_TABLE[dumii+1][dumjj+1] - Globals<Real>::VN_TABLE[dumii][dumjj+1]);
 
             V_nr[k] = (dum1 + (rdumjj - dumjj) * (dum2 - dum1)) * rhofacr[i][k];
           }
@@ -309,7 +323,7 @@ void micro_sed_func_vanilla(const int kts, const int kte, const int ni, const in
         }
       }
 
-      prt_liq[i] += prt_accum * Consts<Real>::INV_RHOW * odt;
+      prt_liq[i] += prt_accum * Globals<Real>::INV_RHOW * odt;
     }
   }
 }
