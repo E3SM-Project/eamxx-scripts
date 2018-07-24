@@ -3,7 +3,7 @@
 #include <stdexcept>
 #include <string>
 
-typedef float Real;
+typedef double Real;
 
 int main(int argc, char** argv)
 {

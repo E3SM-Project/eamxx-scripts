@@ -30,11 +30,14 @@ struct Consts
   static constexpr Real INV_CP   = 1.0/CP;
 };
 
+vector_2d_t<double> VN_TABLE, VM_TABLE;
+std::vector<double> MU_R_TABLE;
+
 template <typename Real>
 void populate_input(const int its, const int ite, const int kts, const int kte,
                     vector_2d_t<Real> & qr, vector_2d_t<Real> & nr, vector_2d_t<Real> & th, vector_2d_t<Real> & dzq, vector_2d_t<Real> & pres)
 {
-  const int num_vert = kte - kts;
+  const int num_vert = abs(kte - kts);
   const int num_horz = ite - its;
 
   for (int i = 0; i < num_horz; ++i) {
@@ -47,6 +50,100 @@ void populate_input(const int its, const int ite, const int kts, const int kte,
     }
   }
 }
+
+/**
+ * Finds indices in rain lookup table (3)
+ */
+template <typename Real>
+void find_lookupTable_indices_3(int& dumii, int& dumjj, Real& rdumii, Real& rdumjj, Real& inv_dum3,
+                                const Real mu_r, const Real lamr)
+{
+  // find location in scaled mean size space
+  Real dum1 = (mu_r+1.) / lamr;
+  if (dum1 <= 195.e-6) {
+    inv_dum3  = 0.1;
+    rdumii = (dum1*1.e6+5.)*inv_dum3;
+    rdumii = std::max(rdumii, 1.);
+    rdumii = std::min(rdumii,20.);
+    dumii  = static_cast<int>(rdumii);
+    dumii  = std::max(dumii, 1);
+    dumii  = std::min(dumii,20);
+  }
+  else if (dum1 > 195.e-6) {
+    inv_dum3  = Consts<Real>::THRD*0.1;           // i.e. 1/30
+    rdumii = (dum1*1.e+6-195.)*inv_dum3 + 20.;
+    rdumii = std::max(rdumii, 20.);
+    rdumii = std::min(rdumii,300.);
+    dumii  = static_cast<int>(rdumii);
+    dumii  = std::max(dumii, 20);
+    dumii  = std::min(dumii,299);
+  }
+
+  // find location in mu_r space
+  rdumjj = mu_r+1.;
+  rdumjj = std::max(rdumjj,1.);
+  rdumjj = std::min(rdumjj,10.);
+  dumjj  = static_cast<int>(rdumjj);
+  dumjj  = std::max(dumjj,1);
+  dumjj  = std::min(dumjj,9);
+}
+
+/**
+ * Computes and returns rain size distribution parameters
+ */
+template <typename Real>
+void get_rain_dsd2(const Real qr, Real& nr, Real& mu_r, Real& rdumii, int& dumii, Real& lamr, std::vector<Real> const& mu_r_table,
+                   Real& cdistr, Real& logn0r)
+{
+  if (qr >= Consts<Real>::QSMALL) {
+    // use lookup table to get mu
+    // mu-lambda relationship is from Cao et al. (2008), eq. (7)
+
+    // find spot in lookup table
+    // (scaled N/q for lookup table parameter space_
+    nr = std::max(nr, Consts<Real>::NSMALL);
+    Real inv_dum = std::pow(qr / (Consts<Real>::CONS1 * nr * 6.0), Consts<Real>::THRD);
+
+    if (inv_dum < 282.e-6) {
+      mu_r = 8.282;
+    }
+    else if (inv_dum >= 282.e-6 && inv_dum < 502.e-6) {
+      // interpolate
+      rdumii = (inv_dum-250.e-6)*1.e+6*0.5;
+      rdumii = std::max(rdumii,1.0);
+      rdumii = std::min(rdumii,150.0);
+      dumii  = static_cast<int>(rdumii);
+      dumii  = std::min(149,dumii);
+      mu_r   = mu_r_table[dumii] + (mu_r_table[dumii+1] - mu_r_table[dumii]) * (rdumii-dumii);
+    }
+    else if (inv_dum >= 502.e-6) {
+      mu_r = 0.0;
+    }
+
+    lamr   = std::pow((Consts<Real>::CONS1 *nr *(mu_r+3.0) * (mu_r+2) * (mu_r+1.)/(qr)), Consts<Real>::THRD); // recalculate slope based on mu_r
+    Real lammax = (mu_r+1.)*1.e+5;  // check for slope
+    Real lammin = (mu_r+1.)*1250.0; // set to small value since breakup is explicitly included (mean size 0.8 mm)
+
+    // apply lambda limiters for rain
+    if (lamr < lammin) {
+      lamr = lammin;
+      nr   = std::exp(3.*std::log(lamr) + std::log(qr) + std::log(std::tgamma(mu_r+1.)) - std::log(std::tgamma(mu_r+4.)))/(Consts<Real>::CONS1);
+    }
+    else if (lamr > lammax) {
+      lamr = lammax;
+      nr   = std::exp(3.*std::log(lamr) + std::log(qr) + std::log(std::tgamma(mu_r+1.)) - log(std::tgamma(mu_r+4.)))/(Consts<Real>::CONS1);
+    }
+
+    cdistr  = nr/std::tgamma(mu_r+1.);
+    logn0r  = std::log10(nr) + (mu_r+1.)*std::log10(lamr) - std::log10(std::tgamma(mu_r+1)); // note: logn0r is calculated as log10(n0r);
+  }
+  else {
+    lamr   = 0.0;
+    cdistr = 0.0;
+    logn0r = 0.0;
+  }
+}
+
 
 /**
  * Arg explanation
@@ -71,7 +168,7 @@ void micro_sed_func_vanilla(const int kts, const int kte, const int ni, const in
                             vector_2d_t<Real> const& th, vector_2d_t<Real> const& dzq, vector_2d_t<Real> const& pres,
                             std::vector<Real> & prt_liq)
 {
-  const int num_vert = kte - kts;
+  const int num_vert = abs(kte - kts);
   const int num_horz = ite - its;
 
   std::vector<Real> V_qr(num_vert), V_nr(num_vert), flux_qx(num_vert), flux_nx(num_vert);
@@ -85,26 +182,140 @@ void micro_sed_func_vanilla(const int kts, const int kte, const int ni, const in
                     t(num_horz,       std::vector<Real>(num_vert)),
                     tmparr1(num_horz, std::vector<Real>(num_vert));
 
+  // inverse of thickness of layers
   for (int i = 0; i < num_horz; ++i) {
     for (int k = 0; k < num_vert; ++k) {
       inv_dzq[i][k] = 1 / dzq[i][k];
+      t[i][k] = std::pow(pres[i][k] * 1.e-5, Consts<Real>::RD * Consts<Real>::INV_CP) * th[i][k];
     }
   }
 
+  // constants
   const Real odt = 1.0 / dt;
 
+  // direction of vertical leveling
+  const int ktop = (kts < kte) ? 0 : num_vert-1;
+  const int kbot = (kts < kte) ? num_vert-1 : 0;
+  const int kdir = (kts < kte) ? -1  : 1;
+
+  // Rain sedimentation:  (adaptivive substepping)
   for (int i = 0; i < num_horz; ++i) {
-    for (int k = 0; k < num_vert; ++k) {
-      tmparr1[i][k] = std::pow(pres[i][k] * 1.e-5, Consts<Real>::RD * Consts<Real>::INV_CP);
+
+    for (int k = kbot; k != ktop; k+=kdir) {
+      rho[i][k] = pres[i][k] / (Consts<Real>::RD * t[i][k]);
+      inv_rho[i][k] = 1.0 / rho[i][k];
+      rhofacr[i][k] = std::pow(Consts<Real>::RHOSUR * inv_rho[i][k], 0.54);
+    }
+
+    // Note, we are skipping supersaturation checks
+
+    bool log_qxpresent = false;
+    int k_qxtop = kbot;
+
+    // find top, determine qxpresent
+    for (int k = ktop; k != kbot; k-=kdir) {
+      if (qr[i][k] >= Consts<Real>::QSMALL) {
+        log_qxpresent = true;
+        k_qxtop = k;
+        break;
+      }
+    }
+
+    // JGF: It appears rain sedimentation is mostly nothing unless log_qxpresent is true
+    if (log_qxpresent) {
+      Real dt_left = dt;    // time remaining for sedi over full model (mp) time step
+      Real prt_accum = 0.0; // precip rate for individual category
+      int k_qxbot = 0;
+
+      // find bottom
+      for (int k = kbot; k != k_qxtop; k+=kdir) {
+        if (qr[i][k] >= Consts<Real>::QSMALL) {
+          k_qxbot = k;
+          break;
+        }
+      }
+
+      while (dt_left > 1.e-4) {
+        Real Co_max = 0.0;
+        for (int kk = 0; kk < num_vert; ++kk) {
+          V_qr[kk] = 0.0;
+          V_nr[kk] = 0.0;
+        }
+
+        for (int k = k_qxtop; k != k_qxbot; k-=kdir) {
+          if (qr[i][k] > Consts<Real>::QSMALL) {
+            // Compute Vq, Vn:
+            nr[i][k] = std::max(nr[i][k], Consts<Real>::NSMALL);
+            Real rdumii, tmp1, tmp2, rdumjj, inv_dum3;
+            int dumii, dumjj;
+            get_rain_dsd2(qr[i][k], nr[i][k], mu_r[i][k], rdumii, dumii, lamr[i][k], MU_R_TABLE, tmp1, tmp2);
+            find_lookupTable_indices_3(dumii, dumjj, rdumii, rdumjj, inv_dum3, mu_r[i][k], lamr[i][k]);
+
+            // mass-weighted fall speed:
+            Real dum1 = VM_TABLE[dumii][dumjj] + (rdumii-dumii) * inv_dum3 * (VM_TABLE[dumii+1][dumjj] - VM_TABLE[dumii][dumjj]);
+            Real dum2 = VM_TABLE[dumii][dumjj+1] + (rdumii-dumii) * inv_dum3 * (VM_TABLE[dumii+1][dumjj+1] - VM_TABLE[dumii][dumjj+1]);
+
+            V_qr[k] = (dum1 + (rdumjj - dumjj) * (dum2 - dum1)) * rhofacr[i][k];
+
+            // number-weighted fall speed:
+            dum1 = VN_TABLE[dumii][dumjj] + (rdumii-dumii) * inv_dum3 * (VN_TABLE[dumii+1][dumjj] - VN_TABLE[dumii][dumjj]);
+            dum2 = VN_TABLE[dumii][dumjj+1] + (rdumii-dumii) * inv_dum3 * (VN_TABLE[dumii+1][dumjj+1] - VN_TABLE[dumii][dumjj+1]);
+
+            V_nr[k] = (dum1 + (rdumjj - dumjj) * (dum2 - dum1)) * rhofacr[i][k];
+          }
+          Co_max = std::max(Co_max, V_qr[k] * dt_left * inv_dzq[i][k]);
+        }
+
+        // compute dt_sub
+        int tmpint1 = static_cast<int>(Co_max + 1.0);
+        Real dt_sub = std::min(dt_left, dt_left / tmpint1);
+
+        int k_temp = (k_qxbot == kbot) ? k_qxbot : (k_qxbot - kdir);
+
+        // calculate fluxes
+        for (int k = k_temp; k != k_qxtop; k+=kdir) {
+          flux_qx[k] = V_qr[k] * qr[i][k] * rho[i][k];
+          flux_nx[k] = V_nr[k] * nr[i][k] * rho[i][k];
+        }
+
+        // accumulated precip during time step
+        if (k_qxbot == kbot) {
+          prt_accum += flux_qx[kbot] * dt_sub;
+        }
+
+        // for top level only (since flux is 0 above)
+        int k = k_qxtop;
+        // compute flux divergence
+        Real fluxdiv_qx = -flux_qx[k] * inv_dzq[i][k];
+        Real fluxdiv_nx = -flux_nx[k] * inv_dzq[i][k];
+        // update prognostic variables
+        qr[i][k] += fluxdiv_qx * dt_sub * inv_rho[i][k];
+        nr[i][k] += fluxdiv_nx * dt_sub * inv_rho[i][k];
+
+        for (int k = k_qxtop - kdir; k != k_temp; k-=kdir) {
+          // compute flux divergence
+          fluxdiv_qx = (flux_qx[k+kdir] - flux_qx[k]) * inv_dzq[i][k];
+          fluxdiv_nx = (flux_nx[k+kdir] - flux_nx[k]) * inv_dzq[i][k];
+          // update prognostic variables
+          qr[i][k] += fluxdiv_qx * dt_sub * inv_rho[i][k];
+          nr[i][k] += fluxdiv_nx  *dt_sub * inv_rho[i][k];
+        }
+
+        dt_left -= dt_sub;  // update time remaining for sedimentation
+        if (k_qxbot != kbot) {
+          k_qxbot -= kdir;
+        }
+      }
+
+      prt_liq[i] += prt_accum * Consts<Real>::INV_RHOW * odt;
     }
   }
-
 }
 
 template <typename Real>
 void micro_sed_func_vanilla_wrap(const int kts, const int kte, const int ni, const int nk, const int its, const int ite, const Real dt)
 {
-  const int num_vert = kte - kts;
+  const int num_vert = abs(kte - kts);
   const int num_horz = ite - its;
 
   vector_2d_t<Real> qr(num_horz,    std::vector<Real>(num_vert)),
