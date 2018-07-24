@@ -21,8 +21,15 @@ module micro_sed_mod
        INV_CP   = 1./CP
 
   ! Quantities:
-  !   qr (q_r) is mass mixing ratio for rain [dimensionless]. MORE EXPLANATION NEEDED.
-  !   nr (N_r) is number mixing ratio for rain [dimensionless]. MORE EXPLANATION NEEDED.
+
+  !   qr (q_r) is mass mixing ratio for rain [kg/kg], i.e., dimensionless.
+
+  !   nr (N_r) is total number mixing ratio for rain [dimensionless]. It is not,
+  ! e.g., the number concentration [1/m^3].
+
+  !   Fall terminal velocities V_* have units [m/s]. the expressions for V are
+  ! weighted by [(air reference density)/(air actual density)]^0.54 (see
+  ! doi.org/10.1175/JAS3890.1 eq 5).
 
   !
   ! Globals
@@ -33,7 +40,7 @@ module micro_sed_mod
 contains
 
   !=============================================================================!
-  subroutine p3_init()
+  subroutine p3_init() bind(c)
   !=============================================================================!
     ! Generate lookup table for rain fallspeed and ventilation parameters
     ! the lookup table is two dimensional as a function of number-weighted mean size
