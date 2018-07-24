@@ -3,6 +3,7 @@
 
 namespace array_io {
 typedef float freal;
+typedef double dreal;
 }
 
 extern "C" {
@@ -10,5 +11,9 @@ extern "C" {
   bool array_io_write(const char* filename, array_io::freal** a, const int n);
   bool array_io_read(const char* filename, array_io::freal** a, const int n);
 }
+
+bool array_io_write(const char* filename, array_io::dreal** a, const int n);
+bool array_io_read(const char* filename, array_io::dreal** a, const int n);
+
 
 #endif

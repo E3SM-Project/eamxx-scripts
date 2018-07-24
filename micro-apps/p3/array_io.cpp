@@ -23,6 +23,29 @@ void read (const char* filename, Scalar* a, const int n) {
   micro_throw_if(n_file != n, "Expected " << n << " but got " << n_file);
   util::read<Scalar>(a, n, fid);
 }
+
+template <typename Scalar>
+bool array_io_write_impl (const char* filename, Scalar** a, const int n) {
+  try {
+    write(filename, *a, n);
+    return true;
+  } catch (std::exception& e) {
+    std::cerr << "array_io_write failed with: " << e.what() << "\n";
+    return false;
+  }
+}
+
+template <typename Scalar>
+bool array_io_read_impl (const char* filename, Scalar** a, const int n) {
+  try {
+    read(filename, *a, n);
+    return true;
+  } catch (std::exception& e) {
+    std::cerr << "array_io_read failed with: " << e.what() << "\n";
+    return false;
+  }
+}
+
 } // namespace array_io
 
 extern "C" {
@@ -33,22 +56,18 @@ extern "C" {
   }
 
   bool array_io_write (const char* filename, array_io::freal** a, const int n) {
-    try {
-      array_io::write(filename, *a, n);
-      return true;
-    } catch (std::exception& e) {
-      std::cerr << "array_io_write failed with: " << e.what() << "\n";
-      return false;
-    }
+    return array_io::array_io_write_impl(filename, a, n);
   }
 
   bool array_io_read (const char* filename, array_io::freal** a, const int n) {
-    try {
-      array_io::read(filename, *a, n);
-      return true;
-    } catch (std::exception& e) {
-      std::cerr << "array_io_read failed with: " << e.what() << "\n";
-      return false;
-    }
+    return array_io::array_io_read_impl(filename, a, n);
   }
+}
+
+bool array_io_write(const char* filename, array_io::dreal** a, const int n) {
+  return array_io::array_io_write_impl(filename, a, n);
+}
+
+bool array_io_read(const char* filename, array_io::dreal** a, const int n) {
+  return array_io::array_io_read_impl(filename, a, n);
 }

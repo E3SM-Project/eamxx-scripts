@@ -19,6 +19,7 @@ add_custom_target(baseline
   COMMAND $<TARGET_FILE:run_and_cmp> -g run_and_cmp.baseline)
 
 add_executable(micro_sed_vanilla micro_sed_vanilla_driver.cpp)
+target_link_libraries(micro_sed_vanilla microsed)
 
 add_test(run_unit_test unit_test_f90)
 add_test(run_micro_sed micro_sed 1 2 3 4 5 6 1)
