@@ -101,7 +101,8 @@ void get_rain_dsd2(const Real qr, Real& nr, Real& mu_r, Real& rdumii, int& dumii
 
     // find spot in lookup table
     // (scaled N/q for lookup table parameter space_
-    nr = std::max(nr, Consts<Real>::NSMALL);
+    const Real nsmall = Consts<Real>::NSMALL; // make linker happy
+    nr = std::max(nr, nsmall);
     Real inv_dum = std::pow(qr / (Consts<Real>::CONS1 * nr * 6.0), Consts<Real>::THRD);
 
     if (inv_dum < 282.e-6) {
@@ -245,7 +246,8 @@ void micro_sed_func_vanilla(const int kts, const int kte, const int ni, const in
         for (int k = k_qxtop; k != k_qxbot; k-=kdir) {
           if (qr[i][k] > Consts<Real>::QSMALL) {
             // Compute Vq, Vn:
-            nr[i][k] = std::max(nr[i][k], Consts<Real>::NSMALL);
+            const Real nsmall = Consts<Real>::NSMALL; // make linker happy
+            nr[i][k] = std::max(nr[i][k], nsmall);
             Real rdumii, tmp1, tmp2, rdumjj, inv_dum3;
             int dumii, dumjj;
             get_rain_dsd2(qr[i][k], nr[i][k], mu_r[i][k], rdumii, dumii, lamr[i][k], MU_R_TABLE, tmp1, tmp2);
