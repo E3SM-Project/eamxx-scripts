@@ -20,7 +20,7 @@ int main(int argc, char** argv)
 
   Real dt(atof(argv[7]));
 
-  p3::micro_sed_vanilla::p3_init<Real>();
+  p3::micro_sed_vanilla::p3_init_cpp<Real>();
 
   p3::micro_sed_vanilla::micro_sed_func_vanilla_wrap<Real>(kts, kte, ni, nk, its, ite, dt);
 

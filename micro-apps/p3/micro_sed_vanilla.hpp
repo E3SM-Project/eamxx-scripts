@@ -8,6 +8,13 @@
 #include <chrono>
 #include <iostream>
 
+extern "C" {
+void p3_init();
+float** c_get_vn_table();
+float** c_get_vm_table();
+float** c_get_mu_r_table();
+}
+
 namespace p3 {
 namespace micro_sed_vanilla {
 
@@ -65,33 +72,13 @@ void populate_input(const int its, const int ite, const int kts, const int kte,
   }
 }
 
-template <typename Real, size_t R, size_t C>
-bool md_array_read(const char* filename, vector_2d_t<Real> & table)
-{
-  Real buff[R*C];
-  Real* buffptr = &buff[0];
-
-  bool ok = array_io_read(filename, &buffptr, R*C);
-  if (ok) {
-    for (int i = 0; i < R; ++i) {
-      for (int k = 0; k < C; ++k) {
-        table[i][k] = buff[i*k + k];
-      }
-    }
-  }
-  else {
-    std::cerr << "Failed to read table file: " << filename << std::endl;
-  }
-  return ok;
-}
-
 /**
  * Generate lookup table for rain fallspeed and ventilation parameters
  * the lookup table is two dimensional as a function of number-weighted mean size
  * proportional to qr/Nr and shape parameter mu_r
  */
 template <typename Real>
-void p3_init()
+void p3_init_cpp()
 {
   static bool is_init = false;
   if (is_init) {
@@ -99,67 +86,26 @@ void p3_init()
   }
   is_init = true;
 
-  const char* mu_r_filename = "mu_r_table.dat";
-  const char* vn_filename = "vn_table.dat";
-  const char* vm_filename = "vm_table.dat";
-
   Globals<Real>::VN_TABLE.resize(300, std::vector<Real>(10));
   Globals<Real>::VM_TABLE.resize(300, std::vector<Real>(10));
   Globals<Real>::MU_R_TABLE.resize(150);
 
-  Real* mu_r_data = Globals<Real>::MU_R_TABLE.data();
+  p3_init();
 
-  if (array_io_file_exists(mu_r_filename) &&
-      array_io_file_exists(vn_filename) &&
-      array_io_file_exists(vm_filename)) {
-    bool ok = \
-      md_array_read<Real, 300, 10>(vn_filename, Globals<Real>::VN_TABLE) &&
-      md_array_read<Real, 300, 10>(vm_filename, Globals<Real>::VM_TABLE) &&
-      array_io_read(mu_r_filename, &mu_r_data, Globals<Real>::MU_R_TABLE.size());
-    if (!ok) {
-      std::cerr << "p3_init: One more more table files exists but gave a read error; computing from scratch." << std::endl;
-    }
-    else {
-      return;
+  float** vn_table   = c_get_vn_table();
+  float** vm_table   = c_get_vm_table();
+  float** mu_r_table = c_get_mu_r_table();
+
+  for (int i = 0; i < 300; ++i) {
+    for (int k = 0; k < 10; ++k) {
+      Globals<Real>::VN_TABLE[i][k] = (*vn_table)[10*i + k];
+      Globals<Real>::VM_TABLE[i][k] = (*vm_table)[10*i + k];
     }
   }
 
   for (int i = 0; i < 150; ++i) {
-    Real initlamr = 1./((static_cast<Real>(i)*2.)*1.e-6 + 250.e-6);
-
-    // iterate to get mu_r
-    // mu_r-lambda relationship is from Cao et al. (2008), eq. (7)
-
-    // start with first guess, mu_r = 0
-
-    Real mu_r = 0.;
-
-    for (int ii = 0; ii < 50; ++ii) {
-      Real lamr = std::pow(initlamr*((mu_r+3.)*(mu_r+2.)*(mu_r+1.)/6.), Globals<Real>::THRD);
-
-      // new estimate for mu_r based on lambda
-      // set max lambda in formula for mu_r to 20 mm-1, so Cao et al.
-      // formula is not extrapolated beyond Cao et al. data range
-      Real dum  = std::min(20., lamr*1.e-3);
-      mu_r = std::max(0., -0.0201*std::pow(dum,2) + 0.902*dum-1.718);
-
-      // if lambda is converged within 0.1%, then exit loop
-      if (ii >= 2) {
-        if (std::abs((lamold-lamr)/lamr) < 0.001) {
-          break;
-        }
-
-        lamold = lamr;
-      }
-
-      continue;
-
-      // assign lookup table values
-      Globals<Real>::MU_R_TABLE[i] = mu_r;
-    }
+    Globals<Real>::MU_R_TABLE[i] = (*mu_r_table)[i];
   }
-
-  
 }
 
 /**

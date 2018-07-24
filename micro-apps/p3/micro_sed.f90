@@ -32,8 +32,26 @@ module micro_sed_mod
 
 contains
 
+  function c_get_vn_table() bind(c)
+    use iso_c_binding
+    type(c_ptr) :: c_get_vn_table
+    c_get_vn_table = c_loc(VN_TABLE)
+  end function c_get_vn_table
+
+  function c_get_vm_table() bind(c)
+    use iso_c_binding
+    type(c_ptr) :: c_get_vm_table
+    c_get_vm_table = c_loc(VM_TABLE)
+  end function c_get_vm_table
+
+  function c_get_mu_r_table() bind(c)
+    use iso_c_binding
+    type(c_ptr) :: c_get_mu_r_table
+    c_get_mu_r_table = c_loc(MU_R_TABLE)
+  end function c_get_mu_r_table
+
   !=============================================================================!
-  subroutine p3_init()
+  subroutine p3_init() bind(c)
   !=============================================================================!
     ! Generate lookup table for rain fallspeed and ventilation parameters
     ! the lookup table is two dimensional as a function of number-weighted mean size
