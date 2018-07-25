@@ -14,10 +14,9 @@
 extern "C" {
   void p3_init();
   void micro_sed_func_c(
-    Int kts, Int kte, Int ni, Int nk, Int its, Int ite, Real dt,
+    Int kts, Int kte, Int kdir, Int ni, Int nk, Int its, Int ite, Real dt,
     Real* qr, Real* nr, const Real* th, const Real* dzq, const Real* pres,
-    Real* prt_liq);
-  
+    Real* prt_liq);  
 }
 
 template <typename Scalar>
@@ -38,6 +37,7 @@ private:
 
 public:
   Real dt;
+  bool reverse;
   Real* qr;
   Real* nr;
   Real* th;
@@ -48,11 +48,15 @@ public:
   MicroSedData(Int ni_, Int nk_)
     : ni(ni_), nk(nk_),
       buf_(5*ni*nk + ni),
-      dt(0)
-  { init_ptrs(); }
+      dt(0), reverse(false)
+  {
+    // For now, don't deal with the issue of fast index.
+    micro_throw_if(ni > 1, "We're not yet handling chunks.");
+    init_ptrs();
+  }
 
   MicroSedData (const MicroSedData& d)
-    : ni(d.ni), nk(d.nk), dt(d.dt), buf_(d.buf_)
+    : ni(d.ni), nk(d.nk), dt(d.dt), reverse(d.reverse), buf_(d.buf_)
   { init_ptrs(); }
 };
 
@@ -136,9 +140,31 @@ static void duplicate_columns (MicroSedData<Scalar>& d) {
 }
 
 template <typename Scalar>
+static MicroSedData<Scalar> reverse_k (const MicroSedData<Scalar>& msd) {
+  const auto reverse = [&] (const Scalar* s, Scalar* d) {
+    for (Int i = 0; i < msd.ni; ++i) {
+      const Scalar* si = s + msd.nk*i;
+      Scalar* di = d + msd.nk*i;
+      for (Int k = 0; k < msd.nk; ++k)
+        di[k] = si[msd.nk - k - 1];
+    }
+  };
+  MicroSedData<Scalar> r(msd);
+  r.reverse = ! msd.reverse;
+  reverse(msd.qr, r.qr);
+  reverse(msd.nr, r.nr);
+  reverse(msd.th, r.th);
+  reverse(msd.dzq, r.dzq);
+  reverse(msd.pres, r.pres);
+  return r;
+}
+
+template <typename Scalar>
 void micro_sed_func (MicroSedData<Scalar>& d) {
-  micro_sed_func_c(1, d.nk, d.ni, d.nk, 1, d.ni, d.dt, d.qr, d.nr, d.th, d.dzq,
-                   d.pres, d.prt_liq);
+  micro_sed_func_c(1, d.nk,
+                   d.reverse ? -1 : 1,
+                   d.ni, d.nk, 1, d.ni, d.dt, d.qr, d.nr, d.th,
+                   d.dzq, d.pres, d.prt_liq);
 }
 
 template <typename Scalar>
@@ -181,6 +207,9 @@ void run_over_parameter_sets (MicroSedObserver<Scalar>& o) {
   duplicate_columns(d);
 
   o.observe(d);
+
+  const auto d_rev(reverse_k(d));
+  o.observe(d_rev);
 }
 
 struct BaselineObserver : public MicroSedObserver<Real> {
