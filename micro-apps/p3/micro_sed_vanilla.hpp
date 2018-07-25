@@ -3,6 +3,7 @@
 
 #include "array_io.hpp"
 #include "util.hpp"
+#include "initial_conditions.hpp"
 
 #include <vector>
 #include <cmath>
@@ -61,14 +62,19 @@ void populate_input(const int its, const int ite, const int kts, const int kte,
 {
   const int num_vert = abs(kte - kts);
   const int num_horz = ite - its;
+  const int num_totl = num_vert * num_horz;
+
+  std::vector<Real> flat_dzq(num_totl), flat_pres(num_totl), flat_qr(num_totl), flat_nr(num_totl);
+  ic::set_hydrostatic(num_totl, flat_dzq.data(), flat_pres.data());
+  ic::set_rain(num_totl, flat_dzq.data(), flat_qr.data(), flat_nr.data());
 
   for (int i = 0; i < num_horz; ++i) {
     for (int k = 0; k < num_vert; ++k) {
-      qr[i][k]   = 0;
-      nr[i][k]   = 0;
-      th[i][k]   = 0;
-      dzq[i][k]  = 0;
-      pres[i][k] = 0;
+      qr[i][k]   = flat_qr[i*num_vert + k];
+      nr[i][k]   = flat_nr[i*num_vert + k];
+      th[i][k]   = ic::consts::th_ref;
+      dzq[i][k]  = flat_dzq[i*num_vert + k];
+      pres[i][k] = flat_pres[i*num_vert + k];
     }
   }
 }
@@ -105,8 +111,6 @@ void p3_init_cpp()
   for (int i = 0; i < 150; ++i) {
     Globals<Real>::MU_R_TABLE[i] = mu_r_table[i];
   }
-
-
 }
 
 /**
@@ -281,6 +285,7 @@ void micro_sed_func_vanilla(const int kts, const int kte, const int ni, const in
 
     // JGF: It appears rain sedimentation is mostly nothing unless log_qxpresent is true
     if (log_qxpresent) {
+
       Real dt_left = dt;    // time remaining for sedi over full model (mp) time step
       Real prt_accum = 0.0; // precip rate for individual category
       int k_qxbot = 0;

@@ -1,7 +1,6 @@
 #include "micro_sed_vanilla.hpp"
+#include "types.hpp"
 #include "util.hpp"
-
-using Real = double;
 
 int main(int argc, char** argv)
 {
