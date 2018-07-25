@@ -21,8 +21,15 @@ module micro_sed_mod
        INV_CP   = 1./CP
 
   ! Quantities:
-  !   qr (q_r) is mass mixing ratio for rain [dimensionless]. MORE EXPLANATION NEEDED.
-  !   nr (N_r) is number mixing ratio for rain [dimensionless]. MORE EXPLANATION NEEDED.
+
+  !   qr (q_r) is mass mixing ratio for rain [kg/kg], i.e., dimensionless.
+
+  !   nr (N_r) is total number mixing ratio for rain [dimensionless]. It is not,
+  ! e.g., the number concentration [1/m^3].
+
+  !   Fall terminal velocities V_* have units [m/s]. the expressions for V are
+  ! weighted by [(air reference density)/(air actual density)]^0.54 (see
+  ! doi.org/10.1175/JAS3890.1 eq 5).
 
   !
   ! Globals
@@ -218,11 +225,11 @@ contains
   end subroutine populate_input
 
   !=============================================================================!
-  subroutine micro_sed_func_wrap(kts, kte, ni, nk, its, ite, dt)
+  subroutine micro_sed_func_wrap(kts, kte, kdir, ni, nk, its, ite, dt)
   !=============================================================================!
     implicit none
 
-    integer, intent(in) :: kts, kte, ni, nk, its, ite
+    integer, intent(in) :: kts, kte, kdir, ni, nk, its, ite
     real, intent(in) :: dt
 
     real, dimension(its:ite,kts:kte) :: qr, nr, th, dzq, pres
@@ -231,14 +238,14 @@ contains
 
     real :: start, finish
 
-    print '("Running micro_sed with kts=",I0," kte=",I0," ni=",I0," nk=",I0," its=",I0," ite=",I0," dt=",F6.2)', &
-         kts, kte, ni, nk, its, ite, dt
+    print '("Running micro_sed with kts=",I0," kte=",I0," kdir=",I0," ni=",I0," nk=",I0," its=",I0," ite=",I0," dt=",F6.2)', &
+         kts, kte, kdir, ni, nk, its, ite, dt
 
     call populate_input(its, ite, kts, kte, qr, nr, th, dzq, pres)
 
     call cpu_time(start)
 
-    call micro_sed_func(kts, kte, ni, nk, its, ite, dt, qr, nr, th, dzq, pres, prt_liq)
+    call micro_sed_func(kts, kte, kdir, ni, nk, its, ite, dt, qr, nr, th, dzq, pres, prt_liq)
 
     call cpu_time(finish)
 
@@ -246,28 +253,29 @@ contains
 
   end subroutine micro_sed_func_wrap
 
-  subroutine micro_sed_func_c(kts, kte, ni, nk, its, ite, dt, qr, nr, th, dzq, pres, prt_liq) bind(c)
+  subroutine micro_sed_func_c(kts, kte, kdir, ni, nk, its, ite, dt, qr, nr, th, dzq, pres, prt_liq) bind(c)
     use iso_c_binding
 
-    integer(kind=c_int), value, intent(in) :: kts, kte, ni, nk, its, ite
+    integer(kind=c_int), value, intent(in) :: kts, kte, kdir, ni, nk, its, ite
     real(kind=c_float), value, intent(in) :: dt
     real(kind=c_float), dimension(its:ite,kts:kte), intent(inout) :: qr, nr
     real(kind=c_float), intent(in), dimension(its:ite,kts:kte) :: th, dzq, pres
     real(kind=c_float), dimension(ni), intent(out) :: prt_liq
 
-    call micro_sed_func(kts, kte, ni, nk, its, ite, dt, qr, nr, th, dzq, pres, prt_liq)
+    call micro_sed_func(kts, kte, kdir, ni, nk, its, ite, dt, qr, nr, th, dzq, pres, prt_liq)
   end subroutine micro_sed_func_c
 
   !=============================================================================!
-  subroutine micro_sed_func(kts, kte, ni, nk, its, ite, dt, qr, nr, th, dzq, pres, prt_liq)
+  subroutine micro_sed_func(kts, kte, kdir, ni, nk, its, ite, dt, qr, nr, th, dzq, pres, prt_liq)
   !=============================================================================!
     implicit none
 
     !
     ! Arg explanation
     !
-    ! kts: vertical array bound (top)
-    ! kte: vertical array bound (bottom)
+    ! kts: vertical array bound
+    ! kte: vertical array bound; kte > kts
+    ! kdir: 1 if k=1 is the surface, -1 if k=1 is the top
     ! ni: number of columns in slab
     ! nk: number of vertical levels
     ! its: horizontal array bound
@@ -280,7 +288,7 @@ contains
     ! pres: pressure                               Pa
     ! prt_liq: precipitation rate, total liquid    m s-1  (output)
 
-    integer, intent(in) :: kts, kte, ni, nk, its, ite
+    integer, intent(in) :: kts, kte, kdir, ni, nk, its, ite
     real, intent(in) :: dt
 
     real, dimension(its:ite,kts:kte), intent(inout) :: qr, nr
@@ -289,7 +297,7 @@ contains
 
     real, dimension(ni), intent(out) :: prt_liq
 
-    integer :: i,k,ktop,kbot,kdir,k_qxbot,k_qxtop,k_temp,tmpint1, dumii, dumjj
+    integer :: i,k,ktop,kbot,k_qxbot,k_qxtop,k_temp,tmpint1, dumii, dumjj
 
     logical :: log_qxpresent
 
@@ -308,18 +316,15 @@ contains
     t       = th    *tmparr1    !compute temperature from theta (value at beginning of microphysics step)
 
     ! direction of vertical leveling:
-    !if (trim(model)=='GEM' .or. trim(model)=='KIN1D') then
-    if (kts < kte) then
+    if (kdir == -1) then
        ktop = kts        !k of top level
        kbot = kte        !k of bottom level
-       kdir = -1         !(k: 1=top, nk=bottom)
     else
        ktop = kte        !k of top level
        kbot = kts        !k of bottom level
-       kdir = 1          !(k: 1=bottom, nk=top)
     endif
 
-    ! Rain sedimentation:  (adaptivive substepping)
+    ! Rain sedimentation:  (adaptive substepping)
     i_loop_main: do i = its,ite
 
        k_loop_1: do k = kbot,ktop,kdir

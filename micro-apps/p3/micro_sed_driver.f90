@@ -24,6 +24,6 @@ program micro_sed
   call p3_init()
 
   dt = args(7)
-  call micro_sed_func_wrap(args(1), args(2), args(3), args(4), args(5), args(6), dt)
+  call micro_sed_func_wrap(args(1), args(2), 1, args(3), args(4), args(5), args(6), dt)
 
 end program micro_sed
