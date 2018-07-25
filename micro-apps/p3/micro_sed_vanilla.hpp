@@ -2,6 +2,7 @@
 #define MICRO_SED_VANILLA_HPP
 
 #include "array_io.hpp"
+#include "util.hpp"
 
 #include <vector>
 #include <cmath>
@@ -10,9 +11,9 @@
 
 extern "C" {
 void p3_init();
-float** c_get_vn_table();
-float** c_get_vm_table();
-float** c_get_mu_r_table();
+float* c_get_vn_table();
+float* c_get_vm_table();
+float* c_get_mu_r_table();
 }
 
 namespace p3 {
@@ -81,9 +82,7 @@ template <typename Real>
 void p3_init_cpp()
 {
   static bool is_init = false;
-  if (is_init) {
-    throw std::runtime_error("p3_init called twice");
-  }
+  micro_throw_if(is_init, "p3_init called twice");
   is_init = true;
 
   Globals<Real>::VN_TABLE.resize(300, std::vector<Real>(10));
@@ -92,20 +91,22 @@ void p3_init_cpp()
 
   p3_init();
 
-  float** vn_table   = c_get_vn_table();
-  float** vm_table   = c_get_vm_table();
-  float** mu_r_table = c_get_mu_r_table();
+  float* vn_table   = c_get_vn_table();
+  float* vm_table   = c_get_vm_table();
+  float* mu_r_table = c_get_mu_r_table();
 
   for (int i = 0; i < 300; ++i) {
     for (int k = 0; k < 10; ++k) {
-      Globals<Real>::VN_TABLE[i][k] = (*vn_table)[10*i + k];
-      Globals<Real>::VM_TABLE[i][k] = (*vm_table)[10*i + k];
+      Globals<Real>::VN_TABLE[i][k] = vn_table[300*k + i];
+      Globals<Real>::VM_TABLE[i][k] = vm_table[300*k + i];
     }
   }
 
   for (int i = 0; i < 150; ++i) {
-    Globals<Real>::MU_R_TABLE[i] = (*mu_r_table)[i];
+    Globals<Real>::MU_R_TABLE[i] = mu_r_table[i];
   }
+
+
 }
 
 /**

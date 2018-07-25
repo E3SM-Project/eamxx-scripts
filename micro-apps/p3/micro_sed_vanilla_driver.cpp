@@ -1,4 +1,5 @@
 #include "micro_sed_vanilla.hpp"
+#include "util.hpp"
 
 #include <stdexcept>
 #include <string>
@@ -7,9 +8,7 @@ using Real = double;
 
 int main(int argc, char** argv)
 {
-  if (argc != 8) {
-    throw std::runtime_error(std::string("Usage: micro_sed kts kte ni nk its ite dt"));
-  }
+  micro_throw_if(argc != 8, "Usage: micro_sed kts kte ni nk its ite dt");
 
   int kts(atoi(argv[1])),
       kte(atoi(argv[2])),
