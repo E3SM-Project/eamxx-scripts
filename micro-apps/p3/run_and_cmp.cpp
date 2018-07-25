@@ -15,7 +15,7 @@ extern "C" {
   void micro_sed_func_c(
     Int kts, Int kte, Int kdir, Int ni, Int nk, Int its, Int ite, Real dt,
     Real* qr, Real* nr, const Real* th, const Real* dzq, const Real* pres,
-    Real* prt_liq);  
+    Real* prt_liq);
 }
 
 template <typename Scalar>
@@ -281,7 +281,7 @@ static Int run_and_cmp (const std::string& bfn, const Real& tol) {
         if (false) { // Super-vanilla C++.
           std::stringstream ss;
           ss << "Super-vanilla C++ step " << step;
-          nerr += compare(ss.str(), d_ref, d_vanilla_cpp, tol);          
+          nerr += compare(ss.str(), d_ref, d_vanilla_cpp, tol);
         }
       }
     }
@@ -315,7 +315,9 @@ int main (int argc, char** argv) {
     }
   }
 
-  const std::string baseline_fn(argv[argc-1]);
+  // Always decorate baseline name with precision info
+  std::string baseline_fn(argv[argc-1]);
+  baseline_fn += std::to_string(sizeof(Real));
 
   Int out = 0;
   if (generate) {

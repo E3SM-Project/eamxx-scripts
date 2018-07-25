@@ -2,6 +2,12 @@ module micro_sed_mod
 
   implicit none
 
+#ifdef DOUBLE_PRECISION
+#define c_real c_double
+#else
+#define c_real c_float
+#endif
+
   !
   ! Constants
   !
@@ -239,17 +245,10 @@ contains
     use iso_c_binding
 
     integer(kind=c_int), value, intent(in) :: kts, kte, kdir, ni, nk, its, ite
-#ifdef DOUBLE_PRECISION
-    real(kind=c_double), value, intent(in) :: dt
-    real(kind=c_double), dimension(its:ite,kts:kte), intent(inout) :: qr, nr
-    real(kind=c_double), intent(in), dimension(its:ite,kts:kte) :: th, dzq, pres
-    real(kind=c_double), dimension(ni), intent(out) :: prt_liq
-#else
-    real(kind=c_float), value, intent(in) :: dt
-    real(kind=c_float), dimension(its:ite,kts:kte), intent(inout) :: qr, nr
-    real(kind=c_float), intent(in), dimension(its:ite,kts:kte) :: th, dzq, pres
-    real(kind=c_float), dimension(ni), intent(out) :: prt_liq
-#endif
+    real(kind=c_real), value, intent(in) :: dt
+    real(kind=c_real), dimension(its:ite,kts:kte), intent(inout) :: qr, nr
+    real(kind=c_real), intent(in), dimension(its:ite,kts:kte) :: th, dzq, pres
+    real(kind=c_real), dimension(ni), intent(out) :: prt_liq
 
     call micro_sed_func(kts, kte, kdir, ni, nk, its, ite, dt, qr, nr, th, dzq, pres, prt_liq)
   end subroutine micro_sed_func_c
