@@ -3,6 +3,7 @@
 
 #include <cassert>
 #include <cmath>
+#include <vector>
 
 #include "types.hpp"
 
@@ -72,6 +73,103 @@ static void set_rain (const Int nk, const Scalar* const dz,
   }
 }
 
+template <typename Scalar>
+struct MicroSedData {
+  const Int ni, nk;
+
+private:
+  std::vector<Scalar> buf_;
+
+  void init_ptrs () {
+    qr = buf_.data();
+    nr = qr + ni*nk;
+    th = nr + ni*nk;
+    dzq = th + ni*nk;
+    pres = dzq + ni*nk;
+    prt_liq = pres + ni;
+  }
+
+public:
+  Real dt;
+  bool reverse;
+  Real* qr;
+  Real* nr;
+  Real* th;
+  Real* dzq;  // Not sure what 'q' means here, but this is dz [m].
+  Real* pres;
+  Real* prt_liq;
+
+  MicroSedData(Int ni_, Int nk_)
+    : ni(ni_), nk(nk_),
+      buf_(5*ni*nk + ni),
+      dt(0), reverse(false)
+  {
+    // For now, don't deal with the issue of fast index.
+    micro_throw_if(ni > 1, "We're not yet handling chunks.");
+    init_ptrs();
+  }
+
+  MicroSedData (const MicroSedData& d)
+    : ni(d.ni), nk(d.nk), dt(d.dt), reverse(d.reverse), buf_(d.buf_)
+  { init_ptrs(); }
+
+  void populate()
+  {
+    set_hydrostatic(nk, dzq, pres);
+
+    for (Int k = 0; k < nk; ++k)
+      th[k] = consts::th_ref;
+
+    set_rain(nk, dzq, qr, nr);
+
+    for (Int i = 0; i < ni; ++i)
+      prt_liq[i] = 0;
+
+    duplicate_columns(*this);
+  }
+};
+
+template <typename Scalar>
+static void duplicate_columns (MicroSedData<Scalar>& d) {
+  const auto copy = [&] (Scalar* v, const Int& i) {
+    std::copy(v, v + d.nk, v + i*d.nk);
+  };
+  for (Int i = 1; i < d.ni; ++i) {
+    copy(d.qr, i);
+    copy(d.nr, i);
+    copy(d.th, i);
+    copy(d.dzq, i);
+    copy(d.pres, i);
+    d.prt_liq[i] = d.prt_liq[0];
+  }
+}
+
+template <typename Scalar>
+static MicroSedData<Scalar> reverse_k (const MicroSedData<Scalar>& msd) {
+  const auto reverse = [&] (const Scalar* s, Scalar* d) {
+    for (Int i = 0; i < msd.ni; ++i) {
+      const Scalar* si = s + msd.nk*i;
+      Scalar* di = d + msd.nk*i;
+      for (Int k = 0; k < msd.nk; ++k)
+        di[k] = si[msd.nk - k - 1];
+    }
+  };
+  MicroSedData<Scalar> r(msd);
+  r.reverse = ! msd.reverse;
+  reverse(msd.qr, r.qr);
+  reverse(msd.nr, r.nr);
+  reverse(msd.th, r.th);
+  reverse(msd.dzq, r.dzq);
+  reverse(msd.pres, r.pres);
+  return r;
+}
+
 } // namespace ic
+
+extern "C" {
+
+void fully_populate_input_data();
+
+}
 
 #endif

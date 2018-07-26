@@ -19,83 +19,7 @@ extern "C" {
 }
 
 template <typename Scalar>
-struct MicroSedData {
-  const Int ni, nk;
-
-private:
-  std::vector<Scalar> buf_;
-
-  void init_ptrs () {
-    qr = buf_.data();
-    nr = qr + ni*nk;
-    th = nr + ni*nk;
-    dzq = th + ni*nk;
-    pres = dzq + ni*nk;
-    prt_liq = pres + ni;
-  }
-
-public:
-  Real dt;
-  bool reverse;
-  Real* qr;
-  Real* nr;
-  Real* th;
-  Real* dzq;  // Not sure what 'q' means here, but this is dz [m].
-  Real* pres;
-  Real* prt_liq;
-
-  MicroSedData(Int ni_, Int nk_)
-    : ni(ni_), nk(nk_),
-      buf_(5*ni*nk + ni),
-      dt(0), reverse(false)
-  {
-    // For now, don't deal with the issue of fast index.
-    micro_throw_if(ni > 1, "We're not yet handling chunks.");
-    init_ptrs();
-  }
-
-  MicroSedData (const MicroSedData& d)
-    : ni(d.ni), nk(d.nk), dt(d.dt), reverse(d.reverse), buf_(d.buf_)
-  { init_ptrs(); }
-};
-
-template <typename Scalar>
-static void duplicate_columns (MicroSedData<Scalar>& d) {
-  const auto copy = [&] (Scalar* v, const Int& i) {
-    std::copy(v, v + d.nk, v + i*d.nk);
-  };
-  for (Int i = 1; i < d.ni; ++i) {
-    copy(d.qr, i);
-    copy(d.nr, i);
-    copy(d.th, i);
-    copy(d.dzq, i);
-    copy(d.pres, i);
-    d.prt_liq[i] = d.prt_liq[0];
-  }
-}
-
-template <typename Scalar>
-static MicroSedData<Scalar> reverse_k (const MicroSedData<Scalar>& msd) {
-  const auto reverse = [&] (const Scalar* s, Scalar* d) {
-    for (Int i = 0; i < msd.ni; ++i) {
-      const Scalar* si = s + msd.nk*i;
-      Scalar* di = d + msd.nk*i;
-      for (Int k = 0; k < msd.nk; ++k)
-        di[k] = si[msd.nk - k - 1];
-    }
-  };
-  MicroSedData<Scalar> r(msd);
-  r.reverse = ! msd.reverse;
-  reverse(msd.qr, r.qr);
-  reverse(msd.nr, r.nr);
-  reverse(msd.th, r.th);
-  reverse(msd.dzq, r.dzq);
-  reverse(msd.pres, r.pres);
-  return r;
-}
-
-template <typename Scalar>
-void micro_sed_func (MicroSedData<Scalar>& d) {
+void micro_sed_func (ic::MicroSedData<Scalar>& d) {
   micro_sed_func_c(1, d.nk,
                    d.reverse ? -1 : 1,
                    d.ni, d.nk, 1, d.ni, d.dt, d.qr, d.nr, d.th,
@@ -105,7 +29,7 @@ void micro_sed_func (MicroSedData<Scalar>& d) {
 template <typename Scalar>
 struct MicroSedObserver {
   virtual ~MicroSedObserver () {}
-  virtual void observe (const MicroSedData<Scalar>& d) = 0;
+  virtual void observe (const ic::MicroSedData<Scalar>& d) = 0;
 };
 
 template <typename Scalar>
@@ -131,15 +55,9 @@ void run_over_parameter_sets (MicroSedObserver<Scalar>& o) {
 
   p3_init();
 
-  MicroSedData<Scalar> d(1, 111);
+  ic::MicroSedData<Scalar> d(1, 111);
   d.dt = dt_tot;
-  ic::set_hydrostatic(d.nk, d.dzq, d.pres);
-  for (Int k = 0; k < d.nk; ++k)
-    d.th[k] = ic::consts::th_ref;
-  ic::set_rain(d.nk, d.dzq, d.qr, d.nr);
-  for (Int i = 0; i < d.ni; ++i)
-    d.prt_liq[i] = 0;
-  duplicate_columns(d);
+  d.populate();
 
   o.observe(d);
 
@@ -173,7 +91,7 @@ static Int generate_baseline (const std::string& bfn) {
       micro_throw_if( ! fid, "generate_baseline can't write " << bfn);
     }
 
-    virtual void observe (const MicroSedData<Scalar>& d_ic) override {
+    virtual void observe (const ic::MicroSedData<Scalar>& d_ic) override {
       auto d(d_ic);
       d.dt /= BaselineConsts::nstep;
       for (Int step = 0; step < BaselineConsts::nstep; ++step) {
@@ -218,8 +136,8 @@ static Int compare (const std::string& label, const Scalar* a,
 }
 
 template <typename Scalar>
-static Int compare (const std::string& label, const MicroSedData<Scalar>& d_ref,
-                    const MicroSedData<Scalar>& d, const Real& tol) {
+static Int compare (const std::string& label, const ic::MicroSedData<Scalar>& d_ref,
+                    const ic::MicroSedData<Scalar>& d, const Real& tol) {
   assert(d.ni == d_ref.ni && d.nk == d_ref.nk);
   const auto n = d.ni*d.nk;
   return (compare(label + " qr", d_ref.qr, d.qr, n, tol) +
@@ -244,7 +162,7 @@ static Int run_and_cmp (const std::string& bfn, const Real& tol) {
       micro_throw_if( ! fid, "run_and_cmp can't read " << bfn);
     }
 
-    virtual void observe (const MicroSedData<Scalar>& d_ic) override {
+    virtual void observe (const ic::MicroSedData<Scalar>& d_ic) override {
       auto d_orig_fortran(d_ic);
       d_orig_fortran.dt /= BaselineConsts::nstep;
       auto d_vanilla_cpp(d_orig_fortran);
@@ -257,7 +175,7 @@ static Int run_and_cmp (const std::string& bfn, const Real& tol) {
                        "Baseline file has (ni,nk) = " << ni << ", " << nk
                        << " but we expected " << d_ic.ni << ", " << d_ic.nk);
         const auto n = ni*nk;
-        MicroSedData<Scalar> d_ref(ni, nk);
+        ic::MicroSedData<Scalar> d_ref(ni, nk);
         util::read(&d_ref.dt, 1, fid);
         util::read(d_ref.qr, n, fid);
         util::read(d_ref.nr, n, fid);
