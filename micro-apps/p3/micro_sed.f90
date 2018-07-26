@@ -208,25 +208,16 @@ contains
   !=============================================================================!
   subroutine populate_input(its, ite, kts, kte, qr, nr, th, dzq, pres)
   !=============================================================================!
+    use initial_conditions_mod
+    use iso_c_binding
+
     implicit none
 
     integer, intent(in) :: kts, kte, its, ite
 
-    real, dimension(its:ite,kts:kte), intent(inout) :: qr, nr, th, dzq, pres
+    real, dimension(its:ite,kts:kte), intent(inout), target :: qr, nr, th, dzq, pres
 
-    integer :: i, k
-
-    ! TODO: populate with more realistic data
-
-    do i = its, ite
-       do k = kts, kte
-          qr(i,k)    = 0
-          nr(i,k)    = 0
-          th(i,k)    = 0
-          dzq(i,k)   = 0
-          pres(i,k)  = 0
-       end do
-    end do
+    call fully_populate_input_data( (ite-its) + 1, (kte-kts) + 1, c_loc(qr), c_loc(nr), c_loc(th), c_loc(dzq), c_loc(pres))
 
   end subroutine populate_input
 

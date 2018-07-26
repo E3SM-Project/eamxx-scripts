@@ -1,6 +1,7 @@
 set(P3_MICRO_SRCS
   micro_sed.f90
   array_io_mod.f90
+  initial_conditions_mod.f90
   array_io.cpp
   initial_conditions.cpp
 )
