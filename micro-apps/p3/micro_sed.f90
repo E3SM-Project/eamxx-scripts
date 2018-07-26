@@ -45,6 +45,16 @@ module micro_sed_mod
 
 contains
 
+  subroutine append_precision(string, prefix)
+    use iso_c_binding
+    
+    character(kind=c_char, len=128), intent(inout) :: string
+    character(*), intent(in) :: prefix
+    real(kind=c_real) :: s
+
+    write (string, '(a,i1,a1)') prefix, sizeof(s), C_NULL_CHAR
+  end subroutine append_precision
+
   !=============================================================================!
   subroutine p3_init() bind(c)
   !=============================================================================!
@@ -58,10 +68,7 @@ contains
     integer                      :: i,ii,jj,kk
     real                         :: lamr,lamold,mu_r,dum,dm,dum1,dum2,dum3,dum4,dum5,dd,amg,vt,dia,initlamr
     logical :: ok
-    character(kind=c_char, len=128), parameter :: &
-         mu_r_filename = c_char_"mu_r_table.dat"//C_NULL_CHAR, &
-         vn_filename = c_char_"vn_table.dat"//C_NULL_CHAR, &
-         vm_filename = c_char_"vm_table.dat"//C_NULL_CHAR
+    character(kind=c_char, len=128) :: mu_r_filename, vn_filename, vm_filename
 
     ! Generate lookup table for rain shape parameter mu_r
     ! this is very fast so it can be generated at the start of each run
@@ -70,6 +77,9 @@ contains
 
     !print*, '   Generating rain lookup-table ...'
 
+    call append_precision(mu_r_filename, c_char_"mu_r_table.dat")
+    call append_precision(vn_filename, c_char_"vn_table.dat")
+    call append_precision(vm_filename, c_char_"vm_table.dat")
     if ( array_io_file_exists(mu_r_filename) .and. &
          array_io_file_exists(vn_filename) .and. &
          array_io_file_exists(vm_filename)) then
@@ -77,7 +87,7 @@ contains
             array_io_read(vn_filename, c_loc(VN_TABLE), size(VN_TABLE)) .and. &
             array_io_read(vm_filename, c_loc(VM_TABLE), size(VM_TABLE))
        if (.not. ok) then
-          print *, 'p3_init: One more more table files exists but gave a read error; computing from scratch.'
+          print *, 'p3_init: One or more table files exists but gave a read error; computing from scratch.'
        else
           return
        end if
