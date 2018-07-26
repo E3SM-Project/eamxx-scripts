@@ -32,7 +32,7 @@ extern "C" {
     return exists;
   }
 
-  bool array_io_write (const char* filename, array_io::freal** a, const int n) {
+  bool array_io_write (const char* filename, Real** a, const int n) {
     try {
       array_io::write(filename, *a, n);
       return true;
@@ -42,7 +42,7 @@ extern "C" {
     }
   }
 
-  bool array_io_read (const char* filename, array_io::freal** a, const int n) {
+  bool array_io_read (const char* filename, Real** a, const int n) {
     try {
       array_io::read(filename, *a, n);
       return true;
