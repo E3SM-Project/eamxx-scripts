@@ -60,21 +60,20 @@ template <typename Real>
 void populate_input(const int its, const int ite, const int kts, const int kte,
                     vector_2d_t<Real> & qr, vector_2d_t<Real> & nr, vector_2d_t<Real> & th, vector_2d_t<Real> & dzq, vector_2d_t<Real> & pres)
 {
-  const int num_vert = abs(kte - kts);
-  const int num_horz = ite - its;
+  const int num_vert = abs(kte - kts) + 1;
+  const int num_horz = (ite - its) + 1;
   const int num_totl = num_vert * num_horz;
 
-  std::vector<Real> flat_dzq(num_totl), flat_pres(num_totl), flat_qr(num_totl), flat_nr(num_totl);
-  ic::set_hydrostatic(num_totl, flat_dzq.data(), flat_pres.data());
-  ic::set_rain(num_totl, flat_dzq.data(), flat_qr.data(), flat_nr.data());
+  ic::MicroSedData<Real> data(num_horz, num_vert);
+  data.populate();
 
   for (int i = 0; i < num_horz; ++i) {
     for (int k = 0; k < num_vert; ++k) {
-      qr[i][k]   = flat_qr[i*num_vert + k];
-      nr[i][k]   = flat_nr[i*num_vert + k];
-      th[i][k]   = ic::consts::th_ref;
-      dzq[i][k]  = flat_dzq[i*num_vert + k];
-      pres[i][k] = flat_pres[i*num_vert + k];
+      qr[i][k]   = data.qr[i*num_vert + k];
+      nr[i][k]   = data.nr[i*num_vert + k];
+      th[i][k]   = data.th[i*num_vert + k];
+      dzq[i][k]  = data.dzq[i*num_vert + k];
+      pres[i][k] = data.pres[i*num_vert + k];
     }
   }
 }
@@ -230,8 +229,8 @@ void micro_sed_func_vanilla(const int kts, const int kte, const int ni, const in
                             vector_2d_t<Real> const& th, vector_2d_t<Real> const& dzq, vector_2d_t<Real> const& pres,
                             std::vector<Real> & prt_liq)
 {
-  const int num_vert = abs(kte - kts);
-  const int num_horz = ite - its;
+  const int num_vert = abs(kte - kts) + 1;
+  const int num_horz = (ite - its) + 1;
 
   std::vector<Real> V_qr(num_vert), V_nr(num_vert), flux_qx(num_vert), flux_nx(num_vert);
 
@@ -382,8 +381,8 @@ void micro_sed_func_vanilla(const int kts, const int kte, const int ni, const in
 template <typename Real>
 void micro_sed_func_vanilla_wrap(const int kts, const int kte, const int ni, const int nk, const int its, const int ite, const Real dt)
 {
-  const int num_vert = abs(kte - kts);
-  const int num_horz = ite - its;
+  const int num_vert = abs(kte - kts) + 1;
+  const int num_horz = (ite - its) + 1;
 
   vector_2d_t<Real> qr(num_horz,    std::vector<Real>(num_vert)),
                     nr(num_horz,    std::vector<Real>(num_vert)),
