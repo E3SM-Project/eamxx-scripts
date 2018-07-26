@@ -222,27 +222,28 @@ contains
   end subroutine populate_input
 
   !=============================================================================!
-  subroutine micro_sed_func_wrap(kts, kte, kdir, ni, nk, its, ite, dt)
+  subroutine micro_sed_func_wrap(kts, kte, kdir, ni, nk, its, ite, dt, ts)
   !=============================================================================!
     implicit none
 
-    integer, intent(in) :: kts, kte, kdir, ni, nk, its, ite
+    integer, intent(in) :: kts, kte, kdir, ni, nk, its, ite, ts
     real, intent(in) :: dt
 
     real, dimension(its:ite,kts:kte) :: qr, nr, th, dzq, pres
-
     real, dimension(ni) :: prt_liq
-
     real :: start, finish
+    integer :: i
 
-    print '("Running micro_sed with kts=",I0," kte=",I0," kdir=",I0," ni=",I0," nk=",I0," its=",I0," ite=",I0," dt=",F6.2)', &
-         kts, kte, kdir, ni, nk, its, ite, dt
+    print '("Running with kts=",I0," kte=",I0," kdir=",I0," ni=",I0," nk=",I0," its=",I0," ite=",I0," dt=",F6.2," ts=",I0)', &
+         kts, kte, kdir, ni, nk, its, ite, dt, ts
 
     call populate_input(its, ite, kts, kte, qr, nr, th, dzq, pres)
 
     call cpu_time(start)
 
-    call micro_sed_func(kts, kte, kdir, ni, nk, its, ite, dt, qr, nr, th, dzq, pres, prt_liq)
+    do i = 1, ts
+       call micro_sed_func(kts, kte, kdir, ni, nk, its, ite, dt, qr, nr, th, dzq, pres, prt_liq)
+    end do
 
     call cpu_time(finish)
 
@@ -250,7 +251,9 @@ contains
 
   end subroutine micro_sed_func_wrap
 
+  !=============================================================================!
   subroutine micro_sed_func_c(kts, kte, kdir, ni, nk, its, ite, dt, qr, nr, th, dzq, pres, prt_liq) bind(c)
+  !=============================================================================!
     use iso_c_binding
 
     integer(kind=c_int), value, intent(in) :: kts, kte, kdir, ni, nk, its, ite
@@ -447,6 +450,8 @@ contains
 
     enddo i_loop_main
 
+    ! call print_data(ni, prt_liq)
+
   end subroutine micro_sed_func
 
   !=============================================================================!
@@ -566,5 +571,19 @@ contains
     endif
 
   end subroutine get_rain_dsd2
+
+  !=============================================================================!
+  subroutine print_data(ni, data)
+  !=============================================================================!
+    integer, intent(in) :: ni
+    real, dimension(ni), intent(in) :: data
+
+    integer :: i
+
+    do i = 1, ni
+       print '("data[",I0,"] = ",f6.3)', i, data(i)
+    end do
+
+  end subroutine print_data
 
 end module micro_sed_mod

@@ -379,7 +379,7 @@ void micro_sed_func_vanilla(const int kts, const int kte, const int ni, const in
 }
 
 template <typename Real>
-void micro_sed_func_vanilla_wrap(const int kts, const int kte, const int ni, const int nk, const int its, const int ite, const Real dt)
+void micro_sed_func_vanilla_wrap(const int kts, const int kte, const int ni, const int nk, const int its, const int ite, const Real dt, const int ts)
 {
   const int num_vert = abs(kte - kts) + 1;
   const int num_horz = (ite - its) + 1;
@@ -392,11 +392,16 @@ void micro_sed_func_vanilla_wrap(const int kts, const int kte, const int ni, con
 
   std::vector<Real> prt_liq(ni);
 
+  std::cout << "Running micro_sed_vanilla with kts=" << kts << ", kte=" << kte << ", ni=" << ni << ", nk=" << nk
+            << ", its=" << its << ", ite=" << ite << ", dt=" << dt << ", ts=" << ts << std::endl;
+
   populate_input(its, ite, kts, kte, qr, nr, th, dzq, pres);
 
   auto start = std::chrono::steady_clock::now();
 
-  micro_sed_func_vanilla<Real>(kts, kte, ni, nk, its, ite, dt, qr, nr, th, dzq, pres, prt_liq);
+  for (int i = 0; i < ts; ++i) {
+    micro_sed_func_vanilla<Real>(kts, kte, ni, nk, its, ite, dt, qr, nr, th, dzq, pres, prt_liq);
+  }
 
   auto finish = std::chrono::steady_clock::now();
 
