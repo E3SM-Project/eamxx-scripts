@@ -2,6 +2,10 @@
 #define INCLUDE_TYPES
 
 typedef int Int;
-typedef double Real; // for now; see issue #11
+#ifdef DOUBLE_PRECISION
+typedef double Real;
+#else
+typedef float Real;
+#endif
 
 #endif

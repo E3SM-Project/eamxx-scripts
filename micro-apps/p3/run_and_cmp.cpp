@@ -315,7 +315,9 @@ int main (int argc, char** argv) {
     }
   }
 
-  const std::string baseline_fn(argv[argc-1]);
+  // Always decorate baseline name with precision info
+  std::string baseline_fn(argv[argc-1]);
+  baseline_fn += std::to_string(sizeof(Real));
 
   Int out = 0;
   if (generate) {
