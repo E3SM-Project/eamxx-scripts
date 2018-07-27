@@ -12,13 +12,29 @@
 
 extern "C" {
 void p3_init();
-float* c_get_vn_table();
-float* c_get_vm_table();
-float* c_get_mu_r_table();
+Real* c_get_vn_table();
+Real* c_get_vm_table();
+Real* c_get_mu_r_table();
 }
 
 namespace p3 {
 namespace micro_sed_vanilla {
+
+#ifdef TRACE
+#define trace(stuff) std::cout << stuff << std::endl;
+#else
+#define trace(stuff) (static_cast<void>(0))
+#endif
+
+void trace_loop(const char* name, int b, int e)
+{
+  trace(name << " LOOP " << b << " -> " << e);
+}
+
+void trace_data(const char* name, int i, int k, Real value)
+{
+  trace(name << "[" << i << "][" << k << "] = " << value);
+}
 
 template <typename Real>
 using vector_2d_t = std::vector<std::vector<Real> >;
@@ -96,9 +112,9 @@ void p3_init_cpp()
 
   p3_init();
 
-  float* vn_table   = c_get_vn_table();
-  float* vm_table   = c_get_vm_table();
-  float* mu_r_table = c_get_mu_r_table();
+  Real* vn_table   = c_get_vn_table();
+  Real* vm_table   = c_get_vm_table();
+  Real* mu_r_table = c_get_mu_r_table();
 
   for (int i = 0; i < 300; ++i) {
     for (int k = 0; k < 10; ++k) {
@@ -130,7 +146,7 @@ void find_lookupTable_indices_3(int& dumii, int& dumjj, Real& rdumii, Real& rdum
     dumii  = std::max(dumii, 1);
     dumii  = std::min(dumii,20);
   }
-  else if (dum1 > 195.e-6) {
+  else {
     inv_dum3  = Globals<Real>::THRD*0.1;           // i.e. 1/30
     rdumii = (dum1*1.e+6-195.)*inv_dum3 + 20.;
     rdumii = std::max(rdumii, 20.);
@@ -175,7 +191,7 @@ void get_rain_dsd2(const Real qr, Real& nr, Real& mu_r, Real& rdumii, int& dumii
       rdumii = std::min(rdumii,150.0);
       dumii  = static_cast<int>(rdumii);
       dumii  = std::min(149,dumii);
-      mu_r   = mu_r_table[dumii] + (mu_r_table[dumii+1] - mu_r_table[dumii]) * (rdumii-dumii);
+      mu_r   = mu_r_table[dumii-1] + (mu_r_table[dumii] - mu_r_table[dumii-1]) * (rdumii-dumii);
     }
     else if (inv_dum >= 502.e-6) {
       mu_r = 0.0;
@@ -255,17 +271,20 @@ void micro_sed_func_vanilla(const int kts, const int kte, const int ni, const in
   const Real odt = 1.0 / dt;
 
   // direction of vertical leveling
-  const int ktop = (kts < kte) ? 0 : num_vert-1;
-  const int kbot = (kts < kte) ? num_vert-1 : 0;
-  const int kdir = (kts < kte) ? -1  : 1;
+  const int ktop = (kts < kte) ? num_vert-1 : 0;
+  const int kbot = (kts < kte) ? 0: num_vert-1;
+  const int kdir = (kts < kte) ? 1  : -1;
 
   // Rain sedimentation:  (adaptivive substepping)
+  trace_loop("i_loop_main", 0, num_horz);
   for (int i = 0; i < num_horz; ++i) {
 
-    for (int k = kbot; k != ktop; k+=kdir) {
+    trace_loop("  k_loop_1", kbot, ktop);
+    for (int k = kbot; k != (ktop+kdir); k+=kdir) {
       rho[i][k] = pres[i][k] / (Globals<Real>::RD * t[i][k]);
       inv_rho[i][k] = 1.0 / rho[i][k];
       rhofacr[i][k] = std::pow(Globals<Real>::RHOSUR * inv_rho[i][k], 0.54);
+      trace_data("    rhofacr", i, k, rhofacr[i][k]);
     }
 
     // Note, we are skipping supersaturation checks
@@ -274,7 +293,7 @@ void micro_sed_func_vanilla(const int kts, const int kte, const int ni, const in
     int k_qxtop = kbot;
 
     // find top, determine qxpresent
-    for (int k = ktop; k != kbot; k-=kdir) {
+    for (int k = ktop; k != (kbot-kdir); k-=kdir) {
       if (qr[i][k] >= Globals<Real>::QSMALL) {
         log_qxpresent = true;
         k_qxtop = k;
@@ -290,7 +309,7 @@ void micro_sed_func_vanilla(const int kts, const int kte, const int ni, const in
       int k_qxbot = 0;
 
       // find bottom
-      for (int k = kbot; k != k_qxtop; k+=kdir) {
+      for (int k = kbot; k != (k_qxtop+kdir); k+=kdir) {
         if (qr[i][k] >= Globals<Real>::QSMALL) {
           k_qxbot = k;
           break;
@@ -304,32 +323,37 @@ void micro_sed_func_vanilla(const int kts, const int kte, const int ni, const in
           V_nr[kk] = 0.0;
         }
 
-        for (int k = k_qxtop; k != k_qxbot; k-=kdir) {
+        trace_loop("  k_loop_sedi_r1", k_qxtop, k_qxbot);
+        for (int k = k_qxtop; k != (k_qxbot-kdir); k-=kdir) {
           if (qr[i][k] > Globals<Real>::QSMALL) {
             // Compute Vq, Vn:
             nr[i][k] = std::max(nr[i][k], Globals<Real>::NSMALL);
-            Real rdumii, tmp1, tmp2, rdumjj, inv_dum3;
-            int dumii, dumjj;
+            trace_data("    nr", i, k, nr[i][k]);
+            Real rdumii=0.0, tmp1=0.0, tmp2=0.0, rdumjj=0.0, inv_dum3=0.0;
+            int dumii=0, dumjj=0;
             get_rain_dsd2(qr[i][k], nr[i][k], mu_r[i][k], rdumii, dumii, lamr[i][k], Globals<Real>::MU_R_TABLE, tmp1, tmp2);
             find_lookupTable_indices_3(dumii, dumjj, rdumii, rdumjj, inv_dum3, mu_r[i][k], lamr[i][k]);
 
             // mass-weighted fall speed:
-            Real dum1 = Globals<Real>::VM_TABLE[dumii][dumjj] + (rdumii-dumii) * inv_dum3 * \
-              (Globals<Real>::VM_TABLE[dumii+1][dumjj] - Globals<Real>::VM_TABLE[dumii][dumjj]);
-            Real dum2 = Globals<Real>::VM_TABLE[dumii][dumjj+1] + (rdumii-dumii) * inv_dum3 * \
-              (Globals<Real>::VM_TABLE[dumii+1][dumjj+1] - Globals<Real>::VM_TABLE[dumii][dumjj+1]);
+            Real dum1 = Globals<Real>::VM_TABLE[dumii-1][dumjj-1] + (rdumii-dumii) * inv_dum3 * \
+              (Globals<Real>::VM_TABLE[dumii][dumjj-1] - Globals<Real>::VM_TABLE[dumii-1][dumjj-1]);
+            Real dum2 = Globals<Real>::VM_TABLE[dumii-1][dumjj] + (rdumii-dumii) * inv_dum3 * \
+              (Globals<Real>::VM_TABLE[dumii][dumjj] - Globals<Real>::VM_TABLE[dumii-1][dumjj]);
 
             V_qr[k] = (dum1 + (rdumjj - dumjj) * (dum2 - dum1)) * rhofacr[i][k];
+            trace_data("    V_qr", 0, k, V_qr[k]);
 
             // number-weighted fall speed:
-            dum1 = Globals<Real>::VN_TABLE[dumii][dumjj] + (rdumii-dumii) * inv_dum3 * \
-              (Globals<Real>::VN_TABLE[dumii+1][dumjj] - Globals<Real>::VN_TABLE[dumii][dumjj]);
-            dum2 = Globals<Real>::VN_TABLE[dumii][dumjj+1] + (rdumii-dumii) * inv_dum3 * \
-              (Globals<Real>::VN_TABLE[dumii+1][dumjj+1] - Globals<Real>::VN_TABLE[dumii][dumjj+1]);
+            dum1 = Globals<Real>::VN_TABLE[dumii-1][dumjj-1] + (rdumii-dumii) * inv_dum3 * \
+              (Globals<Real>::VN_TABLE[dumii][dumjj-1] - Globals<Real>::VN_TABLE[dumii-1][dumjj-1]);
+            dum2 = Globals<Real>::VN_TABLE[dumii-1][dumjj] + (rdumii-dumii) * inv_dum3 * \
+              (Globals<Real>::VN_TABLE[dumii][dumjj] - Globals<Real>::VN_TABLE[dumii-1][dumjj]);
 
             V_nr[k] = (dum1 + (rdumjj - dumjj) * (dum2 - dum1)) * rhofacr[i][k];
+            trace_data("    V_nr", 0, k, V_nr[k]);
           }
           Co_max = std::max(Co_max, V_qr[k] * dt_left * inv_dzq[i][k]);
+          trace_data("  Co_max", 0, 0, Co_max);
         }
 
         // compute dt_sub
@@ -339,9 +363,12 @@ void micro_sed_func_vanilla(const int kts, const int kte, const int ni, const in
         int k_temp = (k_qxbot == kbot) ? k_qxbot : (k_qxbot - kdir);
 
         // calculate fluxes
-        for (int k = k_temp; k != k_qxtop; k+=kdir) {
+        trace_loop("  k_flux_loop", k_temp, k_qxtop);
+        for (int k = k_temp; k != (k_qxtop+kdir); k+=kdir) {
           flux_qx[k] = V_qr[k] * qr[i][k] * rho[i][k];
+          trace_data("    flux_qx", 0, k, flux_qx[k]);
           flux_nx[k] = V_nr[k] * nr[i][k] * rho[i][k];
+          trace_data("    flux_nx", 0, k, flux_nx[k]);
         }
 
         // accumulated precip during time step
@@ -356,15 +383,20 @@ void micro_sed_func_vanilla(const int kts, const int kte, const int ni, const in
         Real fluxdiv_nx = -flux_nx[k] * inv_dzq[i][k];
         // update prognostic variables
         qr[i][k] += fluxdiv_qx * dt_sub * inv_rho[i][k];
+        trace_data("  qr", i, k, qr[i][k]);
         nr[i][k] += fluxdiv_nx * dt_sub * inv_rho[i][k];
+        trace_data("  nr", i, k, nr[i][k]);
 
-        for (int k = k_qxtop - kdir; k != k_temp; k-=kdir) {
+        trace_loop("  k_flux_div_loop", k_qxtop - kdir, k_temp);
+        for (int k = k_qxtop - kdir; k != (k_temp-kdir); k-=kdir) {
           // compute flux divergence
           fluxdiv_qx = (flux_qx[k+kdir] - flux_qx[k]) * inv_dzq[i][k];
           fluxdiv_nx = (flux_nx[k+kdir] - flux_nx[k]) * inv_dzq[i][k];
           // update prognostic variables
           qr[i][k] += fluxdiv_qx * dt_sub * inv_rho[i][k];
+          trace_data("    qr", i, k, qr[i][k]);
           nr[i][k] += fluxdiv_nx  *dt_sub * inv_rho[i][k];
+          trace_data("    nr", i, k, nr[i][k]);
         }
 
         dt_left -= dt_sub;  // update time remaining for sedimentation
@@ -374,6 +406,7 @@ void micro_sed_func_vanilla(const int kts, const int kte, const int ni, const in
       }
 
       prt_liq[i] += prt_accum * Globals<Real>::INV_RHOW * odt;
+      trace_data("  prt_liq", i, 0, prt_liq[i]);
     }
   }
 }

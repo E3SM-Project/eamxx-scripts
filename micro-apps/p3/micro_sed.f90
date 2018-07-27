@@ -247,7 +247,7 @@ contains
 
     call cpu_time(finish)
 
-    print '("Time = ",f6.3," seconds.")', finish - start
+    print '("Time = ",f6.2," seconds.")', finish - start
 
   end subroutine micro_sed_func_wrap
 
@@ -309,6 +309,8 @@ contains
 
     inv_dzq    = 1./dzq  ! inverse of thickness of layers
 
+    dumii = 0
+
     ! constants
     odt      = 1./dt   ! inverse model time step
 
@@ -325,12 +327,15 @@ contains
     endif
 
     ! Rain sedimentation:  (adaptive substepping)
+    call trace_loop("i_loop_main", its, ite)
     i_loop_main: do i = its,ite
 
+       call trace_loop("  k_loop_1", kbot, ktop)
        k_loop_1: do k = kbot,ktop,kdir
           rho(i,k)     = pres(i,k)/(RD*t(i,k))
           inv_rho(i,k) = 1./rho(i,k)
           rhofacr(i,k) = (RHOSUR*inv_rho(i,k))**0.54
+          call trace_data("    rhofacr", i, k, rhofacr(i,k))
        end do k_loop_1
 
        ! Note, we are skipping supersaturation checks
@@ -366,12 +371,14 @@ contains
              V_qr = 0.
              V_nr = 0.
 
+             call trace_loop("  k_loop_sedi_r1", k_qxtop, k_qxbot)
              kloop_sedi_r1: do k = k_qxtop,k_qxbot,-kdir
 
                 qr_notsmall_r1: if (qr(i,k)>QSMALL) then
 
                    !Compute Vq, Vn:
                    nr(i,k)  = max(nr(i,k),NSMALL)
+                   call trace_data("    nr", i, k, nr(i, k))
                    call get_rain_dsd2(qr(i,k),nr(i,k),mu_r(i,k),rdumii,dumii,lamr(i,k),     &
                         mu_r_table,tmp1,tmp2)
                    call find_lookupTable_indices_3(dumii,dumjj,dum1,rdumii,rdumjj,inv_dum3, &
@@ -383,6 +390,7 @@ contains
                         (VM_TABLE(dumii+1,dumjj+1)-VM_TABLE(dumii,dumjj+1))   !at mu_r+1
                    V_qr(k) = dum1 + (rdumjj-real(dumjj))*(dum2-dum1)         !interpolated
                    V_qr(k) = V_qr(k)*rhofacr(i,k)               !corrected for air density
+                   call trace_data("    V_qr", 0, k, V_qr(k))
 
                    ! number-weighted fall speed:
                    dum1 = VN_TABLE(dumii,dumjj)+(rdumii-real(dumii))*inv_dum3*              &
@@ -392,11 +400,14 @@ contains
                         (VN_TABLE(dumii+1,dumjj+1)-VN_TABLE(dumii,dumjj+1))    !at mu_r+1
                    V_nr(k) = dum1+(rdumjj-real(dumjj))*(dum2-dum1)            !interpolated
                    V_nr(k) = V_nr(k)*rhofacr(i,k)                !corrected for air density
+                   call trace_data("    V_nr", 0, k, V_nr(k))
 
                 endif qr_notsmall_r1
 
                 Co_max = max(Co_max, V_qr(k)*dt_left*inv_dzq(i,k))
                 !            Co_max = max(Co_max, max(V_nr(k),V_qr(k))*dt_left*inv_dzq(i,k))
+
+                call trace_data("  Co_max", 0, 0, Co_max)
 
              enddo kloop_sedi_r1
 
@@ -411,9 +422,12 @@ contains
              endif
 
              !-- calculate fluxes
+             call trace_loop("  k_flux_loop", k_temp, k_qxtop)
              do k = k_temp,k_qxtop,kdir
                 flux_qx(k) = V_qr(k)*qr(i,k)*rho(i,k)
+                call trace_data("    flux_qx", 0, k, flux_qx(k))
                 flux_nx(k) = V_nr(k)*nr(i,k)*rho(i,k)
+                call trace_data("    flux_nx", 0, k, flux_nx(k))
              enddo
 
              !accumulated precip during time step
@@ -427,15 +441,20 @@ contains
              fluxdiv_nx = -flux_nx(k)*inv_dzq(i,k)
              !- update prognostic variables
              qr(i,k) = qr(i,k) + fluxdiv_qx*dt_sub*inv_rho(i,k)
+             call trace_data("  qr", i, k, qr(i,k))
              nr(i,k) = nr(i,k) + fluxdiv_nx*dt_sub*inv_rho(i,k)
+             call trace_data("  nr", i, k, nr(i,k))
 
+             call trace_loop("  k_flux_div_loop", k_qxtop-kdir, k_temp)
              do k = k_qxtop-kdir,k_temp,-kdir
                 !-- compute flux divergence
                 fluxdiv_qx = (flux_qx(k+kdir) - flux_qx(k))*inv_dzq(i,k)
                 fluxdiv_nx = (flux_nx(k+kdir) - flux_nx(k))*inv_dzq(i,k)
                 !-- update prognostic variables
                 qr(i,k) = qr(i,k) + fluxdiv_qx*dt_sub*inv_rho(i,k)
+                call trace_data("    qr", i, k, qr(i,k))
                 nr(i,k) = nr(i,k) + fluxdiv_nx*dt_sub*inv_rho(i,k)
+                call trace_data("    nr", i, k, nr(i,k))
              enddo
 
              dt_left = dt_left - dt_sub  !update time remaining for sedimentation
@@ -445,12 +464,11 @@ contains
           enddo substep_sedi_r
 
           prt_liq(i) = prt_liq(i) + prt_accum*INV_RHOW*odt
+          call trace_data("  prt_liq", i, 0, prt_liq(i))
 
        endif qr_present
 
     enddo i_loop_main
-
-    ! call print_data(ni, prt_liq)
 
   end subroutine micro_sed_func
 
@@ -571,6 +589,30 @@ contains
     endif
 
   end subroutine get_rain_dsd2
+
+  !=============================================================================!
+  subroutine trace_loop(name, b, e)
+  !=============================================================================!
+    character(*), intent(in) :: name
+    integer, intent(in) :: b, e
+
+#ifdef TRACE
+    print '(A," LOOP ",I0," -> ",I0)', name, b, e
+#endif
+  end subroutine trace_loop
+
+  !=============================================================================!
+  subroutine trace_data(name, i, k, item)
+  !=============================================================================!
+    character(*), intent(in) :: name
+    integer, intent(in) :: i, k
+    real, intent(in) :: item
+
+#ifdef TRACE
+    print '(A,"[",I0,"][",I0,"] = ",F20.12)', name, i, k, item
+#endif
+
+  end subroutine trace_data
 
   !=============================================================================!
   subroutine print_data(ni, data)
