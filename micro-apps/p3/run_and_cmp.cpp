@@ -1,6 +1,7 @@
 #include "types.hpp"
 #include "util.hpp"
 #include "initial_conditions.hpp"
+#include "micro_sed_vanilla.hpp"
 
 #include <vector>
 #include <iostream>
@@ -24,6 +25,31 @@ void micro_sed_func (ic::MicroSedData<Scalar>& d) {
                    d.reverse ? -1 : 1,
                    d.ni, d.nk, 1, d.ni, d.dt, d.qr, d.nr, d.th,
                    d.dzq, d.pres, d.prt_liq);
+}
+
+template <typename Scalar>
+void micro_sed_func_cpp (ic::MicroSedData<Scalar>& d) {
+
+  const int num_vert = d.nk;
+  const int num_horz = d.ni;
+
+  p3::micro_sed_vanilla::p3_init_cpp<Scalar>();
+
+  p3::micro_sed_vanilla::vector_2d_t<Real>
+    qr(num_horz,    std::vector<Real>(num_vert)),
+    nr(num_horz,    std::vector<Real>(num_vert)),
+    th(num_horz,    std::vector<Real>(num_vert)),
+    dzq(num_horz,   std::vector<Real>(num_vert)),
+    pres(num_horz,  std::vector<Real>(num_vert));
+
+  std::vector<Real> prt_liq(num_horz);
+
+  p3::micro_sed_vanilla::populate_input<Scalar>(1, d.ni, 1, d.nk, qr, nr, th, dzq, pres);
+
+  p3::micro_sed_vanilla::micro_sed_func_vanilla<Scalar>(1, d.nk,
+//                                                        d.reverse ? -1 : 1,
+                                                        d.ni, d.nk, 1, d.ni, d.dt, qr, nr, th,
+                                                        dzq, pres, prt_liq);
 }
 
 template <typename Scalar>
@@ -196,7 +222,8 @@ static Int run_and_cmp (const std::string& bfn, const Real& tol) {
           nerr += compare(ss.str(), d_ref, d_orig_fortran, tol);
         }
 
-        if (false) { // Super-vanilla C++.
+        { // Super-vanilla C++.
+          micro_sed_func_cpp(d_vanilla_cpp);
           std::stringstream ss;
           ss << "Super-vanilla C++ step " << step;
           nerr += compare(ss.str(), d_ref, d_vanilla_cpp, tol);

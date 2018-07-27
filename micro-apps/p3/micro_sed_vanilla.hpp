@@ -74,22 +74,25 @@ constexpr Real Globals<Real>::NSMALL;
 
 template <typename Real>
 void populate_input(const int its, const int ite, const int kts, const int kte,
-                    vector_2d_t<Real> & qr, vector_2d_t<Real> & nr, vector_2d_t<Real> & th, vector_2d_t<Real> & dzq, vector_2d_t<Real> & pres)
+                    vector_2d_t<Real> & qr, vector_2d_t<Real> & nr, vector_2d_t<Real> & th, vector_2d_t<Real> & dzq, vector_2d_t<Real> & pres, ic::MicroSedData<Real>* data = nullptr)
 {
   const int num_vert = abs(kte - kts) + 1;
   const int num_horz = (ite - its) + 1;
   const int num_totl = num_vert * num_horz;
 
-  ic::MicroSedData<Real> data(num_horz, num_vert);
-  data.populate();
+  ic::MicroSedData<Real> default_data(num_horz, num_vert);
+  if (data == nullptr) {
+    default_data.populate();
+    data = &default_data;
+  }
 
   for (int i = 0; i < num_horz; ++i) {
     for (int k = 0; k < num_vert; ++k) {
-      qr[i][k]   = data.qr[i*num_vert + k];
-      nr[i][k]   = data.nr[i*num_vert + k];
-      th[i][k]   = data.th[i*num_vert + k];
-      dzq[i][k]  = data.dzq[i*num_vert + k];
-      pres[i][k] = data.pres[i*num_vert + k];
+      qr[i][k]   = data->qr[i*num_vert + k];
+      nr[i][k]   = data->nr[i*num_vert + k];
+      th[i][k]   = data->th[i*num_vert + k];
+      dzq[i][k]  = data->dzq[i*num_vert + k];
+      pres[i][k] = data->pres[i*num_vert + k];
     }
   }
 }
@@ -103,7 +106,9 @@ template <typename Real>
 void p3_init_cpp()
 {
   static bool is_init = false;
-  micro_throw_if(is_init, "p3_init called twice");
+  if (is_init) {
+    return;
+  }
   is_init = true;
 
   Globals<Real>::VN_TABLE.resize(300, std::vector<Real>(10));
