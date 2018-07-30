@@ -86,7 +86,7 @@ private:
     th = nr + ni*nk;
     dzq = th + ni*nk;
     pres = dzq + ni*nk;
-    prt_liq = pres + ni;
+    prt_liq = pres + ni*nk;
   }
 
 public:
