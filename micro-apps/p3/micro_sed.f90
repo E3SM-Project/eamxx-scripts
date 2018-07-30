@@ -390,7 +390,7 @@ contains
                         (VM_TABLE(dumii+1,dumjj+1)-VM_TABLE(dumii,dumjj+1))   !at mu_r+1
                    V_qr(k) = dum1 + (rdumjj-real(dumjj))*(dum2-dum1)         !interpolated
                    V_qr(k) = V_qr(k)*rhofacr(i,k)               !corrected for air density
-                   call trace_data("    V_qr", 0, k, V_qr(k))
+                   call trace_data("    V_qr", 1, k, V_qr(k))
 
                    ! number-weighted fall speed:
                    dum1 = VN_TABLE(dumii,dumjj)+(rdumii-real(dumii))*inv_dum3*              &
@@ -400,14 +400,14 @@ contains
                         (VN_TABLE(dumii+1,dumjj+1)-VN_TABLE(dumii,dumjj+1))    !at mu_r+1
                    V_nr(k) = dum1+(rdumjj-real(dumjj))*(dum2-dum1)            !interpolated
                    V_nr(k) = V_nr(k)*rhofacr(i,k)                !corrected for air density
-                   call trace_data("    V_nr", 0, k, V_nr(k))
+                   call trace_data("    V_nr", 1, k, V_nr(k))
 
                 endif qr_notsmall_r1
 
                 Co_max = max(Co_max, V_qr(k)*dt_left*inv_dzq(i,k))
                 !            Co_max = max(Co_max, max(V_nr(k),V_qr(k))*dt_left*inv_dzq(i,k))
 
-                call trace_data("  Co_max", 0, 0, Co_max)
+                call trace_data("  Co_max", 1, 1, Co_max)
 
              enddo kloop_sedi_r1
 
@@ -425,9 +425,9 @@ contains
              call trace_loop("  k_flux_loop", k_temp, k_qxtop)
              do k = k_temp,k_qxtop,kdir
                 flux_qx(k) = V_qr(k)*qr(i,k)*rho(i,k)
-                call trace_data("    flux_qx", 0, k, flux_qx(k))
+                call trace_data("    flux_qx", 1, k, flux_qx(k))
                 flux_nx(k) = V_nr(k)*nr(i,k)*rho(i,k)
-                call trace_data("    flux_nx", 0, k, flux_nx(k))
+                call trace_data("    flux_nx", 1, k, flux_nx(k))
              enddo
 
              !accumulated precip during time step
@@ -464,7 +464,7 @@ contains
           enddo substep_sedi_r
 
           prt_liq(i) = prt_liq(i) + prt_accum*INV_RHOW*odt
-          call trace_data("  prt_liq", i, 0, prt_liq(i))
+          call trace_data("  prt_liq", i, 1, prt_liq(i))
 
        endif qr_present
 
@@ -613,19 +613,5 @@ contains
 #endif
 
   end subroutine trace_data
-
-  !=============================================================================!
-  subroutine print_data(ni, data)
-  !=============================================================================!
-    integer, intent(in) :: ni
-    real, dimension(ni), intent(in) :: data
-
-    integer :: i
-
-    do i = 1, ni
-       print '("data[",I0,"] = ",f6.3)', i, data(i)
-    end do
-
-  end subroutine print_data
 
 end module micro_sed_mod

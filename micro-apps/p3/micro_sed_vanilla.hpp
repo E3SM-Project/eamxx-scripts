@@ -9,6 +9,7 @@
 #include <cmath>
 #include <chrono>
 #include <iostream>
+#include <iomanip>
 
 extern "C" {
 void p3_init();
@@ -21,19 +22,22 @@ namespace p3 {
 namespace micro_sed_vanilla {
 
 #ifdef TRACE
-#define trace(stuff) std::cout << stuff << std::endl;
+#define trace(stuff) std::cout << std::fixed << std::setprecision(12) << stuff << std::endl
 #else
 #define trace(stuff) (static_cast<void>(0))
 #endif
 
+// Change this to modify how indices are presented in trace. +1 implies fortran-like indices
+#define adjust_indices(index) index + 1
+
 void trace_loop(const char* name, int b, int e)
 {
-  trace(name << " LOOP " << b << " -> " << e);
+  trace(name << " LOOP " << adjust_indices(b) << " -> " << adjust_indices(e));
 }
 
 void trace_data(const char* name, int i, int k, Real value)
 {
-  trace(name << "[" << i << "][" << k << "] = " << value);
+  trace(name << "[" << adjust_indices(i) << "][" << adjust_indices(k) << "] = " << std::setw(20) << value);
 }
 
 template <typename Real>
