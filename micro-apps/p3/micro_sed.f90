@@ -463,6 +463,8 @@ contains
 
           enddo substep_sedi_r
 
+          call trace_data("  prt_liq", i, 1, prt_liq(i))
+          call trace_data("  prt_accum", 1, 1, prt_accum)
           prt_liq(i) = prt_liq(i) + prt_accum*INV_RHOW*odt
           call trace_data("  prt_liq", i, 1, prt_liq(i))
 

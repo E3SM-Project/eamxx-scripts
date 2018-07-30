@@ -413,6 +413,8 @@ void micro_sed_func_vanilla(const int kts, const int kte, const int ni, const in
         }
       }
 
+      trace_data("  prt_liq", i, 0, prt_liq[i]);
+      trace_data("  prt_accum", 0, 0, prt_accum);
       prt_liq[i] += prt_accum * Globals<Real>::INV_RHOW * odt;
       trace_data("  prt_liq", i, 0, prt_liq[i]);
     }

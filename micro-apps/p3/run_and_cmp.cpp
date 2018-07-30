@@ -63,8 +63,7 @@ class FortranCppDataBridge
 template <typename Scalar>
 void micro_sed_func_cpp (ic::MicroSedData<Scalar>& d, FortranCppDataBridge<Scalar>& bridge)
 {
-  p3::micro_sed_vanilla::micro_sed_func_vanilla<Scalar>(1, d.nk,
-//                                                        d.reverse ? -1 : 1,
+  p3::micro_sed_vanilla::micro_sed_func_vanilla<Scalar>( d.reverse ? d.nk : 1, d.reverse ? 1 : d.nk,
                                                         d.ni, d.nk, 1, d.ni, d.dt, bridge.qr, bridge.nr, bridge.th,
                                                         bridge.dzq, bridge.pres, bridge.prt_liq);
 
@@ -75,6 +74,11 @@ template <typename Scalar>
 struct MicroSedObserver {
   virtual ~MicroSedObserver () {}
   virtual void observe (const ic::MicroSedData<Scalar>& d) = 0;
+};
+
+struct BaselineConsts {
+  // Take nstep outer steps so we can record output throughout the d.dt run.
+  static constexpr Int nstep = 30;
 };
 
 template <typename Scalar>
@@ -96,7 +100,7 @@ void run_over_parameter_sets (MicroSedObserver<Scalar>& o) {
        There's also no reason to run this dt all at once. We can check against
      baselines throughout, e.g., to see growth in error.
    */
-  const Real dt_tot = 9000; // s
+  const Real dt_tot = 300 * BaselineConsts::nstep; // s
 
   // will init both fortran and c
   p3::micro_sed_vanilla::p3_init_cpp<Scalar>();
@@ -120,11 +124,6 @@ struct BaselineObserver : public MicroSedObserver<Real> {
     run_over_parameter_sets(*this);
     return nerr;
   }
-};
-
-struct BaselineConsts {
-  // Take nstep outer steps so we can record output throughout the d.dt run.
-  static constexpr Int nstep = 30;
 };
 
 template <typename Scalar>
