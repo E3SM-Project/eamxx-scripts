@@ -28,28 +28,47 @@ void micro_sed_func (ic::MicroSedData<Scalar>& d) {
 }
 
 template <typename Scalar>
-void micro_sed_func_cpp (ic::MicroSedData<Scalar>& d) {
+class FortranCppDataBridge
+{
+ public:
+  FortranCppDataBridge(const ic::MicroSedData<Scalar>& d) :
+    qr(d.ni, std::vector<Scalar>(d.nk)),
+    nr(d.ni, std::vector<Scalar>(d.nk)),
+    th(d.ni, std::vector<Scalar>(d.nk)),
+    dzq(d.ni, std::vector<Scalar>(d.nk)),
+    pres(d.ni, std::vector<Scalar>(d.nk)),
+    prt_liq(d.ni)
+  {
+    p3::micro_sed_vanilla::populate_input<Scalar>(1, d.ni, 1, d.nk, qr, nr, th, dzq, pres, &d);
+  }
 
-  const int num_vert = d.nk;
-  const int num_horz = d.ni;
+  void sync_to(ic::MicroSedData<Scalar>& d)
+  {
+    for (int i = 0; i < d.ni; ++i) {
+      for (int k = 0; k < d.nk; ++k) {
+        d.qr[i*d.nk + k]   = qr[i][k];
+        d.nr[i*d.nk + k]   = nr[i][k];
+        d.th[i*d.nk + k]   = th[i][k];
+        d.dzq[i*d.nk + k]  = dzq[i][k];
+        d.pres[i*d.nk + k] = pres[i][k];
+      }
+      d.prt_liq[i] = prt_liq[i];
+    }
+  }
 
-  p3::micro_sed_vanilla::p3_init_cpp<Scalar>();
+  p3::micro_sed_vanilla::vector_2d_t<Scalar> qr, nr, th, dzq, pres;
+  std::vector<Scalar> prt_liq;
+};
 
-  p3::micro_sed_vanilla::vector_2d_t<Real>
-    qr(num_horz,    std::vector<Real>(num_vert)),
-    nr(num_horz,    std::vector<Real>(num_vert)),
-    th(num_horz,    std::vector<Real>(num_vert)),
-    dzq(num_horz,   std::vector<Real>(num_vert)),
-    pres(num_horz,  std::vector<Real>(num_vert));
-
-  std::vector<Real> prt_liq(num_horz);
-
-  p3::micro_sed_vanilla::populate_input<Scalar>(1, d.ni, 1, d.nk, qr, nr, th, dzq, pres);
-
+template <typename Scalar>
+void micro_sed_func_cpp (ic::MicroSedData<Scalar>& d, FortranCppDataBridge<Scalar>& bridge)
+{
   p3::micro_sed_vanilla::micro_sed_func_vanilla<Scalar>(1, d.nk,
 //                                                        d.reverse ? -1 : 1,
-                                                        d.ni, d.nk, 1, d.ni, d.dt, qr, nr, th,
-                                                        dzq, pres, prt_liq);
+                                                        d.ni, d.nk, 1, d.ni, d.dt, bridge.qr, bridge.nr, bridge.th,
+                                                        bridge.dzq, bridge.pres, bridge.prt_liq);
+
+  bridge.sync_to(d);
 }
 
 template <typename Scalar>
@@ -79,7 +98,8 @@ void run_over_parameter_sets (MicroSedObserver<Scalar>& o) {
    */
   const Real dt_tot = 9000; // s
 
-  p3_init();
+  // will init both fortran and c
+  p3::micro_sed_vanilla::p3_init_cpp<Scalar>();
 
   ic::MicroSedData<Scalar> d(1, 111);
   d.dt = dt_tot;
@@ -152,6 +172,7 @@ static Int compare (const std::string& label, const Scalar* a,
     const auto num = std::abs(a[i] - b[i]);
     if (num > tol*den) {
       ++nerr;
+      //std::cout << label << " bad idx: " << i << std::fixed << std::setprecision(12) << std::setw(20) << a[i] << " " << b[i] << std::endl;
       worst = std::max(worst, num);
     }
   }
@@ -192,6 +213,7 @@ static Int run_and_cmp (const std::string& bfn, const Real& tol) {
       auto d_orig_fortran(d_ic);
       d_orig_fortran.dt /= BaselineConsts::nstep;
       auto d_vanilla_cpp(d_orig_fortran);
+      FortranCppDataBridge<Scalar> bridge(d_vanilla_cpp);
       for (Int step = 0; step < BaselineConsts::nstep; ++step) {
         // Read the baseline.
         Int ni, nk;
@@ -223,7 +245,7 @@ static Int run_and_cmp (const std::string& bfn, const Real& tol) {
         }
 
         { // Super-vanilla C++.
-          micro_sed_func_cpp(d_vanilla_cpp);
+          micro_sed_func_cpp(d_vanilla_cpp, bridge);
           std::stringstream ss;
           ss << "Super-vanilla C++ step " << step;
           nerr += compare(ss.str(), d_ref, d_vanilla_cpp, tol);

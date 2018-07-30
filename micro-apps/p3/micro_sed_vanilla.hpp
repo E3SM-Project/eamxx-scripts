@@ -78,11 +78,10 @@ constexpr Real Globals<Real>::NSMALL;
 
 template <typename Real>
 void populate_input(const int its, const int ite, const int kts, const int kte,
-                    vector_2d_t<Real> & qr, vector_2d_t<Real> & nr, vector_2d_t<Real> & th, vector_2d_t<Real> & dzq, vector_2d_t<Real> & pres, ic::MicroSedData<Real>* data = nullptr)
+                    vector_2d_t<Real> & qr, vector_2d_t<Real> & nr, vector_2d_t<Real> & th, vector_2d_t<Real> & dzq, vector_2d_t<Real> & pres, const ic::MicroSedData<Real>* data = nullptr)
 {
   const int num_vert = abs(kte - kts) + 1;
   const int num_horz = (ite - its) + 1;
-  const int num_totl = num_vert * num_horz;
 
   ic::MicroSedData<Real> default_data(num_horz, num_vert);
   if (data == nullptr) {
