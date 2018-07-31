@@ -45,9 +45,27 @@ module micro_sed_mod
 
 contains
 
+  function c_get_vn_table() bind(c)
+    use iso_c_binding
+    type(c_ptr) :: c_get_vn_table
+    c_get_vn_table = c_loc(VN_TABLE)
+  end function c_get_vn_table
+
+  function c_get_vm_table() bind(c)
+    use iso_c_binding
+    type(c_ptr) :: c_get_vm_table
+    c_get_vm_table = c_loc(VM_TABLE)
+  end function c_get_vm_table
+
+  function c_get_mu_r_table() bind(c)
+    use iso_c_binding
+    type(c_ptr) :: c_get_mu_r_table
+    c_get_mu_r_table = c_loc(MU_R_TABLE)
+  end function c_get_mu_r_table
+
   subroutine append_precision(string, prefix)
     use iso_c_binding
-    
+
     character(kind=c_char, len=128), intent(inout) :: string
     character(*), intent(in) :: prefix
     real(kind=c_real) :: s
@@ -200,58 +218,52 @@ contains
   !=============================================================================!
   subroutine populate_input(its, ite, kts, kte, qr, nr, th, dzq, pres)
   !=============================================================================!
+    use initial_conditions_mod
+    use iso_c_binding
+
     implicit none
 
     integer, intent(in) :: kts, kte, its, ite
 
-    real, dimension(its:ite,kts:kte), intent(inout) :: qr, nr, th, dzq, pres
+    real, dimension(its:ite,kts:kte), intent(inout), target :: qr, nr, th, dzq, pres
 
-    integer :: i, k
-
-    ! TODO: populate with more realistic data
-
-    do i = its, ite
-       do k = kts, kte
-          qr(i,k)    = 0
-          nr(i,k)    = 0
-          th(i,k)    = 0
-          dzq(i,k)   = 0
-          pres(i,k)  = 0
-       end do
-    end do
+    call fully_populate_input_data( (ite-its) + 1, (kte-kts) + 1, c_loc(qr), c_loc(nr), c_loc(th), c_loc(dzq), c_loc(pres))
 
   end subroutine populate_input
 
   !=============================================================================!
-  subroutine micro_sed_func_wrap(kts, kte, kdir, ni, nk, its, ite, dt)
+  subroutine micro_sed_func_wrap(kts, kte, kdir, ni, nk, its, ite, dt, ts)
   !=============================================================================!
     implicit none
 
-    integer, intent(in) :: kts, kte, kdir, ni, nk, its, ite
+    integer, intent(in) :: kts, kte, kdir, ni, nk, its, ite, ts
     real, intent(in) :: dt
 
     real, dimension(its:ite,kts:kte) :: qr, nr, th, dzq, pres
-
     real, dimension(ni) :: prt_liq
-
     real :: start, finish
+    integer :: i
 
-    print '("Running micro_sed with kts=",I0," kte=",I0," kdir=",I0," ni=",I0," nk=",I0," its=",I0," ite=",I0," dt=",F6.2)', &
-         kts, kte, kdir, ni, nk, its, ite, dt
+    print '("Running with kts=",I0," kte=",I0," kdir=",I0," ni=",I0," nk=",I0," its=",I0," ite=",I0," dt=",F6.2," ts=",I0)', &
+         kts, kte, kdir, ni, nk, its, ite, dt, ts
 
     call populate_input(its, ite, kts, kte, qr, nr, th, dzq, pres)
 
     call cpu_time(start)
 
-    call micro_sed_func(kts, kte, kdir, ni, nk, its, ite, dt, qr, nr, th, dzq, pres, prt_liq)
+    do i = 1, ts
+       call micro_sed_func(kts, kte, kdir, ni, nk, its, ite, dt, qr, nr, th, dzq, pres, prt_liq)
+    end do
 
     call cpu_time(finish)
 
-    print '("Time = ",f6.3," seconds.")', finish - start
+    print '("Time = ",f6.2," seconds.")', finish - start
 
   end subroutine micro_sed_func_wrap
 
+  !=============================================================================!
   subroutine micro_sed_func_c(kts, kte, kdir, ni, nk, its, ite, dt, qr, nr, th, dzq, pres, prt_liq) bind(c)
+  !=============================================================================!
     use iso_c_binding
 
     integer(kind=c_int), value, intent(in) :: kts, kte, kdir, ni, nk, its, ite
@@ -307,6 +319,8 @@ contains
 
     inv_dzq    = 1./dzq  ! inverse of thickness of layers
 
+    dumii = 0
+
     ! constants
     odt      = 1./dt   ! inverse model time step
 
@@ -323,12 +337,15 @@ contains
     endif
 
     ! Rain sedimentation:  (adaptive substepping)
+    call trace_loop("i_loop_main", its, ite)
     i_loop_main: do i = its,ite
 
+       call trace_loop("  k_loop_1", kbot, ktop)
        k_loop_1: do k = kbot,ktop,kdir
           rho(i,k)     = pres(i,k)/(RD*t(i,k))
           inv_rho(i,k) = 1./rho(i,k)
           rhofacr(i,k) = (RHOSUR*inv_rho(i,k))**0.54
+          call trace_data("    rhofacr", i, k, rhofacr(i,k))
        end do k_loop_1
 
        ! Note, we are skipping supersaturation checks
@@ -364,12 +381,14 @@ contains
              V_qr = 0.
              V_nr = 0.
 
+             call trace_loop("  k_loop_sedi_r1", k_qxtop, k_qxbot)
              kloop_sedi_r1: do k = k_qxtop,k_qxbot,-kdir
 
                 qr_notsmall_r1: if (qr(i,k)>QSMALL) then
 
                    !Compute Vq, Vn:
                    nr(i,k)  = max(nr(i,k),NSMALL)
+                   call trace_data("    nr", i, k, nr(i, k))
                    call get_rain_dsd2(qr(i,k),nr(i,k),mu_r(i,k),rdumii,dumii,lamr(i,k),     &
                         mu_r_table,tmp1,tmp2)
                    call find_lookupTable_indices_3(dumii,dumjj,dum1,rdumii,rdumjj,inv_dum3, &
@@ -381,6 +400,7 @@ contains
                         (VM_TABLE(dumii+1,dumjj+1)-VM_TABLE(dumii,dumjj+1))   !at mu_r+1
                    V_qr(k) = dum1 + (rdumjj-real(dumjj))*(dum2-dum1)         !interpolated
                    V_qr(k) = V_qr(k)*rhofacr(i,k)               !corrected for air density
+                   call trace_data("    V_qr", 1, k, V_qr(k))
 
                    ! number-weighted fall speed:
                    dum1 = VN_TABLE(dumii,dumjj)+(rdumii-real(dumii))*inv_dum3*              &
@@ -390,11 +410,14 @@ contains
                         (VN_TABLE(dumii+1,dumjj+1)-VN_TABLE(dumii,dumjj+1))    !at mu_r+1
                    V_nr(k) = dum1+(rdumjj-real(dumjj))*(dum2-dum1)            !interpolated
                    V_nr(k) = V_nr(k)*rhofacr(i,k)                !corrected for air density
+                   call trace_data("    V_nr", 1, k, V_nr(k))
 
                 endif qr_notsmall_r1
 
                 Co_max = max(Co_max, V_qr(k)*dt_left*inv_dzq(i,k))
                 !            Co_max = max(Co_max, max(V_nr(k),V_qr(k))*dt_left*inv_dzq(i,k))
+
+                call trace_data("  Co_max", 1, 1, Co_max)
 
              enddo kloop_sedi_r1
 
@@ -409,9 +432,12 @@ contains
              endif
 
              !-- calculate fluxes
+             call trace_loop("  k_flux_loop", k_temp, k_qxtop)
              do k = k_temp,k_qxtop,kdir
                 flux_qx(k) = V_qr(k)*qr(i,k)*rho(i,k)
+                call trace_data("    flux_qx", 1, k, flux_qx(k))
                 flux_nx(k) = V_nr(k)*nr(i,k)*rho(i,k)
+                call trace_data("    flux_nx", 1, k, flux_nx(k))
              enddo
 
              !accumulated precip during time step
@@ -425,15 +451,20 @@ contains
              fluxdiv_nx = -flux_nx(k)*inv_dzq(i,k)
              !- update prognostic variables
              qr(i,k) = qr(i,k) + fluxdiv_qx*dt_sub*inv_rho(i,k)
+             call trace_data("  qr", i, k, qr(i,k))
              nr(i,k) = nr(i,k) + fluxdiv_nx*dt_sub*inv_rho(i,k)
+             call trace_data("  nr", i, k, nr(i,k))
 
+             call trace_loop("  k_flux_div_loop", k_qxtop-kdir, k_temp)
              do k = k_qxtop-kdir,k_temp,-kdir
                 !-- compute flux divergence
                 fluxdiv_qx = (flux_qx(k+kdir) - flux_qx(k))*inv_dzq(i,k)
                 fluxdiv_nx = (flux_nx(k+kdir) - flux_nx(k))*inv_dzq(i,k)
                 !-- update prognostic variables
                 qr(i,k) = qr(i,k) + fluxdiv_qx*dt_sub*inv_rho(i,k)
+                call trace_data("    qr", i, k, qr(i,k))
                 nr(i,k) = nr(i,k) + fluxdiv_nx*dt_sub*inv_rho(i,k)
+                call trace_data("    nr", i, k, nr(i,k))
              enddo
 
              dt_left = dt_left - dt_sub  !update time remaining for sedimentation
@@ -442,7 +473,10 @@ contains
 
           enddo substep_sedi_r
 
+          call trace_data("  prt_liq", i, 1, prt_liq(i))
+          call trace_data("  prt_accum", 1, 1, prt_accum)
           prt_liq(i) = prt_liq(i) + prt_accum*INV_RHOW*odt
+          call trace_data("  prt_liq", i, 1, prt_liq(i))
 
        endif qr_present
 
@@ -567,5 +601,29 @@ contains
     endif
 
   end subroutine get_rain_dsd2
+
+  !=============================================================================!
+  subroutine trace_loop(name, b, e)
+  !=============================================================================!
+    character(*), intent(in) :: name
+    integer, intent(in) :: b, e
+
+#ifdef TRACE
+    print '(A," LOOP ",I0," -> ",I0)', name, b, e
+#endif
+  end subroutine trace_loop
+
+  !=============================================================================!
+  subroutine trace_data(name, i, k, item)
+  !=============================================================================!
+    character(*), intent(in) :: name
+    integer, intent(in) :: i, k
+    real, intent(in) :: item
+
+#ifdef TRACE
+    print '(A,"[",I0,"][",I0,"] = ",F20.12)', name, i, k, item
+#endif
+
+  end subroutine trace_data
 
 end module micro_sed_mod
