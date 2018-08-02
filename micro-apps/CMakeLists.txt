@@ -8,6 +8,7 @@ include(CTest)
 set(CMAKE_BUILD_TYPE RELEASE CACHE STRING "Select build type.")
 set(DOUBLE_PRECISION TRUE CACHE LOGICAL "Set to double precision (default True)")
 set(ENABLE_TRACING FALSE CACHE LOGICAL "Enable detailed tracing")
+set(ENABLE_FPE FALSE CACHE LOGICAL "Enable floating point error exception")
 
 set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -Wall -cpp")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
@@ -19,6 +20,10 @@ endif()
 
 if (${ENABLE_TRACING})
   add_definitions(-DTRACE)
+endif()
+
+if (${ENABLE_FPE})
+  add_definitions(-DFPE)
 endif()
 
 enable_testing()

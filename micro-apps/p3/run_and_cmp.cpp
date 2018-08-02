@@ -7,6 +7,10 @@
 #include <iostream>
 #include <exception>
 
+#ifdef FPE
+# include <xmmintrin.h>
+#endif
+
 // Nothing in this file is intended to be indicative of the eventual perf
 // portable impl. E.g., Kokkos is not used here. The objective is simply to test
 // for input/output regression errors.
@@ -261,6 +265,14 @@ static void expect_another_arg (Int i, Int argc) {
 }
 
 int main (int argc, char** argv) {
+#ifdef FPE
+  _MM_SET_EXCEPTION_MASK(_MM_GET_EXCEPTION_MASK() &
+                         ~( _MM_MASK_INVALID |
+                            _MM_MASK_DIV_ZERO |
+                            _MM_MASK_OVERFLOW |
+                            _MM_MASK_UNDERFLOW ));
+#endif
+
   if (argc == 1) {
     std::cout <<
       argv[0] << " [options] baseline-filename\n"
