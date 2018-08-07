@@ -23,19 +23,56 @@ extern "C" {
     Real* prt_liq);
 }
 
-template <typename Scalar>
-void micro_sed_func (ic::MicroSedData<Scalar>& d) {
-  micro_sed_func_c(1, d.nk,
-                   d.reverse ? -1 : 1,
-                   d.ni, d.nk, 1, d.ni, d.dt, d.qr, d.nr, d.th,
-                   d.dzq, d.pres, d.prt_liq);
+struct TransposeDirection {
+  enum Enum { c2f, f2c };
+};
+
+template <TransposeDirection::Enum direction, typename Scalar>
+void transpose_layout (const ic::MicroSedData<Scalar>& s,
+                        ic::MicroSedData<Scalar>& d) {
+  const auto transpose = [&] (const Scalar* sv, Scalar* dv) {
+    for (Int k = 0; k < s.nk; ++k)
+      for (Int i = 0; i < s.ni; ++i)
+        if (direction == TransposeDirection::c2f)
+          dv[d.ni*k + i] = sv[d.nk*i + k];
+        else
+          dv[d.nk*i + k] = sv[d.ni*k + i];
+  };
+  transpose(s.qr, d.qr);
+  transpose(s.nr, d.nr);
+  transpose(s.th, d.th);
+  transpose(s.dzq, d.dzq);
+  transpose(s.pres, d.pres);
+  for (Int i = 0; i < s.ni; ++i) d.prt_liq[i] = s.prt_liq[i];
 }
 
+// MicroSedData <-> micro_sed.f90 format.
 template <typename Scalar>
-class FortranCppDataBridge
+struct FortranBridge : public ic::MicroSedData<Scalar> {
+  FortranBridge (const ic::MicroSedData<Scalar>& d)
+    : ic::MicroSedData<Scalar>(d)
+  { transpose_layout<TransposeDirection::c2f>(d, *this); }
+
+  void sync_to (ic::MicroSedData<Scalar>& d) {
+    transpose_layout<TransposeDirection::f2c>(*this, d);
+  }
+};
+
+template <typename Scalar>
+void micro_sed_func (ic::MicroSedData<Scalar>& d, FortranBridge<Scalar>& b) {
+  micro_sed_func_c(1, d.nk,
+                   d.reverse ? -1 : 1,
+                   d.ni, d.nk, 1, d.ni, d.dt, b.qr, b.nr, b.th,
+                   b.dzq, b.pres, b.prt_liq);
+  b.sync_to(d);
+}
+
+// MicroSedData <-> micro_sed_vanilla format.
+template <typename Scalar>
+class VanillaCppBridge
 {
  public:
-  FortranCppDataBridge(const ic::MicroSedData<Scalar>& d) :
+  VanillaCppBridge(const ic::MicroSedData<Scalar>& d) :
     qr(d.ni, std::vector<Scalar>(d.nk)),
     nr(d.ni, std::vector<Scalar>(d.nk)),
     th(d.ni, std::vector<Scalar>(d.nk)),
@@ -65,7 +102,7 @@ class FortranCppDataBridge
 };
 
 template <typename Scalar>
-void micro_sed_func_cpp (ic::MicroSedData<Scalar>& d, FortranCppDataBridge<Scalar>& bridge)
+void micro_sed_func_cpp (ic::MicroSedData<Scalar>& d, VanillaCppBridge<Scalar>& bridge)
 {
   p3::micro_sed_vanilla::micro_sed_func_vanilla<Scalar>( d.reverse ? d.nk : 1, d.reverse ? 1 : d.nk,
                                                         d.ni, d.nk, 1, d.ni, d.dt, bridge.qr, bridge.nr, bridge.th,
@@ -86,7 +123,7 @@ struct BaselineConsts {
 };
 
 template <typename Scalar>
-void run_over_parameter_sets (MicroSedObserver<Scalar>& o) {
+void run_over_parameter_sets (MicroSedObserver<Scalar>& o, const Int ncol) {
   /* Co_max, the Courant number CN, sets the number of substeps. This can be
      estimated as follows:
        Given:
@@ -109,9 +146,9 @@ void run_over_parameter_sets (MicroSedObserver<Scalar>& o) {
   // will init both fortran and c
   p3::micro_sed_vanilla::p3_init_cpp<Scalar>();
 
-  ic::MicroSedData<Scalar> d(1, 111);
+  ic::MicroSedData<Scalar> d(ncol, 111);
   d.dt = dt_tot;
-  d.populate();
+  populate(d);
 
   o.observe(d);
 
@@ -124,8 +161,8 @@ struct BaselineObserver : public MicroSedObserver<Real> {
 
   BaselineObserver () : nerr(0) {}
 
-  Int run () {
-    run_over_parameter_sets(*this);
+  Int run (const Int ncolumns) {
+    run_over_parameter_sets(*this, ncolumns);
     return nerr;
   }
 };
@@ -141,11 +178,13 @@ static Int generate_baseline (const std::string& bfn) {
     }
 
     virtual void observe (const ic::MicroSedData<Scalar>& d_ic) override {
+      // Record only the final column.
       auto d(d_ic);
       d.dt /= BaselineConsts::nstep;
+      FortranBridge<Scalar> bridge(d);
       for (Int step = 0; step < BaselineConsts::nstep; ++step) {
         // The original Fortran serves as the baseline.
-        micro_sed_func(d);
+        micro_sed_func(d, bridge);
         // Record its output.
         util::write(&d.ni, 1, fid);
         util::write(&d.nk, 1, fid);
@@ -160,7 +199,7 @@ static Int generate_baseline (const std::string& bfn) {
       }
     }
   };
-  return Observer(bfn).run();
+  return Observer(bfn).run(1);
 }
 
 template <typename Scalar>
@@ -175,7 +214,10 @@ static Int compare (const std::string& label, const Scalar* a,
     const auto num = std::abs(a[i] - b[i]);
     if (num > tol*den) {
       ++nerr;
-      //std::cout << label << " bad idx: " << i << std::fixed << std::setprecision(12) << std::setw(20) << a[i] << " " << b[i] << std::endl;
+#if 0
+      std::cout << label << " bad idx: " << i << std::fixed << std::setprecision(12)
+                << std::setw(20) << a[i] << " " << b[i] << std::endl;
+#endif
       worst = std::max(worst, num);
     }
   }
@@ -188,15 +230,17 @@ static Int compare (const std::string& label, const Scalar* a,
 template <typename Scalar>
 static Int compare (const std::string& label, const ic::MicroSedData<Scalar>& d_ref,
                     const ic::MicroSedData<Scalar>& d, const Real& tol) {
-  assert(d.ni == d_ref.ni && d.nk == d_ref.nk);
-  const auto n = d.ni*d.nk;
-  return (compare(label + " qr", d_ref.qr, d.qr, n, tol) +
-          compare(label + " nr", d_ref.nr, d.nr, n, tol) +
-          compare(label + " prt_liq", d_ref.prt_liq, d.prt_liq, d.ni, tol) +
+  assert(d_ref.ni == 1 && d.nk == d_ref.nk);
+  // Compare just the last column.
+  const auto os = d.nk*(d.ni-1);
+  const auto n = d.nk;
+  return (compare(label + " qr", d_ref.qr, d.qr + os, n, tol) +
+          compare(label + " nr", d_ref.nr, d.nr + os, n, tol) +
+          compare(label + " prt_liq", d_ref.prt_liq, d.prt_liq + (d.ni-1), d_ref.ni, tol) +
           // The rest should not be written, so check that they are BFB.
-          compare(label + " th", d_ref.th, d.th, n, 0) +
-          compare(label + " dzq", d_ref.dzq, d.dzq, n, 0) +
-          compare(label + " pres", d_ref.pres, d.pres, n, 0));
+          compare(label + " th", d_ref.th, d.th + os, n, 0) +
+          compare(label + " dzq", d_ref.dzq, d.dzq + os, n, 0) +
+          compare(label + " pres", d_ref.pres, d.pres + os, n, 0));
 }
 
 template <typename Scalar>
@@ -215,16 +259,19 @@ static Int run_and_cmp (const std::string& bfn, const Real& tol) {
     virtual void observe (const ic::MicroSedData<Scalar>& d_ic) override {
       auto d_orig_fortran(d_ic);
       d_orig_fortran.dt /= BaselineConsts::nstep;
+      FortranBridge<Scalar> f_bridge(d_orig_fortran);
+
       auto d_vanilla_cpp(d_orig_fortran);
-      FortranCppDataBridge<Scalar> bridge(d_vanilla_cpp);
+      VanillaCppBridge<Scalar> vcpp_bridge(d_vanilla_cpp);
+
       for (Int step = 0; step < BaselineConsts::nstep; ++step) {
         // Read the baseline.
         Int ni, nk;
         util::read(&ni, 1, fid);
         util::read(&nk, 1, fid);
-        micro_throw_if(ni != d_ic.ni || nk != d_ic.nk,
+        micro_throw_if(ni != 1 || nk != d_ic.nk,
                        "Baseline file has (ni,nk) = " << ni << ", " << nk
-                       << " but we expected " << d_ic.ni << ", " << d_ic.nk);
+                       << " but we expected " << 1 << ", " << d_ic.nk);
         const auto n = ni*nk;
         ic::MicroSedData<Scalar> d_ref(ni, nk);
         util::read(&d_ref.dt, 1, fid);
@@ -241,14 +288,14 @@ static Int run_and_cmp (const std::string& bfn, const Real& tol) {
           // for handling the issue of single vs double precision. In this case,
           // we expect the baseline file to be generated from the master-branch
           // version, and we're comparing a modified version in a branch.
-          micro_sed_func(d_orig_fortran);
+          micro_sed_func(d_orig_fortran, f_bridge);
           std::stringstream ss;
           ss << "Original Fortran step " << step;
           nerr += compare(ss.str(), d_ref, d_orig_fortran, tol);
         }
 
         { // Super-vanilla C++.
-          micro_sed_func_cpp(d_vanilla_cpp, bridge);
+          micro_sed_func_cpp(d_vanilla_cpp, vcpp_bridge);
           std::stringstream ss;
           ss << "Super-vanilla C++ step " << step;
           nerr += compare(ss.str(), d_ref, d_vanilla_cpp, tol);
@@ -256,7 +303,15 @@ static Int run_and_cmp (const std::string& bfn, const Real& tol) {
       }
     }
   };
-  return Observer(bfn, tol).run();
+
+  Int nerr = 0;
+  Int ne = Observer(bfn, tol).run(1);
+  if (ne) std::cout << "1-column test failed.\n";
+  nerr += ne;
+  ne = Observer(bfn, tol).run(7);
+  if (ne) std::cout << "Multiple-column test failed.\n";
+  nerr += ne;
+  return nerr;
 }
 
 static void expect_another_arg (Int i, Int argc) {
@@ -299,9 +354,11 @@ int main (int argc, char** argv) {
 
   Int out = 0;
   if (generate) {
+    // Generate a single-column baseline file.
     std::cout << "Generating to " << baseline_fn << "\n";
     out = generate_baseline<Real>(baseline_fn);
   } else {
+    // Run with multiple columns, but compare only the last one to the baseline.
     printf("Comparing with %s at tol %1.1e\n", baseline_fn.c_str(), tol);
     out = run_and_cmp<Real>(baseline_fn, tol);
   }

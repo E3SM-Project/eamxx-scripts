@@ -73,11 +73,12 @@ static void set_rain (const Int nk, const Scalar* const dz,
   }
 }
 
+/* MicroSedData holds data packed by column. */
 template <typename Scalar>
 struct MicroSedData {
   const Int ni, nk;
 
-private:
+protected:
   std::vector<Scalar> buf_;
 
   void init_ptrs () {
@@ -103,34 +104,15 @@ public:
     : ni(ni_), nk(nk_),
       buf_(5*ni*nk + ni),
       dt(0), reverse(false)
-  {
-    // For now, don't deal with the issue of fast index.
-    micro_throw_if(ni > 1, "We're not yet handling chunks.");
-    init_ptrs();
-  }
-
-  MicroSedData (const MicroSedData& d)
-    : ni(d.ni), nk(d.nk), dt(d.dt), reverse(d.reverse), buf_(d.buf_)
   { init_ptrs(); }
 
-  void populate()
-  {
-    set_hydrostatic(nk, dzq, pres);
-
-    for (Int k = 0; k < nk; ++k)
-      th[k] = consts::th_ref;
-
-    set_rain(nk, dzq, qr, nr);
-
-    for (Int i = 0; i < ni; ++i)
-      prt_liq[i] = 0;
-
-    duplicate_columns(*this);
-  }
+  MicroSedData (const MicroSedData& d)
+    : ni(d.ni), nk(d.nk), buf_(d.buf_), dt(d.dt), reverse(d.reverse)
+  { init_ptrs(); }
 };
 
 template <typename Scalar>
-static void duplicate_columns (MicroSedData<Scalar>& d) {
+void duplicate_columns (MicroSedData<Scalar>& d) {
   const auto copy = [&] (Scalar* v, const Int& i) {
     std::copy(v, v + d.nk, v + i*d.nk);
   };
@@ -142,6 +124,21 @@ static void duplicate_columns (MicroSedData<Scalar>& d) {
     copy(d.pres, i);
     d.prt_liq[i] = d.prt_liq[0];
   }
+}
+
+template <typename Scalar>
+void populate (MicroSedData<Scalar>& d) {
+  set_hydrostatic(d.nk, d.dzq, d.pres);
+
+  for (Int k = 0; k < d.nk; ++k)
+    d.th[k] = consts::th_ref;
+
+  set_rain(d.nk, d.dzq, d.qr, d.nr);
+
+  for (Int i = 0; i < d.ni; ++i)
+    d.prt_liq[i] = 0;
+
+  duplicate_columns(d);
 }
 
 template <typename Scalar>
