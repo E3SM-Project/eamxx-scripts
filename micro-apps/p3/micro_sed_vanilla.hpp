@@ -85,7 +85,7 @@ void populate_input(const int its, const int ite, const int kts, const int kte,
 
   ic::MicroSedData<Real> default_data(num_horz, num_vert);
   if (data == nullptr) {
-    default_data.populate();
+    populate(default_data);
     data = &default_data;
   }
 
