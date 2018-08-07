@@ -16,8 +16,6 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
 if (${DOUBLE_PRECISION})
   set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fdefault-real-8 -D DOUBLE_PRECISION")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D DOUBLE_PRECISION")
-else()
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsingle-precision-constant")
 endif()
 
 if (${ENABLE_TRACING})

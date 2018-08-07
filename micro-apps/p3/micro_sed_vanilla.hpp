@@ -148,8 +148,8 @@ void find_lookupTable_indices_3(int& dumii, int& dumjj, Real& rdumii, Real& rdum
   if (dum1 <= 195.e-6) {
     inv_dum3  = 0.1;
     rdumii = (dum1*1.e6+5.)*inv_dum3;
-    rdumii = std::max(rdumii, 1.);
-    rdumii = std::min(rdumii,20.);
+    rdumii = std::max<Real>(rdumii, 1.);
+    rdumii = std::min<Real>(rdumii,20.);
     dumii  = static_cast<int>(rdumii);
     dumii  = std::max(dumii, 1);
     dumii  = std::min(dumii,20);
@@ -157,8 +157,8 @@ void find_lookupTable_indices_3(int& dumii, int& dumjj, Real& rdumii, Real& rdum
   else {
     inv_dum3  = Globals<Real>::THRD*0.1;           // i.e. 1/30
     rdumii = (dum1*1.e+6-195.)*inv_dum3 + 20.;
-    rdumii = std::max(rdumii, 20.);
-    rdumii = std::min(rdumii,300.);
+    rdumii = std::max<Real>(rdumii, 20.);
+    rdumii = std::min<Real>(rdumii,300.);
     dumii  = static_cast<int>(rdumii);
     dumii  = std::max(dumii, 20);
     dumii  = std::min(dumii,299);
@@ -166,8 +166,8 @@ void find_lookupTable_indices_3(int& dumii, int& dumjj, Real& rdumii, Real& rdum
 
   // find location in mu_r space
   rdumjj = mu_r+1.;
-  rdumjj = std::max(rdumjj,1.);
-  rdumjj = std::min(rdumjj,10.);
+  rdumjj = std::max<Real>(rdumjj,1.);
+  rdumjj = std::min<Real>(rdumjj,10.);
   dumjj  = static_cast<int>(rdumjj);
   dumjj  = std::max(dumjj,1);
   dumjj  = std::min(dumjj,9);
@@ -195,8 +195,8 @@ void get_rain_dsd2(const Real qr, Real& nr, Real& mu_r, Real& rdumii, int& dumii
     else if (inv_dum >= 282.e-6 && inv_dum < 502.e-6) {
       // interpolate
       rdumii = (inv_dum-250.e-6)*1.e+6*0.5;
-      rdumii = std::max(rdumii,1.0);
-      rdumii = std::min(rdumii,150.0);
+      rdumii = std::max<Real>(rdumii,1.0);
+      rdumii = std::min<Real>(rdumii,150.0);
       dumii  = static_cast<int>(rdumii);
       dumii  = std::min(149,dumii);
       mu_r   = mu_r_table[dumii-1] + (mu_r_table[dumii] - mu_r_table[dumii-1]) * (rdumii-dumii);
