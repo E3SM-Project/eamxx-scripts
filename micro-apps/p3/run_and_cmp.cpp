@@ -2,6 +2,7 @@
 #include "util.hpp"
 #include "initial_conditions.hpp"
 #include "micro_sed_vanilla.hpp"
+#include "micro_kokkos.hpp"
 
 #include <vector>
 #include <iostream>
@@ -353,15 +354,17 @@ int main (int argc, char** argv) {
   baseline_fn += std::to_string(sizeof(Real));
 
   Int out = 0;
-  if (generate) {
-    // Generate a single-column baseline file.
-    std::cout << "Generating to " << baseline_fn << "\n";
-    out = generate_baseline<Real>(baseline_fn);
-  } else {
-    // Run with multiple columns, but compare only the last one to the baseline.
-    printf("Comparing with %s at tol %1.1e\n", baseline_fn.c_str(), tol);
-    out = run_and_cmp<Real>(baseline_fn, tol);
-  }
+  Kokkos::initialize(argc, argv); {
+    if (generate) {
+      // Generate a single-column baseline file.
+      std::cout << "Generating to " << baseline_fn << "\n";
+      out = generate_baseline<Real>(baseline_fn);
+    } else {
+      // Run with multiple columns, but compare only the last one to the baseline.
+      printf("Comparing with %s at tol %1.1e\n", baseline_fn.c_str(), tol);
+      out = run_and_cmp<Real>(baseline_fn, tol);
+    }
+  } Kokkos::finalize_all();
 
   return out;
 }
