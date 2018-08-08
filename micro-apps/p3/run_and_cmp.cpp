@@ -299,7 +299,8 @@ static Int run_and_cmp (const std::string& bfn, const Real& tol) {
           micro_sed_func_cpp(d_vanilla_cpp, vcpp_bridge);
           std::stringstream ss;
           ss << "Super-vanilla C++ step " << step;
-          nerr += compare(ss.str(), d_ref, d_vanilla_cpp, tol);
+          nerr += compare(ss.str(), d_ref, d_vanilla_cpp,
+                          util::is_single_precision<Real>::value ? 2e-5 : tol);
         }
       }
     }
@@ -318,6 +319,13 @@ static Int run_and_cmp (const std::string& bfn, const Real& tol) {
 static void expect_another_arg (Int i, Int argc) {
   if (i == argc-1)
     throw std::runtime_error("Expected another cmd-line arg.");
+}
+
+static Int unittest () {
+  Int nerr = 0;
+  if (util::is_single_precision<double>::value) nerr++;
+  if ( ! util::is_single_precision<float>::value) nerr++;
+  return nerr;
 }
 
 int main (int argc, char** argv) {
@@ -355,14 +363,15 @@ int main (int argc, char** argv) {
 
   Int out = 0;
   Kokkos::initialize(argc, argv); {
+    out = unittest();
     if (generate) {
       // Generate a single-column baseline file.
       std::cout << "Generating to " << baseline_fn << "\n";
-      out = generate_baseline<Real>(baseline_fn);
+      out += generate_baseline<Real>(baseline_fn);
     } else {
       // Run with multiple columns, but compare only the last one to the baseline.
       printf("Comparing with %s at tol %1.1e\n", baseline_fn.c_str(), tol);
-      out = run_and_cmp<Real>(baseline_fn, tol);
+      out += run_and_cmp<Real>(baseline_fn, tol);
     }
   } Kokkos::finalize_all();
 
