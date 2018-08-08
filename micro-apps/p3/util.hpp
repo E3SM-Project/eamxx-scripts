@@ -59,6 +59,10 @@ eq (const std::string& a, const char* const b1, const char* const b2 = 0) {
   return (a == std::string(b1) || (b2 && a == std::string(b2)) ||
           a == std::string("-") + std::string(b1));
 }
+
+template <typename Real> struct is_single_precision {};
+template <> struct is_single_precision<float> { enum : bool { value = true }; };
+template <> struct is_single_precision<double> { enum : bool { value = false }; };
 }
 
 #endif
