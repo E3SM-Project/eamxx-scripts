@@ -11,12 +11,12 @@ namespace ic {
 
 struct consts {
   static constexpr Real
-    pres_surface = 1e5, // Pa
-    pres_top = pres_surface/4, // model top, Pa
-    th_ref = 300, // potential temperature reference, K
-    g = 9.8, // grav accel, m/s^2
-    R_d = 287.058, // specific gas constant for dry air, J/kg/K
-    c_p = 1005; // specific heat of air, const pressure, at 300 K, J/kg/K
+    pres_surface = Real(1e5), // Pa
+    pres_top = Real(0.25)*pres_surface, // model top, Pa
+    th_ref = Real(300), // potential temperature reference, K
+    g = Real(9.8), // grav accel, m/s^2
+    R_d = Real(287.058), // specific gas constant for dry air, J/kg/K
+    c_p = Real(1005); // specific heat of air, const pressure, at 300 K, J/kg/K
 };
 
 /* z is ordered from surface to top. Determine z mesh by assuming constant
@@ -36,7 +36,7 @@ static void set_hydrostatic (const Int nk, Scalar* const dzq, Scalar* const pres
   Real z_prev = 0, z;
   for (Int k = 0; k < nk; ++k) {
     const auto p = consts::pres_surface + (k+1)*dp;
-    pres[k] = p - 0.5*dp;
+    pres[k] = p - Real(0.5)*dp;
     const auto x = p/consts::pres_surface;
     z = -c1*std::pow(x, c2)*std::log(x)*consts::th_ref;
     assert(z > z_prev); // Monotonically increasing z.
@@ -56,19 +56,19 @@ template <typename Scalar>
 static void set_rain (const Int nk, const Scalar* const dz,
                       Scalar* const qr, Scalar* const nr) {
   static const Real
-    nr0 = 1e-2,
-    rain_middle = 5e3, // m
-    rain_spread = 1e3; // m
+    nr0 = Real(1e-2),
+    rain_middle = Real(5e3), // m
+    rain_spread = Real(1e3); // m
   Real z = 0;
   for (Int k = 0; k < nk; ++k) {
     z += dz[k];
-    const auto zmid = z - 0.5*dz[k];
+    const auto zmid = z - Real(0.5)*dz[k];
     qr[k] = nr[k] = 0;
     if (std::abs(zmid - rain_middle) <= rain_spread) {
       nr[k] = nr0;
-      const auto bell = 0.5*(1 + std::cos(2*M_PI*((zmid - rain_middle)/
-                                                  (2*rain_spread))));
-      qr[k] = nr[k]*bell*1.5*3.962e-7;
+      const auto bell = Real(0.5)*(1 + std::cos(Real(2)*Real(M_PI)*((zmid - rain_middle)/
+                                                                    (Real(2)*rain_spread))));
+      qr[k] = nr[k]*bell*Real(1.5)*Real(3.962e-7);
     }
   }
 }
