@@ -16,6 +16,10 @@ target_link_libraries(unit_test_f90 microsed)
 
 add_executable(run_and_cmp run_and_cmp.cpp)
 target_link_libraries(run_and_cmp microsed)
+target_include_directories (run_and_cmp PUBLIC ${SCREAM_MICRO_APPS_INCLUDES})
+target_link_libraries (run_and_cmp ${SCREAM_MICRO_APPS_LIBRARIES})
+set_target_properties (run_and_cmp PROPERTIES
+  LINK_FLAGS ${SCREAM_MICRO_APPS_LINK_FLAGS})
 
 add_custom_target(baseline
   COMMAND $<TARGET_FILE:run_and_cmp> -g run_and_cmp.baseline)
