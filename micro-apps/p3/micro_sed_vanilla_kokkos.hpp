@@ -17,12 +17,6 @@ namespace p3 {
 namespace micro_sed_vanilla {
 
 template <typename Real>
-using kokkos_2d_t = Kokkos::View<Real**>;
-
-template <typename Real>
-using kokkos_1d_t = Kokkos::View<Real*>;
-
-template <typename Real>
 using kokkos_2d_table_t = Kokkos::View<Real[300][10]>;
 
 template <typename Real>
@@ -36,13 +30,25 @@ struct GlobalsKokkos
 };
 
 template <typename Real>
-kokkos_2d_table_t<Real> GlobalsKokkos<Real>::VN_TABLE("VN_TABLE");
+kokkos_2d_table_t<Real>& VN_TABLE()
+{
+  static kokkos_2d_table_t<Real> vn_table("VN_TABLE");
+  return vn_table;
+}
 
 template <typename Real>
-kokkos_2d_table_t<Real> GlobalsKokkos<Real>::VM_TABLE("VM_TABLE");
+kokkos_2d_table_t<Real>& VM_TABLE()
+{
+  static kokkos_2d_table_t<Real> vm_table("VM_TABLE");
+  return vm_table;
+}
 
 template <typename Real>
-kokkos_1d_table_t<Real> GlobalsKokkos<Real>::MU_R_TABLE("MU_R_TABLE");
+kokkos_1d_table_t<Real>& MU_R_TABLE()
+{
+  static kokkos_1d_table_t<Real> mu_r_table("MU_R_TABLE");
+  return mu_r_table;
+}
 
 /**
  * Generate lookup table for rain fallspeed and ventilation parameters
@@ -62,9 +68,9 @@ void p3_init_cpp_kokkos()
 
   // initialize on host
 
-  typename kokkos_2d_table_t<Real>::HostMirror mirror_vn_table = Kokkos::create_mirror_view(GlobalsKokkos<Real>::VN_TABLE);
-  typename kokkos_2d_table_t<Real>::HostMirror mirror_vm_table = Kokkos::create_mirror_view(GlobalsKokkos<Real>::VM_TABLE);
-  typename kokkos_1d_table_t<Real>::HostMirror mirror_mu_table = Kokkos::create_mirror_view(GlobalsKokkos<Real>::MU_R_TABLE);
+  auto mirror_vn_table = Kokkos::create_mirror_view(VN_TABLE<Real>());
+  auto mirror_vm_table = Kokkos::create_mirror_view(VM_TABLE<Real>());
+  auto mirror_mu_table = Kokkos::create_mirror_view(MU_R_TABLE<Real>());
 
   for (int i = 0; i < 300; ++i) {
     for (int k = 0; k < 10; ++k) {
@@ -78,14 +84,61 @@ void p3_init_cpp_kokkos()
   }
 
   // deep copy to device
-  Kokkos::deep_copy(GlobalsKokkos<Real>::VN_TABLE, mirror_vn_table);
-  Kokkos::deep_copy(GlobalsKokkos<Real>::VM_TABLE, mirror_vm_table);
-  Kokkos::deep_copy(GlobalsKokkos<Real>::MU_R_TABLE, mirror_mu_table);
+  Kokkos::deep_copy(VN_TABLE<Real>(), mirror_vn_table);
+  Kokkos::deep_copy(VM_TABLE<Real>(), mirror_vm_table);
+  Kokkos::deep_copy(MU_R_TABLE<Real>(), mirror_mu_table);
+}
+
+template <typename Real>
+void p3_deinit_cpp_kokkos()
+{
+  VN_TABLE<Real>()   = kokkos_2d_table_t<Real>();
+  VM_TABLE<Real>()   = kokkos_2d_table_t<Real>();
+  MU_R_TABLE<Real>() = kokkos_1d_table_t<Real>();
+}
+
+/**
+ * Finds indices in rain lookup table (3)
+ */
+KOKKOS_FUNCTION
+template <typename Real>
+void find_lookupTable_indices_3_kokkos(int& dumii, int& dumjj, Real& rdumii, Real& rdumjj, Real& inv_dum3,
+                                       const Real mu_r, const Real lamr)
+{
+  // find location in scaled mean size space
+  Real dum1 = (mu_r+1.) / lamr;
+  if (dum1 <= 195.e-6) {
+    inv_dum3  = 0.1;
+    rdumii = (dum1*1.e6+5.)*inv_dum3;
+    rdumii = std::max<Real>(rdumii, 1.);
+    rdumii = std::min<Real>(rdumii,20.);
+    dumii  = static_cast<int>(rdumii);
+    dumii  = std::max(dumii, 1);
+    dumii  = std::min(dumii,20);
+  }
+  else {
+    inv_dum3  = Globals<Real>::THRD*0.1;           // i.e. 1/30
+    rdumii = (dum1*1.e+6-195.)*inv_dum3 + 20.;
+    rdumii = std::max<Real>(rdumii, 20.);
+    rdumii = std::min<Real>(rdumii,300.);
+    dumii  = static_cast<int>(rdumii);
+    dumii  = std::max(dumii, 20);
+    dumii  = std::min(dumii,299);
+  }
+
+  // find location in mu_r space
+  rdumjj = mu_r+1.;
+  rdumjj = std::max<Real>(rdumjj,1.);
+  rdumjj = std::min<Real>(rdumjj,10.);
+  dumjj  = static_cast<int>(rdumjj);
+  dumjj  = std::max(dumjj,1);
+  dumjj  = std::min(dumjj,9);
 }
 
 /**
  * Computes and returns rain size distribution parameters
  */
+KOKKOS_FUNCTION
 template <typename Real>
 void get_rain_dsd2_kokkos(const Real qr, Real& nr, Real& mu_r, Real& rdumii, int& dumii, Real& lamr,
                           kokkos_1d_table_t<Real> const& mu_r_table, Real& cdistr, Real& logn0r)
@@ -194,7 +247,7 @@ public:
     });
 
     Kokkos::parallel_for(_num_horz, KOKKOS_LAMBDA(int i) {
-      for (int k = 0; i < _num_vert; ++k) {
+      for (int k = 0; k < _num_vert; ++k) {
         mu_r(i, k)    = 0.0;
         lamr(i, k)    = 0.0;
         rhofacr(i, k) = 0.0;
@@ -287,23 +340,23 @@ public:
               trace_data("    nr", i, k, nr(i, k));
               Real rdumii=0.0, tmp1=0.0, tmp2=0.0, rdumjj=0.0, inv_dum3=0.0;
               int dumii=0, dumjj=0;
-              get_rain_dsd2_kokkos(qr(i, k), nr(i, k), mu_r(i, k), rdumii, dumii, lamr(i, k), GlobalsKokkos<Real>::MU_R_TABLE, tmp1, tmp2);
-              find_lookupTable_indices_3(dumii, dumjj, rdumii, rdumjj, inv_dum3, mu_r(i, k), lamr(i, k));
+              get_rain_dsd2_kokkos(qr(i, k), nr(i, k), mu_r(i, k), rdumii, dumii, lamr(i, k), MU_R_TABLE<Real>(), tmp1, tmp2);
+              find_lookupTable_indices_3_kokkos(dumii, dumjj, rdumii, rdumjj, inv_dum3, mu_r(i, k), lamr(i, k));
 
               // mass-weighted fall speed:
-              Real dum1 = GlobalsKokkos<Real>::VM_TABLE(dumii-1, dumjj-1) + (rdumii-dumii) * inv_dum3 * \
-                (GlobalsKokkos<Real>::VM_TABLE(dumii, dumjj-1) - GlobalsKokkos<Real>::VM_TABLE(dumii-1, dumjj-1));
-              Real dum2 = GlobalsKokkos<Real>::VM_TABLE(dumii-1, dumjj) + (rdumii-dumii) * inv_dum3 * \
-                (GlobalsKokkos<Real>::VM_TABLE(dumii, dumjj) - GlobalsKokkos<Real>::VM_TABLE(dumii-1, dumjj));
+              Real dum1 = VM_TABLE<Real>()(dumii-1, dumjj-1) + (rdumii-dumii) * inv_dum3 * \
+                (VM_TABLE<Real>()(dumii, dumjj-1) - VM_TABLE<Real>()(dumii-1, dumjj-1));
+              Real dum2 = VM_TABLE<Real>()(dumii-1, dumjj) + (rdumii-dumii) * inv_dum3 * \
+                (VM_TABLE<Real>()(dumii, dumjj) - VM_TABLE<Real>()(dumii-1, dumjj));
 
               V_qr(k) = (dum1 + (rdumjj - dumjj) * (dum2 - dum1)) * rhofacr(i, k);
               trace_data("    V_qr", 0, k, V_qr(k));
 
               // number-weighted fall speed:
-              dum1 = GlobalsKokkos<Real>::VN_TABLE(dumii-1, dumjj-1) + (rdumii-dumii) * inv_dum3 * \
-                (GlobalsKokkos<Real>::VN_TABLE(dumii, dumjj-1) - GlobalsKokkos<Real>::VN_TABLE(dumii-1, dumjj-1));
-              dum2 = GlobalsKokkos<Real>::VN_TABLE(dumii-1, dumjj) + (rdumii-dumii) * inv_dum3 * \
-                (GlobalsKokkos<Real>::VN_TABLE(dumii, dumjj) - GlobalsKokkos<Real>::VN_TABLE(dumii-1, dumjj));
+              dum1 = VN_TABLE<Real>()(dumii-1, dumjj-1) + (rdumii-dumii) * inv_dum3 * \
+                (VN_TABLE<Real>()(dumii, dumjj-1) - VN_TABLE<Real>()(dumii-1, dumjj-1));
+              dum2 = VN_TABLE<Real>()(dumii-1, dumjj) + (rdumii-dumii) * inv_dum3 * \
+                (VN_TABLE<Real>()(dumii, dumjj) - VN_TABLE<Real>()(dumii-1, dumjj));
 
               V_nr(k) = (dum1 + (rdumjj - dumjj) * (dum2 - dum1)) * rhofacr(i, k);
               trace_data("    V_nr", 0, k, V_nr(k));

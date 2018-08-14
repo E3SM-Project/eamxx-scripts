@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "types.hpp"
+#include "micro_kokkos.hpp"
 
 namespace ic {
 

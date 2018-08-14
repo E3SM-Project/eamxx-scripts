@@ -16,10 +16,10 @@ int main(int argc, char** argv)
 
   Real dt(atof(argv[7]));
 
-  p3::micro_sed_vanilla::p3_init_cpp_kokkos<Real>();
-
   Kokkos::initialize(argc, argv); {
+    p3::micro_sed_vanilla::p3_init_cpp_kokkos<Real>();
     p3::micro_sed_vanilla::micro_sed_func_vanilla_kokkos_wrap<Real>(kts, kte, ni, nk, its, ite, dt, ts);
+    p3::micro_sed_vanilla::p3_deinit_cpp_kokkos<Real>();
   } Kokkos::finalize_all();
 
   return 0;

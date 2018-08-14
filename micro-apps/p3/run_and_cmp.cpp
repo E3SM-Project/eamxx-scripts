@@ -1,7 +1,7 @@
 #include "types.hpp"
 #include "util.hpp"
 #include "initial_conditions.hpp"
-#include "micro_sed_vanilla.hpp"
+#include "micro_sed_vanilla_kokkos.hpp"
 #include "micro_kokkos.hpp"
 
 #include <vector>
@@ -81,7 +81,21 @@ class VanillaCppBridge
     pres(d.ni, std::vector<Scalar>(d.nk)),
     prt_liq(d.ni)
   {
-    p3::micro_sed_vanilla::populate_input<Scalar>(1, d.ni, 1, d.nk, qr, nr, th, dzq, pres, &d);
+    sync_from(d);
+  }
+
+  void sync_from(const ic::MicroSedData<Scalar>& d)
+  {
+    for (int i = 0; i < d.ni; ++i) {
+      for (int k = 0; k < d.nk; ++k) {
+        qr[i][k]   = d.qr[i*d.nk + k];
+        nr[i][k]   = d.nr[i*d.nk + k];
+        th[i][k]   = d.th[i*d.nk + k];
+        dzq[i][k]  = d.dzq[i*d.nk + k];
+        pres[i][k] = d.pres[i*d.nk + k];
+      }
+      prt_liq[i] = d.prt_liq[i];
+    }
   }
 
   void sync_to(ic::MicroSedData<Scalar>& d)
@@ -98,8 +112,81 @@ class VanillaCppBridge
     }
   }
 
-  p3::micro_sed_vanilla::vector_2d_t<Scalar> qr, nr, th, dzq, pres;
+  vector_2d_t<Scalar> qr, nr, th, dzq, pres;
   std::vector<Scalar> prt_liq;
+};
+
+template <typename Scalar>
+class KokkosCppBridge {
+public:
+  kokkos_2d_t<Real> qr, nr, th, dzq, pres;
+  kokkos_1d_t<Real> prt_liq;
+
+  KokkosCppBridge(const ic::MicroSedData<Scalar>& d)
+    : qr("qr", d.ni, d.nk),
+      nr("nr", d.ni, d.nk),
+      th("th", d.ni, d.nk),
+      dzq("dzq", d.ni, d.nk),
+      pres("pres", d.ni, d.nk),
+      prt_liq("prt_liq", d.ni)
+  {
+    sync_from(d);
+  }
+
+  void sync_from(const ic::MicroSedData<Scalar>& d)
+  {
+    auto mirror_qr      = Kokkos::create_mirror_view(qr);
+    auto mirror_nr      = Kokkos::create_mirror_view(nr);
+    auto mirror_th      = Kokkos::create_mirror_view(th);
+    auto mirror_dzq     = Kokkos::create_mirror_view(dzq);
+    auto mirror_pres    = Kokkos::create_mirror_view(pres);
+    auto mirror_prt_liq = Kokkos::create_mirror_view(prt_liq);
+
+    for (int i = 0; i < d.ni; ++i) {
+      for (int k = 0; k < d.nk; ++k) {
+        mirror_qr  (i, k) = d.qr  [i*d.nk + k];
+        mirror_nr  (i, k) = d.nr  [i*d.nk + k];
+        mirror_th  (i, k) = d.th  [i*d.nk + k];
+        mirror_dzq (i, k) = d.dzq [i*d.nk + k];
+        mirror_pres(i, k) = d.pres[i*d.nk + k];
+      }
+      mirror_prt_liq(i) = d.prt_liq[i];
+    }
+
+    Kokkos::deep_copy(qr, mirror_qr);
+    Kokkos::deep_copy(nr, mirror_nr);
+    Kokkos::deep_copy(th, mirror_th);
+    Kokkos::deep_copy(dzq, mirror_dzq);
+    Kokkos::deep_copy(pres, mirror_pres);
+  }
+
+  void sync_to(ic::MicroSedData<Scalar>& d) const
+  {
+    auto mirror_qr      = Kokkos::create_mirror_view(qr);
+    auto mirror_nr      = Kokkos::create_mirror_view(nr);
+    auto mirror_th      = Kokkos::create_mirror_view(th);
+    auto mirror_dzq     = Kokkos::create_mirror_view(dzq);
+    auto mirror_pres    = Kokkos::create_mirror_view(pres);
+    auto mirror_prt_liq = Kokkos::create_mirror_view(prt_liq);
+
+    Kokkos::deep_copy(mirror_qr, qr);
+    Kokkos::deep_copy(mirror_nr, nr);
+    Kokkos::deep_copy(mirror_th, th);
+    Kokkos::deep_copy(mirror_dzq, dzq);
+    Kokkos::deep_copy(mirror_pres, pres);
+
+    for (int i = 0; i < d.ni; ++i) {
+      for (int k = 0; k < d.nk; ++k) {
+        d.qr  [i*d.nk + k] = mirror_qr  (i, k);
+        d.nr  [i*d.nk + k] = mirror_nr  (i, k);
+        d.th  [i*d.nk + k] = mirror_th  (i, k);
+        d.dzq [i*d.nk + k] = mirror_dzq (i, k);
+        d.pres[i*d.nk + k] = mirror_pres(i, k);
+      }
+      d.prt_liq[i] = mirror_prt_liq(i);
+    }
+
+  }
 };
 
 template <typename Scalar>
@@ -108,6 +195,16 @@ void micro_sed_func_cpp (ic::MicroSedData<Scalar>& d, VanillaCppBridge<Scalar>& 
   p3::micro_sed_vanilla::micro_sed_func_vanilla<Scalar>( d.reverse ? d.nk : 1, d.reverse ? 1 : d.nk,
                                                         d.ni, d.nk, 1, d.ni, d.dt, bridge.qr, bridge.nr, bridge.th,
                                                         bridge.dzq, bridge.pres, bridge.prt_liq);
+
+  bridge.sync_to(d);
+}
+
+template <typename Scalar>
+void micro_sed_func_cpp_kokkos (ic::MicroSedData<Scalar>& d, KokkosCppBridge<Scalar>& bridge, p3::micro_sed_vanilla::MicroSedFuncVanillaKokkos<Real>& msvk)
+{
+  msvk.micro_sed_func_vanilla_kokkos( d.reverse ? d.nk : 1, d.reverse ? 1 : d.nk,
+                                      d.ni, d.nk, 1, d.ni, d.dt, bridge.qr, bridge.nr, bridge.th,
+                                      bridge.dzq, bridge.pres, bridge.prt_liq);
 
   bridge.sync_to(d);
 }
@@ -145,7 +242,7 @@ void run_over_parameter_sets (MicroSedObserver<Scalar>& o, const Int ncol) {
   const Real dt_tot = 300 * BaselineConsts::nstep; // s
 
   // will init both fortran and c
-  p3::micro_sed_vanilla::p3_init_cpp<Scalar>();
+  p3::micro_sed_vanilla::p3_init_cpp_kokkos<Scalar>();
 
   ic::MicroSedData<Scalar> d(ncol, 111);
   d.dt = dt_tot;
@@ -155,6 +252,8 @@ void run_over_parameter_sets (MicroSedObserver<Scalar>& o, const Int ncol) {
 
   const auto d_rev(reverse_k(d));
   o.observe(d_rev);
+
+  p3::micro_sed_vanilla::p3_deinit_cpp_kokkos<Scalar>();
 }
 
 struct BaselineObserver : public MicroSedObserver<Real> {
@@ -265,6 +364,11 @@ static Int run_and_cmp (const std::string& bfn, const Real& tol) {
       auto d_vanilla_cpp(d_orig_fortran);
       VanillaCppBridge<Scalar> vcpp_bridge(d_vanilla_cpp);
 
+      auto d_kokkos_cpp(d_orig_fortran);
+      KokkosCppBridge<Scalar> kcpp_bridge(d_kokkos_cpp);
+
+      p3::micro_sed_vanilla::MicroSedFuncVanillaKokkos<Scalar> msvk(d_ic.ni, d_ic.nk);
+
       for (Int step = 0; step < BaselineConsts::nstep; ++step) {
         // Read the baseline.
         Int ni, nk;
@@ -300,6 +404,14 @@ static Int run_and_cmp (const std::string& bfn, const Real& tol) {
           std::stringstream ss;
           ss << "Super-vanilla C++ step " << step;
           nerr += compare(ss.str(), d_ref, d_vanilla_cpp,
+                          util::is_single_precision<Real>::value ? 2e-5 : tol);
+        }
+
+        { // Vanilla C++ kokkos.
+          micro_sed_func_cpp_kokkos(d_kokkos_cpp, kcpp_bridge, msvk);
+          std::stringstream ss;
+          ss << "Vanilla Kokkos C++ step " << step;
+          nerr += compare(ss.str(), d_ref, d_kokkos_cpp,
                           util::is_single_precision<Real>::value ? 2e-5 : tol);
         }
       }

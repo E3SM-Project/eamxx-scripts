@@ -41,9 +41,6 @@ void trace_data(const char* name, int i, int k, Real value)
 }
 
 template <typename Real>
-using vector_2d_t = std::vector<std::vector<Real> >;
-
-template <typename Real>
 struct Globals
 {
   static constexpr Real INV_RHOW = 1.e-3;
