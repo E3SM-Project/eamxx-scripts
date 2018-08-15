@@ -4,21 +4,13 @@
    Use 1D advection with a source term to model P3-sedimentation-like code.
 
    ws: (KH=/ascldap/users/ambradl/lib/kokkos/cpu-dbg; g++ -std=c++11 vec.cpp -I$KH/include -L$KH/lib -lkokkos -ldl -fopenmp)
-   blake: (KH=/home/ambradl/lib/kokkos/blake; icpc -std=c++11 -restrict -xcore-avx512 -O3 vec.cpp -I$KH/include -L$KH/lib -lkokkos -ldl -fopenmp)
-   bowman: 
-   waterman: (KH=/home/ambradl/lib/waterman-kokkos/gpu; $KH/bin/nvcc_wrapper -std=c++11 --expt-extended-lambda -O3 vec.cpp -I$KH/include -L$KH/lib -lkokkos -ldl)
+   blake: (KH=/home/ambradl/lib/kokkos/blake; icpc -DVEC_PACKN=16 -DVEC_DEMOTE_M512D=1 -std=c++11 -restrict -xcore-avx512 -O3 vec.cpp -I$KH/include -L$KH/lib -lkokkos -ldl -fopenmp)
+   bowman: (KH=/home/ambradl/lib/kokkos/knl; icpc -DVEC_PACKN=16 -DVEC_DEMOTE_M512D=0 -std=c++11 -restrict -xmic-avx512 -O3 vec.cpp -I$KH/include -L$KH/lib -lkokkos -ldl -fopenmp)
+   waterman: (KH=/home/ambradl/lib/waterman-kokkos/gpu; $KH/bin/nvcc_wrapper -DVEC_PACKN=1 -std=c++11 --expt-extended-lambda -fopenmp -O3 vec.cpp -I$KH/include -L$KH/lib -lkokkos -ldl)
 
    ws lib: (KH=/ascldap/users/ambradl/lib/kokkos/cpu-dbg; g++ -c -std=c++11 vec.cpp -DVEC_LIBRARY -I$KH/include -L$KH/lib -lkokkos -ldl -fopenmp -fPIC; g++ vec.o -shared -fopenmp -o libvec.so)
 
-   On Power9, VEC_PACKN 1 or 2 is best. On SKX, 16 seems best. Intrinsics have
-   yet to have benefit, and on SKX the fact that 512-bit vec instructions can be
-   slower than 2 256-bit ones in sequence complicates things. But I need to
-   break auto-vectorization in the non-pack impls before I can conclude anything
-   about intrinsics. Roughly, the goal is to determine whether we need (a) packs
-   at all and (b) if so, intrinsics.
-
    To do:
-   - break auto-vec so we can eval vector_simd packs vs intrinsics
    - workspace ~ #threads, not #cols
  */
 
@@ -34,10 +26,10 @@
 # define VEC_NCELL 128
 #endif
 #ifndef VEC_PACKN
-# define VEC_PACKN 8
+# define VEC_PACKN 16
 #endif
 #ifndef VEC_DEMOTE_M512D
-# define VEC_DEMOTE_M512D 1
+# define VEC_DEMOTE_M512D 0
 #endif
 
 typedef double Real;
@@ -123,7 +115,13 @@ std::string active_avx_string () {
 }
 } // namespace util
 
+/* The model problem is 1D constant-in-time, variable-in-space flow with a
+   source term. It is intended to be solved using the explicit-Euler,
+   first-order upwind method used in P3.
+ */
 namespace problem {
+// nvcc can't handle static const or static constexpr on device, so we need
+// #define alternatives.
 #define consts_L 2.0
 #define consts_xl 0.0
 #define consts_xr (consts_xl + L)
@@ -180,6 +178,7 @@ KOKKOS_INLINE_FUNCTION Real get_ic (const Real& x) {
 }
 } // namespace problem
 
+// Reference impl. Straightforward raw arrays with OpenMP across columns.
 namespace reference {
 // First-order upwind.
 void calc_numerical_flux (const Real* rho, Real* flux) {
@@ -214,6 +213,7 @@ void step (const Int& ncol, const Real& dt, const Int& nstep, Real* rho,
 }
 } // namespace reference
 
+// Assess the cost, if any, of using Kokkos arrays instead of raw arrays.
 namespace koarr {
 template <typename T>
 using Array = Kokkos::View<T*[VEC_NCELL], Kokkos::LayoutRight>;
@@ -256,6 +256,8 @@ void step (const Real& dt, const Int& nstep, Array<Real>& rho,
 }
 } // namespace koarr
 
+// A true Kokkos impl. Works on GPU and uses the threading strategy that seems
+// to fit P3 well.
 namespace ko {
 template <typename T> using Array =
   Kokkos::View<T*[VEC_NCELL], Kokkos::LayoutRight>;
@@ -321,13 +323,14 @@ void step (const Real& dt, const Int& nstep, Array<Real>& rho,
 }
 } // namespace ko
 
+// Use pragmas, perhaps helping auto-vectorization. Separate flux on the
+// boundary from the interior in case that helps with alignment.
 namespace vec1 {
 void calc_numerical_flux (const Real* restrict rho, Real& flux_bdy,
                           Real* restrict flux_interior) {
   using c = problem::consts;
   flux_bdy = c::rho_ref * problem::get_u(c::xl - 0.5*c::dx);
-  vector_ivdep
-  for (Int i = 0; i < c::ncell; ++i)
+  vector_ivdep for (Int i = 0; i < c::ncell; ++i)
     flux_interior[i] = rho[i] * problem::get_u(problem::get_x_ctr(i));
 }
 
@@ -342,8 +345,7 @@ void step (const Real& dt, Real* restrict rho, Real* restrict work) {
     const auto src = problem::get_src(problem::get_x_ctr(0), rho[0]);
     rho[0] -= dt*(fluxdiv - src);
   }
-  vector_ivdep
-  for (Int i = 1; i < c::ncell; ++i) {
+  vector_ivdep for (Int i = 1; i < c::ncell; ++i) {
     const auto fluxdiv = idx*(flux_int[i] - flux_int[i-1]);
     const auto src = problem::get_src(problem::get_x_ctr(i), rho[i]);
     rho[i] -= dt*(fluxdiv - src);
@@ -360,6 +362,7 @@ void step (const Int& ncol, const Real& dt, const Int& nstep, Real* restrict rho
 }
 } // namespace vec1
 
+// Experiment with packs and impls w/in the pack.
 namespace vec2 {
 
 #define vec2_gen_assign_op_p(op)                          \
@@ -560,8 +563,8 @@ Pack<T,n> pack_range (const T& start) {
   return p;
 }
 
-typedef Pack<Real,VEC_PACKN> RealPack;
-typedef Pack<Int ,VEC_PACKN> IntPack;
+typedef Pack<Real,8> RealPack;
+typedef Pack<Int ,8> IntPack;
 
 struct consts : public problem::consts {
   static constexpr Int npack = (ncell + RealPack::n - 1) / RealPack::n;
@@ -579,7 +582,7 @@ RealPack get_src (const RealPack& x, const RealPack& rho) {
   const Real trhodiffmax = 1;
   const auto rhodiff = abs(rho - consts::rho_ref);
   RealPack r;
-  for (Int i = 0; i < RealPack::n; ++i) {
+  vector_simd for (Int i = 0; i < RealPack::n; ++i) {
     if (rhodiff[i] >= trhodiffmax) {
       r[i] = 0;
       continue;
@@ -636,6 +639,208 @@ void step (const Int& ncol, const Real& dt, const Int& nstep,
 }
 } // namespace vec2
 
+// So far, vec2 shows that intrinsics are not helpful, but packs can be. So do a
+// clean impl of packs with no intrinsics.
+namespace packsimd {
+#define packsimd_gen_assign_op_p(op)                      \
+  KOKKOS_FORCEINLINE_FUNCTION                             \
+  Pack& operator op (const Pack& a) {                     \
+    vector_simd for (int i = 0; i < n; ++i) d[i] op a[i]; \
+    return *this;                                         \
+  }
+#define packsimd_gen_assign_op_s(op)                    \
+  KOKKOS_FORCEINLINE_FUNCTION                           \
+  Pack& operator op (const scalar& a) {                 \
+    vector_simd for (int i = 0; i < n; ++i) d[i] op a;  \
+    return *this;                                       \
+  }
+#define packsimd_gen_assign_op_all(op)          \
+  packsimd_gen_assign_op_p(op)                  \
+  packsimd_gen_assign_op_s(op)                  \
+
+template <typename SCALAR, int PACKN>
+struct Pack {
+  enum { packtag = true };
+  enum { n = PACKN };
+
+  typedef SCALAR scalar;
+
+  KOKKOS_INLINE_FUNCTION Pack () {}
+  KOKKOS_INLINE_FUNCTION Pack (const scalar& v) {
+    vector_simd for (int i = 0; i < n; ++i) d[i] = v;
+  }
+
+  KOKKOS_FORCEINLINE_FUNCTION const scalar& operator[] (const int& i) const { return d[i]; }
+  KOKKOS_FORCEINLINE_FUNCTION scalar& operator[] (const int& i) { return d[i]; }
+
+  packsimd_gen_assign_op_all(=)
+  packsimd_gen_assign_op_all(+=)
+  packsimd_gen_assign_op_all(-=)
+  packsimd_gen_assign_op_all(*=)
+  packsimd_gen_assign_op_all(/=)
+  
+  private:
+  scalar d[n];
+};
+
+// Use enable_if and packtag so that we can template on 'Pack' and yet not have
+// our operator overloads, in particular, be used for something other than the
+// Pack type.
+template <typename Pack>
+using OnlyPack = typename std::enable_if<Pack::packtag,Pack>::type;
+template <typename Pack, typename Return>
+using OnlyPackReturn = typename std::enable_if<Pack::packtag,Return>::type;
+
+template <typename Pack> KOKKOS_INLINE_FUNCTION
+OnlyPack<Pack> shift_right (const Pack& pm1, const Pack& p) {
+  Pack s;
+  s[0] = pm1[Pack::n-1];
+  vector_simd for (int i = 1; i < Pack::n; ++i) s[i] = p[i-1];
+  return s;
+}
+
+template <typename Pack> KOKKOS_INLINE_FUNCTION
+OnlyPack<Pack> shift_right (const typename Pack::scalar& pm1, const Pack& p) {
+  Pack s;
+  s[0] = pm1;
+  vector_simd for (int i = 1; i < Pack::n; ++i) s[i] = p[i-1];
+  return s;
+}
+
+#define packsimd_gen_bin_op_pp(op)                                      \
+  template <typename Pack> KOKKOS_FORCEINLINE_FUNCTION                  \
+  OnlyPack<Pack> operator op (const Pack& a, const Pack& b) {           \
+    Pack c;                                                             \
+    vector_simd for (int i = 0; i < Pack::n; ++i) c[i] = a[i] op b[i];  \
+    return c;                                                           \
+  }
+#define packsimd_gen_bin_op_ps(op)                                      \
+  template <typename Pack, typename Scalar> KOKKOS_FORCEINLINE_FUNCTION \
+  OnlyPack<Pack> operator op (const Pack& a, const Scalar& b) {         \
+    Pack c;                                                             \
+    vector_simd for (int i = 0; i < Pack::n; ++i) c[i] = a[i] op b;     \
+    return c;                                                           \
+  }
+#define packsimd_gen_bin_op_sp(op)                                      \
+  template <typename Pack, typename Scalar> KOKKOS_FORCEINLINE_FUNCTION \
+  OnlyPack<Pack> operator op (const Scalar& a, const Pack& b) {         \
+    Pack c;                                                             \
+    vector_simd for (int i = 0; i < Pack::n; ++i) c[i] = a op b[i];     \
+    return c;                                                           \
+  }
+#define packsimd_gen_bin_op_all(op)             \
+  packsimd_gen_bin_op_pp(op)                    \
+  packsimd_gen_bin_op_ps(op)                    \
+  packsimd_gen_bin_op_sp(op)
+
+packsimd_gen_bin_op_all(+)
+packsimd_gen_bin_op_all(-)
+packsimd_gen_bin_op_all(*)
+packsimd_gen_bin_op_all(/)
+
+template <typename Pack> KOKKOS_INLINE_FUNCTION
+OnlyPack<Pack> cos (const Pack& p) {
+  Pack s;
+  vector_simd for (int i = 0; i < Pack::n; ++i) s[i] = std::cos(p[i]);
+  return s;
+}
+template <typename Pack> KOKKOS_INLINE_FUNCTION
+OnlyPack<Pack> abs (const Pack& p) {
+  Pack s;
+  vector_simd for (int i = 0; i < Pack::n; ++i) s[i] = std::abs(p[i]);
+  return s;
+}
+template <typename T, typename pack, typename Scalar> KOKKOS_INLINE_FUNCTION
+OnlyPackReturn<pack, Pack<T,pack::n> > min (const Scalar& a, const pack& b) {
+  Pack<T,pack::n> c;
+  vector_simd for (int i = 0; i < pack::n; ++i) c[i] = std::min<T>(a, b[i]);
+  return c;
+}
+
+template <typename T, int n>
+Pack<T,n> pack_range (const T& start) {
+  typedef Pack<T,n> pack;
+  pack p;
+  vector_simd for (int i = 0; i < n; ++i) p[i] = start + i;
+  return p;
+}
+
+typedef Pack<Real,VEC_PACKN> RealPack;
+typedef Pack<Int ,VEC_PACKN> IntPack;
+
+struct consts : public problem::consts {
+  static constexpr Int npack = (ncell + RealPack::n - 1) / RealPack::n;
+  static constexpr Int packrem = ncell % RealPack::n;
+};
+
+RealPack get_x_ctr (const RealPack& i) {
+  return consts::xl + ((i + 0.5)/consts::ncell)*consts::L;
+}
+
+RealPack get_src (const RealPack& x, const RealPack& rho) {
+  using ko::min;
+  const Real rate[] = {0.2, 0.1, 0.05, 0.025, 0.0125};
+  constexpr Int tsize = sizeof(rate)/sizeof(*rate) - 1;
+  const Real trhodiffmax = 1;
+  const auto rhodiff = abs(rho - consts::rho_ref);
+  RealPack r;
+  vector_simd for (Int i = 0; i < RealPack::n; ++i) {
+    if (rhodiff[i] >= trhodiffmax) {
+      r[i] = 0;
+      continue;
+    }
+    const auto src = rhodiff[i];
+    // Throw a min in for safety and to exercise it.
+    const auto idx = min<Int>(tsize, tsize*(rhodiff[i]/trhodiffmax));
+    r[i] = src*rate[idx];
+  }
+  return r;
+}
+
+void calc_numerical_flux (const RealPack* restrict rho, Real& flux_bdy,
+                          RealPack* restrict flux_interior) {
+  using c = consts;
+  flux_bdy = c::rho_ref * problem::get_u(c::xl - 0.5*c::dx);
+  auto range = pack_range<Real,RealPack::n>(0);
+  for (Int i = 0; i < c::npack; ++i) {
+    flux_interior[i] = rho[i] * problem::get_u(get_x_ctr(range));
+    range += RealPack::n;
+  }
+}
+
+void step (const RealPack& dt, RealPack* restrict rho, RealPack* restrict work) {
+  using c = consts;
+  auto* flux_int = work;
+  Real flux_bdy;
+  calc_numerical_flux(rho, flux_bdy, flux_int);
+  const auto idx = 1/c::dx;
+  auto range = pack_range<Real,RealPack::n>(0);
+  {
+    const auto flux_int_im1 = shift_right(flux_bdy, flux_int[0]);
+    const auto neg_flux_div = idx*(flux_int_im1 - flux_int[0]);
+    const auto src = get_src(get_x_ctr(range), rho[0]);
+    rho[0] += dt*(src + neg_flux_div);
+  }
+  range += RealPack::n;
+  for (Int i = 1; i < c::npack; ++i) {
+    const auto flux_int_im1 = shift_right(flux_int[i-1], flux_int[i]);
+    const auto neg_flux_div = idx*(flux_int_im1 - flux_int[i]);
+    const auto src = get_src(get_x_ctr(range), rho[i]);
+    rho[i] += dt*(src + neg_flux_div);
+    range += RealPack::n;
+  }
+}
+
+void step (const Int& ncol, const Real& dt, const Int& nstep,
+           RealPack* restrict rho, RealPack* restrict work) {
+  using C = consts;
+# pragma omp parallel for
+  for (Int c = 0; c < ncol; ++c)
+    for (Int i = 0; i < nstep; ++i)
+      step(dt, rho + C::npack*c, work + (C::npack+1)*c);
+}
+} // namespace packsimd
+
 namespace driver {
 Int unittest () {
   using c = problem::consts;
@@ -657,13 +862,26 @@ Int unittest () {
     if (util::reldif(r, r1, N) > 0) { std::cout << "vec1 failed\n"; ++nerr; }
   }
   {
-    vec2::RealPack rho[ncol*vec2::consts::npack], work[ncol*(vec2::consts::npack+1)];
+    vec2::RealPack rho[ncol*vec2::consts::npack],
+      work[ncol*(vec2::consts::npack+1)];
     Real* const rp = reinterpret_cast<Real*>(&rho);
     for (Int i = 0; i < N; ++i) rp[i] = ic[i];
     vec2::step(ncol, dt, nstep, rho, work);
     const auto re = util::reldif(r, rp, N);
     if (re > 0) {
       std::cout << "vec2 re " << re << "\n";
+      ++nerr;
+    }
+  }
+  {
+    packsimd::RealPack rho[ncol*packsimd::consts::npack],
+      work[ncol*(packsimd::consts::npack+1)];
+    Real* const rp = reinterpret_cast<Real*>(&rho);
+    for (Int i = 0; i < N; ++i) rp[i] = ic[i];
+    packsimd::step(ncol, dt, nstep, rho, work);
+    const auto re = util::reldif(r, rp, N);
+    if (re > 0) {
+      std::cout << "packsimd re " << re << "\n";
       ++nerr;
     }
   }
@@ -714,13 +932,13 @@ void measure_perf (const Int& nstep) {
     r[i] = ic[i];
   t1 = util::gettime();
   reference::step(ncol, dt, nstep, r, work);
-  t2 = util::gettime(); printf("ref    %11.3e\n", t2-t1);
+  t2 = util::gettime(); printf("ref      %9.3e\n", t2-t1);
 
   for (Int i = 0; i < N; ++i)
     r[i] = ic[i];
   t1 = util::gettime();
   vec1::step(ncol, dt, nstep, r, work);
-  t2 = util::gettime(); printf("vec1   %11.3e\n", t2-t1);
+  t2 = util::gettime(); printf("vec1     %9.3e\n", t2-t1);
 
   {
     vec2::RealPack rho[ncol*vec2::consts::npack],
@@ -729,7 +947,16 @@ void measure_perf (const Int& nstep) {
     for (Int i = 0; i < N; ++i) rp[i] = ic[i];
     t1 = util::gettime();
     vec2::step(ncol, dt, nstep, rho, work);
-    t2 = util::gettime(); printf("vec2   %11.3e\n", t2-t1);
+    t2 = util::gettime(); printf("vec2     %9.3e\n", t2-t1);
+  }
+  {
+    packsimd::RealPack rho[ncol*packsimd::consts::npack],
+      work[ncol*(packsimd::consts::npack+1)];
+    Real* const rp = reinterpret_cast<Real*>(&rho);
+    for (Int i = 0; i < N; ++i) rp[i] = ic[i];
+    t1 = util::gettime();
+    packsimd::step(ncol, dt, nstep, rho, work);
+    t2 = util::gettime(); printf("packsimd %9.3e\n", t2-t1);
   }
 #ifndef KOKKOS_ENABLE_CUDA
   {
@@ -739,7 +966,7 @@ void measure_perf (const Int& nstep) {
         rho(c,i) = ic[c*C::ncell + i];
     t1 = util::gettime();
     koarr::step(dt, nstep, rho, work);
-    t2 = util::gettime(); printf("koarr  %11.3e\n", t2-t1);
+    t2 = util::gettime(); printf("koarr    %9.3e\n", t2-t1);
   }
 #endif
   {
@@ -753,7 +980,7 @@ void measure_perf (const Int& nstep) {
     t1 = util::gettime();
     ko::step(dt, nstep, rho, work);
     Kokkos::fence();
-    t2 = util::gettime(); printf("ko     %11.3e\n", t2-t1);
+    t2 = util::gettime(); printf("ko       %9.3e\n", t2-t1);
   }
 }
 } // namespace driver
@@ -782,8 +1009,8 @@ void vec_make_image (const Int nstep, Real* const img) {
 } // extern "C"
 #else
 int main (int argc, char** argv) {
-  printf("ncell %d pack %d avx %s\n", VEC_NCELL, VEC_PACKN,
-         util::active_avx_string().c_str());
+  printf("ncell %d pack %d avx %s demote %d\n", VEC_NCELL, VEC_PACKN,
+         util::active_avx_string().c_str(), VEC_DEMOTE_M512D);
   Kokkos::initialize(argc, argv);
   Int nerr = 0;
   do {
