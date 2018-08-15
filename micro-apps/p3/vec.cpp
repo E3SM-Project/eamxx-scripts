@@ -4,9 +4,9 @@
    Use 1D advection with a source term to model P3-sedimentation-like code.
 
    ws: (KH=/ascldap/users/ambradl/lib/kokkos/cpu-dbg; g++ -std=c++11 vec.cpp -I$KH/include -L$KH/lib -lkokkos -ldl -fopenmp)
-   blake: (KH=/home/ambradl/lib/kokkos/blake; icpc -DVEC_PACKN=16 -DVEC_DEMOTE_M512D=1 -std=c++11 -restrict -xcore-avx512 -O3 vec.cpp -I$KH/include -L$KH/lib -lkokkos -ldl -fopenmp)
-   bowman: (KH=/home/ambradl/lib/kokkos/knl; icpc -DVEC_PACKN=16 -DVEC_DEMOTE_M512D=0 -std=c++11 -restrict -xmic-avx512 -O3 vec.cpp -I$KH/include -L$KH/lib -lkokkos -ldl -fopenmp)
-   waterman: (KH=/home/ambradl/lib/waterman-kokkos/gpu; $KH/bin/nvcc_wrapper -DVEC_PACKN=1 -std=c++11 --expt-extended-lambda -fopenmp -O3 vec.cpp -I$KH/include -L$KH/lib -lkokkos -ldl)
+   blake (SKX): (KH=/home/ambradl/lib/kokkos/blake; icpc -DVEC_PACKN=16 -DVEC_DEMOTE_M512D=1 -std=c++11 -restrict -xcore-avx512 -O3 vec.cpp -I$KH/include -L$KH/lib -lkokkos -ldl -fopenmp)
+   bowman (KNL): (KH=/home/ambradl/lib/kokkos/knl; icpc -DVEC_PACKN=16 -DVEC_DEMOTE_M512D=0 -std=c++11 -restrict -xmic-avx512 -O3 vec.cpp -I$KH/include -L$KH/lib -lkokkos -ldl -fopenmp)
+   waterman (P9, V100): (KH=/home/ambradl/lib/waterman-kokkos/gpu; $KH/bin/nvcc_wrapper -DVEC_PACKN=1 -std=c++11 --expt-extended-lambda -fopenmp -O3 vec.cpp -I$KH/include -L$KH/lib -lkokkos -ldl)
 
    ws lib: (KH=/ascldap/users/ambradl/lib/kokkos/cpu-dbg; g++ -c -std=c++11 vec.cpp -DVEC_LIBRARY -I$KH/include -L$KH/lib -lkokkos -ldl -fopenmp -fPIC; g++ vec.o -shared -fopenmp -o libvec.so)
 
@@ -21,6 +21,17 @@
 #include <cassert>
 #include <cmath>
 #include <cstdio>
+
+#ifdef _OPENMP
+# include <omp.h>
+#endif
+
+#ifndef VEC_FPE
+# define VEC_FPE 0
+#endif
+#if VEC_FPE
+# include <xmmintrin.h>
+#endif
 
 #ifndef VEC_NCELL
 # define VEC_NCELL 128
@@ -103,16 +114,43 @@ static inline double gettime () {
 std::string active_avx_string () {
   std::string s;
 #if defined __AVX512F__
-  s += " - AVX512F";
+  s += "-AVX512F";
 #endif
 #if defined __AVX2__
-  s += " - AVX2";
+  s += "-AVX2";
 #endif
 #if defined __AVX__
-  s += " - AVX";
+  s += "-AVX";
 #endif
   return s;
 }
+
+bool eq (const std::string& a, const char* const b1, const char* const b2 = 0) {
+  return (a == std::string(b1) || (b2 && a == std::string(b2)) ||
+          a == std::string("-") + std::string(b1));
+}
+
+void expect_another_arg (Int i, Int argc) {
+  if (i == argc-1)
+    throw std::runtime_error("Expected another cmd-line arg.");
+}
+
+// Alloc and dealloc a fixed array. Use this instead of std::vector b/c of
+// first-touch issues with std::vector.
+template <typename T> class Space {
+  T* p_;
+  std::size_t n_;
+public:
+  Space (const Int& n) {
+    p_ = new T[n];
+    n_ = n;
+  }
+  ~Space () { delete[] p_; }
+  T& operator[] (std::size_t i) { return p_[i]; }
+  const T& operator[] (std::size_t i) const { return p_[i]; }
+  T* data () const { return p_; }
+};
+
 } // namespace util
 
 /* The model problem is 1D constant-in-time, variable-in-space flow with a
@@ -316,9 +354,10 @@ void step (const Real& dt, const Int& nstep, Array<Real>& rho,
                OnGpu<Kokkos::DefaultExecutionSpace>::value ? VEC_NCELL : 1,
                1),
     KOKKOS_LAMBDA (const Member& team) {
+      const auto rhoc = Kokkos::subview(rho, team.league_rank(), Kokkos::ALL);
+      const auto workc = Kokkos::subview(work, team.league_rank(), Kokkos::ALL);
       for (Int i = 0; i < nstep; ++i)
-        step(team, dt, Kokkos::subview(rho, team.league_rank(), Kokkos::ALL),
-             Kokkos::subview(work, team.league_rank(), Kokkos::ALL));
+        step(team, dt, rhoc, workc);
     });
 }
 } // namespace ko
@@ -341,14 +380,14 @@ void step (const Real& dt, Real* restrict rho, Real* restrict work) {
   calc_numerical_flux(rho, flux_bdy, flux_int);
   const auto idx = 1/c::dx;
   {
-    const auto fluxdiv = idx*(flux_int[0] - flux_bdy);
+    const auto neg_flux_div = idx*(flux_bdy - flux_int[0]);
     const auto src = problem::get_src(problem::get_x_ctr(0), rho[0]);
-    rho[0] -= dt*(fluxdiv - src);
+    rho[0] += dt*(src + neg_flux_div);
   }
   vector_ivdep for (Int i = 1; i < c::ncell; ++i) {
-    const auto fluxdiv = idx*(flux_int[i] - flux_int[i-1]);
+    const auto neg_flux_div = idx*(flux_int[i-1] - flux_int[i]);
     const auto src = problem::get_src(problem::get_x_ctr(i), rho[i]);
-    rho[i] -= dt*(fluxdiv - src);
+    rho[i] += dt*(src + neg_flux_div);
   }
 }
 
@@ -918,44 +957,45 @@ Int unittest () {
   return nerr;
 }
 
-void measure_perf (const Int& nstep) {
+void measure_perf (const Int& ncol, const Int& nstep) {
   using C = problem::consts;
-  static constexpr Int ncol = 64, N = C::ncell*ncol;
+  const Int N = C::ncell*ncol;
   const Real dt = 0.5*C::dx/C::u_max;
-  Real ic[N], r[N], work[ncol*(C::ncell+1)];
+  Real t1, t2;
+  util::Space<Real> ic(N), r(N), work(ncol*(C::ncell+1));
+
   for (Int c = 0; c < ncol; ++c)
     for (Int i = 0; i < C::ncell; ++i)
       ic[C::ncell*c + i] = problem::get_ic(problem::get_x_ctr(i));
-  Real t1, t2;
 
   for (Int i = 0; i < N; ++i)
     r[i] = ic[i];
   t1 = util::gettime();
-  reference::step(ncol, dt, nstep, r, work);
+  reference::step(ncol, dt, nstep, r.data(), work.data());
   t2 = util::gettime(); printf("ref      %9.3e\n", t2-t1);
 
   for (Int i = 0; i < N; ++i)
     r[i] = ic[i];
   t1 = util::gettime();
-  vec1::step(ncol, dt, nstep, r, work);
+  vec1::step(ncol, dt, nstep, r.data(), work.data());
   t2 = util::gettime(); printf("vec1     %9.3e\n", t2-t1);
 
   {
-    vec2::RealPack rho[ncol*vec2::consts::npack],
-      work[ncol*(vec2::consts::npack+1)];
-    Real* const rp = reinterpret_cast<Real*>(&rho);
+    util::Space<vec2::RealPack> rho(ncol*vec2::consts::npack),
+      work(ncol*(vec2::consts::npack+1));
+    Real* const rp = reinterpret_cast<Real*>(rho.data());
     for (Int i = 0; i < N; ++i) rp[i] = ic[i];
     t1 = util::gettime();
-    vec2::step(ncol, dt, nstep, rho, work);
+    vec2::step(ncol, dt, nstep, rho.data(), work.data());
     t2 = util::gettime(); printf("vec2     %9.3e\n", t2-t1);
   }
   {
-    packsimd::RealPack rho[ncol*packsimd::consts::npack],
-      work[ncol*(packsimd::consts::npack+1)];
-    Real* const rp = reinterpret_cast<Real*>(&rho);
+    util::Space<packsimd::RealPack> rho(ncol*packsimd::consts::npack),
+      work(ncol*(packsimd::consts::npack+1));
+    Real* const rp = reinterpret_cast<Real*>(rho.data());
     for (Int i = 0; i < N; ++i) rp[i] = ic[i];
     t1 = util::gettime();
-    packsimd::step(ncol, dt, nstep, rho, work);
+    packsimd::step(ncol, dt, nstep, rho.data(), work.data());
     t2 = util::gettime(); printf("packsimd %9.3e\n", t2-t1);
   }
 #ifndef KOKKOS_ENABLE_CUDA
@@ -985,6 +1025,26 @@ void measure_perf (const Int& nstep) {
 }
 } // namespace driver
 
+struct Input {
+  Int ncol, nstep;
+
+  Input () : ncol(64), nstep(50000) {}
+
+  void parse (int argc, char** argv) {
+    for (Int i = 1; i < argc-1; ++i) {
+      if (util::eq(argv[i], "-nc", "--ncol")) {
+        util::expect_another_arg(i, argc);
+        ncol = std::atoi(argv[++i]);
+      } else if (util::eq(argv[i], "-ns", "--nstep")) {
+        util::expect_another_arg(i, argc);
+        nstep = std::atoi(argv[++i]);
+      } else {
+        throw std::runtime_error("Unexpected arg.");
+      }
+    }
+  }
+};
+
 #ifdef VEC_LIBRARY
 extern "C" {
 Int vec_get_ncell () { return problem::consts::ncell; }
@@ -998,7 +1058,7 @@ void vec_make_image (const Int nstep, Real* const img) {
   for (Int i = 0; i < c::ncell; ++i)
     img[i] = problem::get_ic(problem::get_x_ctr(i));
 
-  std::vector<Real> work(c::ncell+1);
+  util::Space<Real> work(c::ncell+1);
   for (Int ti = 0; ti < nstep; ++ti) {
     Real* const prev = img + c::ncell*ti;
     Real* const curr = img + c::ncell*(ti+1);
@@ -1009,17 +1069,34 @@ void vec_make_image (const Int nstep, Real* const img) {
 } // extern "C"
 #else
 int main (int argc, char** argv) {
-  printf("ncell %d pack %d avx %s demote %d\n", VEC_NCELL, VEC_PACKN,
-         util::active_avx_string().c_str(), VEC_DEMOTE_M512D);
+#if VEC_FPE
+  _MM_SET_EXCEPTION_MASK(_MM_GET_EXCEPTION_MASK() &
+                         ~( _MM_MASK_INVALID |
+                            _MM_MASK_DIV_ZERO |
+                            _MM_MASK_OVERFLOW |
+                            _MM_MASK_UNDERFLOW ));
+#endif
   Kokkos::initialize(argc, argv);
   Int nerr = 0;
   do {
+    Input in;
+    in.parse(argc, argv);
+    const Int nthread =
+#ifdef _OPENMP
+      omp_get_max_threads()
+#else
+      1
+#endif
+      ;
+    printf("ncell %d pack %d avx %s demote %d FPE %d nthread %d ncol %d nstep %d\n",
+           VEC_NCELL, VEC_PACKN, util::active_avx_string().c_str(),
+           VEC_DEMOTE_M512D, VEC_FPE, nthread, in.ncol, in.nstep);
     nerr = driver::unittest();
     if (nerr) {
       std::cerr << "nerr " << nerr << "\n";
       //break; 
     }
-    driver::measure_perf(49999);
+    driver::measure_perf(in.ncol, in.nstep);
   } while (0);
   Kokkos::finalize_all();
   return nerr;
