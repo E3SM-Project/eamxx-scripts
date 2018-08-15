@@ -607,6 +607,7 @@ typedef Pack<Int ,8> IntPack;
 
 struct consts : public problem::consts {
   static constexpr Int npack = (ncell + RealPack::n - 1) / RealPack::n;
+  static constexpr Int npackp1 = (ncell + RealPack::n) / RealPack::n;
   static constexpr Int packrem = ncell % RealPack::n;
 };
 
@@ -704,8 +705,8 @@ struct Pack {
 
   typedef SCALAR scalar;
 
-  KOKKOS_INLINE_FUNCTION Pack () {}
-  KOKKOS_INLINE_FUNCTION Pack (const scalar& v) {
+  KOKKOS_FORCEINLINE_FUNCTION Pack () {}
+  KOKKOS_FORCEINLINE_FUNCTION Pack (const scalar& v) {
     vector_simd for (int i = 0; i < n; ++i) d[i] = v;
   }
 
@@ -796,7 +797,7 @@ OnlyPackReturn<pack, Pack<T,pack::n> > min (const Scalar& a, const pack& b) {
   return c;
 }
 
-template <typename T, int n>
+template <typename T, int n> KOKKOS_INLINE_FUNCTION 
 Pack<T,n> pack_range (const T& start) {
   typedef Pack<T,n> pack;
   pack p;
@@ -804,24 +805,28 @@ Pack<T,n> pack_range (const T& start) {
   return p;
 }
 
-typedef Pack<Real,VEC_PACKN> RealPack;
-typedef Pack<Int ,VEC_PACKN> IntPack;
+using RealPack = Pack<Real,VEC_PACKN>;
+using IntPack = Pack<Int ,VEC_PACKN>;
 
+#define consts_npack ((consts_ncell + RealPack::n - 1) / RealPack::n)
 struct consts : public problem::consts {
-  static constexpr Int npack = (ncell + RealPack::n - 1) / RealPack::n;
+  static constexpr Int npack = consts_npack;
+  static constexpr Int npackp1 = (ncell + RealPack::n) / RealPack::n;
   static constexpr Int packrem = ncell % RealPack::n;
 };
 
+KOKKOS_INLINE_FUNCTION 
 RealPack get_x_ctr (const RealPack& i) {
-  return consts::xl + ((i + 0.5)/consts::ncell)*consts::L;
+  return consts_xl + ((i + 0.5)/consts_ncell)*consts_L;
 }
 
+KOKKOS_INLINE_FUNCTION 
 RealPack get_src (const RealPack& x, const RealPack& rho) {
   using ko::min;
   const Real rate[] = {0.2, 0.1, 0.05, 0.025, 0.0125};
   constexpr Int tsize = sizeof(rate)/sizeof(*rate) - 1;
   const Real trhodiffmax = 1;
-  const auto rhodiff = abs(rho - consts::rho_ref);
+  const auto rhodiff = abs(rho - consts_rho_ref);
   RealPack r;
   vector_simd for (Int i = 0; i < RealPack::n; ++i) {
     if (rhodiff[i] >= trhodiffmax) {
@@ -880,6 +885,88 @@ void step (const Int& ncol, const Real& dt, const Int& nstep,
 }
 } // namespace packsimd
 
+namespace kopack {
+using namespace packsimd;
+
+template <typename T> using Array =
+  Kokkos::View<Pack<T,RealPack::n>*[consts::npack], Kokkos::LayoutRight>;
+template <typename T> using Array_p1 =
+  Kokkos::View<Pack<T,RealPack::n>*[consts::npackp1], Kokkos::LayoutRight>;
+template <typename T> using Vector =
+  Kokkos::View<Pack<T,RealPack::n>[consts::npack], Kokkos::LayoutRight>;
+template <typename T> using Vector_p1 =
+  Kokkos::View<Pack<T,RealPack::n>[consts::npackp1], Kokkos::LayoutRight>;
+
+template <typename ExeSpace>
+struct OnGpu { enum : bool { value = false }; };
+#ifdef KOKKOS_ENABLE_CUDA
+template <> struct OnGpu<Kokkos::Cuda> { enum : bool { value = true }; };
+#endif
+
+using TeamPolicy = Kokkos::TeamPolicy<Kokkos::DefaultExecutionSpace>;
+using Member = TeamPolicy::member_type;
+
+KOKKOS_INLINE_FUNCTION
+void calc_numerical_flux (const Member& team, const Vector<Real>& rho,
+                          Real& flux_bdy, const Vector_p1<Real>& flux_interior) {
+  Kokkos::single(
+    Kokkos::PerTeam(team),
+    [&] () {
+      flux_bdy = consts_rho_ref * problem::get_u(consts_xl - 0.5*consts_dx);
+    });
+  Kokkos::parallel_for(
+    Kokkos::TeamThreadRange(team, consts_npack),
+    [&] (const int& i) {
+      auto range = pack_range<Real,RealPack::n>(RealPack::n*i);
+      flux_interior(i) = rho(i) * problem::get_u(get_x_ctr(range));
+    });
+  team.team_barrier();
+}
+
+KOKKOS_INLINE_FUNCTION
+void step (const Member& team, const Real& dt, const Vector<Real>& rho,
+           const Vector_p1<Real>& work) {
+  Real flux_bdy;
+  auto& flux_int = work;
+  calc_numerical_flux(team, rho, flux_bdy, flux_int);
+  const auto idx = 1/consts_dx;
+  Kokkos::single(
+    Kokkos::PerTeam(team),
+    [&] () {
+      auto range = pack_range<Real,RealPack::n>(0);
+      const auto flux_int_im1 = shift_right(flux_bdy, flux_int(0));
+      const auto neg_flux_div = idx*(flux_int_im1 - flux_int(0));
+      const auto src = get_src(get_x_ctr(range), rho(0));
+      rho(0) += dt*(src + neg_flux_div);
+    });
+  Kokkos::parallel_for(
+    Kokkos::TeamThreadRange(team, consts_npack-1),
+    [&] (const int& i_) {
+      const int i = i_+1;
+      auto range = pack_range<Real,RealPack::n>(RealPack::n*i);
+      const auto flux_int_im1 = shift_right(flux_int(i-1), flux_int(i));
+      const auto neg_flux_div = idx*(flux_int_im1 - flux_int(i));
+      const auto src = get_src(get_x_ctr(range), rho(i));
+      rho(i) += dt*(src + neg_flux_div);
+    });
+  team.team_barrier();
+}
+
+void step (const Real& dt, const Int& nstep, Array<Real>& rho,
+           Array_p1<Real>& work) {
+  Kokkos::parallel_for(
+    TeamPolicy(rho.extent_int(0),
+               OnGpu<Kokkos::DefaultExecutionSpace>::value ? VEC_NCELL : 1,
+               1),
+    KOKKOS_LAMBDA (const Member& team) {
+      const auto rhoc = Kokkos::subview(rho, team.league_rank(), Kokkos::ALL);
+      const auto workc = Kokkos::subview(work, team.league_rank(), Kokkos::ALL);
+      for (Int i = 0; i < nstep; ++i)
+        step(team, dt, rhoc, workc);
+    });
+}
+} // namespace kopack
+
 namespace driver {
 Int unittest () {
   using c = problem::consts;
@@ -902,7 +989,7 @@ Int unittest () {
   }
   {
     vec2::RealPack rho[ncol*vec2::consts::npack],
-      work[ncol*(vec2::consts::npack+1)];
+      work[ncol*(vec2::consts::npackp1)];
     Real* const rp = reinterpret_cast<Real*>(&rho);
     for (Int i = 0; i < N; ++i) rp[i] = ic[i];
     vec2::step(ncol, dt, nstep, rho, work);
@@ -914,7 +1001,7 @@ Int unittest () {
   }
   {
     packsimd::RealPack rho[ncol*packsimd::consts::npack],
-      work[ncol*(packsimd::consts::npack+1)];
+      work[ncol*(packsimd::consts::npackp1)];
     Real* const rp = reinterpret_cast<Real*>(&rho);
     for (Int i = 0; i < N; ++i) rp[i] = ic[i];
     packsimd::step(ncol, dt, nstep, rho, work);
@@ -954,6 +1041,22 @@ Int unittest () {
       ++nerr;
     }
   }
+  {
+    kopack::Array<Real> rho("rho", ncol);
+    kopack::Array_p1<Real> work("work", ncol);
+    auto rhom = Kokkos::create_mirror_view(rho);
+    Real* const rp = &rhom(0,0)[0];
+    for (Int i = 0; i < N; ++i)
+      rp[i] = ic[i];
+    Kokkos::deep_copy(rho, rhom);
+    kopack::step(dt, nstep, rho, work);
+    Kokkos::deep_copy(rhom, rho);
+    const auto re = util::reldif(r, &rhom(0,0)[0], N);
+    if (re > 0) {
+      std::cout << "kopack re " << re << "\n";
+      ++nerr;
+    }
+  }
   return nerr;
 }
 
@@ -982,7 +1085,7 @@ void measure_perf (const Int& ncol, const Int& nstep) {
 
   {
     util::Space<vec2::RealPack> rho(ncol*vec2::consts::npack),
-      work(ncol*(vec2::consts::npack+1));
+      work(ncol*(vec2::consts::npackp1));
     Real* const rp = reinterpret_cast<Real*>(rho.data());
     for (Int i = 0; i < N; ++i) rp[i] = ic[i];
     t1 = util::gettime();
@@ -991,7 +1094,7 @@ void measure_perf (const Int& ncol, const Int& nstep) {
   }
   {
     util::Space<packsimd::RealPack> rho(ncol*packsimd::consts::npack),
-      work(ncol*(packsimd::consts::npack+1));
+      work(ncol*(packsimd::consts::npackp1));
     Real* const rp = reinterpret_cast<Real*>(rho.data());
     for (Int i = 0; i < N; ++i) rp[i] = ic[i];
     t1 = util::gettime();
@@ -1021,6 +1124,19 @@ void measure_perf (const Int& ncol, const Int& nstep) {
     ko::step(dt, nstep, rho, work);
     Kokkos::fence();
     t2 = util::gettime(); printf("ko       %9.3e\n", t2-t1);
+  }
+  {
+    kopack::Array<Real> rho("rho", ncol);
+    kopack::Array_p1<Real> work("work", ncol);
+    auto rhom = Kokkos::create_mirror_view(rho);
+    Real* const rp = &rhom(0,0)[0];
+    for (Int i = 0; i < N; ++i)
+      rp[i] = ic[i];
+    Kokkos::deep_copy(rho, rhom);
+    t1 = util::gettime();
+    kopack::step(dt, nstep, rho, work);
+    Kokkos::fence();
+    t2 = util::gettime(); printf("kopack   %9.3e\n", t2-t1);
   }
 }
 } // namespace driver
