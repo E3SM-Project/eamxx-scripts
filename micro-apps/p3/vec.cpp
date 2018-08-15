@@ -929,21 +929,14 @@ void step (const Member& team, const Real& dt, const Vector<Real>& rho,
   auto& flux_int = work;
   calc_numerical_flux(team, rho, flux_bdy, flux_int);
   const auto idx = 1/consts_dx;
-  Kokkos::single(
-    Kokkos::PerTeam(team),
-    [&] () {
-      auto range = pack_range<Real,RealPack::n>(0);
-      const auto flux_int_im1 = shift_right(flux_bdy, flux_int(0));
-      const auto neg_flux_div = idx*(flux_int_im1 - flux_int(0));
-      const auto src = get_src(get_x_ctr(range), rho(0));
-      rho(0) += dt*(src + neg_flux_div);
-    });
   Kokkos::parallel_for(
-    Kokkos::TeamThreadRange(team, consts_npack-1),
-    [&] (const int& i_) {
-      const int i = i_+1;
+    Kokkos::TeamThreadRange(team, consts_npack),
+    [&] (const int& i) {
       auto range = pack_range<Real,RealPack::n>(RealPack::n*i);
-      const auto flux_int_im1 = shift_right(flux_int(i-1), flux_int(i));
+      const auto flux_int_im1 =
+        i == 0 ?
+        shift_right(flux_bdy, flux_int(i)) :
+        shift_right(flux_int(i-1), flux_int(i));
       const auto neg_flux_div = idx*(flux_int_im1 - flux_int(i));
       const auto src = get_src(get_x_ctr(range), rho(i));
       rho(i) += dt*(src + neg_flux_div);
