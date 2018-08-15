@@ -9,6 +9,17 @@
    waterman: (KH=/home/ambradl/lib/waterman-kokkos/gpu; $KH/bin/nvcc_wrapper -std=c++11 --expt-extended-lambda -O3 vec.cpp -I$KH/include -L$KH/lib -lkokkos -ldl)
 
    ws lib: (KH=/ascldap/users/ambradl/lib/kokkos/cpu-dbg; g++ -c -std=c++11 vec.cpp -DVEC_LIBRARY -I$KH/include -L$KH/lib -lkokkos -ldl -fopenmp -fPIC; g++ vec.o -shared -fopenmp -o libvec.so)
+
+   On Power9, VEC_PACKN 1 or 2 is best. On SKX, 16 seems best. Intrinsics have
+   yet to have benefit, and on SKX the fact that 512-bit vec instructions can be
+   slower than 2 256-bit ones in sequence complicates things. But I need to
+   break auto-vectorization in the non-pack impls before I can conclude anything
+   about intrinsics. Roughly, the goal is to determine whether we need (a) packs
+   at all and (b) if so, intrinsics.
+
+   To do:
+   - break auto-vec so we can eval vector_simd packs vs intrinsics
+   - workspace ~ #threads, not #cols
  */
 
 #include <Kokkos_Core.hpp>
@@ -40,7 +51,7 @@ typedef int Int;
 # else
 #  define vector_simd _Pragma("simd")
 # endif
-#elif defined __GNUG__ && ! defined __NVCC__
+#elif defined __GNUG__
 # pragma message "GCC"
 # define vector_ivdep _Pragma("GCC ivdep")
 # define vector_simd _Pragma("GCC ivdep")
@@ -193,87 +204,67 @@ void step (const Real& dt, Real* rho, Real* work) {
   }
 }
 
-void step (const Real& dt, const Int& nstep, Real* rho, Real* work) {
-  for (Int i = 0; i < nstep; ++i)
-    step(dt, rho, work);
+void step (const Int& ncol, const Real& dt, const Int& nstep, Real* rho,
+           Real* work) {
+  using C = problem::consts;
+# pragma omp parallel for
+  for (Int c = 0; c < ncol; ++c)
+    for (Int i = 0; i < nstep; ++i)
+      step(dt, rho + C::ncell*c, work + (C::ncell+1)*c);
 }
 } // namespace reference
 
-namespace refomp {
-void calc_numerical_flux (const Real* rho, Real* flux) {
-  using c = problem::consts;
-# pragma omp single
-  flux[0] = c::rho_ref * problem::get_u(c::xl - 0.5*c::dx);
-# pragma omp for
-  for (Int i = 1; i < c::ncell + 1; ++i)
-    flux[i] = rho[i-1] * problem::get_u(problem::get_x_ctr(i-1));
-}
-
-void step (const Real& dt, Real* rho, Real* work) {
-  using c = problem::consts;
-  auto* flux = work;
-  calc_numerical_flux(rho, flux);
-  const auto idx = 1/c::dx;
-# pragma omp for
-  for (Int i = 0; i < c::ncell; ++i) {
-    const auto fluxdiv = idx*(flux[i+1] - flux[i]);
-    const auto src = problem::get_src(problem::get_x_ctr(i), rho[i]);
-    rho[i] -= dt*(fluxdiv - src);
-  }
-}
-
-void step (const Real& dt, const Int& nstep, Real* rho, Real* work) {
-# pragma omp parallel
-  for (Int i = 0; i < nstep; ++i)
-    step(dt, rho, work);
-}
-} // namespace refomp
-
 namespace koarr {
 template <typename T>
-using Vector = Kokkos::View<T*[VEC_NCELL], Kokkos::LayoutRight>;
+using Array = Kokkos::View<T*[VEC_NCELL], Kokkos::LayoutRight>;
 
 KOKKOS_INLINE_FUNCTION
-void calc_numerical_flux (const Vector<Real>& rho, Real& flux_bdy,
-                          Vector<Real>& flux_interior) {
-  using c = problem::consts;
-  flux_bdy = c::rho_ref * problem::get_u(c::xl - 0.5*c::dx);
-  vector_ivdep
-  for (Int i = 0; i < c::ncell; ++i)
-    flux_interior(0,i) = rho(0,i) * problem::get_u(problem::get_x_ctr(i));
+void calc_numerical_flux (const Int& c, const Array<Real>& rho, Real& flux_bdy,
+                          Array<Real>& flux_interior) {
+  using C = problem::consts;
+  flux_bdy = C::rho_ref * problem::get_u(C::xl - 0.5*C::dx);
+  vector_ivdep for (Int i = 0; i < C::ncell; ++i)
+    flux_interior(c,i) = rho(c,i) * problem::get_u(problem::get_x_ctr(i));
 }
 
-void step (const Real& dt, Vector<Real>& rho, Vector<Real>& work) {
-  using c = problem::consts;
+void step (const Int& c, const Real& dt, Array<Real>& rho,
+           Array<Real>& work) {
+  using C = problem::consts;
   auto& flux_int = work;
   Real flux_bdy;
-  calc_numerical_flux(rho, flux_bdy, flux_int);
-  const auto idx = 1/c::dx;
+  calc_numerical_flux(c, rho, flux_bdy, flux_int);
+  const auto idx = 1/C::dx;
   {
-    const auto fluxdiv = idx*(flux_int(0,0) - flux_bdy);
-    const auto src = problem::get_src(problem::get_x_ctr(0), rho(0,0));
-    rho(0,0) -= dt*(fluxdiv - src);
+    const auto fluxdiv = idx*(flux_int(c,0) - flux_bdy);
+    const auto src = problem::get_src(problem::get_x_ctr(0), rho(c,0));
+    rho(c,0) -= dt*(fluxdiv - src);
   }
-  vector_ivdep
-  for (Int i = 1; i < c::ncell; ++i) {
-    const auto fluxdiv = idx*(flux_int(0,i) - flux_int(0,i-1));
-    const auto src = problem::get_src(problem::get_x_ctr(i), rho(0,i));
-    rho(0,i) -= dt*(fluxdiv - src);
+  vector_ivdep for (Int i = 1; i < C::ncell; ++i) {
+    const auto fluxdiv = idx*(flux_int(c,i) - flux_int(c,i-1));
+    const auto src = problem::get_src(problem::get_x_ctr(i), rho(c,i));
+    rho(c,i) -= dt*(fluxdiv - src);
   }
 }
 
-void step (const Real& dt, const Int& nstep, Vector<Real>& rho,
-           Vector<Real>& work) {
-  for (Int i = 0; i < nstep; ++i)
-    step(dt, rho, work);
+void step (const Real& dt, const Int& nstep, Array<Real>& rho,
+           Array<Real>& work) {
+  using C = problem::consts;
+# pragma omp parallel for
+  for (Int c = 0; c < rho.extent_int(0); ++c)  
+    for (Int i = 0; i < nstep; ++i)
+      step(c, dt, rho, work);
 }
 } // namespace koarr
 
 namespace ko {
-template <typename T> using Vector =
+template <typename T> using Array =
   Kokkos::View<T*[VEC_NCELL], Kokkos::LayoutRight>;
-template <typename T> using Vector_p1 =
+template <typename T> using Array_p1 =
   Kokkos::View<T*[VEC_NCELL+1], Kokkos::LayoutRight>;
+template <typename T> using Vector =
+  Kokkos::View<T[VEC_NCELL], Kokkos::LayoutRight>;
+template <typename T> using Vector_p1 =
+  Kokkos::View<T[VEC_NCELL+1], Kokkos::LayoutRight>;
 
 template <typename ExeSpace>
 struct OnGpu { enum : bool { value = false }; };
@@ -290,12 +281,12 @@ void calc_numerical_flux (const Member& team, const Vector<Real>& rho,
   Kokkos::single(
     Kokkos::PerTeam(team),
     [&] () {
-      flux(0,0) = consts_rho_ref * problem::get_u(consts_xl - 0.5*consts_dx);
+      flux(0) = consts_rho_ref * problem::get_u(consts_xl - 0.5*consts_dx);
     });
   Kokkos::parallel_for(
     Kokkos::TeamThreadRange(team, consts_ncell),
     [&] (const int& i) {
-      flux(0,i+1) = rho(0,i) * problem::get_u(problem::get_x_ctr(i));  
+      flux(i+1) = rho(i) * problem::get_u(problem::get_x_ctr(i));  
     });
   team.team_barrier();
 }
@@ -309,22 +300,23 @@ void step (const Member& team, const Real& dt, const Vector<Real>& rho,
   Kokkos::parallel_for(
     Kokkos::TeamThreadRange(team, consts_ncell),
     [&] (const int& i) {
-      const auto fluxdiv = idx*(flux(0,i+1) - flux(0,i));
-      const auto src = problem::get_src(problem::get_x_ctr(i), rho(0,i));
-      rho(0,i) -= dt*(fluxdiv - src);
+      const auto fluxdiv = idx*(flux(i+1) - flux(i));
+      const auto src = problem::get_src(problem::get_x_ctr(i), rho(i));
+      rho(i) -= dt*(fluxdiv - src);
     });
   team.team_barrier();
 }
 
-void step (const Real& dt, const Int& nstep, Vector<Real>& rho,
-           Vector_p1<Real>& work) {
+void step (const Real& dt, const Int& nstep, Array<Real>& rho,
+           Array_p1<Real>& work) {
   Kokkos::parallel_for(
-    TeamPolicy(1,
+    TeamPolicy(rho.extent_int(0),
                OnGpu<Kokkos::DefaultExecutionSpace>::value ? VEC_NCELL : 1,
                1),
     KOKKOS_LAMBDA (const Member& team) {
       for (Int i = 0; i < nstep; ++i)
-        step(team, dt, rho, work);
+        step(team, dt, Kokkos::subview(rho, team.league_rank(), Kokkos::ALL),
+             Kokkos::subview(work, team.league_rank(), Kokkos::ALL));
     });
 }
 } // namespace ko
@@ -358,10 +350,13 @@ void step (const Real& dt, Real* restrict rho, Real* restrict work) {
   }
 }
 
-void step (const Real& dt, const Int& nstep, Real* restrict rho,
+void step (const Int& ncol, const Real& dt, const Int& nstep, Real* restrict rho,
            Real* restrict work) {
-  for (Int i = 0; i < nstep; ++i)
-    step(dt, rho, work);
+  using C = problem::consts;
+# pragma omp parallel for
+  for (Int c = 0; c < ncol; ++c)
+    for (Int i = 0; i < nstep; ++i)
+      step(dt, rho + C::ncell*c, work + (C::ncell+1)*c);
 }
 } // namespace vec1
 
@@ -506,7 +501,7 @@ OnlyPack<Pack> operator + (const Pack& a, const Pack& b) {
 }
 template <typename Pack, typename Scalar> KOKKOS_FORCEINLINE_FUNCTION
 OnlyPack<Pack> operator + (const Pack& a, const Scalar& b) {
-  if (false && Pack::use_avx512f && Pack::is_pd && Pack::n == 8) {
+  if (Pack::use_avx512f && Pack::is_pd && Pack::n == 8) {
 #ifdef __AVX512F__
     return a + Pack(b);
 #endif
@@ -517,9 +512,9 @@ OnlyPack<Pack> operator + (const Pack& a, const Scalar& b) {
 }
 template <typename Pack, typename Scalar> KOKKOS_FORCEINLINE_FUNCTION
 OnlyPack<Pack> operator + (const Scalar& a, const Pack& b) {
-  if (false && Pack::use_avx512f && Pack::is_pd && Pack::n == 8) {
+  if (Pack::use_avx512f && Pack::is_pd && Pack::n == 8) {
 #ifdef __AVX512F__
-    return a + Pack(b);
+    return Pack(a) + b;
 #endif
   }
   Pack c;
@@ -631,42 +626,42 @@ void step (const RealPack& dt, RealPack* restrict rho, RealPack* restrict work) 
   }
 }
 
-void step (const Real& dt, const Int& nstep, RealPack* restrict rho,
-           RealPack* restrict work) {
-  for (Int i = 0; i < nstep; ++i)
-    step(dt, rho, work);
+void step (const Int& ncol, const Real& dt, const Int& nstep,
+           RealPack* restrict rho, RealPack* restrict work) {
+  using C = consts;
+# pragma omp parallel for
+  for (Int c = 0; c < ncol; ++c)
+    for (Int i = 0; i < nstep; ++i)
+      step(dt, rho + C::npack*c, work + (C::npack+1)*c);
 }
 } // namespace vec2
 
 namespace driver {
 Int unittest () {
   using c = problem::consts;
+  static constexpr Int ncol = 4, N = c::ncell*ncol;
   const Real dt = 0.5*c::dx/c::u_max;
   const Int nstep = Int(1.2*c::ncell);
-  Real ic[c::ncell], work[c::ncell+1];
-  for (Int i = 0; i < c::ncell; ++i)
-    ic[i] = problem::get_ic(problem::get_x_ctr(i));
-  Real r[c::ncell];
-  for (Int i = 0; i < c::ncell; ++i) r[i] = ic[i];
-  reference::step(dt, nstep, r, work);
+  Real ic[N], work[ncol*(c::ncell+1)];
+  for (Int c = 0; c < ncol; ++c)
+    for (Int i = 0; i < c::ncell; ++i)
+      ic[c::ncell*c + i] = problem::get_ic(problem::get_x_ctr(i));
+  Real r[N];
+  for (Int i = 0; i < N; ++i) r[i] = ic[i];
+  reference::step(ncol, dt, nstep, r, work);
   Int nerr = 0;
-  Real r1[c::ncell];
+  Real r1[N];
   {
-    for (Int i = 0; i < c::ncell; ++i) r1[i] = ic[i];
-    refomp::step(dt, nstep, r1, work);
-    if (util::reldif(r, r1, c::ncell) > 0) { std::cout << "refomp failed\n"; ++nerr; }
+    for (Int i = 0; i < N; ++i) r1[i] = ic[i];
+    vec1::step(ncol, dt, nstep, r1, work);
+    if (util::reldif(r, r1, N) > 0) { std::cout << "vec1 failed\n"; ++nerr; }
   }
   {
-    for (Int i = 0; i < c::ncell; ++i) r1[i] = ic[i];
-    vec1::step(dt, nstep, r1, work);
-    if (util::reldif(r, r1, c::ncell) > 0) { std::cout << "vec1 failed\n"; ++nerr; }
-  }
-  {
-    vec2::RealPack rho[vec2::consts::npack], work[vec2::consts::npack+1];
+    vec2::RealPack rho[ncol*vec2::consts::npack], work[ncol*(vec2::consts::npack+1)];
     Real* const rp = reinterpret_cast<Real*>(&rho);
-    for (Int i = 0; i < c::ncell; ++i) rp[i] = ic[i];
-    vec2::step(dt, nstep, rho, work);
-    const auto re = util::reldif(r, rp, c::ncell);
+    for (Int i = 0; i < N; ++i) rp[i] = ic[i];
+    vec2::step(ncol, dt, nstep, rho, work);
+    const auto re = util::reldif(r, rp, N);
     if (re > 0) {
       std::cout << "vec2 re " << re << "\n";
       ++nerr;
@@ -674,21 +669,29 @@ Int unittest () {
   }
 #ifndef KOKKOS_ENABLE_CUDA
   {
-    koarr::Vector<Real> rho("rho", 1), work("work", 1);
-    for (Int i = 0; i < c::ncell; ++i) rho(0,i) = ic[i];
+    koarr::Array<Real> rho("rho", ncol), work("work", ncol);
+    for (Int c = 0; c < ncol; ++c)
+      for (Int i = 0; i < c::ncell; ++i)
+        rho(c,i) = ic[c::ncell*c + i];
     koarr::step(dt, nstep, rho, work);
-    if (util::reldif(r, &rho(0,0), c::ncell) > 0) { std::cout << "koarr failed\n"; ++nerr; }
+    const auto re = util::reldif(r, &rho(0,0), N);
+    if (re > 0) {
+      std::cout << "koarr re " << re << "\n";
+      ++nerr;
+    }
   }
 #endif
   {
-    ko::Vector<Real> rho("rho", 1);
-    ko::Vector_p1<Real> work("work", 1);
+    ko::Array<Real> rho("rho", ncol);
+    ko::Array_p1<Real> work("work", ncol);
     auto rhom = Kokkos::create_mirror_view(rho);
-    for (Int i = 0; i < c::ncell; ++i) rhom(0,i) = ic[i];
+    for (Int c = 0; c < ncol; ++c)
+      for (Int i = 0; i < c::ncell; ++i)
+        rhom(c,i) = ic[c::ncell*c + i];
     Kokkos::deep_copy(rho, rhom);
     ko::step(dt, nstep, rho, work);
     Kokkos::deep_copy(rhom, rho);
-    const auto re = util::reldif(r, &rhom(0,0), c::ncell);
+    const auto re = util::reldif(r, &rhom(0,0), N);
     if (re > 0) {
       std::cout << "ko re " << re << "\n";
       ++nerr;
@@ -698,56 +701,54 @@ Int unittest () {
 }
 
 void measure_perf (const Int& nstep) {
-  using c = problem::consts;
-  const Real dt = 0.5*c::dx/c::u_max;
-  Real ic[c::ncell], r[c::ncell], work[c::ncell+1];
-  for (Int i = 0; i < c::ncell; ++i)
-    ic[i] = problem::get_ic(problem::get_x_ctr(i));
+  using C = problem::consts;
+  static constexpr Int ncol = 64, N = C::ncell*ncol;
+  const Real dt = 0.5*C::dx/C::u_max;
+  Real ic[N], r[N], work[ncol*(C::ncell+1)];
+  for (Int c = 0; c < ncol; ++c)
+    for (Int i = 0; i < C::ncell; ++i)
+      ic[C::ncell*c + i] = problem::get_ic(problem::get_x_ctr(i));
   Real t1, t2;
 
-  for (Int i = 0; i < c::ncell; ++i)
+  for (Int i = 0; i < N; ++i)
     r[i] = ic[i];
   t1 = util::gettime();
-  reference::step(dt, nstep, r, work);
+  reference::step(ncol, dt, nstep, r, work);
   t2 = util::gettime(); printf("ref    %11.3e\n", t2-t1);
 
-#if 0
-# pragma omp parallel for
-  for (Int i = 0; i < c::ncell; ++i)
-    romp[i] = ic[i];
-  t1 = util::gettime();
-  refomp::step(dt, nstep, romp, work);
-  t2 = util::gettime(); printf("omp    %11.3e\n", t2-t1);
-#endif
-
-  for (Int i = 0; i < c::ncell; ++i)
+  for (Int i = 0; i < N; ++i)
     r[i] = ic[i];
   t1 = util::gettime();
-  vec1::step(dt, nstep, r, work);
+  vec1::step(ncol, dt, nstep, r, work);
   t2 = util::gettime(); printf("vec1   %11.3e\n", t2-t1);
 
   {
-    vec2::RealPack rho[vec2::consts::npack], work[vec2::consts::npack+1];
+    vec2::RealPack rho[ncol*vec2::consts::npack],
+      work[ncol*(vec2::consts::npack+1)];
     Real* const rp = reinterpret_cast<Real*>(&rho);
-    for (Int i = 0; i < c::ncell; ++i) rp[i] = ic[i];
+    for (Int i = 0; i < N; ++i) rp[i] = ic[i];
     t1 = util::gettime();
-    vec2::step(dt, nstep, rho, work);
+    vec2::step(ncol, dt, nstep, rho, work);
     t2 = util::gettime(); printf("vec2   %11.3e\n", t2-t1);
   }
 #ifndef KOKKOS_ENABLE_CUDA
   {
-    koarr::Vector<Real> rho("rho", 1), work("work", 1);
-    for (Int i = 0; i < c::ncell; ++i) rho(0,i) = ic[i];
+    koarr::Array<Real> rho("rho", ncol), work("work", ncol);
+    for (Int c = 0; c < ncol; ++c)
+      for (Int i = 0; i < C::ncell; ++i)
+        rho(c,i) = ic[c*C::ncell + i];
     t1 = util::gettime();
     koarr::step(dt, nstep, rho, work);
     t2 = util::gettime(); printf("koarr  %11.3e\n", t2-t1);
   }
 #endif
   {
-    ko::Vector<Real> rho("rho", 1);
-    ko::Vector_p1<Real> work("work", 1);
+    ko::Array<Real> rho("rho", ncol);
+    ko::Array_p1<Real> work("work", ncol);
     auto rhom = Kokkos::create_mirror_view(rho);
-    for (Int i = 0; i < c::ncell; ++i) rhom(0,i) = ic[i];
+    for (Int c = 0; c < ncol; ++c)
+      for (Int i = 0; i < C::ncell; ++i)
+        rhom(c,i) = ic[c*C::ncell + i];
     Kokkos::deep_copy(rho, rhom);
     t1 = util::gettime();
     ko::step(dt, nstep, rho, work);
@@ -775,7 +776,7 @@ void vec_make_image (const Int nstep, Real* const img) {
     Real* const prev = img + c::ncell*ti;
     Real* const curr = img + c::ncell*(ti+1);
     std::copy(prev, prev + c::ncell, curr);
-    reference::step(dt, curr, work.data());
+    reference::step(1, dt, curr, work.data());
   }
 }
 } // extern "C"
@@ -791,7 +792,7 @@ int main (int argc, char** argv) {
       std::cerr << "nerr " << nerr << "\n";
       //break; 
     }
-    driver::measure_perf(999999);
+    driver::measure_perf(49999);
   } while (0);
   Kokkos::finalize_all();
   return nerr;
