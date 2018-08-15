@@ -30,6 +30,7 @@ namespace micro_sed_vanilla {
 // Change this to modify how indices are presented in trace. +1 implies fortran-like indices
 #define adjust_indices(index) index + 1
 
+#ifdef TRACE
 void trace_loop(const char* name, int b, int e)
 {
   trace(name << " LOOP " << adjust_indices(b) << " -> " << adjust_indices(e));
@@ -39,6 +40,10 @@ void trace_data(const char* name, int i, int k, Real value)
 {
   trace(name << "[" << adjust_indices(i) << "][" << adjust_indices(k) << "] = " << std::setw(20) << value);
 }
+#else
+#define trace_loop(n, b, e) (static_cast<void>(0))
+#define trace_data(n, i, k, v) (static_cast<void>(0))
+#endif
 
 template <typename Real>
 struct Globals
