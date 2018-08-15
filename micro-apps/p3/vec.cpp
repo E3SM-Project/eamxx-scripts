@@ -286,7 +286,6 @@ void step (const Int& c, const Real& dt, Array<Real>& rho,
 
 void step (const Real& dt, const Int& nstep, Array<Real>& rho,
            Array<Real>& work) {
-  using C = problem::consts;
 # pragma omp parallel for
   for (Int c = 0; c < rho.extent_int(0); ++c)  
     for (Int i = 0; i < nstep; ++i)
@@ -971,6 +970,7 @@ namespace driver {
 Int unittest () {
   using c = problem::consts;
   static constexpr Int ncol = 4, N = c::ncell*ncol;
+  static constexpr Real tol = 1e-14;
   const Real dt = 0.5*c::dx/c::u_max;
   const Int nstep = Int(1.2*c::ncell);
   Real ic[N], work[ncol*(c::ncell+1)];
@@ -985,7 +985,7 @@ Int unittest () {
   {
     for (Int i = 0; i < N; ++i) r1[i] = ic[i];
     vec1::step(ncol, dt, nstep, r1, work);
-    if (util::reldif(r, r1, N) > 0) { std::cout << "vec1 failed\n"; ++nerr; }
+    if (util::reldif(r, r1, N) > tol) { std::cout << "vec1 failed\n"; ++nerr; }
   }
   {
     vec2::RealPack rho[ncol*vec2::consts::npack],
@@ -994,7 +994,7 @@ Int unittest () {
     for (Int i = 0; i < N; ++i) rp[i] = ic[i];
     vec2::step(ncol, dt, nstep, rho, work);
     const auto re = util::reldif(r, rp, N);
-    if (re > 0) {
+    if (re > tol) {
       std::cout << "vec2 re " << re << "\n";
       ++nerr;
     }
@@ -1006,7 +1006,7 @@ Int unittest () {
     for (Int i = 0; i < N; ++i) rp[i] = ic[i];
     packsimd::step(ncol, dt, nstep, rho, work);
     const auto re = util::reldif(r, rp, N);
-    if (re > 0) {
+    if (re > tol) {
       std::cout << "packsimd re " << re << "\n";
       ++nerr;
     }
@@ -1019,7 +1019,7 @@ Int unittest () {
         rho(c,i) = ic[c::ncell*c + i];
     koarr::step(dt, nstep, rho, work);
     const auto re = util::reldif(r, &rho(0,0), N);
-    if (re > 0) {
+    if (re > tol) {
       std::cout << "koarr re " << re << "\n";
       ++nerr;
     }
@@ -1036,7 +1036,7 @@ Int unittest () {
     ko::step(dt, nstep, rho, work);
     Kokkos::deep_copy(rhom, rho);
     const auto re = util::reldif(r, &rhom(0,0), N);
-    if (re > 0) {
+    if (re > tol) {
       std::cout << "ko re " << re << "\n";
       ++nerr;
     }
@@ -1052,7 +1052,7 @@ Int unittest () {
     kopack::step(dt, nstep, rho, work);
     Kokkos::deep_copy(rhom, rho);
     const auto re = util::reldif(r, &rhom(0,0)[0], N);
-    if (re > 0) {
+    if (re > tol) {
       std::cout << "kopack re " << re << "\n";
       ++nerr;
     }
