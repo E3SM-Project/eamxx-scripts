@@ -242,7 +242,7 @@ void run_over_parameter_sets (MicroSedObserver<Scalar>& o, const Int ncol) {
   const Real dt_tot = 300 * BaselineConsts::nstep; // s
 
   // will init both fortran and c
-  p3::micro_sed_vanilla::p3_init_cpp_kokkos<Scalar>();
+  p3::micro_sed_vanilla::p3_init_cpp<Scalar>();
 
   ic::MicroSedData<Scalar> d(ncol, 111);
   d.dt = dt_tot;
@@ -483,7 +483,6 @@ int main (int argc, char** argv) {
       printf("Comparing with %s at tol %1.1e\n", baseline_fn.c_str(), tol);
       out += run_and_cmp<Real>(baseline_fn, tol);
     }
-    p3::micro_sed_vanilla::p3_deinit_cpp_kokkos<Real>();
   } Kokkos::finalize_all();
 
   return out;

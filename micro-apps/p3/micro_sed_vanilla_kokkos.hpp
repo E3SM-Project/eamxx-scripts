@@ -22,60 +22,6 @@ using kokkos_2d_table_t = Kokkos::View<Real[300][10]>;
 template <typename Real>
 using kokkos_1d_table_t = Kokkos::View<Real[150]>;
 
-template <typename Real>
-struct GlobalsKokkos
-{
-  static kokkos_2d_table_t<Real> VN_TABLE, VM_TABLE;
-  static kokkos_1d_table_t<Real> MU_R_TABLE;
-};
-
-template <typename Real> KOKKOS_INLINE_FUNCTION
-kokkos_2d_table_t<Real>& VN_TABLE()
-{
-  static kokkos_2d_table_t<Real> vn_table("VN_TABLE");
-  return vn_table;
-}
-
-template <typename Real> KOKKOS_INLINE_FUNCTION
-kokkos_2d_table_t<Real>& VM_TABLE()
-{
-  static kokkos_2d_table_t<Real> vm_table("VM_TABLE");
-  return vm_table;
-}
-
-template <typename Real> KOKKOS_INLINE_FUNCTION
-kokkos_1d_table_t<Real>& MU_R_TABLE()
-{
-  static kokkos_1d_table_t<Real> mu_r_table("MU_R_TABLE");
-  return mu_r_table;
-}
-
-/**
- * Generate lookup table for rain fallspeed and ventilation parameters
- * the lookup table is two dimensional as a function of number-weighted mean size
- * proportional to qr/Nr and shape parameter mu_r
- */
-template <typename Real>
-void p3_init_cpp_kokkos()
-{
-  static bool is_init = false;
-  if (is_init) {
-    return;
-  }
-  is_init = true;
-
-  p3_init_cpp<Real>();
-
-}
-
-template <typename Real>
-void p3_deinit_cpp_kokkos()
-{
-  VN_TABLE<Real>()   = kokkos_2d_table_t<Real>();
-  VM_TABLE<Real>()   = kokkos_2d_table_t<Real>();
-  MU_R_TABLE<Real>() = kokkos_1d_table_t<Real>();
-}
-
 /**
  * Finds indices in rain lookup table (3)
  */
@@ -220,8 +166,8 @@ public:
     // initialize on host
 
     auto mirror_vn_table = Kokkos::create_mirror_view(vn_table);
-    auto mirror_vm_table = Kokkos::create_mirror_view(VM_TABLE<Real>());
-    auto mirror_mu_table = Kokkos::create_mirror_view(MU_R_TABLE<Real>());
+    auto mirror_vm_table = Kokkos::create_mirror_view(vm_table);
+    auto mirror_mu_table = Kokkos::create_mirror_view(mu_r_table);
 
     for (int i = 0; i < 300; ++i) {
       for (int k = 0; k < 10; ++k) {
@@ -236,8 +182,8 @@ public:
 
     // deep copy to device
     Kokkos::deep_copy(vn_table, mirror_vn_table);
-    Kokkos::deep_copy(VM_TABLE<Real>(), mirror_vm_table);
-    Kokkos::deep_copy(MU_R_TABLE<Real>(), mirror_mu_table);
+    Kokkos::deep_copy(vm_table, mirror_vm_table);
+    Kokkos::deep_copy(mu_r_table, mirror_mu_table);
   }
 
   void reset()
@@ -343,14 +289,14 @@ public:
               trace_data("    nr", i, k, nr(i, k));
               Real rdumii=0.0, tmp1=0.0, tmp2=0.0, rdumjj=0.0, inv_dum3=0.0;
               int dumii=0, dumjj=0;
-              get_rain_dsd2_kokkos(qr(i, k), nr(i, k), mu_r(i, k), rdumii, dumii, lamr(i, k), MU_R_TABLE<Real>(), tmp1, tmp2);
+              get_rain_dsd2_kokkos(qr(i, k), nr(i, k), mu_r(i, k), rdumii, dumii, lamr(i, k), mu_r_table, tmp1, tmp2);
               find_lookupTable_indices_3_kokkos(dumii, dumjj, rdumii, rdumjj, inv_dum3, mu_r(i, k), lamr(i, k));
 
               // mass-weighted fall speed:
-              Real dum1 = VM_TABLE<Real>()(dumii-1, dumjj-1) + (rdumii-dumii) * inv_dum3 * \
-                (VM_TABLE<Real>()(dumii, dumjj-1) - VM_TABLE<Real>()(dumii-1, dumjj-1));
-              Real dum2 = VM_TABLE<Real>()(dumii-1, dumjj) + (rdumii-dumii) * inv_dum3 * \
-                (VM_TABLE<Real>()(dumii, dumjj) - VM_TABLE<Real>()(dumii-1, dumjj));
+              Real dum1 = vm_table(dumii-1, dumjj-1) + (rdumii-dumii) * inv_dum3 * \
+                (vm_table(dumii, dumjj-1) - vm_table(dumii-1, dumjj-1));
+              Real dum2 = vm_table(dumii-1, dumjj) + (rdumii-dumii) * inv_dum3 * \
+                (vm_table(dumii, dumjj) - vm_table(dumii-1, dumjj));
 
               V_qr(k) = (dum1 + (rdumjj - dumjj) * (dum2 - dum1)) * rhofacr(i, k);
               trace_data("    V_qr", 0, k, V_qr(k));
