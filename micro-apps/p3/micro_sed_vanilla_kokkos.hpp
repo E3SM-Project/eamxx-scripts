@@ -66,13 +66,14 @@ template <typename Real> KOKKOS_FUNCTION
 void get_rain_dsd2_kokkos(const Real qr, Real& nr, Real& mu_r, Real& rdumii, int& dumii, Real& lamr,
                           kokkos_1d_table_t<Real> const& mu_r_table, Real& cdistr, Real& logn0r)
 {
+  constexpr Real nsmall = Globals<Real>::NSMALL;
   if (qr >= Globals<Real>::QSMALL) {
     // use lookup table to get mu
     // mu-lambda relationship is from Cao et al. (2008), eq. (7)
 
     // find spot in lookup table
     // (scaled N/q for lookup table parameter space_
-    nr = util::max(nr, Globals<Real>::NSMALL);
+    nr = util::max(nr, nsmall);
     Real inv_dum = std::pow(qr / (Globals<Real>::CONS1 * nr * 6.0), Globals<Real>::THRD);
 
     if (inv_dum < 282.e-6) {
@@ -227,6 +228,7 @@ public:
 
     // constants
     const Real odt = 1.0 / dt;
+    constexpr Real nsmall = Globals<Real>::NSMALL;
 
     // direction of vertical leveling
     const int ktop = (kts < kte) ? num_vert-1 : 0;
@@ -285,7 +287,7 @@ public:
           for (int k = k_qxtop; k != (k_qxbot-kdir); k-=kdir) {
             if (qr(i, k) > Globals<Real>::QSMALL) {
               // Compute Vq, Vn:
-              nr(i, k) = util::max(nr(i, k), Globals<Real>::NSMALL);
+              nr(i, k) = util::max(nr(i, k), nsmall);
               trace_data("    nr", i, k, nr(i, k));
               Real rdumii=0.0, tmp1=0.0, tmp2=0.0, rdumjj=0.0, inv_dum3=0.0;
               int dumii=0, dumjj=0;
