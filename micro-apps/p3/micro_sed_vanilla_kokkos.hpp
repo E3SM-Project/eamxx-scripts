@@ -162,8 +162,6 @@ public:
     mu_r_table("MU_R_TABLE"),
     _num_horz(num_horz), _num_vert(num_vert)
   {
-    reset();
-
     // initialize on host
 
     auto mirror_vn_table = Kokkos::create_mirror_view(vn_table);
@@ -189,14 +187,14 @@ public:
 
   void reset()
   {
-    Kokkos::parallel_for(_num_vert, KOKKOS_LAMBDA(int k) {
+    Kokkos::parallel_for("1d reset", _num_vert, KOKKOS_LAMBDA(int k) {
       V_qr(k) = 0.0;
       V_nr(k) = 0.0;
       flux_qx(k) = 0.0;
       flux_nx(k) = 0.0;
     });
 
-    Kokkos::parallel_for(_num_horz, KOKKOS_LAMBDA(int i) {
+    Kokkos::parallel_for("2d reset", _num_horz, KOKKOS_LAMBDA(int i) {
       for (int k = 0; k < _num_vert; ++k) {
         mu_r(i, k)    = 0.0;
         lamr(i, k)    = 0.0;
@@ -219,7 +217,7 @@ public:
     const int num_horz = (ite - its) + 1;
 
     // inverse of thickness of layers
-    Kokkos::parallel_for(_num_horz, KOKKOS_LAMBDA(int i) {
+    Kokkos::parallel_for("inv_dzq setup", _num_horz, KOKKOS_LAMBDA(int i) {
       for (int k = 0; k < num_vert; ++k) {
         inv_dzq(i, k) = 1 / dzq(i, k);
         t(i, k) = std::pow(pres(i, k) * 1.e-5, Globals<Real>::RD * Globals<Real>::INV_CP) * th(i, k);
@@ -237,7 +235,7 @@ public:
 
     // Rain sedimentation:  (adaptivive substepping)
     trace_loop("i_loop_main", 0, num_horz);
-    Kokkos::parallel_for(_num_horz, KOKKOS_LAMBDA(int i) {
+    Kokkos::parallel_for("main rain sed loop", _num_horz, KOKKOS_LAMBDA(int i) {
 
       trace_loop("  k_loop_1", kbot, ktop);
       for (int k = kbot; k != (ktop+kdir); k+=kdir) {
@@ -420,10 +418,6 @@ void micro_sed_func_vanilla_kokkos_wrap(const int kts, const int kte, const int 
         std::make_pair(&dzq_v, &dzq), std::make_pair(&pres_v, &pres)}) {
     populate_kokkos_from_vec(num_horz, num_vert, *(item.first), *(item.second));
   }
-
-  Kokkos::parallel_for(ni, KOKKOS_LAMBDA(int i) {
-    prt_liq(i) = 0.0;
-  });
 
   MicroSedFuncVanillaKokkos<Real> msvk(num_horz, num_vert);
 
