@@ -38,6 +38,8 @@
 //       Kokkos::abort(#condition " led to the exception\n" message);  \
 //   } while (0)
 
+
+
 namespace util {
 struct FILECloser { void operator() (FILE* fh) { fclose(fh); } };
 using FILEPtr = std::unique_ptr<FILE, FILECloser>;
@@ -63,6 +65,31 @@ eq (const std::string& a, const char* const b1, const char* const b2 = 0) {
 template <typename Real> struct is_single_precision {};
 template <> struct is_single_precision<float> { enum : bool { value = true }; };
 template <> struct is_single_precision<double> { enum : bool { value = false }; };
+
+#ifdef KOKKOS_ENABLE_CUDA
+// Replacements for namespace std functions that don't run on the GPU.
+template <typename T> KOKKOS_INLINE_FUNCTION
+const T& min (const T& a, const T& b) { return a < b ? a : b; }
+template <typename T> KOKKOS_INLINE_FUNCTION
+const T& max (const T& a, const T& b) { return a > b ? a : b; }
+KOKKOS_INLINE_FUNCTION bool isfinite (const Real& a) {
+  return a == a && a != INFINITY && a != -INFINITY;
+}
+template <typename T> KOKKOS_INLINE_FUNCTION
+const T* max_element (const T* const begin, const T* const end) {
+  const T* me = begin;
+  for (const T* it = begin + 1; it < end; ++it)
+    if ( ! (*it < *me)) // use operator<
+      me = it;
+  return me;
+}
+#else
+using std::min;
+using std::max;
+using std::isfinite;
+using std::max_element;
+#endif
+
 }
 
 #endif
