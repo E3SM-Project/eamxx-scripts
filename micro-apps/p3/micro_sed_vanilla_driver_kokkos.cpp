@@ -19,7 +19,7 @@ int main(int argc, char** argv)
   Kokkos::initialize(argc, argv); {
     p3::micro_sed_vanilla::p3_init_cpp<Real>();
     p3::micro_sed_vanilla::micro_sed_func_vanilla_kokkos_wrap<Real>(kts, kte, ni, nk, its, ite, dt, ts);
-  } Kokkos::finalize_all();
+  } Kokkos::finalize();
 
   return 0;
 }

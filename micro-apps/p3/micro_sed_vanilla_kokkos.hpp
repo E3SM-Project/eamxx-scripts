@@ -17,10 +17,10 @@ namespace p3 {
 namespace micro_sed_vanilla {
 
 template <typename Real>
-using kokkos_2d_table_t = Kokkos::View<Real[300][10]>;
+using kokkos_2d_table_t = Kokkos::View<Real[300][10], Layout, MemSpace>;
 
 template <typename Real>
-using kokkos_1d_table_t = Kokkos::View<Real[150]>;
+using kokkos_1d_table_t = Kokkos::View<Real[150], Layout, MemSpace>;
 
 /**
  * Finds indices in rain lookup table (3)

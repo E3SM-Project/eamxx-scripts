@@ -12,11 +12,21 @@ typedef double Real;
 typedef float Real;
 #endif
 
-template <typename Real>
-using kokkos_2d_t = Kokkos::View<Real**>;
+using Layout = Kokkos::LayoutRight;
+
+#ifdef KOKKOS_ENABLE_CUDA
+using MemSpace = Kokkos::CudaSpace;
+#else
+using MemSpace = Kokkos::HostSpace;
+#endif
+
+using ExecSpace = Kokkos::Cuda;
 
 template <typename Real>
-using kokkos_1d_t = Kokkos::View<Real*>;
+using kokkos_2d_t = Kokkos::View<Real**, Layout, MemSpace>;
+
+template <typename Real>
+using kokkos_1d_t = Kokkos::View<Real*, Layout, MemSpace>;
 
 template <typename Real>
 using vector_2d_t = std::vector<std::vector<Real> >;

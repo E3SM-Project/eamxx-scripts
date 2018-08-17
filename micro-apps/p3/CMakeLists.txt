@@ -38,6 +38,11 @@ target_include_directories (nanoapp PUBLIC ${SCREAM_MICRO_APPS_INCLUDES})
 target_link_libraries (nanoapp ${SCREAM_MICRO_APPS_LIBRARIES})
 set_target_properties (nanoapp PROPERTIES LINK_FLAGS ${SCREAM_MICRO_APPS_LINK_FLAGS})
 
+add_executable(test_cuda test_cuda.cpp)
+target_include_directories (test_cuda PUBLIC ${SCREAM_MICRO_APPS_INCLUDES})
+target_link_libraries (test_cuda ${SCREAM_MICRO_APPS_LIBRARIES})
+set_target_properties (test_cuda PROPERTIES LINK_FLAGS ${SCREAM_MICRO_APPS_LINK_FLAGS})
+
 add_test(run_unit_test unit_test_f90)
 add_test(run_micro_sed micro_sed 1 111 1 111 1 1 300 30) # kts kte ni nk its ite dt ts
 add_test(micro_sed_func_regression run_and_cmp run_and_cmp.baseline)

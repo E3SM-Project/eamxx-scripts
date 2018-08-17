@@ -1214,7 +1214,7 @@ int main (int argc, char** argv) {
     }
     driver::measure_perf(in.ncol, in.nstep);
   } while (0);
-  Kokkos::finalize_all();
+  Kokkos::finalize();
   return nerr;
 }
 #endif

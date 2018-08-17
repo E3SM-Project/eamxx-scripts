@@ -483,7 +483,7 @@ int main (int argc, char** argv) {
       printf("Comparing with %s at tol %1.1e\n", baseline_fn.c_str(), tol);
       out += run_and_cmp<Real>(baseline_fn, tol);
     }
-  } Kokkos::finalize_all();
+  } Kokkos::finalize();
 
   return out;
 }
