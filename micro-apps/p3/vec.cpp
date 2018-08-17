@@ -104,6 +104,19 @@ Real reldif (const Real* a, const Real* b, const Int& n) {
   return num/den;
 }
 
+Real reldif (const Real* a, const Real* b, const Int& n,
+             const Int& chunk, const Int& b_ld) {
+  Real den = 0, num = 0;
+  for (Int i = 0, N = n/chunk; i < N; ++i) {
+    for (Int j = 0; j < chunk; ++j) {
+      den = std::max(den, std::abs(a[j]));
+      num = std::max(num, std::abs(a[j] - b[j]));
+    }
+    b += b_ld;
+  }
+  return num/den;
+}
+
 static inline double gettime () {
   timeval t;
   gettimeofday(&t, 0);
@@ -139,12 +152,8 @@ void expect_another_arg (Int i, Int argc) {
 // first-touch issues with std::vector.
 template <typename T> class Space {
   T* p_;
-  std::size_t n_;
 public:
-  Space (const Int& n) {
-    p_ = new T[n];
-    n_ = n;
-  }
+  Space (const Int& n) { p_ = new T[n]; }
   ~Space () { delete[] p_; }
   T& operator[] (std::size_t i) { return p_[i]; }
   const T& operator[] (std::size_t i) const { return p_[i]; }
@@ -436,7 +445,10 @@ struct Pack {
 
   typedef SCALAR scalar;
 
-  KOKKOS_INLINE_FUNCTION Pack () {}
+  KOKKOS_INLINE_FUNCTION Pack () {
+    vector_simd for (int i = 0; i < n; ++i)
+      d[i] = std::numeric_limits<scalar>::quiet_NaN();
+  }
   KOKKOS_INLINE_FUNCTION Pack (const scalar& v) {
     if (use_avx512f && is_pd && n == 8) {
 #ifdef __AVX512F__
@@ -626,10 +638,9 @@ RealPack get_src (const RealPack& x, const RealPack& rho) {
       r[i] = 0;
       continue;
     }
-    const auto src = rhodiff[i];
     // Throw a min in for safety and to exercise it.
     const auto idx = min<Int>(tsize, tsize*(rhodiff[i]/trhodiffmax));
-    r[i] = src*rate[idx];
+    r[i] = rhodiff[i]*rate[idx];
   }
   return r;
 }
@@ -681,6 +692,22 @@ void step (const Int& ncol, const Real& dt, const Int& nstep,
 // So far, vec2 shows that intrinsics are not helpful, but packs can be. So do a
 // clean impl of packs with no intrinsics.
 namespace packsimd {
+template <int PACKN>
+struct Mask {
+  enum { packtag = true };
+  enum { n = PACKN };
+
+  KOKKOS_FORCEINLINE_FUNCTION Mask (const bool& init) {
+    vector_simd for (int i = 0; i < n; ++i) d[i] = init;
+  }
+
+  KOKKOS_FORCEINLINE_FUNCTION void set (const int& i, const bool& val) { d[i] = val; }
+  KOKKOS_FORCEINLINE_FUNCTION bool operator[] (const int& i) const { return d[i]; }
+
+private:
+  char d[n];
+};
+
 #define packsimd_gen_assign_op_p(op)                      \
   KOKKOS_FORCEINLINE_FUNCTION                             \
   Pack& operator op (const Pack& a) {                     \
@@ -704,7 +731,10 @@ struct Pack {
 
   typedef SCALAR scalar;
 
-  KOKKOS_FORCEINLINE_FUNCTION Pack () {}
+  KOKKOS_FORCEINLINE_FUNCTION Pack () {
+    vector_simd for (int i = 0; i < n; ++i)
+      d[i] = std::numeric_limits<scalar>::quiet_NaN();
+  }
   KOKKOS_FORCEINLINE_FUNCTION Pack (const scalar& v) {
     vector_simd for (int i = 0; i < n; ++i) d[i] = v;
   }
@@ -717,8 +747,12 @@ struct Pack {
   packsimd_gen_assign_op_all(-=)
   packsimd_gen_assign_op_all(*=)
   packsimd_gen_assign_op_all(/=)
+
+  KOKKOS_FORCEINLINE_FUNCTION void set (const Mask<n>& mask, const scalar& v) {
+    vector_simd for (int i = 0; i < n; ++i) if (mask[i]) d[i] = v;
+  }
   
-  private:
+private:
   scalar d[n];
 };
 
@@ -792,7 +826,7 @@ OnlyPack<Pack> abs (const Pack& p) {
 template <typename T, typename pack, typename Scalar> KOKKOS_INLINE_FUNCTION
 OnlyPackReturn<pack, Pack<T,pack::n> > min (const Scalar& a, const pack& b) {
   Pack<T,pack::n> c;
-  vector_simd for (int i = 0; i < pack::n; ++i) c[i] = std::min<T>(a, b[i]);
+  vector_simd for (int i = 0; i < pack::n; ++i) c[i] = ko::min<T>(a, b[i]);
   return c;
 }
 
@@ -804,8 +838,15 @@ Pack<T,n> pack_range (const T& start) {
   return p;
 }
 
+template <typename Pack, typename Scalar> KOKKOS_INLINE_FUNCTION
+OnlyPackReturn<Pack, Mask<Pack::n> > operator >= (const Pack& a, const Scalar& b) {
+  Mask<Pack::n> m(false);
+  vector_simd for (int i = 0; i < Pack::n; ++i) if (a[i] >= b) m.set(i, true);
+  return m;
+}
+
 using RealPack = Pack<Real,VEC_PACKN>;
-using IntPack = Pack<Int ,VEC_PACKN>;
+using IntPack = Pack<Int,VEC_PACKN>;
 
 #define consts_npack ((consts_ncell + RealPack::n - 1) / RealPack::n)
 struct consts : public problem::consts {
@@ -826,17 +867,11 @@ RealPack get_src (const RealPack& x, const RealPack& rho) {
   constexpr Int tsize = sizeof(rate)/sizeof(*rate) - 1;
   const Real trhodiffmax = 1;
   const auto rhodiff = abs(rho - consts_rho_ref);
-  RealPack r;
-  vector_simd for (Int i = 0; i < RealPack::n; ++i) {
-    if (rhodiff[i] >= trhodiffmax) {
-      r[i] = 0;
-      continue;
-    }
-    const auto src = rhodiff[i];
-    // Throw a min in for safety and to exercise it.
-    const auto idx = min<Int>(tsize, tsize*(rhodiff[i]/trhodiffmax));
-    r[i] = src*rate[idx];
-  }
+  RealPack r(0);
+  const auto idx = min<Int>(tsize, tsize*(rhodiff/trhodiffmax));
+  vector_simd for (Int i = 0; i < RealPack::n; ++i)
+    r[i] = rhodiff[i] < trhodiffmax ? rate[idx[i]] : 0;
+  r *= rhodiff;
   return r;
 }
 
@@ -880,7 +915,7 @@ void step (const Int& ncol, const Real& dt, const Int& nstep,
 # pragma omp parallel for
   for (Int c = 0; c < ncol; ++c)
     for (Int i = 0; i < nstep; ++i)
-      step(dt, rho + C::npack*c, work + (C::npack+1)*c);
+      step(dt, rho + C::npack*c, work + C::npackp1*c);
 }
 } // namespace packsimd
 
@@ -916,7 +951,7 @@ void calc_numerical_flux (const Member& team, const Vector<Real>& rho,
   Kokkos::parallel_for(
     Kokkos::TeamThreadRange(team, consts_npack),
     [&] (const int& i) {
-      auto range = pack_range<Real,RealPack::n>(RealPack::n*i);
+      const auto range = pack_range<Real,RealPack::n>(RealPack::n*i);
       flux_interior(i) = rho(i) * problem::get_u(get_x_ctr(range));
     });
   team.team_barrier();
@@ -932,7 +967,7 @@ void step (const Member& team, const Real& dt, const Vector<Real>& rho,
   Kokkos::parallel_for(
     Kokkos::TeamThreadRange(team, consts_npack),
     [&] (const int& i) {
-      auto range = pack_range<Real,RealPack::n>(RealPack::n*i);
+      const auto range = pack_range<Real,RealPack::n>(RealPack::n*i);
       const auto flux_int_im1 =
         i == 0 ?
         shift_right(flux_bdy, flux_int(i)) :
@@ -982,11 +1017,12 @@ Int unittest () {
   }
   {
     vec2::RealPack rho[ncol*vec2::consts::npack],
-      work[ncol*(vec2::consts::npackp1)];
+      work[ncol*vec2::consts::npackp1];
     Real* const rp = reinterpret_cast<Real*>(&rho);
     for (Int i = 0; i < N; ++i) rp[i] = ic[i];
     vec2::step(ncol, dt, nstep, rho, work);
-    const auto re = util::reldif(r, rp, N);
+    const auto ld = vec2::consts::npack*vec2::RealPack::n;
+    const auto re = util::reldif(r, rp, N, c::ncell, ld);
     if (re > tol) {
       std::cout << "vec2 re " << re << "\n";
       ++nerr;
@@ -994,11 +1030,12 @@ Int unittest () {
   }
   {
     packsimd::RealPack rho[ncol*packsimd::consts::npack],
-      work[ncol*(packsimd::consts::npackp1)];
+      work[ncol*packsimd::consts::npackp1];
     Real* const rp = reinterpret_cast<Real*>(&rho);
     for (Int i = 0; i < N; ++i) rp[i] = ic[i];
     packsimd::step(ncol, dt, nstep, rho, work);
-    const auto re = util::reldif(r, rp, N);
+    const auto ld = packsimd::consts::npack*packsimd::RealPack::n;
+    const auto re = util::reldif(r, rp, N, c::ncell, ld);
     if (re > tol) {
       std::cout << "packsimd re " << re << "\n";
       ++nerr;
@@ -1044,7 +1081,8 @@ Int unittest () {
     Kokkos::deep_copy(rho, rhom);
     kopack::step(dt, nstep, rho, work);
     Kokkos::deep_copy(rhom, rho);
-    const auto re = util::reldif(r, &rhom(0,0)[0], N);
+    const auto ld = kopack::consts::npack*kopack::RealPack::n;
+    const auto re = util::reldif(r, &rhom(0,0)[0], N, c::ncell, ld);
     if (re > tol) {
       std::cout << "kopack re " << re << "\n";
       ++nerr;
@@ -1078,7 +1116,7 @@ void measure_perf (const Int& ncol, const Int& nstep) {
 
   {
     util::Space<vec2::RealPack> rho(ncol*vec2::consts::npack),
-      work(ncol*(vec2::consts::npackp1));
+      work(ncol*vec2::consts::npackp1);
     Real* const rp = reinterpret_cast<Real*>(rho.data());
     for (Int i = 0; i < N; ++i) rp[i] = ic[i];
     t1 = util::gettime();
@@ -1087,7 +1125,7 @@ void measure_perf (const Int& ncol, const Int& nstep) {
   }
   {
     util::Space<packsimd::RealPack> rho(ncol*packsimd::consts::npack),
-      work(ncol*(packsimd::consts::npackp1));
+      work(ncol*packsimd::consts::npackp1);
     Real* const rp = reinterpret_cast<Real*>(rho.data());
     for (Int i = 0; i < N; ++i) rp[i] = ic[i];
     t1 = util::gettime();

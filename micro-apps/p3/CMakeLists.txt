@@ -33,7 +33,9 @@ target_include_directories (micro_sed_vanilla_kokkos PUBLIC ${SCREAM_MICRO_APPS_
 target_link_libraries (micro_sed_vanilla_kokkos ${SCREAM_MICRO_APPS_LIBRARIES})
 set_target_properties (micro_sed_vanilla_kokkos PROPERTIES LINK_FLAGS ${SCREAM_MICRO_APPS_LINK_FLAGS})
 
-add_executable(nanoapp vec.cpp)
+add_executable (nanoapp vec.cpp)
+# Use a pack size that does not divide 128 to test correctness in that case.
+target_compile_definitions (nanoapp PRIVATE -DVEC_PACKN=13)
 target_include_directories (nanoapp PUBLIC ${SCREAM_MICRO_APPS_INCLUDES})
 target_link_libraries (nanoapp ${SCREAM_MICRO_APPS_LIBRARIES})
 set_target_properties (nanoapp PROPERTIES LINK_FLAGS ${SCREAM_MICRO_APPS_LINK_FLAGS})
