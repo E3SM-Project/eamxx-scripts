@@ -202,9 +202,9 @@ void micro_sed_func_cpp (ic::MicroSedData<Scalar>& d, VanillaCppBridge<Scalar>& 
 template <typename Scalar>
 void micro_sed_func_cpp_kokkos (ic::MicroSedData<Scalar>& d, KokkosCppBridge<Scalar>& bridge, p3::micro_sed_vanilla::MicroSedFuncVanillaKokkos<Real>& msvk)
 {
-  msvk.micro_sed_func_vanilla_kokkos( d.reverse ? d.nk : 1, d.reverse ? 1 : d.nk,
-                                      d.ni, d.nk, 1, d.ni, d.dt, bridge.qr, bridge.nr, bridge.th,
-                                      bridge.dzq, bridge.pres, bridge.prt_liq);
+  micro_sed_func_vanilla_kokkos( msvk, d.reverse ? d.nk : 1, d.reverse ? 1 : d.nk,
+                                 d.ni, d.nk, 1, d.ni, d.dt, bridge.qr, bridge.nr, bridge.th,
+                                 bridge.dzq, bridge.pres, bridge.prt_liq);
 
   bridge.sync_to(d);
 }

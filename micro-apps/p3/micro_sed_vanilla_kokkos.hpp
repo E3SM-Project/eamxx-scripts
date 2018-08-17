@@ -135,17 +135,19 @@ void get_rain_dsd2_kokkos(const Real qr, Real& nr, Real& mu_r, Real& rdumii, int
  * prt_liq: precipitation rate, total liquid    m s-1  (output)
  */
 template <typename Real>
-class MicroSedFuncVanillaKokkos
+struct MicroSedFuncVanillaKokkos
 {
- private:
+  int num_horz, num_vert;
+
+  // re-usable scratch views
   kokkos_1d_t<Real> V_qr, V_nr, flux_qx, flux_nx;
   kokkos_2d_t<Real> mu_r, lamr, rhofacr, inv_dzq, rho, inv_rho, t, tmparr1;
   kokkos_2d_table_t<Real> vn_table, vm_table;
   kokkos_1d_table_t<Real> mu_r_table;
-  int _num_horz, _num_vert;
 
 public:
-  MicroSedFuncVanillaKokkos(int num_horz, int num_vert) :
+  MicroSedFuncVanillaKokkos(int num_horz_, int num_vert_) :
+    num_horz(num_horz_), num_vert(num_vert_),
     V_qr("V_qr", num_vert),
     V_nr("V_nr", num_vert),
     flux_qx("flux_qx", num_vert),
@@ -159,8 +161,7 @@ public:
     t("t", num_horz, num_vert),
     tmparr1("tmparr1", num_horz, num_vert),
     vn_table("VN_TABLE"), vm_table("VM_TABLE"),
-    mu_r_table("MU_R_TABLE"),
-    _num_horz(num_horz), _num_vert(num_vert)
+    mu_r_table("MU_R_TABLE")
   {
     // initialize on host
 
@@ -184,195 +185,194 @@ public:
     Kokkos::deep_copy(vm_table, mirror_vm_table);
     Kokkos::deep_copy(mu_r_table, mirror_mu_table);
   }
+};
 
-  void reset()
-  {
-    Kokkos::parallel_for("1d reset", _num_vert, KOKKOS_LAMBDA(int k) {
-      V_qr(k) = 0.0;
-      V_nr(k) = 0.0;
-      flux_qx(k) = 0.0;
-      flux_nx(k) = 0.0;
-    });
+template <typename Real>
+void reset(MicroSedFuncVanillaKokkos<Real>& msvk)
+{
+  Kokkos::parallel_for("1d reset", msvk.num_vert, KOKKOS_LAMBDA(int k) {
+    msvk.V_qr(k) = 0.0;
+    msvk.V_nr(k) = 0.0;
+    msvk.flux_qx(k) = 0.0;
+    msvk.flux_nx(k) = 0.0;
+  });
 
-    Kokkos::parallel_for("2d reset", _num_horz, KOKKOS_LAMBDA(int i) {
-      for (int k = 0; k < _num_vert; ++k) {
-        mu_r(i, k)    = 0.0;
-        lamr(i, k)    = 0.0;
-        rhofacr(i, k) = 0.0;
-        inv_dzq(i, k) = 0.0;
-        rho(i, k)     = 0.0;
-        inv_rho(i, k) = 0.0;
-        t(i, k)       = 0.0;
-        tmparr1(i, k) = 0.0;
+  Kokkos::parallel_for("2d reset", msvk.num_horz, KOKKOS_LAMBDA(int i) {
+    for (int k = 0; k < msvk.num_vert; ++k) {
+      msvk.mu_r(i, k)    = 0.0;
+      msvk.lamr(i, k)    = 0.0;
+      msvk.rhofacr(i, k) = 0.0;
+      msvk.inv_dzq(i, k) = 0.0;
+      msvk.rho(i, k)     = 0.0;
+      msvk.inv_rho(i, k) = 0.0;
+      msvk.t(i, k)       = 0.0;
+      msvk.tmparr1(i, k) = 0.0;
+    }
+  });
+}
+
+void micro_sed_func_vanilla_kokkos(MicroSedFuncVanillaKokkos<Real>& msvk,
+                                   const int kts, const int kte, const int ni, const int nk, const int its, const int ite, const Real dt,
+                                   kokkos_2d_t<Real> & qr, kokkos_2d_t<Real> & nr,
+                                   kokkos_2d_t<Real> const& th, kokkos_2d_t<Real> const& dzq, kokkos_2d_t<Real> const& pres,
+                                   kokkos_1d_t<Real> & prt_liq)
+{
+  // inverse of thickness of layers
+  Kokkos::parallel_for("inv_dzq setup", msvk.num_horz, KOKKOS_LAMBDA(int i) {
+    for (int k = 0; k < msvk.num_vert; ++k) {
+      msvk.inv_dzq(i, k) = 1 / dzq(i, k);
+      msvk.t(i, k) = std::pow(pres(i, k) * 1.e-5, Globals<Real>::RD * Globals<Real>::INV_CP) * th(i, k);
+    }
+  });
+
+  // constants
+  const Real odt = 1.0 / dt;
+  constexpr Real nsmall = Globals<Real>::NSMALL;
+
+  // direction of vertical leveling
+  const int ktop = (kts < kte) ? msvk.num_vert-1 : 0;
+  const int kbot = (kts < kte) ? 0: msvk.num_vert-1;
+  const int kdir = (kts < kte) ? 1  : -1;
+
+  // Rain sedimentation:  (adaptivive substepping)
+  trace_loop("i_loop_main", 0, msvk.num_horz);
+  Kokkos::parallel_for("main rain sed loop", msvk.num_horz, KOKKOS_LAMBDA(int i) {
+
+    trace_loop("  k_loop_1", kbot, ktop);
+    for (int k = kbot; k != (ktop+kdir); k+=kdir) {
+      msvk.rho(i, k) = pres(i, k) / (Globals<Real>::RD * msvk.t(i, k));
+      msvk.inv_rho(i, k) = 1.0 / msvk.rho(i, k);
+      msvk.rhofacr(i, k) = std::pow(Globals<Real>::RHOSUR * msvk.inv_rho(i, k), 0.54);
+      trace_data("    rhofacr", i, k, msvk.rhofacr(i, k));
+    }
+
+    // Note, we are skipping supersaturation checks
+
+    bool log_qxpresent = false;
+    int k_qxtop = kbot;
+
+    // find top, determine qxpresent
+    for (int k = ktop; k != (kbot-kdir); k-=kdir) {
+      if (qr(i, k) >= Globals<Real>::QSMALL) {
+        log_qxpresent = true;
+        k_qxtop = k;
+        break;
       }
-    });
-  }
+    }
 
-  void micro_sed_func_vanilla_kokkos(const int kts, const int kte, const int ni, const int nk, const int its, const int ite, const Real dt,
-                                     kokkos_2d_t<Real> & qr, kokkos_2d_t<Real> & nr,
-                                     kokkos_2d_t<Real> const& th, kokkos_2d_t<Real> const& dzq, kokkos_2d_t<Real> const& pres,
-                                     kokkos_1d_t<Real> & prt_liq)
-  {
-    const int num_vert = abs(kte - kts) + 1;
-    const int num_horz = (ite - its) + 1;
+    // JGF: It appears rain sedimentation is mostly nothing unless log_qxpresent is true
+    if (log_qxpresent) {
 
-    // inverse of thickness of layers
-    Kokkos::parallel_for("inv_dzq setup", _num_horz, KOKKOS_LAMBDA(int i) {
-      for (int k = 0; k < num_vert; ++k) {
-        inv_dzq(i, k) = 1 / dzq(i, k);
-        t(i, k) = std::pow(pres(i, k) * 1.e-5, Globals<Real>::RD * Globals<Real>::INV_CP) * th(i, k);
-      }
-    });
+      Real dt_left = dt;    // time remaining for sedi over full model (mp) time step
+      Real prt_accum = 0.0; // precip rate for individual category
+      int k_qxbot = 0;
 
-    // constants
-    const Real odt = 1.0 / dt;
-    constexpr Real nsmall = Globals<Real>::NSMALL;
-
-    // direction of vertical leveling
-    const int ktop = (kts < kte) ? num_vert-1 : 0;
-    const int kbot = (kts < kte) ? 0: num_vert-1;
-    const int kdir = (kts < kte) ? 1  : -1;
-
-    // Rain sedimentation:  (adaptivive substepping)
-    trace_loop("i_loop_main", 0, num_horz);
-    Kokkos::parallel_for("main rain sed loop", _num_horz, KOKKOS_LAMBDA(int i) {
-
-      trace_loop("  k_loop_1", kbot, ktop);
-      for (int k = kbot; k != (ktop+kdir); k+=kdir) {
-        rho(i, k) = pres(i, k) / (Globals<Real>::RD * t(i, k));
-        inv_rho(i, k) = 1.0 / rho(i, k);
-        rhofacr(i, k) = std::pow(Globals<Real>::RHOSUR * inv_rho(i, k), 0.54);
-        trace_data("    rhofacr", i, k, rhofacr(i, k));
-      }
-
-      // Note, we are skipping supersaturation checks
-
-      bool log_qxpresent = false;
-      int k_qxtop = kbot;
-
-      // find top, determine qxpresent
-      for (int k = ktop; k != (kbot-kdir); k-=kdir) {
+      // find bottom
+      for (int k = kbot; k != (k_qxtop+kdir); k+=kdir) {
         if (qr(i, k) >= Globals<Real>::QSMALL) {
-          log_qxpresent = true;
-          k_qxtop = k;
+          k_qxbot = k;
           break;
         }
       }
 
-      // JGF: It appears rain sedimentation is mostly nothing unless log_qxpresent is true
-      if (log_qxpresent) {
-
-        Real dt_left = dt;    // time remaining for sedi over full model (mp) time step
-        Real prt_accum = 0.0; // precip rate for individual category
-        int k_qxbot = 0;
-
-        // find bottom
-        for (int k = kbot; k != (k_qxtop+kdir); k+=kdir) {
-          if (qr(i, k) >= Globals<Real>::QSMALL) {
-            k_qxbot = k;
-            break;
-          }
+      while (dt_left > 1.e-4) {
+        Real Co_max = 0.0;
+        for (int kk = 0; kk < msvk.num_vert; ++kk) {
+          msvk.V_qr(kk) = 0.0;
+          msvk.V_nr(kk) = 0.0;
         }
 
-        while (dt_left > 1.e-4) {
-          Real Co_max = 0.0;
-          for (int kk = 0; kk < num_vert; ++kk) {
-            V_qr(kk) = 0.0;
-            V_nr(kk) = 0.0;
-          }
-
-          trace_loop("  k_loop_sedi_r1", k_qxtop, k_qxbot);
-          for (int k = k_qxtop; k != (k_qxbot-kdir); k-=kdir) {
-            if (qr(i, k) > Globals<Real>::QSMALL) {
-              // Compute Vq, Vn:
-              nr(i, k) = util::max(nr(i, k), nsmall);
-              trace_data("    nr", i, k, nr(i, k));
-              Real rdumii=0.0, tmp1=0.0, tmp2=0.0, rdumjj=0.0, inv_dum3=0.0;
-              int dumii=0, dumjj=0;
-              get_rain_dsd2_kokkos(qr(i, k), nr(i, k), mu_r(i, k), rdumii, dumii, lamr(i, k), mu_r_table, tmp1, tmp2);
-              find_lookupTable_indices_3_kokkos(dumii, dumjj, rdumii, rdumjj, inv_dum3, mu_r(i, k), lamr(i, k));
-
-              // mass-weighted fall speed:
-              Real dum1 = vm_table(dumii-1, dumjj-1) + (rdumii-dumii) * inv_dum3 * \
-                (vm_table(dumii, dumjj-1) - vm_table(dumii-1, dumjj-1));
-              Real dum2 = vm_table(dumii-1, dumjj) + (rdumii-dumii) * inv_dum3 * \
-                (vm_table(dumii, dumjj) - vm_table(dumii-1, dumjj));
-
-              V_qr(k) = (dum1 + (rdumjj - dumjj) * (dum2 - dum1)) * rhofacr(i, k);
-              trace_data("    V_qr", 0, k, V_qr(k));
-
-              // number-weighted fall speed:
-              dum1 = vn_table(dumii-1, dumjj-1) + (rdumii-dumii) * inv_dum3 * \
-                (vn_table(dumii, dumjj-1) - vn_table(dumii-1, dumjj-1));
-              dum2 = vn_table(dumii-1, dumjj) + (rdumii-dumii) * inv_dum3 * \
-                (vn_table(dumii, dumjj) - vn_table(dumii-1, dumjj));
-
-              V_nr(k) = (dum1 + (rdumjj - dumjj) * (dum2 - dum1)) * rhofacr(i, k);
-              trace_data("    V_nr", 0, k, V_nr(k));
-            }
-            Co_max = util::max(Co_max, V_qr(k) * dt_left * inv_dzq(i, k));
-            trace_data("  Co_max", 0, 0, Co_max);
-          }
-
-          // compute dt_sub
-          int tmpint1 = static_cast<int>(Co_max + 1.0);
-          Real dt_sub = util::min(dt_left, dt_left / tmpint1);
-
-          int k_temp = (k_qxbot == kbot) ? k_qxbot : (k_qxbot - kdir);
-
-          // calculate fluxes
-          trace_loop("  k_flux_loop", k_temp, k_qxtop);
-          for (int k = k_temp; k != (k_qxtop+kdir); k+=kdir) {
-            flux_qx(k) = V_qr(k) * qr(i, k) * rho(i, k);
-            trace_data("    flux_qx", 0, k, flux_qx(k));
-            flux_nx(k) = V_nr(k) * nr(i, k) * rho(i, k);
-            trace_data("    flux_nx", 0, k, flux_nx(k));
-          }
-
-          // accumulated precip during time step
-          if (k_qxbot == kbot) {
-            prt_accum += flux_qx(kbot) * dt_sub;
-          }
-
-          // for top level only (since flux is 0 above)
-          int k = k_qxtop;
-          // compute flux divergence
-          Real fluxdiv_qx = -flux_qx(k) * inv_dzq(i, k);
-          Real fluxdiv_nx = -flux_nx(k) * inv_dzq(i, k);
-          // update prognostic variables
-          qr(i, k) += fluxdiv_qx * dt_sub * inv_rho(i, k);
-          trace_data("  qr", i, k, qr(i, k));
-          nr(i, k) += fluxdiv_nx * dt_sub * inv_rho(i, k);
-          trace_data("  nr", i, k, nr(i, k));
-
-          trace_loop("  k_flux_div_loop", k_qxtop - kdir, k_temp);
-          for (int k = k_qxtop - kdir; k != (k_temp-kdir); k-=kdir) {
-            // compute flux divergence
-            fluxdiv_qx = (flux_qx(k+kdir) - flux_qx(k)) * inv_dzq(i, k);
-            fluxdiv_nx = (flux_nx(k+kdir) - flux_nx(k)) * inv_dzq(i, k);
-            // update prognostic variables
-            qr(i, k) += fluxdiv_qx * dt_sub * inv_rho(i, k);
-            trace_data("    qr", i, k, qr(i, k));
-            nr(i, k) += fluxdiv_nx  *dt_sub * inv_rho(i, k);
+        trace_loop("  k_loop_sedi_r1", k_qxtop, k_qxbot);
+        for (int k = k_qxtop; k != (k_qxbot-kdir); k-=kdir) {
+          if (qr(i, k) > Globals<Real>::QSMALL) {
+            // Compute Vq, Vn:
+            nr(i, k) = util::max(nr(i, k), nsmall);
             trace_data("    nr", i, k, nr(i, k));
-          }
+            Real rdumii=0.0, tmp1=0.0, tmp2=0.0, rdumjj=0.0, inv_dum3=0.0;
+            int dumii=0, dumjj=0;
+            get_rain_dsd2_kokkos(qr(i, k), nr(i, k), msvk.mu_r(i, k), rdumii, dumii, msvk.lamr(i, k), msvk.mu_r_table, tmp1, tmp2);
+            find_lookupTable_indices_3_kokkos(dumii, dumjj, rdumii, rdumjj, inv_dum3, msvk.mu_r(i, k), msvk.lamr(i, k));
 
-          dt_left -= dt_sub;  // update time remaining for sedimentation
-          if (k_qxbot != kbot) {
-            k_qxbot -= kdir;
+            // mass-weighted fall speed:
+            Real dum1 = msvk.vm_table(dumii-1, dumjj-1) + (rdumii-dumii) * inv_dum3 * \
+              (msvk.vm_table(dumii, dumjj-1) - msvk.vm_table(dumii-1, dumjj-1));
+            Real dum2 = msvk.vm_table(dumii-1, dumjj) + (rdumii-dumii) * inv_dum3 * \
+              (msvk.vm_table(dumii, dumjj) - msvk.vm_table(dumii-1, dumjj));
+
+            msvk.V_qr(k) = (dum1 + (rdumjj - dumjj) * (dum2 - dum1)) * msvk.rhofacr(i, k);
+            trace_data("    V_qr", 0, k, V_qr(k));
+
+            // number-weighted fall speed:
+            dum1 = msvk.vn_table(dumii-1, dumjj-1) + (rdumii-dumii) * inv_dum3 * \
+              (msvk.vn_table(dumii, dumjj-1) - msvk.vn_table(dumii-1, dumjj-1));
+            dum2 = msvk.vn_table(dumii-1, dumjj) + (rdumii-dumii) * inv_dum3 * \
+              (msvk.vn_table(dumii, dumjj) - msvk.vn_table(dumii-1, dumjj));
+
+            msvk.V_nr(k) = (dum1 + (rdumjj - dumjj) * (dum2 - dum1)) * msvk.rhofacr(i, k);
+            trace_data("    V_nr", 0, k, msvk.V_nr(k));
           }
+          Co_max = util::max(Co_max, msvk.V_qr(k) * dt_left * msvk.inv_dzq(i, k));
+          trace_data("  Co_max", 0, 0, Co_max);
         }
 
-        trace_data("  prt_liq", i, 0, prt_liq(i));
-        trace_data("  prt_accum", 0, 0, prt_accum);
-        prt_liq(i) += prt_accum * Globals<Real>::INV_RHOW * odt;
-        trace_data("  prt_liq", i, 0, prt_liq(i));
-      }
-    });
+        // compute dt_sub
+        int tmpint1 = static_cast<int>(Co_max + 1.0);
+        Real dt_sub = util::min(dt_left, dt_left / tmpint1);
 
-    reset();
-  }
-};
+        int k_temp = (k_qxbot == kbot) ? k_qxbot : (k_qxbot - kdir);
+
+        // calculate fluxes
+        trace_loop("  k_flux_loop", k_temp, k_qxtop);
+        for (int k = k_temp; k != (k_qxtop+kdir); k+=kdir) {
+          msvk.flux_qx(k) = msvk.V_qr(k) * qr(i, k) * msvk.rho(i, k);
+          trace_data("    flux_qx", 0, k, msvk.flux_qx(k));
+          msvk.flux_nx(k) = msvk.V_nr(k) * nr(i, k) * msvk.rho(i, k);
+          trace_data("    flux_nx", 0, k, msvk.flux_nx(k));
+        }
+
+        // accumulated precip during time step
+        if (k_qxbot == kbot) {
+          prt_accum += msvk.flux_qx(kbot) * dt_sub;
+        }
+
+        // for top level only (since flux is 0 above)
+        int k = k_qxtop;
+        // compute flux divergence
+        Real fluxdiv_qx = -msvk.flux_qx(k) * msvk.inv_dzq(i, k);
+        Real fluxdiv_nx = -msvk.flux_nx(k) * msvk.inv_dzq(i, k);
+        // update prognostic variables
+        qr(i, k) += fluxdiv_qx * dt_sub * msvk.inv_rho(i, k);
+        trace_data("  qr", i, k, qr(i, k));
+        nr(i, k) += fluxdiv_nx * dt_sub * msvk.inv_rho(i, k);
+        trace_data("  nr", i, k, nr(i, k));
+
+        trace_loop("  k_flux_div_loop", k_qxtop - kdir, k_temp);
+        for (int k = k_qxtop - kdir; k != (k_temp-kdir); k-=kdir) {
+          // compute flux divergence
+          fluxdiv_qx = (msvk.flux_qx(k+kdir) - msvk.flux_qx(k)) * msvk.inv_dzq(i, k);
+          fluxdiv_nx = (msvk.flux_nx(k+kdir) - msvk.flux_nx(k)) * msvk.inv_dzq(i, k);
+          // update prognostic variables
+          qr(i, k) += fluxdiv_qx * dt_sub * msvk.inv_rho(i, k);
+          trace_data("    qr", i, k, qr(i, k));
+          nr(i, k) += fluxdiv_nx  *dt_sub * msvk.inv_rho(i, k);
+          trace_data("    nr", i, k, nr(i, k));
+        }
+
+        dt_left -= dt_sub;  // update time remaining for sedimentation
+        if (k_qxbot != kbot) {
+          k_qxbot -= kdir;
+        }
+      }
+
+      trace_data("  prt_liq", i, 0, prt_liq(i));
+      trace_data("  prt_accum", 0, 0, prt_accum);
+      prt_liq(i) += prt_accum * Globals<Real>::INV_RHOW * odt;
+      trace_data("  prt_liq", i, 0, prt_liq(i));
+    }
+  });
+
+  reset(msvk);
+}
 
 template <typename Real>
 void populate_kokkos_from_vec(const int num_horz, const int num_vert, vector_2d_t<Real> const& vec, kokkos_2d_t<Real>& device)
@@ -424,7 +424,7 @@ void micro_sed_func_vanilla_kokkos_wrap(const int kts, const int kte, const int 
   auto start = std::chrono::steady_clock::now();
 
   for (int i = 0; i < ts; ++i) {
-    msvk.micro_sed_func_vanilla_kokkos(kts, kte, ni, nk, its, ite, dt, qr, nr, th, dzq, pres, prt_liq);
+    micro_sed_func_vanilla_kokkos(msvk, kts, kte, ni, nk, its, ite, dt, qr, nr, th, dzq, pres, prt_liq);
   }
 
   auto finish = std::chrono::steady_clock::now();

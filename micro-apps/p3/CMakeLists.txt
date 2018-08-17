@@ -45,7 +45,10 @@ set_target_properties (test_cuda PROPERTIES LINK_FLAGS ${SCREAM_MICRO_APPS_LINK_
 
 add_test(run_unit_test unit_test_f90)
 add_test(run_micro_sed micro_sed 1 111 1 111 1 1 300 30) # kts kte ni nk its ite dt ts
-add_test(micro_sed_func_regression run_and_cmp run_and_cmp.baseline)
 add_test(run_micro_sed_vanilla micro_sed_vanilla 1 111 1 111 1 1 300 30)
-add_test(run_micro_sed_vanilla_kokkos micro_sed_vanilla_kokkos 1 111 1 111 1 1 300 30)
 add_test(nanoapp nanoapp -nc 4 -ns 100)
+add_test(run_micro_sed_vanilla_kokkos micro_sed_vanilla_kokkos 1 111 1 111 1 1 300 30)
+
+add_test(micro_sed_func_regression run_and_cmp run_and_cmp.baseline)
+# For now, need OMP_NUM_THREADS=1 for consistent results
+set_property(TEST micro_sed_func_regression PROPERTY ENVIRONMENT "OMP_NUM_THREADS=1")

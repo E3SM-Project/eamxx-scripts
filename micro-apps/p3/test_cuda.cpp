@@ -9,7 +9,7 @@ using MemSpace = Kokkos::CudaSpace;
 using MemSpace = Kokkos::HostSpace;
 #endif
 
-using ExecSpace = Kokkos::Cuda;
+using ExecSpace = Kokkos::DefaultExecutionSpace;
 
 using kokkos_2d_t = Kokkos::View<double**, Layout, MemSpace>;
 

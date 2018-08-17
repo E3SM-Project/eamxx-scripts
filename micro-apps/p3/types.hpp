@@ -20,7 +20,7 @@ using MemSpace = Kokkos::CudaSpace;
 using MemSpace = Kokkos::HostSpace;
 #endif
 
-using ExecSpace = Kokkos::Cuda;
+using ExecSpace = Kokkos::DefaultExecutionSpace;
 
 template <typename Real>
 using kokkos_2d_t = Kokkos::View<Real**, Layout, MemSpace>;
