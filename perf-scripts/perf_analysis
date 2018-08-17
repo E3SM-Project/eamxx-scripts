@@ -1,0 +1,156 @@
+#!/usr/bin/env python
+
+"""
+Run different versions of p3 micro app and compare performance. It is
+expected that this will be run from micro-apps directory.
+"""
+
+from utils import run_cmd_no_fail, expect, check_minimum_python_version
+check_minimum_python_version(2, 7)
+
+import argparse, sys, os, tempfile, re
+
+###############################################################################
+def parse_command_line(args, description):
+###############################################################################
+    parser = argparse.ArgumentParser(
+        usage="""\n{0} <NI> <NK> <DT> <TS> [-n num_runs] [--verbose]
+OR
+{0} --help
+
+\033[1mEXAMPLES:\033[0m
+    \033[1;32m# Run with 1 horizontal and 111 vertical columns over 300s with 30s timesteps \033[0m
+    > {0} 1 111 300 30 /home/jgfouca/kokkos-install/install
+""".format(os.path.basename(args[0])),
+        description=description,
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+
+    parser.add_argument("ni", type=int, help="Num horizontal columns")
+
+    parser.add_argument("nk", type=int, help="Num vertical columns")
+
+    parser.add_argument("dt", type=int, help="Total simulation time(s)")
+
+    parser.add_argument("ts", type=int, help="Timestep length (s)")
+
+    parser.add_argument("kokkos", help="Kokkos location")
+
+    parser.add_argument("-n", "--num-runs", type=int, default=1, help="Number of times to repeat run")
+
+    parser.add_argument("-t", "--test", type=list, default=[], action="append", choices=("fortran", "cpp", "kokkos"),
+                        help="Select which tests to run, default is all. First one will be used as reference point")
+
+    parser.add_argument("-c", "--cmake-options",
+                        help="Extra options to pass to cmake")
+
+    args = parser.parse_args(args)
+
+    if not args.test:
+        args.test = ["fortran", "cpp", "kokkos"]
+
+    if not args.cmake_options:
+        args.cmake_options = "-DKokkos_DIR={}".format(args.kokkos)
+    else:
+        args.cmake_options += " -DKokkos_DIR={}".format(args.kokkos)
+
+    return args.ni, args.nk, args.dt, args.ts, args.num_runs, args.test, args.cmake_options
+
+###############################################################################
+def build_p3(cmake_options):
+###############################################################################
+    run_cmd_no_fail("cmake {} ..".format(cmake_options), arg_stdout=None, arg_stderr=None, verbose=True)
+    run_cmd_no_fail("make -j8", arg_stdout=None, arg_stderr=None, verbose=True)
+
+###############################################################################
+def get_time(output):
+###############################################################################
+    """
+    >>> output = 'Foo\nTime = 0.047 seconds.\nbar'
+    >>> get_time(output)
+    0.047
+    """
+    regex = re.compile(r'Time\s*=\s*([0-9.]+)\s*seconds')
+    the_time = None
+    for line in output.splitlines():
+        m = regex.match(line)
+        if m:
+            expect(the_time is None, "Multiple matches!")
+            the_time = float(m.groups()[0])
+
+    return the_time
+
+###############################################################################
+def run_p3(exename, ni, nk, dt, ts, num_runs):
+###############################################################################
+    avg = 0.0
+    for _ in range(num_runs):
+        output = run_cmd_no_fail("{} 1 {} {} {} 1 {} {} {}".format(exename, nk, ni, nk, ni, dt, ts),
+                                 from_dir="p3")
+        avg += get_time(output)
+
+    return avg / num_runs
+
+###############################################################################
+def run_fortran(ni, nk, dt, ts, num_runs):
+###############################################################################
+    return run_p3("micro_sed", ni, nk, dt, ts, num_runs)
+
+###############################################################################
+def run_cpp(ni, nk, dt, ts, num_runs):
+###############################################################################
+    return run_p3("micro_sed_vanilla", ni, nk, dt, ts, num_runs)
+
+###############################################################################
+def run_kokkos(ni, nk, dt, ts, num_runs):
+###############################################################################
+    return run_p3("micro_sed_vanilla_kokkos", ni, nk, dt, ts, num_runs)
+
+###############################################################################
+def user_explain(test, avg_time, reference):
+###############################################################################
+    msg = "{} ran in {} seconds".format(test, avg_time)
+    if reference:
+        speedup = (1.0 - (avg_time / reference)) * 100
+        msg += ", speedup={}\%".format(speedup)
+
+    print msg
+
+###############################################################################
+def perf_analysis(ni, nk, dt, ts, num_runs, tests, cmake_options):
+###############################################################################
+    expect(os.path.basename(os.getcwd()) == "micro-apps", "Please run from micro-apps directory")
+
+    tmpdir = tempfile.mkdtemp(prefix="build", dir=os.getcwd())
+    print "Making temporary build direcory:", tmpdir
+    os.chdir(tmpdir)
+
+    build_p3(cmake_options)
+
+    reference = None
+    for test in tests:
+        if test == "fortran":
+            avg_time = run_fortran(ni, nk, dt, ts, num_runs)
+        elif test == "cpp":
+            avg_time = run_cpp(ni, nk, dt, ts, num_runs)
+        elif test == "kokkos":
+            avg_time = run_kokkos(ni, nk, dt, ts, num_runs)
+        else:
+            expect(False, "Unknown test '{}'".format(test))
+
+        user_explain(test, avg_time, reference)
+        reference = avg_time if reference is None else reference
+
+###############################################################################
+def _main_func(description):
+###############################################################################
+    ni, nk, dt, ts, num_runs, tests, cmake_options = parse_command_line(sys.argv[1:], description)
+
+    success = perf_analysis(ni, nk, dt, ts, num_runs, tests, cmake_options)
+
+    sys.exit(0 if success else 1)
+
+###############################################################################
+
+if (__name__ == "__main__"):
+    _main_func(__doc__)
