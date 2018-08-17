@@ -10,7 +10,7 @@ p3.so using f2py.
 import p3
 import numpy as np
 import pylab as pl
-
+import os
 
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=--=-=-=-=-=-=-=-=
 def plot_p3_output(case,pres,qc,nc,qr,nr,th_old,th,qv_old,qv,\
@@ -72,7 +72,8 @@ def plot_p3_output(case,pres,qc,nc,qr,nr,th_old,th,qv_old,qv,\
 #RUN INITIALIZATION ROUTINE:
 #===========================
 #data_dir='/project/projectdirs/acme/inputdata/atm/cam/physprops'
-data_dir='/g/g11/caldwep/scream/p3'
+#data_dir='/g/g11/caldwep/scream/p3'
+data_dir=os.getcwd()
 ncat=1 #number of ice categories. We will always use 1.
 
 #This just primes the p3 module so p3_main works right
