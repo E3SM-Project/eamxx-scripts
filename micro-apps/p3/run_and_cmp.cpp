@@ -158,6 +158,7 @@ public:
     Kokkos::deep_copy(th, mirror_th);
     Kokkos::deep_copy(dzq, mirror_dzq);
     Kokkos::deep_copy(pres, mirror_pres);
+    Kokkos::deep_copy(prt_liq, mirror_prt_liq);
   }
 
   void sync_to(ic::MicroSedData<Scalar>& d) const
@@ -174,6 +175,7 @@ public:
     Kokkos::deep_copy(mirror_th, th);
     Kokkos::deep_copy(mirror_dzq, dzq);
     Kokkos::deep_copy(mirror_pres, pres);
+    Kokkos::deep_copy(mirror_prt_liq, prt_liq);
 
     for (int i = 0; i < d.ni; ++i) {
       for (int k = 0; k < d.nk; ++k) {
@@ -409,8 +411,7 @@ static Int run_and_cmp (const std::string& bfn, const Real& tol) {
           micro_sed_func_cpp_kokkos(d_kokkos_cpp, kcpp_bridge, msvk);
           std::stringstream ss;
           ss << "Vanilla Kokkos C++ step " << step;
-          nerr += compare(ss.str(), d_ref, d_kokkos_cpp,
-                          util::is_single_precision<Real>::value ? 2e-5 : tol);
+          nerr += compare(ss.str(), d_ref, d_kokkos_cpp, 2e-5);
         }
       }
     }
