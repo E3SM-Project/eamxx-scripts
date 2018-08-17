@@ -112,7 +112,7 @@ def user_explain(test, avg_time, reference):
     msg = "{} ran in {} seconds".format(test, avg_time)
     if reference:
         speedup = (1.0 - (avg_time / reference)) * 100
-        msg += ", speedup={}\%".format(speedup)
+        msg += ", speedup={:.2f}\%".format(speedup)
 
     print msg
 
