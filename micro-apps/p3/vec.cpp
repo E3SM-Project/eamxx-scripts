@@ -42,8 +42,15 @@
 #ifndef VEC_DEMOTE_M512D
 # define VEC_DEMOTE_M512D 0
 #endif
+#ifndef VEC_DP
+# define VEC_DP 1
+#endif
 
+#if VEC_DP
 typedef double Real;
+#else
+typedef float Real;
+#endif
 typedef int Int;
 
 #if defined __INTEL_COMPILER
@@ -446,8 +453,10 @@ struct Pack {
   typedef SCALAR scalar;
 
   KOKKOS_INLINE_FUNCTION Pack () {
+#ifndef KOKKOS_ENABLE_CUDA
     vector_simd for (int i = 0; i < n; ++i)
       d[i] = std::numeric_limits<scalar>::quiet_NaN();
+#endif
   }
   KOKKOS_INLINE_FUNCTION Pack (const scalar& v) {
     if (use_avx512f && is_pd && n == 8) {
@@ -732,8 +741,10 @@ struct Pack {
   typedef SCALAR scalar;
 
   KOKKOS_FORCEINLINE_FUNCTION Pack () {
+#ifndef KOKKOS_ENABLE_CUDA
     vector_simd for (int i = 0; i < n; ++i)
       d[i] = std::numeric_limits<scalar>::quiet_NaN();
+#endif
   }
   KOKKOS_FORCEINLINE_FUNCTION Pack (const scalar& v) {
     vector_simd for (int i = 0; i < n; ++i) d[i] = v;
@@ -998,7 +1009,7 @@ namespace driver {
 Int unittest () {
   using c = problem::consts;
   static constexpr Int ncol = 4, N = c::ncell*ncol;
-  static constexpr Real tol = 1e-14;
+  static constexpr Real tol = 20*std::numeric_limits<Real>::epsilon();
   const Real dt = 0.5*c::dx/c::u_max;
   const Int nstep = Int(1.2*c::ncell);
   Real ic[N], work[ncol*(c::ncell+1)];
@@ -1095,13 +1106,14 @@ void measure_perf (const Int& ncol, const Int& nstep) {
   using C = problem::consts;
   const Int N = C::ncell*ncol;
   const Real dt = 0.5*C::dx/C::u_max;
-  Real t1, t2;
+  double t1, t2;
   util::Space<Real> ic(N), r(N), work(ncol*(C::ncell+1));
 
   for (Int c = 0; c < ncol; ++c)
     for (Int i = 0; i < C::ncell; ++i)
       ic[C::ncell*c + i] = problem::get_ic(problem::get_x_ctr(i));
 
+#ifndef KOKKOS_ENABLE_CUDA
   for (Int i = 0; i < N; ++i)
     r[i] = ic[i];
   t1 = util::gettime();
@@ -1132,7 +1144,6 @@ void measure_perf (const Int& ncol, const Int& nstep) {
     packsimd::step(ncol, dt, nstep, rho.data(), work.data());
     t2 = util::gettime(); printf("packsimd %9.3e\n", t2-t1);
   }
-#ifndef KOKKOS_ENABLE_CUDA
   {
     koarr::Array<Real> rho("rho", ncol), work("work", ncol);
     for (Int c = 0; c < ncol; ++c)
@@ -1235,8 +1246,8 @@ int main (int argc, char** argv) {
       1
 #endif
       ;
-    printf("ncell %d pack %d avx %s demote %d FPE %d nthread %d ncol %d nstep %d\n",
-           VEC_NCELL, VEC_PACKN, util::active_avx_string().c_str(),
+    printf("ncell %d pack %d dp %d avx %s demote %d FPE %d nthread %d ncol %d nstep %d\n",
+           VEC_NCELL, VEC_PACKN, VEC_DP, util::active_avx_string().c_str(),
            VEC_DEMOTE_M512D, VEC_FPE, nthread, in.ncol, in.nstep);
     nerr = driver::unittest();
     if (nerr) {
