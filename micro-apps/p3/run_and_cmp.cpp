@@ -158,6 +158,7 @@ public:
     Kokkos::deep_copy(th, mirror_th);
     Kokkos::deep_copy(dzq, mirror_dzq);
     Kokkos::deep_copy(pres, mirror_pres);
+    Kokkos::deep_copy(prt_liq, mirror_prt_liq);
   }
 
   void sync_to(ic::MicroSedData<Scalar>& d) const
@@ -174,6 +175,7 @@ public:
     Kokkos::deep_copy(mirror_th, th);
     Kokkos::deep_copy(mirror_dzq, dzq);
     Kokkos::deep_copy(mirror_pres, pres);
+    Kokkos::deep_copy(mirror_prt_liq, prt_liq);
 
     for (int i = 0; i < d.ni; ++i) {
       for (int k = 0; k < d.nk; ++k) {
@@ -202,9 +204,9 @@ void micro_sed_func_cpp (ic::MicroSedData<Scalar>& d, VanillaCppBridge<Scalar>& 
 template <typename Scalar>
 void micro_sed_func_cpp_kokkos (ic::MicroSedData<Scalar>& d, KokkosCppBridge<Scalar>& bridge, p3::micro_sed_vanilla::MicroSedFuncVanillaKokkos<Real>& msvk)
 {
-  msvk.micro_sed_func_vanilla_kokkos( d.reverse ? d.nk : 1, d.reverse ? 1 : d.nk,
-                                      d.ni, d.nk, 1, d.ni, d.dt, bridge.qr, bridge.nr, bridge.th,
-                                      bridge.dzq, bridge.pres, bridge.prt_liq);
+  micro_sed_func_vanilla_kokkos( msvk, d.reverse ? d.nk : 1, d.reverse ? 1 : d.nk,
+                                 d.ni, d.nk, 1, d.ni, d.dt, bridge.qr, bridge.nr, bridge.th,
+                                 bridge.dzq, bridge.pres, bridge.prt_liq);
 
   bridge.sync_to(d);
 }
@@ -409,8 +411,7 @@ static Int run_and_cmp (const std::string& bfn, const Real& tol) {
           micro_sed_func_cpp_kokkos(d_kokkos_cpp, kcpp_bridge, msvk);
           std::stringstream ss;
           ss << "Vanilla Kokkos C++ step " << step;
-          nerr += compare(ss.str(), d_ref, d_kokkos_cpp,
-                          util::is_single_precision<Real>::value ? 2e-5 : tol);
+          nerr += compare(ss.str(), d_ref, d_kokkos_cpp, 2e-5);
         }
       }
     }
@@ -483,7 +484,7 @@ int main (int argc, char** argv) {
       printf("Comparing with %s at tol %1.1e\n", baseline_fn.c_str(), tol);
       out += run_and_cmp<Real>(baseline_fn, tol);
     }
-  } Kokkos::finalize_all();
+  } Kokkos::finalize();
 
   return out;
 }
