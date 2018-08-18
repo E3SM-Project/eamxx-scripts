@@ -112,7 +112,7 @@ def user_explain(test, avg_time, reference):
     msg = "{} ran in {} seconds".format(test, avg_time)
     if reference:
         speedup = (1.0 - (avg_time / reference)) * 100
-        msg += ", speedup={:.2f}\%".format(speedup)
+        msg += ", speedup={:.2f}%".format(speedup)
 
     print msg
 
@@ -126,6 +126,9 @@ def perf_analysis(ni, nk, dt, ts, num_runs, tests, cmake_options):
     os.chdir(tmpdir)
 
     build_p3(cmake_options)
+
+    print
+    print "RUNNING NI", ni, "NK", nk, "DT", dt, "TS", ts
 
     reference = None
     for test in tests:
