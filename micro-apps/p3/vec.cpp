@@ -3,9 +3,9 @@
 
    Use 1D advection with a source term to model P3-sedimentation-like code.
 
-   ws: (KH=/ascldap/users/ambradl/lib/kokkos/cpu-dbg; g++ -std=c++11 vec.cpp -I$KH/include -L$KH/lib -lkokkos -ldl -fopenmp)
-   blake (SKX): (KH=/home/ambradl/lib/kokkos/blake; icpc -DVEC_PACKN=16 -DVEC_DEMOTE_M512D=1 -std=c++11 -restrict -xcore-avx512 -O3 vec.cpp -I$KH/include -L$KH/lib -lkokkos -ldl -fopenmp)
-   bowman (KNL): (KH=/home/ambradl/lib/kokkos/knl; icpc -DVEC_PACKN=16 -DVEC_DEMOTE_M512D=0 -std=c++11 -restrict -xmic-avx512 -O3 vec.cpp -I$KH/include -L$KH/lib -lkokkos -ldl -fopenmp)
+   ws: (KH=/ascldap/users/ambradl/lib/kokkos/cpu-dbg; gfortran -g -c -cpp -fopenmp fvec.f90; g++ -std=c++11 vec.cpp fvec.o -I$KH/include -L$KH/lib -lkokkos -ldl -fopenmp)
+   blake (SKX): (dp=1; sz=16; KH=/home/ambradl/lib/kokkos/blake; ifort -DVEC_DP=$dp -xcore-avx2 -O3 -fopenmp -cpp -c fvec.f90; icpc -DVEC_PACKN=$sz -DVEC_DP=$dp -DVEC_DEMOTE_M512D -restrict -std=c++11 -xcore-avx2 -O3 vec.cpp fvec.o -I$KH/include -L$KH/lib -lkokkos -ldl -fopenmp -o blake.out)
+   bowman (KNL): (dp=1; sz=16; KH=/home/ambradl/lib/kokkos/knl; ifort -cpp -O3 -xmic-avx512 -fopenmp -c -DVEC_DP=$dp fvec.f90; icpc -DVEC_PACKN=$sz -DVEC_DEMOTE_M512D=0 -DVEC_DP=$dp -std=c++11 -restrict -xmic-avx512 -O3 vec.cpp fvec.o -I$KH/include -L$KH/lib -lkokkos -ldl -fopenmp -o bowman.out)
    waterman (P9, V100): (KH=/home/ambradl/lib/waterman-kokkos/gpu; $KH/bin/nvcc_wrapper -DVEC_PACKN=1 -std=c++11 --expt-extended-lambda -fopenmp -O3 vec.cpp -I$KH/include -L$KH/lib -lkokkos -ldl)
 
    ws lib: (KH=/ascldap/users/ambradl/lib/kokkos/cpu-dbg; g++ -c -std=c++11 vec.cpp -DVEC_LIBRARY -I$KH/include -L$KH/lib -lkokkos -ldl -fopenmp -fPIC; g++ vec.o -shared -fopenmp -o libvec.so)
@@ -71,6 +71,9 @@ typedef int Int;
 # define vector_simd
 # define restrict
 #endif
+
+extern "C" void f90_step(const int* ncol, const int* nstep, const Real* dt,
+                         Real* rho, Real* work);
 
 namespace ko {
 #ifdef KOKKOS_ENABLE_CUDA
@@ -384,7 +387,7 @@ void calc_numerical_flux (const Real* restrict rho, Real& flux_bdy,
                           Real* restrict flux_interior) {
   using c = problem::consts;
   flux_bdy = c::rho_ref * problem::get_u(c::xl - 0.5*c::dx);
-  vector_ivdep for (Int i = 0; i < c::ncell; ++i)
+  vector_simd for (Int i = 0; i < c::ncell; ++i)
     flux_interior[i] = rho[i] * problem::get_u(problem::get_x_ctr(i));
 }
 
@@ -412,7 +415,7 @@ void step (const Int& ncol, const Real& dt, const Int& nstep, Real* restrict rho
 # pragma omp parallel for
   for (Int c = 0; c < ncol; ++c)
     for (Int i = 0; i < nstep; ++i)
-      step(dt, rho + C::ncell*c, work + (C::ncell+1)*c);
+      step(dt, rho + C::ncell*c, work + C::ncell*c);
 }
 } // namespace vec1
 
@@ -1003,6 +1006,38 @@ void step (const Real& dt, const Int& nstep, Array<Real>& rho,
         step(team, dt, rhoc, workc);
     });
 }
+
+namespace cast {
+static constexpr int packn = 16, npack = 64;
+
+template <typename T> using Array =
+  Kokkos::View<Pack<T,packn>*[npack], Kokkos::LayoutRight>;
+
+// If packn divides ncell, then we can cast to other pack sizes that divide
+// packn.
+template <typename T, int n> using VectorPack =
+  Kokkos::View<Pack<T,n>[npack*(packn/n)], Kokkos::LayoutRight>;
+
+// Or we can case to a scalar.
+template <typename T> using VectorScalar =
+  Kokkos::View<T[npack*packn], Kokkos::LayoutRight>;
+
+#if 0
+template <typename pack, int n> KOKKOS_INLINE_FUNCTION
+VectorPack<typename pack::scalar, n> change_pack (pack* v) {
+  //static_assert(n <= m && n % m == 0);
+  return VectorPack<typename pack::scalar, n>(reinterpret_cast<Pack<typename pack::scalar, n>*>(v));
+}
+#endif
+
+void cast () {
+  Array<Real> base("base", 10);
+  const auto bsv = Kokkos::subview(base, 2, Kokkos::ALL);
+  VectorPack<Real,4>(reinterpret_cast<Pack<Real,4>*>(bsv.data()));
+  //const auto v1 = change_pack<4>(bsv.data()); // equiv to above
+  VectorScalar<Real>(reinterpret_cast<Real*>(bsv.data()));
+}
+}
 } // namespace kopack
 
 namespace driver {
@@ -1021,6 +1056,15 @@ Int unittest () {
   reference::step(ncol, dt, nstep, r, work);
   Int nerr = 0;
   Real r1[N];
+  {
+    for (Int i = 0; i < N; ++i) r1[i] = ic[i];
+    f90_step(&ncol, &nstep, &dt, r1, work);
+    const auto re = util::reldif(r, r1, N);
+    if (re > tol) {
+      std::cout << "f90 re " << re << "\n";
+      ++nerr;
+    }
+  }
   {
     for (Int i = 0; i < N; ++i) r1[i] = ic[i];
     vec1::step(ncol, dt, nstep, r1, work);
@@ -1119,6 +1163,12 @@ void measure_perf (const Int& ncol, const Int& nstep) {
   t1 = util::gettime();
   reference::step(ncol, dt, nstep, r.data(), work.data());
   t2 = util::gettime(); printf("ref      %9.3e\n", t2-t1);
+
+  for (Int i = 0; i < N; ++i)
+    r[i] = ic[i];
+  t1 = util::gettime();
+  f90_step(&ncol, &nstep, &dt, r.data(), work.data());
+  t2 = util::gettime(); printf("f90      %9.3e\n", t2-t1);
 
   for (Int i = 0; i < N; ++i)
     r[i] = ic[i];
@@ -1250,6 +1300,7 @@ int main (int argc, char** argv) {
            VEC_NCELL, VEC_PACKN, VEC_DP, util::active_avx_string().c_str(),
            VEC_DEMOTE_M512D, VEC_FPE, nthread, in.ncol, in.nstep);
     nerr = driver::unittest();
+    kopack::cast::cast();
     if (nerr) {
       std::cerr << "nerr " << nerr << "\n";
       //break; 
