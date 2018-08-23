@@ -21,6 +21,10 @@ OR
 \033[1mEXAMPLES:\033[0m
     \033[1;32m# Run with 1 horizontal and 111 vertical columns over 300s with 30s timesteps \033[0m
     > {0} 1 111 300 30 /home/jgfouca/kokkos-install/install
+
+    \033[1;32m# Run with 1 horizontal and 111 vertical columns over 300s with 30s timesteps with single precision \033[0m
+    > {0} 1 111 300 30 /home/jgfouca/kokkos-install/install -c ' -DDOUBLE_PRECISION=FALSE'
+    # Note the space before the dash
 """.format(os.path.basename(args[0])),
         description=description,
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
@@ -41,18 +45,15 @@ OR
     parser.add_argument("-t", "--test", type=list, default=[], action="append", choices=("fortran", "cpp", "kokkos"),
                         help="Select which tests to run, default is all. First one will be used as reference point")
 
-    parser.add_argument("-c", "--cmake-options",
+    parser.add_argument("-c", "--cmake-options", default="",
                         help="Extra options to pass to cmake")
 
-    args = parser.parse_args(args)
+    args = parser.parse_args(args[1:])
 
     if not args.test:
         args.test = ["fortran", "cpp", "kokkos"]
 
-    if not args.cmake_options:
-        args.cmake_options = "-DKokkos_DIR={}".format(args.kokkos)
-    else:
-        args.cmake_options += " -DKokkos_DIR={}".format(args.kokkos)
+    args.cmake_options += " -DCMAKE_BUILD_TYPE=RelWithDebInfo -DKokkos_DIR={}".format(args.kokkos)
 
     return args.ni, args.nk, args.dt, args.ts, args.num_runs, args.test, args.cmake_options
 
@@ -147,7 +148,7 @@ def perf_analysis(ni, nk, dt, ts, num_runs, tests, cmake_options):
 ###############################################################################
 def _main_func(description):
 ###############################################################################
-    ni, nk, dt, ts, num_runs, tests, cmake_options = parse_command_line(sys.argv[1:], description)
+    ni, nk, dt, ts, num_runs, tests, cmake_options = parse_command_line(sys.argv, description)
 
     success = perf_analysis(ni, nk, dt, ts, num_runs, tests, cmake_options)
 

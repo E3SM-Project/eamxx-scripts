@@ -31,4 +31,9 @@ using kokkos_1d_t = Kokkos::View<Real*, Layout, MemSpace>;
 template <typename Real>
 using vector_2d_t = std::vector<std::vector<Real> >;
 
+using team_policy = Kokkos::TeamPolicy<>;
+using member_type = team_policy::member_type;
+//using thread_policy = Kokkos::TeamThreadRange;
+//using vector_policy = Kokkos::ThreadVectorRange;
+
 #endif
