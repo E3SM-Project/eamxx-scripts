@@ -44,7 +44,7 @@ OR
     parser.add_argument("-c", "--cmake-options",
                         help="Extra options to pass to cmake")
 
-    args = parser.parse_args(args)
+    args = parser.parse_args(args[1:])
 
     if not args.test:
         args.test = ["fortran", "cpp", "kokkos"]
@@ -147,7 +147,7 @@ def perf_analysis(ni, nk, dt, ts, num_runs, tests, cmake_options):
 ###############################################################################
 def _main_func(description):
 ###############################################################################
-    ni, nk, dt, ts, num_runs, tests, cmake_options = parse_command_line(sys.argv[1:], description)
+    ni, nk, dt, ts, num_runs, tests, cmake_options = parse_command_line(sys.argv, description)
 
     success = perf_analysis(ni, nk, dt, ts, num_runs, tests, cmake_options)
 
