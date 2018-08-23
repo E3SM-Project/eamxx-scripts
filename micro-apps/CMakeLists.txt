@@ -10,7 +10,6 @@ endfunction ()
 
 include(CTest)
 
-set(CMAKE_BUILD_TYPE RELEASE CACHE STRING "Select build type.")
 set(DOUBLE_PRECISION TRUE CACHE LOGICAL "Set to double precision (default True)")
 set(ENABLE_TRACING FALSE CACHE LOGICAL "Enable detailed tracing")
 set(ENABLE_FPE FALSE CACHE LOGICAL "Enable floating point error exception")
