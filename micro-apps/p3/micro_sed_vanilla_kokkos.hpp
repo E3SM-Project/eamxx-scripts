@@ -429,6 +429,8 @@ void micro_sed_func_vanilla_kokkos_wrap(const int kts, const int kte, const int 
     micro_sed_func_vanilla_kokkos(msvk, kts, kte, ni, nk, its, ite, dt, qr, nr, th, dzq, pres, prt_liq);
   }
 
+  Kokkos::fence();
+
   auto finish = std::chrono::steady_clock::now();
 
   auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(finish - start);
