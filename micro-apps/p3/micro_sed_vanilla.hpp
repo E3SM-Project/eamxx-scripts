@@ -282,7 +282,7 @@ void micro_sed_func_vanilla(const int kts, const int kte, const int ni, const in
   const int kdir = (kts < kte) ? 1  : -1;
 
   // Rain sedimentation:  (adaptivive substepping)
-  trace_loop("i_loop_main", 0, num_horz);
+  trace_loop("i_loop_main", 0, num_horz-1);
   for (int i = 0; i < num_horz; ++i) {
 
     trace_loop("  k_loop_1", kbot, ktop);
