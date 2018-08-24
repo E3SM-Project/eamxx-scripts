@@ -21,24 +21,20 @@ Real* c_get_mu_r_table();
 namespace p3 {
 namespace micro_sed_vanilla {
 
-#ifdef TRACE
-#define trace(stuff) std::cout << std::fixed << std::setprecision(12) << stuff << std::endl
-#else
-#define trace(stuff) (static_cast<void>(0))
-#endif
-
 // Change this to modify how indices are presented in trace. +1 implies fortran-like indices
 #define adjust_indices(index) index + 1
 
 #ifdef TRACE
+KOKKOS_INLINE_FUNCTION
 void trace_loop(const char* name, int b, int e)
 {
-  trace(name << " LOOP " << adjust_indices(b) << " -> " << adjust_indices(e));
+  std::printf("%s LOOP %d -> %d\n", name, adjust_indices(b), adjust_indices(e));
 }
 
+KOKKOS_INLINE_FUNCTION
 void trace_data(const char* name, int i, int k, Real value)
 {
-  trace(name << "[" << adjust_indices(i) << "][" << adjust_indices(k) << "] = " << std::setw(20) << value);
+  std::printf("%s[%d][%d] = %20.12f\n", name, adjust_indices(i), adjust_indices(k), value);
 }
 #else
 #define trace_loop(n, b, e) (static_cast<void>(0))
