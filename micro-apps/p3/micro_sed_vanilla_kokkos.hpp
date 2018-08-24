@@ -282,7 +282,7 @@ void micro_sed_func_vanilla_kokkos(MicroSedFuncVanillaKokkos<Real>& msvk,
         });
 
         trace_loop("  k_loop_sedi_r1", k_qxtop, k_qxbot);
-        Kokkos::parallel_for(Kokkos::TeamThreadRange(team_member, msvk.num_vert), [&] (int k) {
+        Kokkos::parallel_reduce(Kokkos::TeamThreadRange(team_member, msvk.num_vert), [=] (int k, Real& lmax) {
           if (qr(i, k) > Globals<Real>::QSMALL) {
             // Compute Vq, Vn:
             nr(i, k) = util::max(nr(i, k), nsmall);
@@ -310,9 +310,12 @@ void micro_sed_func_vanilla_kokkos(MicroSedFuncVanillaKokkos<Real>& msvk,
             msvk.V_nr(i, k) = (dum1 + (rdumjj - dumjj) * (dum2 - dum1)) * msvk.rhofacr(i, k);
             trace_data("    V_nr", i, k, msvk.V_nr(i, k));
           }
-          Co_max = util::max(Co_max, msvk.V_qr(i, k) * dt_left * msvk.inv_dzq(i, k));
+          Real Co_max_local = msvk.V_qr(i, k) * dt_left * msvk.inv_dzq(i, k);
+          if (Co_max_local > lmax) {
+            lmax = Co_max_local;
+          }
           trace_data("  Co_max", 0, 0, Co_max);
-        });
+        }, Kokkos::Max<Real>(Co_max));
 
         // compute dt_sub
         int tmpint1 = static_cast<int>(Co_max + 1.0);
@@ -348,7 +351,6 @@ void micro_sed_func_vanilla_kokkos(MicroSedFuncVanillaKokkos<Real>& msvk,
         trace_loop("  k_flux_div_loop", k_qxtop - kdir, k_temp);
         Kokkos::parallel_for(Kokkos::TeamThreadRange(team_member, msvk.num_vert), [&] (int k) {
           if ( (k >= (k_qxtop - kdir) && k <= k_temp) || (k <= (k_qxtop - kdir) && k >= k_temp) ) {
-
             // compute flux divergence
             fluxdiv_qx = (msvk.flux_qx(i, k+kdir) - msvk.flux_qx(i, k)) * msvk.inv_dzq(i, k);
             fluxdiv_nx = (msvk.flux_nx(i, k+kdir) - msvk.flux_nx(i, k)) * msvk.inv_dzq(i, k);
