@@ -82,7 +82,7 @@ contains
 
 
     print '(A," LOOP ",I0," -> ",I0)', name, b, e
-  end subroutine trace_loop
+  end subroutine trace_loop_impl
 
   !=============================================================================!
   subroutine trace_data_impl(name, i, k, item)
@@ -92,7 +92,7 @@ contains
     real, intent(in) :: item
 
     print '(A,"[",I0,"][",I0,"] = ",F20.12)', name, i, k, item
-  end subroutine trace_data
+  end subroutine trace_data_impl
 
 #define trace_loop(n, b, e) call trace_loop_impl(n, b, e)
 #define trace_data(n, i, k, v) call trace_data_impl(n, i, k, v)
