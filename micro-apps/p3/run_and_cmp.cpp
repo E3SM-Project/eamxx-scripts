@@ -19,7 +19,7 @@
 extern "C" {
   void p3_init();
   void micro_sed_func_c(
-    Int kts, Int kte, Int kdir, Int ni, Int nk, Int its, Int ite, Real dt,
+    Int kts, Int kte, Int kdir, Int its, Int ite, Real dt,
     Real* qr, Real* nr, const Real* th, const Real* dzq, const Real* pres,
     Real* prt_liq);
 }
@@ -63,7 +63,7 @@ template <typename Scalar>
 void micro_sed_func (ic::MicroSedData<Scalar>& d, FortranBridge<Scalar>& b) {
   micro_sed_func_c(1, d.nk,
                    d.reverse ? -1 : 1,
-                   d.ni, d.nk, 1, d.ni, d.dt, b.qr, b.nr, b.th,
+                   1, d.ni, d.dt, b.qr, b.nr, b.th,
                    b.dzq, b.pres, b.prt_liq);
   b.sync_to(d);
 }
@@ -195,7 +195,7 @@ template <typename Scalar>
 void micro_sed_func_cpp (ic::MicroSedData<Scalar>& d, VanillaCppBridge<Scalar>& bridge)
 {
   p3::micro_sed_vanilla::micro_sed_func_vanilla<Scalar>( d.reverse ? d.nk : 1, d.reverse ? 1 : d.nk,
-                                                        d.ni, d.nk, 1, d.ni, d.dt, bridge.qr, bridge.nr, bridge.th,
+                                                        1, d.ni, d.dt, bridge.qr, bridge.nr, bridge.th,
                                                         bridge.dzq, bridge.pres, bridge.prt_liq);
 
   bridge.sync_to(d);
@@ -205,7 +205,7 @@ template <typename Scalar>
 void micro_sed_func_cpp_kokkos (ic::MicroSedData<Scalar>& d, KokkosCppBridge<Scalar>& bridge, p3::micro_sed_vanilla::MicroSedFuncVanillaKokkos<Real>& msvk)
 {
   micro_sed_func_vanilla_kokkos( msvk, d.reverse ? d.nk : 1, d.reverse ? 1 : d.nk,
-                                 d.ni, d.nk, 1, d.ni, d.dt, bridge.qr, bridge.nr, bridge.th,
+                                 1, d.ni, d.dt, bridge.qr, bridge.nr, bridge.th,
                                  bridge.dzq, bridge.pres, bridge.prt_liq);
 
   bridge.sync_to(d);
