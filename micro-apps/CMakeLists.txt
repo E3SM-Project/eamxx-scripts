@@ -13,6 +13,7 @@ include(CTest)
 set(DOUBLE_PRECISION TRUE CACHE LOGICAL "Set to double precision (default True)")
 set(ENABLE_TRACING FALSE CACHE LOGICAL "Enable detailed tracing")
 set(ENABLE_FPE FALSE CACHE LOGICAL "Enable floating point error exception")
+set(CHUNKSIZE 128 CACHE INTEGER "Chunk size for impls that want it")
 
 if (Kokkos_DIR)
   include (${Kokkos_DIR}/kokkos_generated_settings.cmake)
@@ -54,6 +55,8 @@ endif()
 if (${ENABLE_FPE})
   add_definitions(-DFPE)
 endif()
+
+add_definitions(-DCHUNKSIZE=${CHUNKSIZE})
 
 enable_testing()
 
