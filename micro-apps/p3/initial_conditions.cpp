@@ -6,9 +6,6 @@
 #include <iostream>
 #include <exception>
 
-#define AMB_NO_MPI
-#include "/home/ambradl/climate/sik/hommexx/dbg.hpp"
-
 extern "C" {
 
 // This is for Fortran only, so pack in Fortran order.
