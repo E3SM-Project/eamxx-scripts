@@ -267,19 +267,45 @@ contains
     integer, intent(in) :: ni, nk, ts, kdir
     real, intent(in) :: dt
 
-    real, dimension(1:ni,1:nk) :: qr, nr, th, dzq, pres
+    integer, parameter :: chunksize = CHUNKSIZE
+    real, dimension(chunksize,nk) :: iqr, inr, ith, idzq, ipres
+    real, dimension(chunksize,nk) :: cqr, cnr, cth, cdzq, cpres
+    real, dimension(ni,nk) :: qr, nr, th, dzq, pres
+    real, dimension(chunksize) :: cprt_liq
     real, dimension(ni) :: prt_liq
     real :: start, finish
-    integer :: i
+    integer :: ti, ci, nchunk, cni, cnk, cs, ws
 
     print '("Running with ni=",I0," nk=",I0," dt=",F6.2," ts=",I0)', ni, nk, dt, ts
 
-    call populate_input(ni, nk, qr, nr, th, dzq, pres)
+    call populate_input(chunksize, nk, iqr, inr, ith, idzq, ipres)
 
     call cpu_time(start)
 
-    do i = 1, ts
-       call micro_sed_func(1, nk, kdir, 1, ni, dt, qr, nr, th, dzq, pres, prt_liq)
+    nchunk = (ni + chunksize - 1) / chunksize
+    do ci = 1, nchunk
+       cni = chunksize*(ci - 1) + 1
+       cnk = min(ni, cni + chunksize - 1)
+       ! Seems better just to run with the whole chunk, even if the final chunk
+       ! has invalid data (in practice; here it's valid).
+       cs = chunksize ! cnk - cni + 1
+       !print *,ci,cni,cnk,cs
+       cqr = iqr
+       cnr = inr
+       cth = ith
+       cdzq = idzq
+       cpres = ipres
+       do ti = 1, ts
+          call micro_sed_func(1, nk, kdir, 1, cs, dt, &
+               cqr, cnr, cth, cdzq, cpres, cprt_liq)
+          ws = cnk - cni + 1
+          qr(cni:cnk,:) = cqr(1:ws,:)
+          nr(cni:cnk,:) = cnr(1:ws,:)
+          th(cni:cnk,:) = cth(1:ws,:)
+          dzq(cni:cnk,:) = cdzq(1:ws,:)
+          pres(cni:cnk,:) = cpres(1:ws,:)
+          prt_liq(cni:cnk) = cprt_liq(1:ws)
+       end do
     end do
 
     call cpu_time(finish)
