@@ -1,0 +1,31 @@
+#! /bin/bash
+
+#Assign project argument
+declare -i NUMARGS=$#
+if [ $NUMARGS -eq 2 ]; then
+    cpp_compiler=$1
+    kokkos_dir=$2
+else
+    echo "ERROR: Expects exactly 2 arguments" 1>&2
+    echo "  Usage: test-all <cpp-compiler> <kokkos-dir>" 1>&2
+    exit 1
+fi
+
+set -e
+set -x
+
+mkdir test-all-build
+cd test-all-build
+cmake -DCMAKE_CXX_COMPILER=$cpp_compiler -DKokkos_DIR=$kokkos_dir ..
+make -j8
+make baseline
+make test
+
+cmake -DCMAKE_CXX_COMPILER=$cpp_compiler -DKokkos_DIR=$kokkos_dir -DDOUBLE_PRECISION=FALSE ..
+make -j8
+make baseline
+make test
+
+cmake -DCMAKE_CXX_COMPILER=$cpp_compiler -DKokkos_DIR=$kokkos_dir -DENABLE_TRACING=TRUE ..
+make -j8
+# no run
