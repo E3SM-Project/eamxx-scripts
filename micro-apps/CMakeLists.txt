@@ -13,7 +13,7 @@ include(CTest)
 set(DOUBLE_PRECISION TRUE CACHE LOGICAL "Set to double precision (default True)")
 set(ENABLE_TRACING FALSE CACHE LOGICAL "Enable detailed tracing")
 set(ENABLE_FPE FALSE CACHE LOGICAL "Enable floating point error exception")
-set(CHUNKSIZE 0 CACHE INTEGER "Chunk size for impls that want it")
+set(CHUNKSIZE 16 CACHE INTEGER "Chunk size for impls that want it")
 
 if (Kokkos_DIR)
   include (${Kokkos_DIR}/kokkos_generated_settings.cmake)
@@ -26,7 +26,7 @@ endif ()
 
 set (SCREAM_MICRO_APPS_COMPILE_FLAGS ${Kokkos_LINK_FLAGS})
 set (SCREAM_MICRO_APPS_LINK_FLAGS "-L${Kokkos_LIBRARY_DIR} ${KOKKOS_LINK_FLAGS}")
-set (SCREAM_MICRO_APPS_INCLUDES ${Kokkos_INCLUDE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/util)
+set (SCREAM_MICRO_APPS_INCLUDES ${Kokkos_INCLUDE_DIR})
 set (SCREAM_MICRO_APPS_LIBRARIES ${KOKKOS_LIBS})
 
 set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -Wall -cpp")
