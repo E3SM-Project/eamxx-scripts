@@ -140,7 +140,7 @@ struct MicroSedFuncVanillaKokkos
   int num_horz, num_vert;
 
   // re-usable scratch views
-  kokkos_2d_t<Real> mu_r, lamr, rhofacr, inv_dzq, rho, inv_rho, t, tmparr1, V_qr, V_nr, flux_qx, flux_nx;
+  kokkos_2d_t<Real> V_qr, V_nr, flux_qx, flux_nx, mu_r, lamr, rhofacr, inv_dzq, rho, inv_rho, t, tmparr1;
   kokkos_2d_table_t<Real> vn_table, vm_table;
   kokkos_1d_table_t<Real> mu_r_table;
 
@@ -209,7 +209,7 @@ void reset(MicroSedFuncVanillaKokkos<Real>& msvk)
 }
 
 void micro_sed_func_vanilla_kokkos(MicroSedFuncVanillaKokkos<Real>& msvk,
-                                   const int kts, const int kte, const int ni, const int nk, const int its, const int ite, const Real dt,
+                                   const int kts, const int kte, const int its, const int ite, const Real dt,
                                    kokkos_2d_t<Real> & qr, kokkos_2d_t<Real> & nr,
                                    kokkos_2d_t<Real> const& th, kokkos_2d_t<Real> const& dzq, kokkos_2d_t<Real> const& pres,
                                    kokkos_1d_t<Real> & prt_liq)
@@ -228,7 +228,9 @@ void micro_sed_func_vanilla_kokkos(MicroSedFuncVanillaKokkos<Real>& msvk,
   constexpr Real nsmall = Globals<Real>::NSMALL;
 
   // direction of vertical leveling
+#ifdef TRACE
   const int ktop = (kts < kte) ? msvk.num_vert-1 : 0;
+#endif
   const int kbot = (kts < kte) ? 0: msvk.num_vert-1;
   const int kdir = (kts < kte) ? 1  : -1;
 
@@ -282,7 +284,7 @@ void micro_sed_func_vanilla_kokkos(MicroSedFuncVanillaKokkos<Real>& msvk,
         });
 
         trace_loop("  k_loop_sedi_r1", k_qxtop, k_qxbot);
-        Kokkos::parallel_for(Kokkos::TeamThreadRange(team_member, msvk.num_vert), [&] (int k) {
+        Kokkos::parallel_reduce(Kokkos::TeamThreadRange(team_member, msvk.num_vert), [=] (int k, Real& lmax) {
           if (qr(i, k) > Globals<Real>::QSMALL) {
             // Compute Vq, Vn:
             nr(i, k) = util::max(nr(i, k), nsmall);
@@ -299,7 +301,7 @@ void micro_sed_func_vanilla_kokkos(MicroSedFuncVanillaKokkos<Real>& msvk,
               (msvk.vm_table(dumii, dumjj) - msvk.vm_table(dumii-1, dumjj));
 
             msvk.V_qr(i, k) = (dum1 + (rdumjj - dumjj) * (dum2 - dum1)) * msvk.rhofacr(i, k);
-            trace_data("    V_qr", i, k, V_qr(i, k));
+            trace_data("    V_qr", i, k, msvk.V_qr(i, k));
 
             // number-weighted fall speed:
             dum1 = msvk.vn_table(dumii-1, dumjj-1) + (rdumii-dumii) * inv_dum3 * \
@@ -310,9 +312,12 @@ void micro_sed_func_vanilla_kokkos(MicroSedFuncVanillaKokkos<Real>& msvk,
             msvk.V_nr(i, k) = (dum1 + (rdumjj - dumjj) * (dum2 - dum1)) * msvk.rhofacr(i, k);
             trace_data("    V_nr", i, k, msvk.V_nr(i, k));
           }
-          Co_max = util::max(Co_max, msvk.V_qr(i, k) * dt_left * msvk.inv_dzq(i, k));
+          Real Co_max_local = msvk.V_qr(i, k) * dt_left * msvk.inv_dzq(i, k);
+          if (Co_max_local > lmax) {
+            lmax = Co_max_local;
+          }
           trace_data("  Co_max", 0, 0, Co_max);
-        });
+        }, Kokkos::Max<Real>(Co_max));
 
         // compute dt_sub
         int tmpint1 = static_cast<int>(Co_max + 1.0);
@@ -348,7 +353,6 @@ void micro_sed_func_vanilla_kokkos(MicroSedFuncVanillaKokkos<Real>& msvk,
         trace_loop("  k_flux_div_loop", k_qxtop - kdir, k_temp);
         Kokkos::parallel_for(Kokkos::TeamThreadRange(team_member, msvk.num_vert), [&] (int k) {
           if ( (k >= (k_qxtop - kdir) && k <= k_temp) || (k <= (k_qxtop - kdir) && k >= k_temp) ) {
-
             // compute flux divergence
             fluxdiv_qx = (msvk.flux_qx(i, k+kdir) - msvk.flux_qx(i, k)) * msvk.inv_dzq(i, k);
             fluxdiv_nx = (msvk.flux_nx(i, k+kdir) - msvk.flux_nx(i, k)) * msvk.inv_dzq(i, k);
@@ -392,42 +396,43 @@ void populate_kokkos_from_vec(const int num_horz, const int num_vert, vector_2d_
 }
 
 template <typename Real>
-void micro_sed_func_vanilla_kokkos_wrap(const int kts, const int kte, const int ni, const int nk, const int its, const int ite, const Real dt, const int ts)
+void micro_sed_func_vanilla_kokkos_wrap(const int ni, const int nk, const Real dt, const int ts, const int kdir)
 {
-  const int num_vert = abs(kte - kts) + 1;
-  const int num_horz = (ite - its) + 1;
+  vector_2d_t<Real> qr_v(ni,    std::vector<Real>(nk)),
+                    nr_v(ni,    std::vector<Real>(nk)),
+                    th_v(ni,    std::vector<Real>(nk)),
+                    dzq_v(ni,   std::vector<Real>(nk)),
+                    pres_v(ni,  std::vector<Real>(nk));
 
-  vector_2d_t<Real> qr_v(num_horz,    std::vector<Real>(num_vert)),
-                    nr_v(num_horz,    std::vector<Real>(num_vert)),
-                    th_v(num_horz,    std::vector<Real>(num_vert)),
-                    dzq_v(num_horz,   std::vector<Real>(num_vert)),
-                    pres_v(num_horz,  std::vector<Real>(num_vert));
+  std::cout << "Running micro_sed_vanilla_kokkos with ni=" << ni << ", nk=" << nk
+            << ", dt=" << dt << ", ts=" << ts << ", kdir=" << kdir << std::endl;
 
-  std::cout << "Running micro_sed_vanilla_kokkos with kts=" << kts << ", kte=" << kte << ", ni=" << ni << ", nk=" << nk
-            << ", its=" << its << ", ite=" << ite << ", dt=" << dt << ", ts=" << ts << std::endl;
+  populate_input(ni, nk, qr_v, nr_v, th_v, dzq_v, pres_v);
 
-  populate_input(its, ite, kts, kte, qr_v, nr_v, th_v, dzq_v, pres_v);
-
-  kokkos_2d_t<Real> qr("qr", num_horz, num_vert),
-    nr("nr", num_horz, num_vert),
-    th("th", num_horz, num_vert),
-    dzq("dzq", num_horz, num_vert),
-    pres("pres", num_horz, num_vert);
+  kokkos_2d_t<Real> qr("qr", ni, nk),
+    nr("nr", ni, nk),
+    th("th", ni, nk),
+    dzq("dzq", ni, nk),
+    pres("pres", ni, nk);
 
   kokkos_1d_t<Real> prt_liq("prt_liq", ni);
 
   for (auto item : { std::make_pair(&qr_v, &qr), std::make_pair(&nr_v, &nr), std::make_pair(&th_v, &th),
         std::make_pair(&dzq_v, &dzq), std::make_pair(&pres_v, &pres)}) {
-    populate_kokkos_from_vec(num_horz, num_vert, *(item.first), *(item.second));
+    populate_kokkos_from_vec(ni, nk, *(item.first), *(item.second));
   }
 
-  MicroSedFuncVanillaKokkos<Real> msvk(num_horz, num_vert);
+  MicroSedFuncVanillaKokkos<Real> msvk(ni, nk);
 
   auto start = std::chrono::steady_clock::now();
 
   for (int i = 0; i < ts; ++i) {
-    micro_sed_func_vanilla_kokkos(msvk, kts, kte, ni, nk, its, ite, dt, qr, nr, th, dzq, pres, prt_liq);
+    micro_sed_func_vanilla_kokkos(msvk,
+                                  kdir == 1 ? 1 : nk, kdir == 1 ? nk : 1,
+                                  1, ni, dt, qr, nr, th, dzq, pres, prt_liq);
   }
+
+  Kokkos::fence();
 
   auto finish = std::chrono::steady_clock::now();
 

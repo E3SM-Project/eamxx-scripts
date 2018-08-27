@@ -14,7 +14,7 @@ import argparse, sys, os, tempfile, re
 def parse_command_line(args, description):
 ###############################################################################
     parser = argparse.ArgumentParser(
-        usage="""\n{0} <NI> <NK> <DT> <TS> [-n num_runs] [--verbose]
+        usage="""\n{0} <NI> <NK> <DT> <TS> <KOKKOS_DIR> [-n num_runs] [--verbose]
 OR
 {0} --help
 
@@ -86,7 +86,7 @@ def run_p3(exename, ni, nk, dt, ts, num_runs):
 ###############################################################################
     avg = 0.0
     for _ in range(num_runs):
-        output = run_cmd_no_fail("{} 1 {} {} {} 1 {} {} {}".format(exename, nk, ni, nk, ni, dt, ts),
+        output = run_cmd_no_fail("{} {} {} {} {} 1".format(exename, ni, nk, dt, ts),
                                  from_dir="p3")
         avg += get_time(output)
 

@@ -15,15 +15,17 @@
         throw std::logic_error(_ss_.str());                             \
     }                                                                   \
   } while (0)
-// TODO: Uncomment when Kokkos is in.
-// #define micro_kernel_assert(condition) do {     \
-//     if ( ! (condition))                         \
-//       Kokkos::abort(#condition);                \
-//   } while (0)
+
+#define micro_kernel_assert(condition) do {     \
+    if ( ! (condition))                         \
+      Kokkos::abort(#condition);                \
+  } while (0)
+
 #else
 #define micro_assert(condition)
 #define micro_kernel_assert(condition)
 #endif
+
 #define micro_throw_if(condition, message) do {                         \
     if (condition) {                                                    \
       std::stringstream _ss_;                                           \
@@ -32,12 +34,10 @@
         throw std::logic_error(_ss_.str());                             \
     }                                                                   \
   } while (0)
-// TODO: Uncomment when Kokkos is in.
-// #define micro_kernel_throw_if(condition, message) do {              \
-//     if (condition)                                                  \
-//       Kokkos::abort(#condition " led to the exception\n" message);  \
-//   } while (0)
-
+#define micro_kernel_throw_if(condition, message) do {              \
+    if (condition)                                                  \
+      Kokkos::abort(#condition " led to the exception\n" message);  \
+  } while (0)
 
 
 namespace util {

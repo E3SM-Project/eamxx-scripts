@@ -21,24 +21,20 @@ Real* c_get_mu_r_table();
 namespace p3 {
 namespace micro_sed_vanilla {
 
-#ifdef TRACE
-#define trace(stuff) std::cout << std::fixed << std::setprecision(12) << stuff << std::endl
-#else
-#define trace(stuff) (static_cast<void>(0))
-#endif
-
 // Change this to modify how indices are presented in trace. +1 implies fortran-like indices
 #define adjust_indices(index) index + 1
 
 #ifdef TRACE
+KOKKOS_INLINE_FUNCTION
 void trace_loop(const char* name, int b, int e)
 {
-  trace(name << " LOOP " << adjust_indices(b) << " -> " << adjust_indices(e));
+  std::printf("%s LOOP %d -> %d\n", name, adjust_indices(b), adjust_indices(e));
 }
 
+KOKKOS_INLINE_FUNCTION
 void trace_data(const char* name, int i, int k, Real value)
 {
-  trace(name << "[" << adjust_indices(i) << "][" << adjust_indices(k) << "] = " << std::setw(20) << value);
+  std::printf("%s[%d][%d] = %20.12f\n", name, adjust_indices(i), adjust_indices(k), value);
 }
 #else
 #define trace_loop(n, b, e) (static_cast<void>(0))
@@ -79,25 +75,22 @@ template <typename Real>
 constexpr Real Globals<Real>::NSMALL;
 
 template <typename Real>
-void populate_input(const int its, const int ite, const int kts, const int kte,
+void populate_input(const int ni, const int nk,
                     vector_2d_t<Real> & qr, vector_2d_t<Real> & nr, vector_2d_t<Real> & th, vector_2d_t<Real> & dzq, vector_2d_t<Real> & pres, const ic::MicroSedData<Real>* data = nullptr)
 {
-  const int num_vert = abs(kte - kts) + 1;
-  const int num_horz = (ite - its) + 1;
-
-  ic::MicroSedData<Real> default_data(num_horz, num_vert);
+  ic::MicroSedData<Real> default_data(ni, nk);
   if (data == nullptr) {
     populate(default_data);
     data = &default_data;
   }
 
-  for (int i = 0; i < num_horz; ++i) {
-    for (int k = 0; k < num_vert; ++k) {
-      qr[i][k]   = data->qr[i*num_vert + k];
-      nr[i][k]   = data->nr[i*num_vert + k];
-      th[i][k]   = data->th[i*num_vert + k];
-      dzq[i][k]  = data->dzq[i*num_vert + k];
-      pres[i][k] = data->pres[i*num_vert + k];
+  for (int i = 0; i < ni; ++i) {
+    for (int k = 0; k < nk; ++k) {
+      qr[i][k]   = data->qr[i*nk + k];
+      nr[i][k]   = data->nr[i*nk + k];
+      th[i][k]   = data->th[i*nk + k];
+      dzq[i][k]  = data->dzq[i*nk + k];
+      pres[i][k] = data->pres[i*nk + k];
     }
   }
 }
@@ -250,7 +243,7 @@ void get_rain_dsd2(const Real qr, Real& nr, Real& mu_r, Real& rdumii, int& dumii
  * prt_liq: precipitation rate, total liquid    m s-1  (output)
  */
 template <typename Real>
-void micro_sed_func_vanilla(const int kts, const int kte, const int ni, const int nk, const int its, const int ite, const Real dt,
+void micro_sed_func_vanilla(const int kts, const int kte, const int its, const int ite, const Real dt,
                             vector_2d_t<Real> & qr, vector_2d_t<Real> & nr,
                             vector_2d_t<Real> const& th, vector_2d_t<Real> const& dzq, vector_2d_t<Real> const& pres,
                             std::vector<Real> & prt_liq)
@@ -286,7 +279,7 @@ void micro_sed_func_vanilla(const int kts, const int kte, const int ni, const in
   const int kdir = (kts < kte) ? 1  : -1;
 
   // Rain sedimentation:  (adaptivive substepping)
-  trace_loop("i_loop_main", 0, num_horz);
+  trace_loop("i_loop_main", 0, num_horz-1);
   for (int i = 0; i < num_horz; ++i) {
 
     trace_loop("  k_loop_1", kbot, ktop);
@@ -424,28 +417,26 @@ void micro_sed_func_vanilla(const int kts, const int kte, const int ni, const in
 }
 
 template <typename Real>
-void micro_sed_func_vanilla_wrap(const int kts, const int kte, const int ni, const int nk, const int its, const int ite, const Real dt, const int ts)
+void micro_sed_func_vanilla_wrap(const int ni, const int nk, const Real dt, const int ts, const int kdir)
 {
-  const int num_vert = abs(kte - kts) + 1;
-  const int num_horz = (ite - its) + 1;
-
-  vector_2d_t<Real> qr(num_horz,    std::vector<Real>(num_vert)),
-                    nr(num_horz,    std::vector<Real>(num_vert)),
-                    th(num_horz,    std::vector<Real>(num_vert)),
-                    dzq(num_horz,   std::vector<Real>(num_vert)),
-                    pres(num_horz,  std::vector<Real>(num_vert));
+  vector_2d_t<Real> qr(ni,    std::vector<Real>(nk)),
+                    nr(ni,    std::vector<Real>(nk)),
+                    th(ni,    std::vector<Real>(nk)),
+                    dzq(ni,   std::vector<Real>(nk)),
+                    pres(ni,  std::vector<Real>(nk));
 
   std::vector<Real> prt_liq(ni);
 
-  std::cout << "Running micro_sed_vanilla with kts=" << kts << ", kte=" << kte << ", ni=" << ni << ", nk=" << nk
-            << ", its=" << its << ", ite=" << ite << ", dt=" << dt << ", ts=" << ts << std::endl;
+  std::cout << "Running micro_sed_vanilla with ni=" << ni << ", nk=" << nk
+            << ", dt=" << dt << ", ts=" << ts << ", kdir=" << kdir << std::endl;
 
-  populate_input(its, ite, kts, kte, qr, nr, th, dzq, pres);
+  populate_input(ni, nk, qr, nr, th, dzq, pres);
 
   auto start = std::chrono::steady_clock::now();
 
   for (int i = 0; i < ts; ++i) {
-    micro_sed_func_vanilla<Real>(kts, kte, ni, nk, its, ite, dt, qr, nr, th, dzq, pres, prt_liq);
+    micro_sed_func_vanilla<Real>(kdir == 1 ? 1 : nk, kdir == 1 ? nk : 1,
+                                 1, ni, dt, qr, nr, th, dzq, pres, prt_liq);
   }
 
   auto finish = std::chrono::steady_clock::now();

@@ -4,26 +4,37 @@ program micro_sed
 
   implicit none
 
-  ! kts, kte, ni, nk, its, ite, dt
-  integer, dimension(8) :: args
-
-  integer :: i
+  integer :: ni, nk, ts, kdir
   character(len=32) :: arg
   real :: dt
 
-  if (iargc().ne.8) then
-     write (*,*) 'Usage: micro_sed kts kte ni nk its ite dt ts'
+  if (iargc().ne.5) then
+     write (*,*) 'Usage: micro_sed ni nk time_step_len num_steps kdir'
      call exit(1)
   end if
 
-  do i = 1, 8
-     call getarg(i, arg)
-     read (arg, *) args(i)
-  end do
+  call getarg(1, arg)
+  read (arg, *) ni
+
+  call getarg(2, arg)
+  read (arg, *) nk
+
+  call getarg(3, arg)
+  read (arg, *) dt
+
+  call getarg(4, arg)
+  read (arg, *) ts
+
+  call getarg(5, arg)
+  read (arg, *) kdir
+
+  if (kdir.ne.-1 .and. kdir.ne.1) then
+     write (*,*) 'kdir must be -1 or 1'
+     call exit(1)
+  end if
 
   call p3_init()
 
-  dt = args(7)
-  call micro_sed_func_wrap(args(1), args(2), 1, args(3), args(4), args(5), args(6), dt, args(8))
+  call micro_sed_func_wrap(ni, nk, dt, ts, kdir)
 
 end program micro_sed
