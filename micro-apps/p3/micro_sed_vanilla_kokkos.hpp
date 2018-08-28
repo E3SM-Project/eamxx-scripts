@@ -1,7 +1,6 @@
 #ifndef MICRO_SED_VANILLA_KOKKOS_HPP
 #define MICRO_SED_VANILLA_KOKKOS_HPP
 
-#include "array_io.hpp"
 #include "util.hpp"
 #include "initial_conditions.hpp"
 #include "micro_kokkos.hpp"
@@ -116,24 +115,6 @@ void get_rain_dsd2_kokkos(const Real qr, Real& nr, Real& mu_r, Real& rdumii, int
   }
 }
 
-
-/**
- * Arg explanation
- *
- * kts: vertical array bound (top)
- * kte: vertical array bound (bottom)
- * ni: number of columns in slab
- * nk: number of vertical levels
- * its: horizontal array bound
- * ite: horizontal array bound
- * dt: time step
- * qr: rain, mass mixing ratio  (in/out)
- * nr: rain, number mixing ratio (in/out)
- * th: potential temperature                    K
- * dzq: vertical grid spacing                   m
- * pres: pressure                               Pa
- * prt_liq: precipitation rate, total liquid    m s-1  (output)
- */
 template <typename Real>
 struct MicroSedFuncVanillaKokkos
 {
@@ -208,6 +189,23 @@ void reset(MicroSedFuncVanillaKokkos<Real>& msvk)
   });
 }
 
+/**
+ * Arg explanation
+ *
+ * kts: vertical array bound (top)
+ * kte: vertical array bound (bottom)
+ * ni: number of columns in slab
+ * nk: number of vertical levels
+ * its: horizontal array bound
+ * ite: horizontal array bound
+ * dt: time step
+ * qr: rain, mass mixing ratio  (in/out)
+ * nr: rain, number mixing ratio (in/out)
+ * th: potential temperature                    K
+ * dzq: vertical grid spacing                   m
+ * pres: pressure                               Pa
+ * prt_liq: precipitation rate, total liquid    m s-1  (output)
+ */
 void micro_sed_func_vanilla_kokkos(MicroSedFuncVanillaKokkos<Real>& msvk,
                                    const int kts, const int kte, const int its, const int ite, const Real dt,
                                    kokkos_2d_t<Real> & qr, kokkos_2d_t<Real> & nr,
@@ -396,6 +394,23 @@ void populate_kokkos_from_vec(const int num_horz, const int num_vert, vector_2d_
 }
 
 template <typename Real>
+void dump_to_file_k(const kokkos_2d_t<Real>& qr, const kokkos_2d_t<Real>& nr, const kokkos_2d_t<Real>& th, const kokkos_2d_t<Real>& dzq,
+                    const kokkos_2d_t<Real>& pres, const kokkos_1d_t<Real>& prt_liq, const Real dt, const int ts)
+{
+  const int ni = qr.extent_int(0);
+  const int nk = qr.extent_int(1);
+
+  auto qr_m      = Kokkos::create_mirror_view(qr);
+  auto nr_m      = Kokkos::create_mirror_view(nr);
+  auto th_m      = Kokkos::create_mirror_view(th);
+  auto dzq_m     = Kokkos::create_mirror_view(dzq);
+  auto pres_m    = Kokkos::create_mirror_view(pres);
+  auto prt_liq_m = Kokkos::create_mirror_view(prt_liq);
+
+  dump_to_file("kokkos", qr_m.data(), nr_m.data(), th_m.data(), dzq_m.data(), pres_m.data(), prt_liq_m.data(), ni, nk, dt, ts);
+}
+
+template <typename Real>
 void micro_sed_func_vanilla_kokkos_wrap(const int ni, const int nk, const Real dt, const int ts, const int kdir)
 {
   vector_2d_t<Real> qr_v(ni,    std::vector<Real>(nk)),
@@ -439,6 +454,8 @@ void micro_sed_func_vanilla_kokkos_wrap(const int ni, const int nk, const Real d
   auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(finish - start);
 
   std::cout << "Time = " << duration.count() / 1000.0 << " seconds." << std::endl;
+
+  dump_to_file_k(qr, nr, th, dzq, pres, prt_liq, dt, ts);
 }
 
 } // namespace p3

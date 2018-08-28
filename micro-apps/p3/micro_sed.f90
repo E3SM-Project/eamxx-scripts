@@ -1,12 +1,8 @@
+#include "types.f.h"
+
 module micro_sed_mod
 
   implicit none
-
-#ifdef DOUBLE_PRECISION
-#define c_real c_double
-#else
-#define c_real c_float
-#endif
 
   !
   ! Constants
@@ -262,6 +258,9 @@ contains
   !=============================================================================!
   subroutine micro_sed_func_wrap(ni, nk, dt, ts, kdir)
   !=============================================================================!
+    use array_io_mod
+    use iso_c_binding
+
     implicit none
 
     integer, intent(in) :: ni, nk, ts, kdir
@@ -269,12 +268,14 @@ contains
 
     integer, parameter :: chunksize = CHUNKSIZE
     real, dimension(chunksize,nk) :: cqr, cnr, cth, cdzq, cpres
-    real, dimension(ni,nk) :: qr, nr, th, dzq, pres
+    real, dimension(ni,nk), target :: qr, nr, th, dzq, pres
     real, dimension(chunksize) :: cprt_liq
-    real, dimension(ni) :: prt_liq
+    real, dimension(ni), target :: prt_liq
     real :: start, finish
     integer :: ti, ci, nchunk, cni, cnk, ws, i
     logical :: ok
+
+    character (kind=c_char, len=*), parameter :: filename = c_char_"fortran"//char(0)
 
     print '("Running with ni=",I0," nk=",I0," dt=",F6.2," ts=",I0)', ni, nk, dt, ts
 
@@ -329,6 +330,8 @@ contains
     end if
 
     print '("Time = ",f6.2," seconds.")', finish - start
+
+    ok = dump_all(filename, c_loc(qr), c_loc(nr), c_loc(th), c_loc(dzq), c_loc(pres), c_loc(prt_liq), ni, nk, dt, ts)
 
   end subroutine micro_sed_func_wrap
 

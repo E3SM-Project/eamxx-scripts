@@ -3,6 +3,7 @@
 #include "initial_conditions.hpp"
 #include "micro_sed_vanilla_kokkos.hpp"
 #include "micro_kokkos.hpp"
+#include "cmp.hpp"
 
 #include <vector>
 #include <iostream>
@@ -24,26 +25,15 @@ extern "C" {
     Real* prt_liq);
 }
 
-struct TransposeDirection {
-  enum Enum { c2f, f2c };
-};
 
-template <TransposeDirection::Enum direction, typename Scalar>
+template <cmp::TransposeDirection::Enum direction, typename Scalar>
 void transpose_layout (const ic::MicroSedData<Scalar>& s,
                         ic::MicroSedData<Scalar>& d) {
-  const auto transpose = [&] (const Scalar* sv, Scalar* dv) {
-    for (Int k = 0; k < s.nk; ++k)
-      for (Int i = 0; i < s.ni; ++i)
-        if (direction == TransposeDirection::c2f)
-          dv[d.ni*k + i] = sv[d.nk*i + k];
-        else
-          dv[d.nk*i + k] = sv[d.ni*k + i];
-  };
-  transpose(s.qr, d.qr);
-  transpose(s.nr, d.nr);
-  transpose(s.th, d.th);
-  transpose(s.dzq, d.dzq);
-  transpose(s.pres, d.pres);
+  cmp::transpose<direction>(s.qr, d.qr, d.ni, d.nk);
+  cmp::transpose<direction>(s.nr, d.nr, d.ni, d.nk);
+  cmp::transpose<direction>(s.th, d.th, d.ni, d.nk);
+  cmp::transpose<direction>(s.dzq, d.dzq, d.ni, d.nk);
+  cmp::transpose<direction>(s.pres, d.pres, d.ni, d.nk);
   for (Int i = 0; i < s.ni; ++i) d.prt_liq[i] = s.prt_liq[i];
 }
 
@@ -52,10 +42,10 @@ template <typename Scalar>
 struct FortranBridge : public ic::MicroSedData<Scalar> {
   FortranBridge (const ic::MicroSedData<Scalar>& d)
     : ic::MicroSedData<Scalar>(d)
-  { transpose_layout<TransposeDirection::c2f>(d, *this); }
+  { transpose_layout<cmp::TransposeDirection::c2f>(d, *this); }
 
   void sync_to (ic::MicroSedData<Scalar>& d) {
-    transpose_layout<TransposeDirection::f2c>(*this, d);
+    transpose_layout<cmp::TransposeDirection::f2c>(*this, d);
   }
 };
 
@@ -303,44 +293,19 @@ static Int generate_baseline (const std::string& bfn) {
 }
 
 template <typename Scalar>
-static Int compare (const std::string& label, const Scalar* a,
-                    const Scalar* b, const Int& n, const Real& tol) {
-  Int nerr = 0;
-  Real den = 0;
-  for (Int i = 0; i < n; ++i)
-    den = std::max(den, std::abs(a[i]));
-  Real worst = 0;
-  for (Int i = 0; i < n; ++i) {
-    const auto num = std::abs(a[i] - b[i]);
-    if (num > tol*den) {
-      ++nerr;
-#if 0
-      std::cout << label << " bad idx: " << i << std::fixed << std::setprecision(12)
-                << std::setw(20) << a[i] << " " << b[i] << std::endl;
-#endif
-      worst = std::max(worst, num);
-    }
-  }
-  if (nerr)
-    std::cout << label << " nerr " << nerr << " worst " << (worst/den)
-              << " with denominator " << den << "\n";
-  return nerr;
-}
-
-template <typename Scalar>
 static Int compare (const std::string& label, const ic::MicroSedData<Scalar>& d_ref,
                     const ic::MicroSedData<Scalar>& d, const Real& tol) {
   assert(d_ref.ni == 1 && d.nk == d_ref.nk);
   // Compare just the last column.
   const auto os = d.nk*(d.ni-1);
   const auto n = d.nk;
-  return (compare(label + " qr", d_ref.qr, d.qr + os, n, tol) +
-          compare(label + " nr", d_ref.nr, d.nr + os, n, tol) +
-          compare(label + " prt_liq", d_ref.prt_liq, d.prt_liq + (d.ni-1), d_ref.ni, tol) +
+  return (cmp::compare(label + " qr", d_ref.qr, d.qr + os, n, tol) +
+          cmp::compare(label + " nr", d_ref.nr, d.nr + os, n, tol) +
+          cmp::compare(label + " prt_liq", d_ref.prt_liq, d.prt_liq + (d.ni-1), d_ref.ni, tol) +
           // The rest should not be written, so check that they are BFB.
-          compare(label + " th", d_ref.th, d.th + os, n, 0) +
-          compare(label + " dzq", d_ref.dzq, d.dzq + os, n, 0) +
-          compare(label + " pres", d_ref.pres, d.pres + os, n, 0));
+          cmp::compare(label + " th", d_ref.th, d.th + os, n, 0) +
+          cmp::compare(label + " dzq", d_ref.dzq, d.dzq + os, n, 0) +
+          cmp::compare(label + " pres", d_ref.pres, d.pres + os, n, 0));
 }
 
 template <typename Scalar>
@@ -403,15 +368,16 @@ static Int run_and_cmp (const std::string& bfn, const Real& tol) {
           micro_sed_func_cpp(d_vanilla_cpp, vcpp_bridge);
           std::stringstream ss;
           ss << "Super-vanilla C++ step " << step;
-          nerr += compare(ss.str(), d_ref, d_vanilla_cpp,
-                          util::is_single_precision<Real>::value ? 2e-5 : tol);
+          Real fortran_tol = (tol < util::TOL) ? util::TOL : tol;
+          nerr += compare(ss.str(), d_ref, d_vanilla_cpp, fortran_tol);
         }
 
         { // Vanilla C++ kokkos.
           micro_sed_func_cpp_kokkos(d_kokkos_cpp, kcpp_bridge, msvk);
           std::stringstream ss;
           ss << "Vanilla Kokkos C++ step " << step;
-          nerr += compare(ss.str(), d_ref, d_kokkos_cpp, 2e-5);
+          Real kokkos_tol = (tol < util::TOL) ? util::TOL : tol;
+          nerr += compare(ss.str(), d_ref, d_kokkos_cpp, kokkos_tol);
         }
       }
     }

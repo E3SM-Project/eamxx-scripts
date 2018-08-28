@@ -1,10 +1,17 @@
 #ifndef INCLUDE_UTIL
 #define INCLUDE_UTIL
 
+#include "types.hpp"
+
 #include <cstdio>
 #include <sstream>
 #include <memory>
 #include <exception>
+
+#ifndef KOKKOS_ENABLE_CUDA
+#include <cmath>
+#include <algorithm>
+#endif
 
 #ifndef NDEBUG
 #define micro_assert(condition) do {                                    \
@@ -41,6 +48,7 @@
 
 
 namespace util {
+
 struct FILECloser { void operator() (FILE* fh) { fclose(fh); } };
 using FILEPtr = std::unique_ptr<FILE, FILECloser>;
 
@@ -90,6 +98,8 @@ using std::isfinite;
 using std::max_element;
 #endif
 
-}
+constexpr Real TOL = 2e-5; // a default tolerance high enough to handle round-off differences
+
+} // namespace util
 
 #endif

@@ -1,6 +1,7 @@
 program micro_sed
 
   use micro_sed_mod
+  use iso_c_binding
 
   implicit none
 

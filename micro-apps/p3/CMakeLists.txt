@@ -27,6 +27,9 @@ add_custom_target(baseline
 add_executable(micro_sed_vanilla micro_sed_vanilla_driver.cpp)
 target_link_libraries(micro_sed_vanilla microsed)
 
+add_executable(perf_cmp perf_cmp.cpp)
+target_link_libraries(perf_cmp microsed)
+
 add_executable(micro_sed_vanilla_kokkos micro_sed_vanilla_driver_kokkos.cpp)
 target_link_libraries(micro_sed_vanilla_kokkos microsed)
 target_include_directories (micro_sed_vanilla_kokkos PUBLIC ${SCREAM_MICRO_APPS_INCLUDES})
@@ -56,3 +59,5 @@ add_test(run_micro_sed_vanilla micro_sed_vanilla 10 128 300 30 1)
 add_test(nanoapp nanoapp -nc 4 -ns 100)
 add_test(run_micro_sed_vanilla_kokkos micro_sed_vanilla_kokkos 10 128 300 30 1)
 add_test(micro_sed_func_regression run_and_cmp run_and_cmp.baseline)
+add_test(micro_sed_perf_regr1 perf_cmp fortran_perf_run.dat vanilla_perf_run.dat)
+add_test(micro_sed_perf_regr2 perf_cmp vanilla_perf_run.dat kokkos_perf_run.dat)
