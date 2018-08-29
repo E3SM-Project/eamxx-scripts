@@ -1,7 +1,6 @@
 #ifndef MICRO_SED_VANILLA_HPP
 #define MICRO_SED_VANILLA_HPP
 
-#include "array_io.hpp"
 #include "util.hpp"
 #include "initial_conditions.hpp"
 
@@ -417,6 +416,51 @@ void micro_sed_func_vanilla(const int kts, const int kte, const int its, const i
 }
 
 template <typename Real>
+void dump_to_file(const char* filename,
+                  const Real* qr, const Real* nr, const Real* th, const Real* dzq, const Real* pres, const Real* prt_liq,
+                  const int ni, const int nk, const Real dt, const int ts)
+{
+  std::string full_fn(filename);
+  full_fn += "_perf_run.dat" + std::to_string(sizeof(Real));
+
+  util::FILEPtr fid(fopen(full_fn.c_str(), "w"));
+  micro_throw_if( !fid, "dump_to_file can't write " << filename);
+
+  const int n = ni * nk;
+  util::write(&ni, 1, fid);
+  util::write(&nk, 1, fid);
+  util::write(&dt, 1, fid);
+  util::write(&ts, 1, fid);
+  util::write(qr, n, fid);
+  util::write(nr, n, fid);
+  util::write(th, n, fid);
+  util::write(dzq, n, fid);
+  util::write(pres, n, fid);
+  util::write(prt_liq, ni, fid);
+}
+
+template <typename Real>
+void dump_to_file_v(const vector_2d_t<Real>& qr, const vector_2d_t<Real>& nr, const vector_2d_t<Real>& th, const vector_2d_t<Real>& dzq,
+                    const vector_2d_t<Real>& pres, const std::vector<Real>& prt_liq, const Real dt, const int ts)
+{
+  const int ni = qr.size();
+  const int nk = qr[0].size();
+
+  std::vector<Real> qr_1d(ni*nk), nr_1d(ni*nk), th_1d(ni*nk), dzq_1d(ni*nk), pres_1d(ni*nk);
+
+  for (int i = 0; i < ni; ++i) {
+    for (auto item : { std::make_pair(&qr, &qr_1d), std::make_pair(&nr, &nr_1d), std::make_pair(&th, &th_1d),
+          std::make_pair(&dzq, &dzq_1d), std::make_pair(&pres, &pres_1d) }) {
+      const Real* data = (*item.first)[i].data();
+      std::copy( data, data + nk, item.second->data() + i*nk);
+    }
+  }
+
+  dump_to_file("vanilla", qr_1d.data(), nr_1d.data(), th_1d.data(), dzq_1d.data(), pres_1d.data(), prt_liq.data(), ni, nk, dt, ts);
+}
+
+
+template <typename Real>
 void micro_sed_func_vanilla_wrap(const int ni, const int nk, const Real dt, const int ts, const int kdir)
 {
   vector_2d_t<Real> qr(ni,    std::vector<Real>(nk)),
@@ -444,6 +488,8 @@ void micro_sed_func_vanilla_wrap(const int ni, const int nk, const Real dt, cons
   auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(finish - start);
 
   std::cout << "Time = " << duration.count() / 1000.0 << " seconds." << std::endl;
+
+  dump_to_file_v(qr, nr, th, dzq, pres, prt_liq, dt, ts);
 }
 
 } // namespace p3
