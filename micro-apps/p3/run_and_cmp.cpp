@@ -294,28 +294,29 @@ static Int generate_baseline (const std::string& bfn) {
 
 template <typename Scalar>
 static Int compare (const std::string& label, const ic::MicroSedData<Scalar>& d_ref,
-                    const ic::MicroSedData<Scalar>& d, const Real& tol) {
+                    const ic::MicroSedData<Scalar>& d, const Real& tol, bool verbose) {
   assert(d_ref.ni == 1 && d.nk == d_ref.nk);
   // Compare just the last column.
   const auto os = d.nk*(d.ni-1);
   const auto n = d.nk;
-  return (cmp::compare(label + " qr", d_ref.qr, d.qr + os, n, tol) +
-          cmp::compare(label + " nr", d_ref.nr, d.nr + os, n, tol) +
-          cmp::compare(label + " prt_liq", d_ref.prt_liq, d.prt_liq + (d.ni-1), d_ref.ni, tol) +
+  return (cmp::compare(label + " qr", d_ref.qr, d.qr + os, n, tol, verbose) +
+          cmp::compare(label + " nr", d_ref.nr, d.nr + os, n, tol, verbose) +
+          cmp::compare(label + " prt_liq", d_ref.prt_liq, d.prt_liq + (d.ni-1), d_ref.ni, tol, verbose) +
           // The rest should not be written, so check that they are BFB.
-          cmp::compare(label + " th", d_ref.th, d.th + os, n, 0) +
-          cmp::compare(label + " dzq", d_ref.dzq, d.dzq + os, n, 0) +
-          cmp::compare(label + " pres", d_ref.pres, d.pres + os, n, 0));
+          cmp::compare(label + " th", d_ref.th, d.th + os, n, 0, verbose) +
+          cmp::compare(label + " dzq", d_ref.dzq, d.dzq + os, n, 0, verbose) +
+          cmp::compare(label + " pres", d_ref.pres, d.pres + os, n, 0, verbose));
 }
 
 template <typename Scalar>
-static Int run_and_cmp (const std::string& bfn, const Real& tol) {
+static Int run_and_cmp (const std::string& bfn, const Real& tol, bool verbose) {
   struct Observer : public BaselineObserver {
     util::FILEPtr fid;
     const Real tol;
+    bool verbose;
 
-    Observer (const std::string& bfn, const Real& tol_)
-      : tol(tol_)
+    Observer (const std::string& bfn, const Real& tol_, bool verbose_)
+      : tol(tol_), verbose(verbose_)
     {
       fid = util::FILEPtr(fopen(bfn.c_str(), "r"));
       micro_throw_if( ! fid, "run_and_cmp can't read " << bfn);
@@ -361,7 +362,7 @@ static Int run_and_cmp (const std::string& bfn, const Real& tol) {
           micro_sed_func(d_orig_fortran, f_bridge);
           std::stringstream ss;
           ss << "Original Fortran step " << step;
-          nerr += compare(ss.str(), d_ref, d_orig_fortran, tol);
+          nerr += compare(ss.str(), d_ref, d_orig_fortran, tol, verbose);
         }
 
         { // Super-vanilla C++.
@@ -369,7 +370,7 @@ static Int run_and_cmp (const std::string& bfn, const Real& tol) {
           std::stringstream ss;
           ss << "Super-vanilla C++ step " << step;
           Real fortran_tol = (tol < util::TOL) ? util::TOL : tol;
-          nerr += compare(ss.str(), d_ref, d_vanilla_cpp, fortran_tol);
+          nerr += compare(ss.str(), d_ref, d_vanilla_cpp, fortran_tol, verbose);
         }
 
         { // Vanilla C++ kokkos.
@@ -377,17 +378,17 @@ static Int run_and_cmp (const std::string& bfn, const Real& tol) {
           std::stringstream ss;
           ss << "Vanilla Kokkos C++ step " << step;
           Real kokkos_tol = (tol < util::TOL) ? util::TOL : tol;
-          nerr += compare(ss.str(), d_ref, d_kokkos_cpp, kokkos_tol);
+          nerr += compare(ss.str(), d_ref, d_kokkos_cpp, kokkos_tol, verbose);
         }
       }
     }
   };
 
   Int nerr = 0;
-  Int ne = Observer(bfn, tol).run(1);
+  Int ne = Observer(bfn, tol, verbose).run(1);
   if (ne) std::cout << "1-column test failed.\n";
   nerr += ne;
-  ne = Observer(bfn, tol).run(7);
+  ne = Observer(bfn, tol, verbose).run(7);
   if (ne) std::cout << "Multiple-column test failed.\n";
   nerr += ne;
   return nerr;
@@ -419,14 +420,16 @@ int main (int argc, char** argv) {
       argv[0] << " [options] baseline-filename\n"
       "Options:\n"
       "  -g        Generate baseline file.\n"
+      "  -v        Run with extra verbose output.\n"
       "  -t <tol>  Tolerance for relative error.\n";
     return -1;
   }
 
-  bool generate = false;
+  bool generate = false, verbose=false;
   Real tol = 0;
   for (Int i = 1; i < argc-1; ++i) {
     if (util::eq(argv[i], "-g", "--generate")) generate = true;
+    if (util::eq(argv[i], "-v", "--verbose")) verbose = true;
     if (util::eq(argv[i], "-t", "--tol")) {
       expect_another_arg(i, argc);
       ++i;
@@ -448,7 +451,7 @@ int main (int argc, char** argv) {
     } else {
       // Run with multiple columns, but compare only the last one to the baseline.
       printf("Comparing with %s at tol %1.1e\n", baseline_fn.c_str(), tol);
-      out += run_and_cmp<Real>(baseline_fn, tol);
+      out += run_and_cmp<Real>(baseline_fn, tol, verbose);
     }
   } Kokkos::finalize();
 

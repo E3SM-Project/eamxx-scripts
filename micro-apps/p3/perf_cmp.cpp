@@ -47,7 +47,7 @@ int compare_files(const std::string& file1_fn, const std::string& file2_fn, Real
     std::vector<Real> vec1(curr_size), vec2(curr_size);
     util::read(vec1.data(), curr_size, fid1);
     util::read(vec2.data(), curr_size, fid2);
-    int curr_bad = cmp::compare(item, vec1.data(), vec2.data(), curr_size, tol);
+    int curr_bad = cmp::compare(item, vec1.data(), vec2.data(), curr_size, tol, verbose);
     bad_cnt += curr_bad;
     if (curr_bad == 0 && verbose) std::cout << item << " matched " << curr_size << " items." << std::endl;
   }
@@ -68,13 +68,11 @@ int main (int argc, char** argv) {
   Real tol = 0;
   bool verbose = false;
   for (Int i = 1; i < argc-1; ++i) {
+    if (util::eq(argv[i], "-v", "--verbose")) verbose = true;
     if (util::eq(argv[i], "-t", "--tol")) {
       expect_another_arg(i, argc);
       ++i;
       tol = std::atof(argv[i]);
-    }
-    else if (util::eq(argv[i], "-v", "--verbose")) {
-      verbose = true;
     }
   }
 

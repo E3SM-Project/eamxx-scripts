@@ -407,6 +407,13 @@ void dump_to_file_k(const kokkos_2d_t<Real>& qr, const kokkos_2d_t<Real>& nr, co
   auto pres_m    = Kokkos::create_mirror_view(pres);
   auto prt_liq_m = Kokkos::create_mirror_view(prt_liq);
 
+  Kokkos::deep_copy(qr_m,      qr);
+  Kokkos::deep_copy(nr_m,      nr);
+  Kokkos::deep_copy(th_m,      th);
+  Kokkos::deep_copy(dzq_m,     dzq);
+  Kokkos::deep_copy(pres_m,    pres);
+  Kokkos::deep_copy(prt_liq_m, prt_liq);
+
   dump_to_file("kokkos", qr_m.data(), nr_m.data(), th_m.data(), dzq_m.data(), pres_m.data(), prt_liq_m.data(), ni, nk, dt, ts);
 }
 

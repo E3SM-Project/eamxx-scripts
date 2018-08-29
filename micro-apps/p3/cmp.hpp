@@ -4,6 +4,7 @@
 #include "types.hpp"
 
 #include <iostream>
+#include <iomanip>
 #include <cmath>
 #include <string>
 
@@ -25,7 +26,7 @@ void transpose(const Scalar* sv, Scalar* dv, Int ni, Int nk) {
 
 template <typename Scalar>
 static Int compare (const std::string& label, const Scalar* a,
-                    const Scalar* b, const Int& n, const Real& tol) {
+                    const Scalar* b, const Int& n, const Real& tol, bool verbose=false) {
   Int nerr = 0;
   Real den = 0;
   for (Int i = 0; i < n; ++i)
@@ -35,10 +36,10 @@ static Int compare (const std::string& label, const Scalar* a,
     const auto num = std::abs(a[i] - b[i]);
     if (num > tol*den) {
       ++nerr;
-#if 0
-      std::cout << label << " bad idx: " << i << std::fixed << std::setprecision(12)
-                << std::setw(20) << a[i] << " " << b[i] << std::endl;
-#endif
+      if (verbose) {
+        std::cout << label << " bad idx: " << i << std::fixed << std::setprecision(12)
+                  << std::setw(20) << a[i] << " " << b[i] << std::endl;
+      }
       worst = std::max(worst, num);
     }
   }
