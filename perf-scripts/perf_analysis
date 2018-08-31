@@ -30,9 +30,9 @@ OR
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
 
-    parser.add_argument("ni", type=int, help="Num horizontal columns")
+    parser.add_argument("ni", type=int, help="Num horizontal columns. If doing scaling, this is the lower limit.")
 
-    parser.add_argument("nk", type=int, help="Num vertical columns")
+    parser.add_argument("nk", type=int, help="Num vertical columns, recommend 128")
 
     parser.add_argument("dt", type=int, help="Total simulation time(s)")
 
@@ -48,6 +48,15 @@ OR
     parser.add_argument("-c", "--cmake-options", default="",
                         help="Extra options to pass to cmake")
 
+    parser.add_argument("-u", "--use-existing", action="store_true",
+                        help="Use existing build directory (assumes pwd is build dir)")
+
+    parser.add_argument("-s", "--scaling", type=int,
+                        help="Do a scaling run from ni to this value")
+
+    parser.add_argument("-f", "--scale-factor", type=float, default=2.0,
+                        help="How much to increase columns per scaling run")
+
     args = parser.parse_args(args[1:])
 
     if not args.test:
@@ -55,7 +64,10 @@ OR
 
     args.cmake_options += " -DCMAKE_BUILD_TYPE=RelWithDebInfo -DKokkos_DIR={}".format(args.kokkos)
 
-    return args.ni, args.nk, args.dt, args.ts, args.num_runs, args.test, args.cmake_options
+    if args.scaling is None:
+        args.scaling = args.ni
+
+    return args.ni, args.nk, args.dt, args.ts, args.num_runs, args.test, args.cmake_options, args.use_existing, args.scaling, args.scale_factor
 
 ###############################################################################
 def build_p3(cmake_options):
@@ -90,7 +102,7 @@ def run_p3(exename, ni, nk, dt, ts, num_runs):
                                  from_dir="p3")
         avg += get_time(output)
 
-    return avg / num_runs
+    return avg / num_runs # Maybe we should use minimum instead of avg?
 
 ###############################################################################
 def run_fortran(ni, nk, dt, ts, num_runs):
@@ -108,49 +120,60 @@ def run_kokkos(ni, nk, dt, ts, num_runs):
     return run_p3("micro_sed_vanilla_kokkos", ni, nk, dt, ts, num_runs)
 
 ###############################################################################
-def user_explain(test, avg_time, reference):
+def user_explain(test, avg_time, reference, ni):
 ###############################################################################
     msg = "{} ran in {} seconds".format(test, avg_time)
     if reference:
         speedup = (1.0 - (avg_time / reference)) * 100
         msg += ", speedup={:.2f}%".format(speedup)
 
+    msg +=", {:.2f} cols/sec".format(ni / avg_time)
+
     print msg
 
 ###############################################################################
-def perf_analysis(ni, nk, dt, ts, num_runs, tests, cmake_options):
+def perf_analysis(ni, nk, dt, ts, num_runs, tests, cmake_options, use_existing, scaling, scale_factor):
 ###############################################################################
-    expect(os.path.basename(os.getcwd()) == "micro-apps", "Please run from micro-apps directory")
+    if use_existing:
+        expect(os.path.isdir("p3") and os.path.exists("CMakeCache.txt"),
+               "{} doesn't look like a build directory".format(os.getcwd()))
 
-    tmpdir = tempfile.mkdtemp(prefix="build", dir=os.getcwd())
-    print "Making temporary build direcory:", tmpdir
-    os.chdir(tmpdir)
+    else:
+        expect(os.path.basename(os.getcwd()) == "micro-apps", "Please run from micro-apps directory")
 
-    build_p3(cmake_options)
+        tmpdir = tempfile.mkdtemp(prefix="build", dir=os.getcwd())
+        print "Making temporary build direcory:", tmpdir
+        os.chdir(tmpdir)
 
-    print
-    print "RUNNING NI", ni, "NK", nk, "DT", dt, "TS", ts
+        build_p3(cmake_options)
 
-    reference = None
-    for test in tests:
-        if test == "fortran":
-            avg_time = run_fortran(ni, nk, dt, ts, num_runs)
-        elif test == "cpp":
-            avg_time = run_cpp(ni, nk, dt, ts, num_runs)
-        elif test == "kokkos":
-            avg_time = run_kokkos(ni, nk, dt, ts, num_runs)
-        else:
-            expect(False, "Unknown test '{}'".format(test))
+    while (ni <= scaling):
+        print
+        print "RUNNING NI", ni, "NK", nk, "DT", dt, "TS", ts
 
-        user_explain(test, avg_time, reference)
-        reference = avg_time if reference is None else reference
+        reference = None
+        for test in tests:
+            if test == "fortran":
+                avg_time = run_fortran(ni, nk, dt, ts, num_runs)
+            elif test == "cpp":
+                avg_time = run_cpp(ni, nk, dt, ts, num_runs)
+            elif test == "kokkos":
+                avg_time = run_kokkos(ni, nk, dt, ts, num_runs)
+            else:
+                expect(False, "Unknown test '{}'".format(test))
+
+            user_explain(test, avg_time, reference, ni)
+            reference = avg_time if reference is None else reference
+
+        ni = int(ni * scale_factor)
 
 ###############################################################################
 def _main_func(description):
 ###############################################################################
-    ni, nk, dt, ts, num_runs, tests, cmake_options = parse_command_line(sys.argv, description)
+    ni, nk, dt, ts, num_runs, tests, cmake_options, use_existing, scaling, scale_factor = \
+        parse_command_line(sys.argv, description)
 
-    success = perf_analysis(ni, nk, dt, ts, num_runs, tests, cmake_options)
+    success = perf_analysis(ni, nk, dt, ts, num_runs, tests, cmake_options, use_existing, scaling, scale_factor)
 
     sys.exit(0 if success else 1)
 
