@@ -126,7 +126,7 @@ std::string active_avx_string () {
 inline
 void dump_arch()
 {
-  printf("dp %d avx %s FPE %d nthread %d\n",
+  printf("ARCH: dp %d avx %s FPE %d nthread %d\n",
 #ifdef DOUBLE_PRECISION
          1,
 #else
@@ -158,7 +158,12 @@ void initialize()
 #endif
 }
 
-
 } // namespace util
+
+extern "C" {
+
+void dump_arch_f90();
+
+}
 
 #endif

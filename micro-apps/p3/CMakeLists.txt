@@ -1,9 +1,9 @@
 set(P3_MICRO_SRCS
   micro_sed.f90
-  array_io_mod.f90
-  initial_conditions_mod.f90
+  cpp_bridge.f90
   array_io.cpp
   initial_conditions.cpp
+  util.cpp
 )
 
 add_library(microsed ${P3_MICRO_SRCS})

@@ -1,6 +1,6 @@
 #include "types.f.h"
 
-module array_io_mod
+module cpp_bridge
   interface
      function array_io_file_exists(filename) result(exists) bind(c)
        use iso_c_binding
@@ -33,5 +33,15 @@ module array_io_mod
        logical(kind=c_bool) :: ok
      end function dump_all
 
+     subroutine fully_populate_input_data(ni, nk, qr, nr, th, dzq, pres) bind(c)
+       use iso_c_binding
+       type(c_ptr), intent(in) :: qr, nr, th, dzq, pres
+       integer(kind=c_int), intent(in), value :: ni, nk
+     end subroutine fully_populate_input_data
+
+     subroutine dump_arch_f90() bind(c)
+       use iso_c_binding
+     end subroutine dump_arch_f90
+
   end interface
-end module array_io_mod
+end module cpp_bridge

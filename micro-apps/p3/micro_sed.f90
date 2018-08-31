@@ -104,7 +104,7 @@ contains
     ! the lookup table is two dimensional as a function of number-weighted mean size
     ! proportional to qr/Nr and shape parameter mu_r
 
-    use array_io_mod
+    use cpp_bridge
     use iso_c_binding
 
     integer                      :: i,ii,jj,kk
@@ -242,7 +242,7 @@ contains
   !=============================================================================!
   subroutine populate_input(ni, nk, qr, nr, th, dzq, pres)
   !=============================================================================!
-    use initial_conditions_mod
+    use cpp_bridge
     use iso_c_binding
 
     implicit none
@@ -258,7 +258,7 @@ contains
   !=============================================================================!
   subroutine micro_sed_func_wrap(ni, nk, dt, ts, kdir) bind(c)
   !=============================================================================!
-    use array_io_mod
+    use cpp_bridge
     use iso_c_binding
 
     implicit none
@@ -277,6 +277,7 @@ contains
 
     character (kind=c_char, len=*), parameter :: filename = c_char_"fortran"//char(0)
 
+    call dump_arch_f90()
     print '("Running with ni=",I0," nk=",I0," dt=",F6.2," ts=",I0)', ni, nk, dt, ts
 
     call populate_input(ni, nk, qr, nr, th, dzq, pres)
