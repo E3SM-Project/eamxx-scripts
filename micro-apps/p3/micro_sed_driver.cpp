@@ -2,6 +2,12 @@
 #include "types.hpp"
 #include "util.hpp"
 
+extern "C" {
+
+void micro_sed_func_wrap(const int* ni, const int* nk, const Real* dt, const int* ts, const int* kdir);
+
+};
+
 int main(int argc, char** argv)
 {
   util::initialize();
@@ -19,7 +25,7 @@ int main(int argc, char** argv)
 
   p3::micro_sed_vanilla::p3_init_cpp<Real>();
 
-  p3::micro_sed_vanilla::micro_sed_func_vanilla_wrap<Real>(ni, nk, dt, ts, kdir);
+  micro_sed_func_wrap(&ni, &nk, &dt, &ts, &kdir);
 
   return 0;
 }

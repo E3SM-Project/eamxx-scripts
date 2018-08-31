@@ -407,13 +407,7 @@ static Int unittest () {
 }
 
 int main (int argc, char** argv) {
-#ifdef FPE
-  _MM_SET_EXCEPTION_MASK(_MM_GET_EXCEPTION_MASK() &
-                         ~( _MM_MASK_INVALID |
-                            _MM_MASK_DIV_ZERO |
-                            _MM_MASK_OVERFLOW |
-                            _MM_MASK_UNDERFLOW ));
-#endif
+  util::initialize();
 
   if (argc == 1) {
     std::cout <<

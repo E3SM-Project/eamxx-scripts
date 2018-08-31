@@ -426,6 +426,7 @@ void micro_sed_func_vanilla_kokkos_wrap(const int ni, const int nk, const Real d
                     dzq_v(ni,   std::vector<Real>(nk)),
                     pres_v(ni,  std::vector<Real>(nk));
 
+  util::dump_arch();
   std::cout << "Running micro_sed_vanilla_kokkos with ni=" << ni << ", nk=" << nk
             << ", dt=" << dt << ", ts=" << ts << ", kdir=" << kdir << std::endl;
 

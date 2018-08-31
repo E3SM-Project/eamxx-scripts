@@ -56,6 +56,8 @@ int compare_files(const std::string& file1_fn, const std::string& file2_fn, Real
 }
 
 int main (int argc, char** argv) {
+  util::initialize();
+
   if (argc < 3) {
     std::cout <<
       argv[0] << " [options] file1 file2\n"

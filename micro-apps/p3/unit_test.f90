@@ -3,7 +3,7 @@ module unit_test_mod
 contains
 
   function test_array_io() result(nerr)
-    use array_io_mod
+    use cpp_bridge
     use iso_c_binding
 
     integer :: nerr, i, j
@@ -35,7 +35,7 @@ contains
 end module unit_test_mod
 
 program unit_test
-  use array_io_mod
+  use cpp_bridge
   use unit_test_mod
   implicit none
 

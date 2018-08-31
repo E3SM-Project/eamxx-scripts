@@ -471,6 +471,7 @@ void micro_sed_func_vanilla_wrap(const int ni, const int nk, const Real dt, cons
 
   std::vector<Real> prt_liq(ni);
 
+  util::dump_arch();
   std::cout << "Running micro_sed_vanilla with ni=" << ni << ", nk=" << nk
             << ", dt=" << dt << ", ts=" << ts << ", kdir=" << kdir << std::endl;
 
