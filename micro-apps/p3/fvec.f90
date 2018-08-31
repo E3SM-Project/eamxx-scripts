@@ -10,8 +10,10 @@ module vec
 #endif
 #if VEC_DP
 # define MYREAL 8
+# define c_real c_double
 #else
 # define MYREAL 4
+# define c_real c_float
 #endif
 
   integer, parameter :: &
@@ -41,14 +43,14 @@ contains
     r = 2.0_myreal*(x - xl)/L - 1.0_myreal
   end function map_x_to_n11
 
-  function get_src(x, rho) result(src)
-    real(kind=myreal), intent(in) :: x, rho
+  function get_src(rho) result(src)
+    real(kind=myreal), intent(in) :: rho
     integer, parameter :: ratesz = 5
     real(kind=myreal) :: src, trhodiffmax, rhodiff
     real(kind=myreal), parameter :: rate(ratesz) = &
          (/ 0.2_myreal, 0.1_myreal, 0.05_myreal, 0.025_myreal, 0.0125_myreal /)
     integer :: tsize, idx
-    
+
     tsize = ratesz - 1.0_myreal;
     trhodiffmax = 1.0_myreal;
     rhodiff = abs(rho - rho_ref)
@@ -67,8 +69,7 @@ contains
     u = u_max*cos(0.2_myreal*map_x_to_n11(x) + 0.25_myreal);
   end function get_u
 
-  function get_ic(x) result(ic)
-    real(kind=myreal), intent(in) :: x
+  function get_ic() result(ic)
     real(kind=myreal) :: ic
 
     ic = rho_ref
@@ -78,7 +79,7 @@ contains
     real(kind=myreal), intent(in) :: rho(ncell)
     real(kind=myreal), intent(out) :: flux_bdy, flux_int(ncell)
     integer :: i
-    
+
     flux_bdy = rho_ref * get_u(xl - 0.5_myreal*dx);
     do i = 1, ncell
        flux_int(i) = rho(i) * get_u(get_x_ctr(i))
@@ -94,19 +95,19 @@ contains
     call calc_numerical_flux(rho, flux_bdy, flux_int)
     rdx = 1.0_myreal/dx
     neg_flux_div = rdx*(flux_bdy - flux_int(1));
-    src = get_src(get_x_ctr(1), rho(1));
+    src = get_src(rho(1));
     rho(1) = rho(1) + dt*(src + neg_flux_div);
     do i = 2, ncell
        neg_flux_div = rdx*(flux_int(i-1) - flux_int(i));
-       src = get_src(get_x_ctr(i), rho(i));
+       src = get_src(rho(i));
        rho(i) = rho(i) + dt*(src + neg_flux_div);
     end do
   end subroutine step1
 
   subroutine f90_step(ncol, nstep, dt, rho, work) bind(c)
-    integer, intent(in) :: ncol, nstep
-    real(kind=myreal), intent(in) :: dt
-    real(kind=myreal), intent(inout) :: rho(ncell,ncol), work(ncell,ncol)
+    integer(kind=c_int), intent(in) :: ncol, nstep
+    real(kind=c_real), intent(in) :: dt
+    real(kind=c_real), intent(inout) :: rho(ncell,ncol), work(ncell,ncol)
     integer :: c, i
 
     !$omp parallel do
