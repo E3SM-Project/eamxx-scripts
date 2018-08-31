@@ -256,7 +256,7 @@ contains
   end subroutine populate_input
 
   !=============================================================================!
-  subroutine micro_sed_func_wrap(ni, nk, dt, ts, kdir)
+  subroutine micro_sed_func_wrap(ni, nk, dt, ts, kdir) bind(c)
   !=============================================================================!
     use array_io_mod
     use iso_c_binding

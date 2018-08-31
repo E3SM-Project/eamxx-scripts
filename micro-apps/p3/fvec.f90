@@ -48,7 +48,7 @@ contains
     real(kind=myreal), parameter :: rate(ratesz) = &
          (/ 0.2_myreal, 0.1_myreal, 0.05_myreal, 0.025_myreal, 0.0125_myreal /)
     integer :: tsize, idx
-    
+
     tsize = ratesz - 1.0_myreal;
     trhodiffmax = 1.0_myreal;
     rhodiff = abs(rho - rho_ref)
@@ -78,7 +78,7 @@ contains
     real(kind=myreal), intent(in) :: rho(ncell)
     real(kind=myreal), intent(out) :: flux_bdy, flux_int(ncell)
     integer :: i
-    
+
     flux_bdy = rho_ref * get_u(xl - 0.5_myreal*dx);
     do i = 1, ncell
        flux_int(i) = rho(i) * get_u(get_x_ctr(i))

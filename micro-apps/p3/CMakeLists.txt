@@ -9,7 +9,7 @@ set(P3_MICRO_SRCS
 add_library(microsed ${P3_MICRO_SRCS})
 target_include_directories (microsed PUBLIC ${SCREAM_MICRO_APPS_INCLUDES})
 
-add_executable(micro_sed micro_sed_driver.f90)
+add_executable(micro_sed micro_sed_driver.cpp)
 target_link_libraries(micro_sed microsed)
 
 add_executable(unit_test_f90 unit_test.f90)

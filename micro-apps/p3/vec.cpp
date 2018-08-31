@@ -306,7 +306,7 @@ void step (const Int& c, const Real& dt, Array<Real>& rho,
 void step (const Real& dt, const Int& nstep, Array<Real>& rho,
            Array<Real>& work) {
 # pragma omp parallel for
-  for (Int c = 0; c < rho.extent_int(0); ++c)  
+  for (Int c = 0; c < rho.extent_int(0); ++c)
     for (Int i = 0; i < nstep; ++i)
       step(c, dt, rho, work);
 }
@@ -344,7 +344,7 @@ void calc_numerical_flux (const Member& team, const Vector<Real>& rho,
   Kokkos::parallel_for(
     Kokkos::TeamThreadRange(team, consts_ncell),
     [&] (const int& i) {
-      flux(i+1) = rho(i) * problem::get_u(problem::get_x_ctr(i));  
+      flux(i+1) = rho(i) * problem::get_u(problem::get_x_ctr(i));
     });
   team.team_barrier();
 }
@@ -492,7 +492,7 @@ struct Pack {
   KOKKOS_FORCEINLINE_FUNCTION __m256d& as_m256d (const int& i)
   { return reinterpret_cast<__m256d*>(d)[i]; }
 #endif
-  
+
 private:
   scalar d[n];
 };
@@ -765,7 +765,7 @@ struct Pack {
   KOKKOS_FORCEINLINE_FUNCTION void set (const Mask<n>& mask, const scalar& v) {
     vector_simd for (int i = 0; i < n; ++i) if (mask[i]) d[i] = v;
   }
-  
+
 private:
   scalar d[n];
 };
@@ -844,7 +844,7 @@ OnlyPackReturn<pack, Pack<T,pack::n> > min (const Scalar& a, const pack& b) {
   return c;
 }
 
-template <typename T, int n> KOKKOS_INLINE_FUNCTION 
+template <typename T, int n> KOKKOS_INLINE_FUNCTION
 Pack<T,n> pack_range (const T& start) {
   typedef Pack<T,n> pack;
   pack p;
@@ -869,12 +869,12 @@ struct consts : public problem::consts {
   static constexpr Int packrem = ncell % RealPack::n;
 };
 
-KOKKOS_INLINE_FUNCTION 
+KOKKOS_INLINE_FUNCTION
 RealPack get_x_ctr (const RealPack& i) {
   return consts_xl + ((i + 0.5)/consts_ncell)*consts_L;
 }
 
-KOKKOS_INLINE_FUNCTION 
+KOKKOS_INLINE_FUNCTION
 RealPack get_src (const RealPack& x, const RealPack& rho) {
   using ko::min;
   const Real rate[] = {0.2, 0.1, 0.05, 0.025, 0.0125};
@@ -1303,7 +1303,7 @@ int main (int argc, char** argv) {
     kopack::cast::cast();
     if (nerr) {
       std::cerr << "nerr " << nerr << "\n";
-      //break; 
+      //break;
     }
     driver::measure_perf(in.ncol, in.nstep);
   } while (0);

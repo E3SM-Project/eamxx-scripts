@@ -4,6 +4,8 @@
 
 int main(int argc, char** argv)
 {
+  util::initialize();
+
   micro_throw_if(argc != 6, "Usage: micro_sed_vanilla_kokkos ni nk time_step_len num_steps kdir");
 
   int ni(atoi(argv[1])),

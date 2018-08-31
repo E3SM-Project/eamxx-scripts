@@ -9,8 +9,16 @@
 #include <exception>
 
 #ifndef KOKKOS_ENABLE_CUDA
-#include <cmath>
-#include <algorithm>
+ #include <cmath>
+ #include <algorithm>
+#endif
+
+#ifdef _OPENMP
+# include <omp.h>
+#endif
+
+#ifdef FPE
+# include <xmmintrin.h>
 #endif
 
 #ifndef NDEBUG
@@ -99,6 +107,57 @@ using std::max_element;
 #endif
 
 constexpr Real TOL = 2e-5; // a default tolerance high enough to handle round-off differences
+
+inline
+std::string active_avx_string () {
+  std::string s;
+#if defined __AVX512F__
+  s += "-AVX512F";
+#endif
+#if defined __AVX2__
+  s += "-AVX2";
+#endif
+#if defined __AVX__
+  s += "-AVX";
+#endif
+  return s;
+}
+
+inline
+void dump_arch()
+{
+  printf("dp %d avx %s FPE %d nthread %d\n",
+#ifdef DOUBLE_PRECISION
+         1,
+#else
+         0,
+#endif
+         util::active_avx_string().c_str(),
+#ifdef FPE
+         1,
+#else
+         0,
+#endif
+#ifdef _OPENMP
+         omp_get_max_threads()
+#else
+         1
+#endif
+         );
+}
+
+inline
+void initialize()
+{
+#ifdef FPE
+  _MM_SET_EXCEPTION_MASK(_MM_GET_EXCEPTION_MASK() &
+                         ~( _MM_MASK_INVALID |
+                            _MM_MASK_DIV_ZERO |
+                            _MM_MASK_OVERFLOW |
+                            _MM_MASK_UNDERFLOW ));
+#endif
+}
+
 
 } // namespace util
 
