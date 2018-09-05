@@ -286,6 +286,8 @@ contains
 
     start = omp_get_wtime()
 
+    prt_liq(:) = 0
+
 #if CHUNKSIZE > 0
     nchunk = (ni + chunksize - 1) / chunksize
     do ti = 1, ts
@@ -296,28 +298,13 @@ contains
 !$OMP END PARALLEL DO
     end do
 #else
-    prt_liq(:) = 0
-
     do ti = 1, ts
        call micro_sed_func(1, nk, kdir, 1, ni, dt, &
             qr, nr, th, dzq, pres, prt_liq)
     end do
-
 #endif
 
     finish = omp_get_wtime()
-
-    ok = .true.
-    do i = 2, ni
-       if (prt_liq(i) /= prt_liq(1)) then
-          ok = .false.
-          exit
-       end if
-    end do
-    if (.not. ok) then
-       print *, 'In micro_sed_func_wrap, prt_liq(:) are not all identical.'
-       print *, prt_liq
-    end if
 
     print '("Time = ",f6.2," seconds.")', finish - start
 
