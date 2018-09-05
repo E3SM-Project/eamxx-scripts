@@ -268,9 +268,8 @@ void micro_sed_func_vanilla(const int kts, const int kte, const int its, const i
   // inverse of thickness of layers
 #pragma omp parallel
   {
-    int tid = omp_get_thread_num();
-    int nthreads = omp_get_num_threads();
-    for (int i = tid; i < num_horz; i+=nthreads) {
+#pragma omp for
+    for (int i = 0; i < num_horz; ++i) {
       for (int k = 0; k < num_vert; ++k) {
         inv_dzq[i][k] = 1 / dzq[i][k];
         t[i][k] = std::pow(pres[i][k] * 1.e-5, Globals<Real>::RD * Globals<Real>::INV_CP) * th[i][k];
@@ -290,9 +289,8 @@ void micro_sed_func_vanilla(const int kts, const int kte, const int its, const i
   trace_loop("i_loop_main", 0, num_horz-1);
 #pragma omp parallel
   {
-    int tid = omp_get_thread_num();
-    int nthreads = omp_get_num_threads();
-    for (int i = tid; i < num_horz; i+=nthreads) {
+#pragma omp for
+    for (int i = 0; i < num_horz; ++i) {
       trace_loop("  k_loop_1", kbot, ktop);
       for (int k = kbot; k != (ktop+kdir); k+=kdir) {
         rho[i][k] = pres[i][k] / (Globals<Real>::RD * t[i][k]);
