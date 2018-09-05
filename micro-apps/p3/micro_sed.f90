@@ -412,7 +412,8 @@ contains
 
     ! Rain sedimentation:  (adaptive substepping)
     trace_loop("i_loop_main", its, ite)
-!$OMP PARALLEL DO DEFAULT(FIRSTPRIVATE) SHARED(qr,nr,mu_r,lamr,rhofacr,inv_dzq,rho,inv_rho,t,tmparr1,prt_liq)
+!$OMP PARALLEL DO DEFAULT(FIRSTPRIVATE) SHARED(qr,nr,mu_r,lamr,rhofacr,inv_dzq,rho,inv_rho,t) &
+!$OMP& SHARED(tmparr1,prt_liq,th,dzq,pres)
     i_loop_main: do i = its,ite
 
        trace_loop("  k_loop_1", kbot, ktop)
