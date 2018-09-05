@@ -349,7 +349,7 @@ contains
 
     real, dimension(ni,nk), intent(inout) :: qr, nr, th, dzq, pres
 
-    real, dimension(ni), intent(out) :: prt_liq
+    real, dimension(ni), intent(inout) :: prt_liq
 
     integer, parameter :: chunksize = CHUNKSIZE
     integer :: cni, cnk, ws
@@ -364,7 +364,7 @@ contains
     cth(1:ws,:) = th(cni:cnk,:)
     cdzq(1:ws,:) = dzq(cni:cnk,:)
     cpres(1:ws,:) = pres(cni:cnk,:)
-    cprt_liq(1:ws) = 0
+    cprt_liq(1:ws) = prt_liq(1:ws)
 
     call micro_sed_func(1, nk, kdir, 1, ws, dt, &
          cqr(1:ws,:), cnr(1:ws,:), cth(1:ws,:), cdzq(1:ws,:), cpres(1:ws,:), cprt_liq(1:ws))
