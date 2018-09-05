@@ -260,6 +260,7 @@ contains
   !=============================================================================!
     use cpp_bridge
     use iso_c_binding
+    use omp_lib
 
     implicit none
 
@@ -283,7 +284,7 @@ contains
     call populate_input(ni, nk, qr, nr, th, dzq, pres)
     print *, 'chunksize',chunksize
 
-    call cpu_time(start)
+    start = omp_get_wtime()
 
 #if CHUNKSIZE > 0
     nchunk = (ni + chunksize - 1) / chunksize
@@ -316,7 +317,7 @@ contains
     end do
 #endif
 
-    call cpu_time(finish)
+    finish = omp_get_wtime()
 
     ok = .true.
     do i = 2, ni
@@ -411,6 +412,7 @@ contains
 
     ! Rain sedimentation:  (adaptive substepping)
     trace_loop("i_loop_main", its, ite)
+!$OMP PARALLEL DO DEFAULT(FIRSTPRIVATE) SHARED(qr,nr,mu_r,lamr,rhofacr,inv_dzq,rho,inv_rho,t,tmparr1,prt_liq)
     i_loop_main: do i = its,ite
 
        trace_loop("  k_loop_1", kbot, ktop)
@@ -554,6 +556,7 @@ contains
        endif qr_present
 
     enddo i_loop_main
+!$OMP END PARALLEL DO
 
   end subroutine micro_sed_func
 
