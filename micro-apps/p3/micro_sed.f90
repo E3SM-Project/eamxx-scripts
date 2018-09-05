@@ -288,33 +288,21 @@ contains
 
 #if CHUNKSIZE > 0
     nchunk = (ni + chunksize - 1) / chunksize
-    do ci = 1, nchunk
-       cni = chunksize*(ci - 1) + 1
-       cnk = min(ni, cni + chunksize - 1)
-       ws = cnk - cni + 1
-       cqr(1:ws,:) = qr(cni:cnk,:)
-       cnr(1:ws,:) = nr(cni:cnk,:)
-       cth(1:ws,:) = th(cni:cnk,:)
-       cdzq(1:ws,:) = dzq(cni:cnk,:)
-       cpres(1:ws,:) = pres(cni:cnk,:)
-       cprt_liq(1:ws) = 0
-       do ti = 1, ts
-          call micro_sed_func(1, nk, kdir, 1, ws, dt, &
-               cqr(1:ws,:), cnr(1:ws,:), cth(1:ws,:), cdzq(1:ws,:), cpres(1:ws,:), cprt_liq(1:ws))
+    do ti = 1, ts
+!$OMP PARALLEL DO DEFAULT(SHARED)
+       do ci = 1, nchunk
+          call micro_sed_func_chunk(ni, nk, kdir, dt, qr, nr, th, dzq, pres, prt_liq, ci)
        end do
-       qr(cni:cnk,:) = cqr(1:ws,:)
-       nr(cni:cnk,:) = cnr(1:ws,:)
-       th(cni:cnk,:) = cth(1:ws,:)
-       dzq(cni:cnk,:) = cdzq(1:ws,:)
-       pres(cni:cnk,:) = cpres(1:ws,:)
-       prt_liq(cni:cnk) = cprt_liq(1:ws)
+!$OMP END PARALLEL DO
     end do
 #else
     prt_liq(:) = 0
+
     do ti = 1, ts
        call micro_sed_func(1, nk, kdir, 1, ni, dt, &
             qr, nr, th, dzq, pres, prt_liq)
     end do
+
 #endif
 
     finish = omp_get_wtime()
@@ -352,6 +340,45 @@ contains
   end subroutine micro_sed_func_c
 
   !=============================================================================!
+  subroutine micro_sed_func_chunk(ni, nk, kdir, dt, qr, nr, th, dzq, pres, prt_liq, ci)
+  !=============================================================================!
+    implicit none
+
+    integer, intent(in) :: ni, nk, kdir, ci
+    real, intent(in) :: dt
+
+    real, dimension(ni,nk), intent(inout) :: qr, nr, th, dzq, pres
+
+    real, dimension(ni), intent(out) :: prt_liq
+
+    integer, parameter :: chunksize = CHUNKSIZE
+    integer :: cni, cnk, ws
+    real, dimension(chunksize,nk) :: cqr, cnr, cth, cdzq, cpres
+    real, dimension(chunksize) :: cprt_liq
+
+    cni = chunksize*(ci - 1) + 1
+    cnk = min(ni, cni + chunksize - 1)
+    ws = cnk - cni + 1
+    cqr(1:ws,:) = qr(cni:cnk,:)
+    cnr(1:ws,:) = nr(cni:cnk,:)
+    cth(1:ws,:) = th(cni:cnk,:)
+    cdzq(1:ws,:) = dzq(cni:cnk,:)
+    cpres(1:ws,:) = pres(cni:cnk,:)
+    cprt_liq(1:ws) = 0
+
+    call micro_sed_func(1, nk, kdir, 1, ws, dt, &
+         cqr(1:ws,:), cnr(1:ws,:), cth(1:ws,:), cdzq(1:ws,:), cpres(1:ws,:), cprt_liq(1:ws))
+
+    qr(cni:cnk,:) = cqr(1:ws,:)
+    nr(cni:cnk,:) = cnr(1:ws,:)
+    th(cni:cnk,:) = cth(1:ws,:)
+    dzq(cni:cnk,:) = cdzq(1:ws,:)
+    pres(cni:cnk,:) = cpres(1:ws,:)
+    prt_liq(cni:cnk) = cprt_liq(1:ws)
+
+  end subroutine micro_sed_func_chunk
+
+  !=============================================================================!
   subroutine micro_sed_func(kts, kte, kdir, its, ite, dt, qr, nr, th, dzq, pres, prt_liq)
   !=============================================================================!
     implicit none
@@ -381,7 +408,7 @@ contains
 
     real, dimension(its:ite), intent(out) :: prt_liq
 
-    integer :: i,k,ktop,kbot,k_qxbot,k_qxtop,k_temp,tmpint1, dumii, dumjj
+    integer :: i,k,ktop,kbot,k_qxbot,k_qxtop,k_temp,tmpint1,dumii,dumjj
 
     logical :: log_qxpresent
 
@@ -412,8 +439,6 @@ contains
 
     ! Rain sedimentation:  (adaptive substepping)
     trace_loop("i_loop_main", its, ite)
-!$OMP PARALLEL DO DEFAULT(FIRSTPRIVATE) SHARED(qr,nr,mu_r,lamr,rhofacr,inv_dzq,rho,inv_rho,t) &
-!$OMP& SHARED(tmparr1,prt_liq,th,dzq,pres)
     i_loop_main: do i = its,ite
 
        trace_loop("  k_loop_1", kbot, ktop)
@@ -557,7 +582,6 @@ contains
        endif qr_present
 
     enddo i_loop_main
-!$OMP END PARALLEL DO
 
   end subroutine micro_sed_func
 
