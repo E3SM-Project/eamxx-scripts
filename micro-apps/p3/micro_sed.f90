@@ -240,18 +240,18 @@ contains
   end subroutine p3_init
 
   !=============================================================================!
-  subroutine populate_input(ni, nk, qr, nr, th, dzq, pres)
+  subroutine populate_input(ni, nk, qr, nr, th, dzq, pres, kdir)
   !=============================================================================!
     use cpp_bridge
     use iso_c_binding
 
     implicit none
 
-    integer, intent(in) :: ni, nk
+    integer, intent(in) :: ni, nk, kdir
 
     real, dimension(1:ni,1:nk), intent(inout), target :: qr, nr, th, dzq, pres
 
-    call fully_populate_input_data(ni, nk, c_loc(qr), c_loc(nr), c_loc(th), c_loc(dzq), c_loc(pres))
+    call fully_populate_input_data(ni, nk, kdir, c_loc(qr), c_loc(nr), c_loc(th), c_loc(dzq), c_loc(pres))
 
   end subroutine populate_input
 
@@ -260,6 +260,7 @@ contains
   !=============================================================================!
     use cpp_bridge
     use iso_c_binding
+    use omp_lib
 
     implicit none
 
@@ -271,7 +272,7 @@ contains
     real, dimension(ni,nk), target :: qr, nr, th, dzq, pres
     real, dimension(chunksize) :: cprt_liq
     real, dimension(ni), target :: prt_liq
-    real :: start, finish
+    real(8) :: start, finish
     integer :: ti, ci, nchunk, cni, cnk, ws, i
     logical :: ok
 
@@ -280,55 +281,34 @@ contains
     call dump_arch_f90()
     print '("Running with ni=",I0," nk=",I0," dt=",F6.2," ts=",I0)', ni, nk, dt, ts
 
-    call populate_input(ni, nk, qr, nr, th, dzq, pres)
+    call populate_input(ni, nk, qr, nr, th, dzq, pres, kdir)
     print *, 'chunksize',chunksize
 
-    call cpu_time(start)
+    start = omp_get_wtime()
+
+    prt_liq(:) = 0
 
 #if CHUNKSIZE > 0
     nchunk = (ni + chunksize - 1) / chunksize
-    do ci = 1, nchunk
-       cni = chunksize*(ci - 1) + 1
-       cnk = min(ni, cni + chunksize - 1)
-       ws = cnk - cni + 1
-       cqr(1:ws,:) = qr(cni:cnk,:)
-       cnr(1:ws,:) = nr(cni:cnk,:)
-       cth(1:ws,:) = th(cni:cnk,:)
-       cdzq(1:ws,:) = dzq(cni:cnk,:)
-       cpres(1:ws,:) = pres(cni:cnk,:)
-       cprt_liq(1:ws) = 0
-       do ti = 1, ts
-          call micro_sed_func(1, nk, kdir, 1, ws, dt, &
-               cqr(1:ws,:), cnr(1:ws,:), cth(1:ws,:), cdzq(1:ws,:), cpres(1:ws,:), cprt_liq(1:ws))
+    do ti = 1, ts
+!$OMP PARALLEL DO DEFAULT(SHARED)
+       do ci = 1, nchunk
+          call micro_sed_func_chunk(ni, nk, kdir, dt, qr, nr, th, dzq, pres, prt_liq, ci)
        end do
-       qr(cni:cnk,:) = cqr(1:ws,:)
-       nr(cni:cnk,:) = cnr(1:ws,:)
-       th(cni:cnk,:) = cth(1:ws,:)
-       dzq(cni:cnk,:) = cdzq(1:ws,:)
-       pres(cni:cnk,:) = cpres(1:ws,:)
-       prt_liq(cni:cnk) = cprt_liq(1:ws)
+!$OMP END PARALLEL DO
     end do
 #else
-    prt_liq(:) = 0
     do ti = 1, ts
-       call micro_sed_func(1, nk, kdir, 1, ni, dt, &
-            qr, nr, th, dzq, pres, prt_liq)
+!$OMP PARALLEL DO DEFAULT(SHARED)
+       do i = 1, ni
+          call micro_sed_func(1, nk, kdir, 1, 1, dt, &
+               qr(i,:), nr(i,:), th(i,:), dzq(i,:), pres(i,:), prt_liq(i))
+       end do
+!$OMP END PARALLEL DO
     end do
 #endif
 
-    call cpu_time(finish)
-
-    ok = .true.
-    do i = 2, ni
-       if (prt_liq(i) /= prt_liq(1)) then
-          ok = .false.
-          exit
-       end if
-    end do
-    if (.not. ok) then
-       print *, 'In micro_sed_func_wrap, prt_liq(:) are not all identical.'
-       print *, prt_liq
-    end if
+    finish = omp_get_wtime()
 
     print '("Time = ",f6.2," seconds.")', finish - start
 
@@ -349,6 +329,45 @@ contains
 
     call micro_sed_func(kts, kte, kdir, its, ite, dt, qr, nr, th, dzq, pres, prt_liq)
   end subroutine micro_sed_func_c
+
+  !=============================================================================!
+  subroutine micro_sed_func_chunk(ni, nk, kdir, dt, qr, nr, th, dzq, pres, prt_liq, ci)
+  !=============================================================================!
+    implicit none
+
+    integer, intent(in) :: ni, nk, kdir, ci
+    real, intent(in) :: dt
+
+    real, dimension(ni,nk), intent(inout) :: qr, nr, th, dzq, pres
+
+    real, dimension(ni), intent(inout) :: prt_liq
+
+    integer, parameter :: chunksize = CHUNKSIZE
+    integer :: cni, cnk, ws
+    real, dimension(chunksize,nk) :: cqr, cnr, cth, cdzq, cpres
+    real, dimension(chunksize) :: cprt_liq
+
+    cni = chunksize*(ci - 1) + 1
+    cnk = min(ni, cni + chunksize - 1)
+    ws = cnk - cni + 1
+    cqr(1:ws,:) = qr(cni:cnk,:)
+    cnr(1:ws,:) = nr(cni:cnk,:)
+    cth(1:ws,:) = th(cni:cnk,:)
+    cdzq(1:ws,:) = dzq(cni:cnk,:)
+    cpres(1:ws,:) = pres(cni:cnk,:)
+    cprt_liq(1:ws) = prt_liq(1:ws)
+
+    call micro_sed_func(1, nk, kdir, 1, ws, dt, &
+         cqr(1:ws,:), cnr(1:ws,:), cth(1:ws,:), cdzq(1:ws,:), cpres(1:ws,:), cprt_liq(1:ws))
+
+    qr(cni:cnk,:) = cqr(1:ws,:)
+    nr(cni:cnk,:) = cnr(1:ws,:)
+    th(cni:cnk,:) = cth(1:ws,:)
+    dzq(cni:cnk,:) = cdzq(1:ws,:)
+    pres(cni:cnk,:) = cpres(1:ws,:)
+    prt_liq(cni:cnk) = cprt_liq(1:ws)
+
+  end subroutine micro_sed_func_chunk
 
   !=============================================================================!
   subroutine micro_sed_func(kts, kte, kdir, its, ite, dt, qr, nr, th, dzq, pres, prt_liq)
@@ -380,7 +399,7 @@ contains
 
     real, dimension(its:ite), intent(out) :: prt_liq
 
-    integer :: i,k,ktop,kbot,k_qxbot,k_qxtop,k_temp,tmpint1, dumii, dumjj
+    integer :: i,k,ktop,kbot,k_qxbot,k_qxtop,k_temp,tmpint1,dumii,dumjj
 
     logical :: log_qxpresent
 

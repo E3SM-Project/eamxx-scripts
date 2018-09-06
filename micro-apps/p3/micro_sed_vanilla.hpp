@@ -4,6 +4,8 @@
 #include "util.hpp"
 #include "initial_conditions.hpp"
 
+#include "omp.h"
+
 #include <vector>
 #include <cmath>
 #include <chrono>
@@ -74,12 +76,12 @@ template <typename Real>
 constexpr Real Globals<Real>::NSMALL;
 
 template <typename Real>
-void populate_input(const int ni, const int nk,
+void populate_input(const int ni, const int nk, const int kdir,
                     vector_2d_t<Real> & qr, vector_2d_t<Real> & nr, vector_2d_t<Real> & th, vector_2d_t<Real> & dzq, vector_2d_t<Real> & pres, const ic::MicroSedData<Real>* data = nullptr)
 {
   ic::MicroSedData<Real> default_data(ni, nk);
   if (data == nullptr) {
-    populate(default_data);
+    populate(default_data, kdir);
     data = &default_data;
   }
 
@@ -250,8 +252,6 @@ void micro_sed_func_vanilla(const int kts, const int kte, const int its, const i
   const int num_vert = abs(kte - kts) + 1;
   const int num_horz = (ite - its) + 1;
 
-  std::vector<Real> V_qr(num_vert), V_nr(num_vert), flux_qx(num_vert), flux_nx(num_vert);
-
   vector_2d_t<Real> mu_r(num_horz,    std::vector<Real>(num_vert)),
                     lamr(num_horz,    std::vector<Real>(num_vert)),
                     rhofacr(num_horz, std::vector<Real>(num_vert)),
@@ -259,13 +259,21 @@ void micro_sed_func_vanilla(const int kts, const int kte, const int its, const i
                     rho(num_horz,     std::vector<Real>(num_vert)),
                     inv_rho(num_horz, std::vector<Real>(num_vert)),
                     t(num_horz,       std::vector<Real>(num_vert)),
-                    tmparr1(num_horz, std::vector<Real>(num_vert));
+                    tmparr1(num_horz, std::vector<Real>(num_vert)),
+                    V_qr(num_horz,    std::vector<Real>(num_vert)),
+                    V_nr(num_horz,    std::vector<Real>(num_vert)),
+                    flux_qx(num_horz, std::vector<Real>(num_vert)),
+                    flux_nx(num_horz, std::vector<Real>(num_vert));
 
   // inverse of thickness of layers
-  for (int i = 0; i < num_horz; ++i) {
-    for (int k = 0; k < num_vert; ++k) {
-      inv_dzq[i][k] = 1 / dzq[i][k];
-      t[i][k] = std::pow(pres[i][k] * 1.e-5, Globals<Real>::RD * Globals<Real>::INV_CP) * th[i][k];
+#pragma omp parallel
+  {
+#pragma omp for
+    for (int i = 0; i < num_horz; ++i) {
+      for (int k = 0; k < num_vert; ++k) {
+        inv_dzq[i][k] = 1 / dzq[i][k];
+        t[i][k] = std::pow(pres[i][k] * 1.e-5, Globals<Real>::RD * Globals<Real>::INV_CP) * th[i][k];
+      }
     }
   }
 
@@ -279,138 +287,146 @@ void micro_sed_func_vanilla(const int kts, const int kte, const int its, const i
 
   // Rain sedimentation:  (adaptivive substepping)
   trace_loop("i_loop_main", 0, num_horz-1);
-  for (int i = 0; i < num_horz; ++i) {
-
-    trace_loop("  k_loop_1", kbot, ktop);
-    for (int k = kbot; k != (ktop+kdir); k+=kdir) {
-      rho[i][k] = pres[i][k] / (Globals<Real>::RD * t[i][k]);
-      inv_rho[i][k] = 1.0 / rho[i][k];
-      rhofacr[i][k] = std::pow(Globals<Real>::RHOSUR * inv_rho[i][k], 0.54);
-      trace_data("    rhofacr", i, k, rhofacr[i][k]);
-    }
-
-    // Note, we are skipping supersaturation checks
-
-    bool log_qxpresent = false;
-    int k_qxtop = kbot;
-
-    // find top, determine qxpresent
-    for (int k = ktop; k != (kbot-kdir); k-=kdir) {
-      if (qr[i][k] >= Globals<Real>::QSMALL) {
-        log_qxpresent = true;
-        k_qxtop = k;
-        break;
+#pragma omp parallel
+  {
+#pragma omp for
+    for (int i = 0; i < num_horz; ++i) {
+      trace_loop("  k_loop_1", kbot, ktop);
+      int kmin, kmax;
+      util::set_min_max(kbot, ktop, kmin, kmax);
+      for (int k = kmin; k <= kmax; ++k) {
+        rho[i][k] = pres[i][k] / (Globals<Real>::RD * t[i][k]);
+        inv_rho[i][k] = 1.0 / rho[i][k];
+        rhofacr[i][k] = std::pow(Globals<Real>::RHOSUR * inv_rho[i][k], 0.54);
+        trace_data("    rhofacr", i, k, rhofacr[i][k]);
       }
-    }
 
-    // JGF: It appears rain sedimentation is mostly nothing unless log_qxpresent is true
-    if (log_qxpresent) {
+      // Note, we are skipping supersaturation checks
 
-      Real dt_left = dt;    // time remaining for sedi over full model (mp) time step
-      Real prt_accum = 0.0; // precip rate for individual category
-      int k_qxbot = 0;
+      bool log_qxpresent = false;
+      int k_qxtop = kbot;
 
-      // find bottom
-      for (int k = kbot; k != (k_qxtop+kdir); k+=kdir) {
+      // find top, determine qxpresent
+      for (int k = ktop; k != (kbot-kdir); k-=kdir) {
         if (qr[i][k] >= Globals<Real>::QSMALL) {
-          k_qxbot = k;
+          log_qxpresent = true;
+          k_qxtop = k;
           break;
         }
       }
 
-      while (dt_left > 1.e-4) {
-        Real Co_max = 0.0;
-        for (int kk = 0; kk < num_vert; ++kk) {
-          V_qr[kk] = 0.0;
-          V_nr[kk] = 0.0;
-        }
+      // JGF: It appears rain sedimentation is mostly nothing unless log_qxpresent is true
+      if (log_qxpresent) {
 
-        trace_loop("  k_loop_sedi_r1", k_qxtop, k_qxbot);
-        for (int k = k_qxtop; k != (k_qxbot-kdir); k-=kdir) {
-          if (qr[i][k] > Globals<Real>::QSMALL) {
-            // Compute Vq, Vn:
-            nr[i][k] = std::max(nr[i][k], Globals<Real>::NSMALL);
-            trace_data("    nr", i, k, nr[i][k]);
-            Real rdumii=0.0, tmp1=0.0, tmp2=0.0, rdumjj=0.0, inv_dum3=0.0;
-            int dumii=0, dumjj=0;
-            get_rain_dsd2(qr[i][k], nr[i][k], mu_r[i][k], rdumii, dumii, lamr[i][k], Globals<Real>::MU_R_TABLE, tmp1, tmp2);
-            find_lookupTable_indices_3(dumii, dumjj, rdumii, rdumjj, inv_dum3, mu_r[i][k], lamr[i][k]);
+        Real dt_left = dt;    // time remaining for sedi over full model (mp) time step
+        Real prt_accum = 0.0; // precip rate for individual category
+        int k_qxbot = 0;
 
-            // mass-weighted fall speed:
-            Real dum1 = Globals<Real>::VM_TABLE[dumii-1][dumjj-1] + (rdumii-dumii) * inv_dum3 * \
-              (Globals<Real>::VM_TABLE[dumii][dumjj-1] - Globals<Real>::VM_TABLE[dumii-1][dumjj-1]);
-            Real dum2 = Globals<Real>::VM_TABLE[dumii-1][dumjj] + (rdumii-dumii) * inv_dum3 * \
-              (Globals<Real>::VM_TABLE[dumii][dumjj] - Globals<Real>::VM_TABLE[dumii-1][dumjj]);
-
-            V_qr[k] = (dum1 + (rdumjj - dumjj) * (dum2 - dum1)) * rhofacr[i][k];
-            trace_data("    V_qr", 0, k, V_qr[k]);
-
-            // number-weighted fall speed:
-            dum1 = Globals<Real>::VN_TABLE[dumii-1][dumjj-1] + (rdumii-dumii) * inv_dum3 * \
-              (Globals<Real>::VN_TABLE[dumii][dumjj-1] - Globals<Real>::VN_TABLE[dumii-1][dumjj-1]);
-            dum2 = Globals<Real>::VN_TABLE[dumii-1][dumjj] + (rdumii-dumii) * inv_dum3 * \
-              (Globals<Real>::VN_TABLE[dumii][dumjj] - Globals<Real>::VN_TABLE[dumii-1][dumjj]);
-
-            V_nr[k] = (dum1 + (rdumjj - dumjj) * (dum2 - dum1)) * rhofacr[i][k];
-            trace_data("    V_nr", 0, k, V_nr[k]);
+        // find bottom
+        for (int k = kbot; k != (k_qxtop+kdir); k+=kdir) {
+          if (qr[i][k] >= Globals<Real>::QSMALL) {
+            k_qxbot = k;
+            break;
           }
-          Co_max = std::max(Co_max, V_qr[k] * dt_left * inv_dzq[i][k]);
-          trace_data("  Co_max", 0, 0, Co_max);
         }
 
-        // compute dt_sub
-        int tmpint1 = static_cast<int>(Co_max + 1.0);
-        Real dt_sub = std::min(dt_left, dt_left / tmpint1);
+        while (dt_left > 1.e-4) {
+          Real Co_max = 0.0;
+          for (int kk = 0; kk < num_vert; ++kk) {
+            V_qr[i][kk] = 0.0;
+            V_nr[i][kk] = 0.0;
+          }
 
-        int k_temp = (k_qxbot == kbot) ? k_qxbot : (k_qxbot - kdir);
+          trace_loop("  k_loop_sedi_r1", k_qxtop, k_qxbot);
+          util::set_min_max(k_qxtop, k_qxbot, kmin, kmax);
+          for (int k = kmin; k <= kmax; ++k) {
+            if (qr[i][k] > Globals<Real>::QSMALL) {
+              // Compute Vq, Vn:
+              nr[i][k] = std::max(nr[i][k], Globals<Real>::NSMALL);
+              trace_data("    nr", i, k, nr[i][k]);
+              Real rdumii=0.0, tmp1=0.0, tmp2=0.0, rdumjj=0.0, inv_dum3=0.0;
+              int dumii=0, dumjj=0;
+              get_rain_dsd2(qr[i][k], nr[i][k], mu_r[i][k], rdumii, dumii, lamr[i][k], Globals<Real>::MU_R_TABLE, tmp1, tmp2);
+              find_lookupTable_indices_3(dumii, dumjj, rdumii, rdumjj, inv_dum3, mu_r[i][k], lamr[i][k]);
 
-        // calculate fluxes
-        trace_loop("  k_flux_loop", k_temp, k_qxtop);
-        for (int k = k_temp; k != (k_qxtop+kdir); k+=kdir) {
-          flux_qx[k] = V_qr[k] * qr[i][k] * rho[i][k];
-          trace_data("    flux_qx", 0, k, flux_qx[k]);
-          flux_nx[k] = V_nr[k] * nr[i][k] * rho[i][k];
-          trace_data("    flux_nx", 0, k, flux_nx[k]);
-        }
+              // mass-weighted fall speed:
+              Real dum1 = Globals<Real>::VM_TABLE[dumii-1][dumjj-1] + (rdumii-dumii) * inv_dum3 * \
+                (Globals<Real>::VM_TABLE[dumii][dumjj-1] - Globals<Real>::VM_TABLE[dumii-1][dumjj-1]);
+              Real dum2 = Globals<Real>::VM_TABLE[dumii-1][dumjj] + (rdumii-dumii) * inv_dum3 * \
+                (Globals<Real>::VM_TABLE[dumii][dumjj] - Globals<Real>::VM_TABLE[dumii-1][dumjj]);
 
-        // accumulated precip during time step
-        if (k_qxbot == kbot) {
-          prt_accum += flux_qx[kbot] * dt_sub;
-        }
+              V_qr[i][k] = (dum1 + (rdumjj - dumjj) * (dum2 - dum1)) * rhofacr[i][k];
+              trace_data("    V_qr", i, k, V_qr[i][k]);
 
-        // for top level only (since flux is 0 above)
-        int k = k_qxtop;
-        // compute flux divergence
-        Real fluxdiv_qx = -flux_qx[k] * inv_dzq[i][k];
-        Real fluxdiv_nx = -flux_nx[k] * inv_dzq[i][k];
-        // update prognostic variables
-        qr[i][k] += fluxdiv_qx * dt_sub * inv_rho[i][k];
-        trace_data("  qr", i, k, qr[i][k]);
-        nr[i][k] += fluxdiv_nx * dt_sub * inv_rho[i][k];
-        trace_data("  nr", i, k, nr[i][k]);
+              // number-weighted fall speed:
+              dum1 = Globals<Real>::VN_TABLE[dumii-1][dumjj-1] + (rdumii-dumii) * inv_dum3 * \
+                (Globals<Real>::VN_TABLE[dumii][dumjj-1] - Globals<Real>::VN_TABLE[dumii-1][dumjj-1]);
+              dum2 = Globals<Real>::VN_TABLE[dumii-1][dumjj] + (rdumii-dumii) * inv_dum3 * \
+                (Globals<Real>::VN_TABLE[dumii][dumjj] - Globals<Real>::VN_TABLE[dumii-1][dumjj]);
 
-        trace_loop("  k_flux_div_loop", k_qxtop - kdir, k_temp);
-        for (int k = k_qxtop - kdir; k != (k_temp-kdir); k-=kdir) {
+              V_nr[i][k] = (dum1 + (rdumjj - dumjj) * (dum2 - dum1)) * rhofacr[i][k];
+              trace_data("    V_nr", i, k, V_nr[i][k]);
+            }
+            Co_max = std::max(Co_max, V_qr[i][k] * dt_left * inv_dzq[i][k]);
+            trace_data("  Co_max", 0, 0, Co_max);
+          }
+
+          // compute dt_sub
+          int tmpint1 = static_cast<int>(Co_max + 1.0);
+          Real dt_sub = std::min(dt_left, dt_left / tmpint1);
+
+          int k_temp = (k_qxbot == kbot) ? k_qxbot : (k_qxbot - kdir);
+
+          // calculate fluxes
+          trace_loop("  k_flux_loop", k_temp, k_qxtop);
+          util::set_min_max(k_temp, k_qxtop+kdir, kmin, kmax);
+          for (int k = kmin; k <= kmax; ++k) {
+            flux_qx[i][k] = V_qr[i][k] * qr[i][k] * rho[i][k];
+            trace_data("    flux_qx", i, k, flux_qx[i][k]);
+            flux_nx[i][k] = V_nr[i][k] * nr[i][k] * rho[i][k];
+            trace_data("    flux_nx", i, k, flux_nx[i][k]);
+          }
+
+          // accumulated precip during time step
+          if (k_qxbot == kbot) {
+            prt_accum += flux_qx[i][kbot] * dt_sub;
+          }
+
+          // for top level only (since flux is 0 above)
+          int k = k_qxtop;
           // compute flux divergence
-          fluxdiv_qx = (flux_qx[k+kdir] - flux_qx[k]) * inv_dzq[i][k];
-          fluxdiv_nx = (flux_nx[k+kdir] - flux_nx[k]) * inv_dzq[i][k];
+          Real fluxdiv_qx = -flux_qx[i][k] * inv_dzq[i][k];
+          Real fluxdiv_nx = -flux_nx[i][k] * inv_dzq[i][k];
           // update prognostic variables
           qr[i][k] += fluxdiv_qx * dt_sub * inv_rho[i][k];
-          trace_data("    qr", i, k, qr[i][k]);
-          nr[i][k] += fluxdiv_nx  *dt_sub * inv_rho[i][k];
-          trace_data("    nr", i, k, nr[i][k]);
+          trace_data("  qr", i, k, qr[i][k]);
+          nr[i][k] += fluxdiv_nx * dt_sub * inv_rho[i][k];
+          trace_data("  nr", i, k, nr[i][k]);
+
+          trace_loop("  k_flux_div_loop", k_qxtop - kdir, k_temp);
+          util::set_min_max(k_qxtop - kdir, k_temp, kmin, kmax);
+          for (int k = kmin; k <= kmax; ++k) {
+            // compute flux divergence
+            fluxdiv_qx = (flux_qx[i][k+kdir] - flux_qx[i][k]) * inv_dzq[i][k];
+            fluxdiv_nx = (flux_nx[i][k+kdir] - flux_nx[i][k]) * inv_dzq[i][k];
+            // update prognostic variables
+            qr[i][k] += fluxdiv_qx * dt_sub * inv_rho[i][k];
+            trace_data("    qr", i, k, qr[i][k]);
+            nr[i][k] += fluxdiv_nx  *dt_sub * inv_rho[i][k];
+            trace_data("    nr", i, k, nr[i][k]);
+          }
+
+          dt_left -= dt_sub;  // update time remaining for sedimentation
+          if (k_qxbot != kbot) {
+            k_qxbot -= kdir;
+          }
         }
 
-        dt_left -= dt_sub;  // update time remaining for sedimentation
-        if (k_qxbot != kbot) {
-          k_qxbot -= kdir;
-        }
+        trace_data("  prt_liq", i, 0, prt_liq[i]);
+        trace_data("  prt_accum", 0, 0, prt_accum);
+        prt_liq[i] += prt_accum * Globals<Real>::INV_RHOW * odt;
+        trace_data("  prt_liq", i, 0, prt_liq[i]);
       }
-
-      trace_data("  prt_liq", i, 0, prt_liq[i]);
-      trace_data("  prt_accum", 0, 0, prt_accum);
-      prt_liq[i] += prt_accum * Globals<Real>::INV_RHOW * odt;
-      trace_data("  prt_liq", i, 0, prt_liq[i]);
     }
   }
 }
@@ -475,7 +491,7 @@ void micro_sed_func_vanilla_wrap(const int ni, const int nk, const Real dt, cons
   std::cout << "Running micro_sed_vanilla with ni=" << ni << ", nk=" << nk
             << ", dt=" << dt << ", ts=" << ts << ", kdir=" << kdir << std::endl;
 
-  populate_input(ni, nk, qr, nr, th, dzq, pres);
+  populate_input(ni, nk, kdir, qr, nr, th, dzq, pres);
 
   auto start = std::chrono::steady_clock::now();
 
