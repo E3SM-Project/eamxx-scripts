@@ -369,7 +369,8 @@ static Int run_and_cmp (const std::string& bfn, const Real& tol, bool verbose) {
           micro_sed_func_cpp(d_vanilla_cpp, vcpp_bridge);
           std::stringstream ss;
           ss << "Super-vanilla C++ step " << step;
-          Real fortran_tol = (tol < util::TOL) ? util::TOL : tol;
+          const Real sptol = 2e-5;
+          Real fortran_tol = (util::is_single_precision<Real>::value && tol < sptol) ? sptol : tol;
           nerr += compare(ss.str(), d_ref, d_vanilla_cpp, fortran_tol, verbose);
         }
 
@@ -377,7 +378,11 @@ static Int run_and_cmp (const std::string& bfn, const Real& tol, bool verbose) {
           micro_sed_func_cpp_kokkos(d_kokkos_cpp, kcpp_bridge, msvk);
           std::stringstream ss;
           ss << "Vanilla Kokkos C++ step " << step;
-          Real kokkos_tol = (tol < util::TOL) ? util::TOL : tol;
+          const Real sptol = 2e-5;
+          Real kokkos_tol = (util::is_single_precision<Real>::value && tol < sptol) ? sptol : tol;
+          // Sanity check.
+          micro_throw_if( ! util::is_single_precision<Real>::value && tol != 0,
+                          "We want BFB in double precision, at least in DEBUG builds.");
           nerr += compare(ss.str(), d_ref, d_kokkos_cpp, kokkos_tol, verbose);
         }
       }
