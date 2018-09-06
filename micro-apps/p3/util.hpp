@@ -106,6 +106,13 @@ using std::isfinite;
 using std::max_element;
 #endif
 
+template <typename Integer> KOKKOS_INLINE_FUNCTION
+void set_min_max (const Integer& lim0, const Integer& lim1,
+                  Integer& min, Integer& max) {
+  min = util::min(lim0, lim1);
+  max = util::max(lim0, lim1);
+}
+
 constexpr Real TOL = 2e-5; // a default tolerance high enough to handle round-off differences
 
 inline

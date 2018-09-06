@@ -240,18 +240,18 @@ contains
   end subroutine p3_init
 
   !=============================================================================!
-  subroutine populate_input(ni, nk, qr, nr, th, dzq, pres)
+  subroutine populate_input(ni, nk, qr, nr, th, dzq, pres, kdir)
   !=============================================================================!
     use cpp_bridge
     use iso_c_binding
 
     implicit none
 
-    integer, intent(in) :: ni, nk
+    integer, intent(in) :: ni, nk, kdir
 
     real, dimension(1:ni,1:nk), intent(inout), target :: qr, nr, th, dzq, pres
 
-    call fully_populate_input_data(ni, nk, c_loc(qr), c_loc(nr), c_loc(th), c_loc(dzq), c_loc(pres))
+    call fully_populate_input_data(ni, nk, kdir, c_loc(qr), c_loc(nr), c_loc(th), c_loc(dzq), c_loc(pres))
 
   end subroutine populate_input
 
@@ -281,7 +281,7 @@ contains
     call dump_arch_f90()
     print '("Running with ni=",I0," nk=",I0," dt=",F6.2," ts=",I0)', ni, nk, dt, ts
 
-    call populate_input(ni, nk, qr, nr, th, dzq, pres)
+    call populate_input(ni, nk, qr, nr, th, dzq, pres, kdir)
     print *, 'chunksize',chunksize
 
     start = omp_get_wtime()
