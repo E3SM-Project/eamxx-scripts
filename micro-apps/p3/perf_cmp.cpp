@@ -67,7 +67,7 @@ int main (int argc, char** argv) {
     return -1;
   }
 
-  Real tol = 0;
+  Real tol = util::TOL;
   bool verbose = false;
   for (Int i = 1; i < argc-1; ++i) {
     if (util::eq(argv[i], "-v", "--verbose")) verbose = true;
@@ -82,19 +82,6 @@ int main (int argc, char** argv) {
   std::string file1_fn(argv[argc-2]), file2_fn(argv[argc-1]);
   file1_fn += std::to_string(sizeof(Real));
   file2_fn += std::to_string(sizeof(Real));
-
-  if (util::is_single_precision<Real>::value &&
-      (file1_fn.find("fortran") != file2_fn.find("fortran")) &&
-      tol < util::TOL) {
-    std::cout << "Due to single-precision and comparing fortran to non-fortran, bumping tol to " << util::TOL << std::endl;
-    tol = util::TOL;
-  }
-
-  if ( (file1_fn.find("kokkos") != std::string::npos || file2_fn.find("kokkos") != std::string::npos) &&
-       tol < util::TOL) {
-    std::cout << "Due to presence of kokkos, bumping tol to " << util::TOL << std::endl;
-    tol = util::TOL;
-  }
 
   int rv = compare_files(file1_fn, file2_fn, tol, verbose);
 
