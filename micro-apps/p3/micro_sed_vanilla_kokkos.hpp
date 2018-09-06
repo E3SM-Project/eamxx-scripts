@@ -282,7 +282,10 @@ void micro_sed_func_vanilla_kokkos(MicroSedFuncVanillaKokkos<Real>& msvk,
         });
 
         trace_loop("  k_loop_sedi_r1", k_qxtop, k_qxbot);
-        Kokkos::parallel_reduce(Kokkos::TeamThreadRange(team_member, msvk.num_vert), [=] (int k, Real& lmax) {
+        int kmin, kmax;
+        util::set_min_max(k_qxtop, k_qxbot, kmin, kmax);
+        Kokkos::parallel_reduce(Kokkos::TeamThreadRange(team_member, kmax-kmin+1), [=] (int k_, Real& lmax) {
+          const int k = kmin + k_;
           if (qr(i, k) > Globals<Real>::QSMALL) {
             // Compute Vq, Vn:
             nr(i, k) = util::max(nr(i, k), nsmall);
@@ -325,7 +328,9 @@ void micro_sed_func_vanilla_kokkos(MicroSedFuncVanillaKokkos<Real>& msvk,
 
         // calculate fluxes
         trace_loop("  k_flux_loop", k_temp, k_qxtop);
-        Kokkos::parallel_for(Kokkos::TeamThreadRange(team_member, msvk.num_vert), [&] (int k) {
+        util::set_min_max(k_temp, k_qxtop+kdir, kmin, kmax);
+        Kokkos::parallel_for(Kokkos::TeamThreadRange(team_member, kmax-kmin+1), [&] (int k_) {
+          const int k = kmin + k_;
           msvk.flux_qx(i, k) = msvk.V_qr(i, k) * qr(i, k) * msvk.rho(i, k);
           trace_data("    flux_qx", i, k, msvk.flux_qx(i, k));
           msvk.flux_nx(i, k) = msvk.V_nr(i, k) * nr(i, k) * msvk.rho(i, k);
@@ -349,8 +354,10 @@ void micro_sed_func_vanilla_kokkos(MicroSedFuncVanillaKokkos<Real>& msvk,
         trace_data("  nr", i, k, nr(i, k));
 
         trace_loop("  k_flux_div_loop", k_qxtop - kdir, k_temp);
-        Kokkos::parallel_for(Kokkos::TeamThreadRange(team_member, msvk.num_vert), [&] (int k) {
-          if ( (k >= (k_qxtop - kdir) && k <= k_temp) || (k <= (k_qxtop - kdir) && k >= k_temp) ) {
+        util::set_min_max(k_qxtop - kdir, k_temp, kmin, kmax);
+        Kokkos::parallel_for(Kokkos::TeamThreadRange(team_member, kmax-kmin+1), [&] (int k_) {
+          const int k = kmin + k_;
+          {
             // compute flux divergence
             fluxdiv_qx = (msvk.flux_qx(i, k+kdir) - msvk.flux_qx(i, k)) * msvk.inv_dzq(i, k);
             fluxdiv_nx = (msvk.flux_nx(i, k+kdir) - msvk.flux_nx(i, k)) * msvk.inv_dzq(i, k);
