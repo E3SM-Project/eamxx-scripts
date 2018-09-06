@@ -272,7 +272,7 @@ contains
     real, dimension(ni,nk), target :: qr, nr, th, dzq, pres
     real, dimension(chunksize) :: cprt_liq
     real, dimension(ni), target :: prt_liq
-    real :: start, finish
+    real(8) :: start, finish
     integer :: ti, ci, nchunk, cni, cnk, ws, i
     logical :: ok
 
@@ -299,8 +299,12 @@ contains
     end do
 #else
     do ti = 1, ts
-       call micro_sed_func(1, nk, kdir, 1, ni, dt, &
-            qr, nr, th, dzq, pres, prt_liq)
+!$OMP PARALLEL DO DEFAULT(SHARED)
+       do i = 1, ni
+          call micro_sed_func(1, nk, kdir, 1, 1, dt, &
+               qr(i,:), nr(i,:), th(i,:), dzq(i,:), pres(i,:), prt_liq(i))
+       end do
+!$OMP END PARALLEL DO
     end do
 #endif
 
