@@ -430,7 +430,7 @@ void micro_sed_func_vanilla_kokkos_wrap(const int ni, const int nk, const Real d
   std::cout << "Running micro_sed_vanilla_kokkos with ni=" << ni << ", nk=" << nk
             << ", dt=" << dt << ", ts=" << ts << ", kdir=" << kdir << std::endl;
 
-  populate_input(ni, nk, qr_v, nr_v, th_v, dzq_v, pres_v);
+  populate_input(ni, nk, kdir, qr_v, nr_v, th_v, dzq_v, pres_v);
 
   kokkos_2d_t<Real> qr("qr", ni, nk),
     nr("nr", ni, nk),

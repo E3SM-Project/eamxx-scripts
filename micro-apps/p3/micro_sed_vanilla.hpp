@@ -76,12 +76,12 @@ template <typename Real>
 constexpr Real Globals<Real>::NSMALL;
 
 template <typename Real>
-void populate_input(const int ni, const int nk,
+void populate_input(const int ni, const int nk, const int kdir,
                     vector_2d_t<Real> & qr, vector_2d_t<Real> & nr, vector_2d_t<Real> & th, vector_2d_t<Real> & dzq, vector_2d_t<Real> & pres, const ic::MicroSedData<Real>* data = nullptr)
 {
   ic::MicroSedData<Real> default_data(ni, nk);
   if (data == nullptr) {
-    populate(default_data);
+    populate(default_data, kdir);
     data = &default_data;
   }
 
@@ -292,7 +292,9 @@ void micro_sed_func_vanilla(const int kts, const int kte, const int its, const i
 #pragma omp for
     for (int i = 0; i < num_horz; ++i) {
       trace_loop("  k_loop_1", kbot, ktop);
-      for (int k = kbot; k != (ktop+kdir); k+=kdir) {
+      int kmin, kmax;
+      util::set_min_max(kbot, ktop, kmin, kmax);
+      for (int k = kmin; k <= kmax; ++k) {
         rho[i][k] = pres[i][k] / (Globals<Real>::RD * t[i][k]);
         inv_rho[i][k] = 1.0 / rho[i][k];
         rhofacr[i][k] = std::pow(Globals<Real>::RHOSUR * inv_rho[i][k], 0.54);
@@ -336,7 +338,8 @@ void micro_sed_func_vanilla(const int kts, const int kte, const int its, const i
           }
 
           trace_loop("  k_loop_sedi_r1", k_qxtop, k_qxbot);
-          for (int k = k_qxtop; k != (k_qxbot-kdir); k-=kdir) {
+          util::set_min_max(k_qxtop, k_qxbot, kmin, kmax);
+          for (int k = kmin; k <= kmax; ++k) {
             if (qr[i][k] > Globals<Real>::QSMALL) {
               // Compute Vq, Vn:
               nr[i][k] = std::max(nr[i][k], Globals<Real>::NSMALL);
@@ -376,7 +379,8 @@ void micro_sed_func_vanilla(const int kts, const int kte, const int its, const i
 
           // calculate fluxes
           trace_loop("  k_flux_loop", k_temp, k_qxtop);
-          for (int k = k_temp; k != (k_qxtop+kdir); k+=kdir) {
+          util::set_min_max(k_temp, k_qxtop+kdir, kmin, kmax);
+          for (int k = kmin; k <= kmax; ++k) {
             flux_qx[i][k] = V_qr[i][k] * qr[i][k] * rho[i][k];
             trace_data("    flux_qx", i, k, flux_qx[i][k]);
             flux_nx[i][k] = V_nr[i][k] * nr[i][k] * rho[i][k];
@@ -400,7 +404,8 @@ void micro_sed_func_vanilla(const int kts, const int kte, const int its, const i
           trace_data("  nr", i, k, nr[i][k]);
 
           trace_loop("  k_flux_div_loop", k_qxtop - kdir, k_temp);
-          for (int k = k_qxtop - kdir; k != (k_temp-kdir); k-=kdir) {
+          util::set_min_max(k_qxtop - kdir, k_temp, kmin, kmax);
+          for (int k = kmin; k <= kmax; ++k) {
             // compute flux divergence
             fluxdiv_qx = (flux_qx[i][k+kdir] - flux_qx[i][k]) * inv_dzq[i][k];
             fluxdiv_nx = (flux_nx[i][k+kdir] - flux_nx[i][k]) * inv_dzq[i][k];
@@ -486,7 +491,7 @@ void micro_sed_func_vanilla_wrap(const int ni, const int nk, const Real dt, cons
   std::cout << "Running micro_sed_vanilla with ni=" << ni << ", nk=" << nk
             << ", dt=" << dt << ", ts=" << ts << ", kdir=" << kdir << std::endl;
 
-  populate_input(ni, nk, qr, nr, th, dzq, pres);
+  populate_input(ni, nk, kdir, qr, nr, th, dzq, pres);
 
   auto start = std::chrono::steady_clock::now();
 

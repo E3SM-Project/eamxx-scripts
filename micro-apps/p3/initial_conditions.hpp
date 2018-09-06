@@ -110,6 +110,12 @@ public:
   MicroSedData (const MicroSedData& d)
     : ni(d.ni), nk(d.nk), buf_(d.buf_), dt(d.dt), reverse(d.reverse)
   { init_ptrs(); }
+
+  void copy_data (const MicroSedData& d) {
+    assert(ni == d.ni);
+    assert(k == d.nk);
+    std::copy(d.buf_.begin(), d.buf_.end(), buf_.begin());
+  }
 };
 
 template <typename Scalar>
@@ -128,7 +134,7 @@ void duplicate_columns (MicroSedData<Scalar>& d) {
 }
 
 template <typename Scalar>
-void populate (MicroSedData<Scalar>& d) {
+void populate (MicroSedData<Scalar>& d, Int kdir) {
   set_hydrostatic(d.nk, d.dzq, d.pres);
 
   for (Int k = 0; k < d.nk; ++k)
@@ -140,6 +146,10 @@ void populate (MicroSedData<Scalar>& d) {
     d.prt_liq[i] = 0;
 
   duplicate_columns(d);
+  if (kdir == -1) {
+    const auto r = reverse_k(d);
+    d.copy_data(r);
+  }
 }
 
 template <typename Scalar>
@@ -166,7 +176,7 @@ static MicroSedData<Scalar> reverse_k (const MicroSedData<Scalar>& msd) {
 
 extern "C" {
 
-void fully_populate_input_data(Int ni, Int nk, Real** qr, Real** nr, Real** th, Real** dzq, Real** pres);
+void fully_populate_input_data(Int ni, Int nk, Int kdir, Real** qr, Real** nr, Real** th, Real** dzq, Real** pres);
 
 }
 

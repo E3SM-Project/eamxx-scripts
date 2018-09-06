@@ -238,7 +238,7 @@ void run_over_parameter_sets (MicroSedObserver<Scalar>& o, const Int ncol) {
 
   ic::MicroSedData<Scalar> d(ncol, 111);
   d.dt = dt_tot;
-  populate(d);
+  populate(d, 1);
 
   o.observe(d);
 
