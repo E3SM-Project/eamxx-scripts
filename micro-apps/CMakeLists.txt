@@ -65,6 +65,8 @@ endif()
 
 if ("${KOKKOS_GMAKE_ARCH}" STREQUAL "KNL")
   set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -xMIC-AVX512")
+elseif ("${KOKKOS_GMAKE_ARCH}" STREQUAL "SKX")
+  set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -xCORE-AVX512")
 endif()
 
 if (${ENABLE_TRACING})
