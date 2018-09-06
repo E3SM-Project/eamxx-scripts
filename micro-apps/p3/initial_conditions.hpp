@@ -113,7 +113,7 @@ public:
 
   void copy_data (const MicroSedData& d) {
     assert(ni == d.ni);
-    assert(k == d.nk);
+    assert(nk == d.nk);
     std::copy(d.buf_.begin(), d.buf_.end(), buf_.begin());
   }
 };
