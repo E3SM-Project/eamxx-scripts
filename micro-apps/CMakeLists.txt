@@ -63,6 +63,10 @@ else()
   set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -Wall")
 endif()
 
+if ("${KOKKOS_GMAKE_ARCH}" STREQUAL "KNL")
+  set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -xMIC-AVX512")
+endif()
+
 if (${ENABLE_TRACING})
   add_definitions(-DTRACE)
 endif()
