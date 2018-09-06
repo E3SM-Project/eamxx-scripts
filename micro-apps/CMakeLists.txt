@@ -69,11 +69,22 @@ elseif ("${KOKKOS_GMAKE_ARCH}" STREQUAL "SKX")
   set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -xCORE-AVX512")
 endif()
 
+STRING(TOLOWER "${CMAKE_BUILD_TYPE}" CMAKE_BUILD_TYPE_ci)
+if (CMAKE_BUILD_TYPE_ci STREQUAL "debug")
+  message("Disabling vectorization in this DEBUG build.")
+  set(ENABLE_FPE TRUE)
+  if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -no-vec -fp-model strict")
+    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -no-vec -fp-model strict")
+  endif ()
+endif ()
+
 if (${ENABLE_TRACING})
   add_definitions(-DTRACE)
 endif()
 
 if (${ENABLE_FPE})
+  message("Enabling FPE.")
   add_definitions(-DFPE)
 endif()
 

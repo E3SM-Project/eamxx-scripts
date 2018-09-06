@@ -67,7 +67,9 @@ int main (int argc, char** argv) {
     return -1;
   }
 
-  Real tol = util::TOL;
+  // When performance testing, we're using optimized flags, etc., so
+  // even in double precision we have to accept *some* diffs.
+  Real tol = util::is_single_precision<Real>::value ? 2e-5 : 1e-14;
   bool verbose = false;
   for (Int i = 1; i < argc-1; ++i) {
     if (util::eq(argv[i], "-v", "--verbose")) verbose = true;

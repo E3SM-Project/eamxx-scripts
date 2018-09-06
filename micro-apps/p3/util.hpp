@@ -113,8 +113,6 @@ void set_min_max (const Integer& lim0, const Integer& lim1,
   max = util::max(lim0, lim1);
 }
 
-constexpr Real TOL = 2e-5; // a default tolerance high enough to handle round-off differences
-
 inline
 std::string active_avx_string () {
   std::string s;
