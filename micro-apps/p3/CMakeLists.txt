@@ -14,6 +14,7 @@ target_link_libraries(micro_sed microsed)
 
 add_executable(unit_test_f90 unit_test.f90)
 target_link_libraries(unit_test_f90 microsed)
+set_target_properties(unit_test_f90 PROPERTIES LINKER_LANGUAGE Fortran)
 
 add_executable(run_and_cmp run_and_cmp.cpp)
 target_link_libraries(run_and_cmp microsed)

@@ -41,15 +41,31 @@ set (SCREAM_MICRO_APPS_LINK_FLAGS ${KOKKOS_LDFLAGS_STR})
 set (SCREAM_MICRO_APPS_INCLUDES ${Kokkos_INCLUDE_DIR})
 set (SCREAM_MICRO_APPS_LIBRARIES ${KOKKOS_LIBS})
 
-set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -Wall -cpp")
+set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -cpp")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SCREAM_MICRO_APPS_COMPILE_FLAGS} -Wall")
 
 if (${DOUBLE_PRECISION})
-  set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fdefault-real-8 -DDOUBLE_PRECISION")
+  set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -DDOUBLE_PRECISION")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DDOUBLE_PRECISION")
+  if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel")
+    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -real-size 64 ")
+  else()
+    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fdefault-real-8 ")
+  endif()
 endif()
+
 prc(DOUBLE_PRECISION)
 prc(CHUNKSIZE)
+
+if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -restrict")
+else()
+  set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -Wall")
+endif()
+
+if ("${KOKKOS_GMAKE_ARCH}" STREQUAL "KNL")
+  set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -xMIC-AVX512")
+endif()
 
 if (${ENABLE_TRACING})
   add_definitions(-DTRACE)
