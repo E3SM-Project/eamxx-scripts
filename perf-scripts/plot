@@ -4,7 +4,7 @@
 Plot results from perf_analysis
 """
 
-from utils import run_cmd_no_fail, expect, check_minimum_python_version
+from utils import expect, check_minimum_python_version
 check_minimum_python_version(2, 7)
 
 import matplotlib.pyplot as plt
@@ -58,20 +58,19 @@ def axis_tight_pad(pad=0.05, mult=False):
 class Plotter(object):
 ###############################################################################
 
-    def __init__(datafiles):
+    def __init__(self, datafiles):
         self._scaling_var  = None
         self._consistent   = OrderedDict()
         self._inconsistent = []
 
         for datafile in datafiles:
-            provenance = {}
             with open(datafile, "r") as fd:
                 lines = [line.strip() for line in fd.readlines()]
 
             prov_line = lines[0]
             test_line = lines[1]
 
-            scaling_var = test_lines.split()[1]
+            scaling_var = test_line.split()[1]
             first_file = self._scaling_var is None
             if first_file:
                 self._scaling_var = scaling_var
