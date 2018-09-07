@@ -170,7 +170,9 @@ public:
 template <typename Real>
 void reset(MicroSedFuncVanillaKokkos<Real>& msvk)
 {
-  Kokkos::parallel_for("2d reset", team_policy(msvk.num_horz, Kokkos::AUTO), KOKKOS_LAMBDA(member_type team_member) {
+  Kokkos::parallel_for("2d reset",
+                       util::ExeSpaceUtils<>::get_default_team_policy(msvk.num_horz, msvk.num_vert),
+                       KOKKOS_LAMBDA(member_type team_member) {
     const int i = team_member.league_rank();
     Kokkos::parallel_for(Kokkos::TeamThreadRange(team_member, msvk.num_vert), [=] (int k) {
       msvk.V_qr(i, k)    = 0.0;
@@ -226,13 +228,7 @@ void micro_sed_func_vanilla_kokkos(MicroSedFuncVanillaKokkos<Real>& msvk,
   // Rain sedimentation:  (adaptivive substepping)
   trace_loop("i_loop_main", 0, msvk.num_horz);
   Kokkos::parallel_for("main rain sed loop",
-                       team_policy(msvk.num_horz,
-#ifdef MIMIC_GPU
-                                   7
-#else
-                                   Kokkos::AUTO
-#endif
-                                   ),
+                       util::ExeSpaceUtils<>::get_default_team_policy(msvk.num_horz, msvk.num_vert),
                        KOKKOS_LAMBDA(member_type team_member) {
     const int i = team_member.league_rank();
 

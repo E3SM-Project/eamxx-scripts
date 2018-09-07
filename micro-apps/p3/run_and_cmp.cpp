@@ -9,10 +9,6 @@
 #include <iostream>
 #include <exception>
 
-#ifdef FPE
-# include <xmmintrin.h>
-#endif
-
 // Nothing in this file is intended to be indicative of the eventual perf
 // portable impl. E.g., Kokkos is not used here. The objective is simply to test
 // for input/output regression errors.
@@ -404,13 +400,6 @@ static void expect_another_arg (Int i, Int argc) {
     throw std::runtime_error("Expected another cmd-line arg.");
 }
 
-static Int unittest () {
-  Int nerr = 0;
-  if (util::is_single_precision<double>::value) nerr++;
-  if ( ! util::is_single_precision<float>::value) nerr++;
-  return nerr;
-}
-
 int main (int argc, char** argv) {
   util::initialize();
 
@@ -442,7 +431,6 @@ int main (int argc, char** argv) {
 
   Int out = 0;
   Kokkos::initialize(argc, argv); {
-    out = unittest();
     if (generate) {
       // Generate a single-column baseline file.
       std::cout << "Generating to " << baseline_fn << "\n";
