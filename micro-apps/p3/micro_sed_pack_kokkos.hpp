@@ -5,6 +5,7 @@
 #include "initial_conditions.hpp"
 #include "micro_kokkos.hpp"
 #include "micro_sed_vanilla.hpp"
+#include "scream_pack.hpp"
 
 #include <vector>
 #include <cmath>
@@ -16,6 +17,11 @@ namespace p3 {
 namespace micro_sed_pack {
 
 using micro_sed_vanilla::Globals;
+using namespace scream;
+
+#define SCREAM_PACKN 1
+using RealPack = Pack<Real, SCREAM_PACKN>;
+using IntPack = Pack<Int, SCREAM_PACKN>;
 
 template <typename Real>
 using kokkos_2d_table_t = Kokkos::View<Real[300][10], Layout, MemSpace>;
@@ -23,9 +29,7 @@ using kokkos_2d_table_t = Kokkos::View<Real[300][10], Layout, MemSpace>;
 template <typename Real>
 using kokkos_1d_table_t = Kokkos::View<Real[150], Layout, MemSpace>;
 
-/**
- * Finds indices in rain lookup table (3)
- */
+// Finds indices in rain lookup table (3)
 template <typename Real> KOKKOS_FUNCTION
 void find_lookupTable_indices_3_kokkos (
   int& dumii, int& dumjj, Real& rdumii, Real& rdumjj, Real& inv_dum3,
@@ -43,7 +47,7 @@ void find_lookupTable_indices_3_kokkos (
     dumii  = util::min(dumii,20);
   }
   else {
-    inv_dum3  = Globals<Real>::THRD*0.1;           // i.e. 1/30
+    inv_dum3  = Globals<Real>::THRD*0.1;
     rdumii = (dum1*1.e+6-195.)*inv_dum3 + 20.;
     rdumii = util::max<Real>(rdumii, 20.);
     rdumii = util::min<Real>(rdumii,300.);
@@ -61,9 +65,7 @@ void find_lookupTable_indices_3_kokkos (
   dumjj  = util::min(dumjj,9);
 }
 
-/**
- * Computes and returns rain size distribution parameters
- */
+// Computes and returns rain size distribution parameters
 template <typename Real> KOKKOS_FUNCTION
 void get_rain_dsd2_kokkos (const Real qr, Real& nr, Real& mu_r, Real& rdumii, int& dumii, Real& lamr,
                            kokkos_1d_table_t<Real> const& mu_r_table, Real& cdistr, Real& logn0r)
@@ -76,7 +78,7 @@ void get_rain_dsd2_kokkos (const Real qr, Real& nr, Real& mu_r, Real& rdumii, in
     // find spot in lookup table
     // (scaled N/q for lookup table parameter space_
     nr = util::max(nr, nsmall);
-    Real inv_dum = std::pow(qr / (Globals<Real>::CONS1 * nr * 6.0), Globals<Real>::THRD);
+    Real inv_dum = pow(qr / (Globals<Real>::CONS1 * nr * 6.0), Globals<Real>::THRD);
 
     if (inv_dum < 282.e-6) {
       mu_r = 8.282;
@@ -94,28 +96,28 @@ void get_rain_dsd2_kokkos (const Real qr, Real& nr, Real& mu_r, Real& rdumii, in
       mu_r = 0.0;
     }
 
-    lamr   = std::pow((Globals<Real>::CONS1 *nr *(mu_r+3.0) * (mu_r+2) * (mu_r+1.)/(qr)),
-                      Globals<Real>::THRD); // recalculate slope based on mu_r
+    lamr   = pow((Globals<Real>::CONS1 *nr *(mu_r+3.0) * (mu_r+2) * (mu_r+1.)/(qr)),
+                 Globals<Real>::THRD); // recalculate slope based on mu_r
     Real lammax = (mu_r+1.)*1.e+5;  // check for slope
     Real lammin = (mu_r+1.)*1250.0; // set to small value since breakup is explicitly included (mean size 0.8 mm)
 
     // apply lambda limiters for rain
     if (lamr < lammin) {
       lamr = lammin;
-      nr   = std::exp(3.*std::log(lamr) + std::log(qr) +
-                      std::log(std::tgamma(mu_r+1.)) - std::log(std::tgamma(mu_r+4.)))/
+      nr   = exp(3.*log(lamr) + log(qr) +
+                 log(tgamma(mu_r+1.)) - log(tgamma(mu_r+4.)))/
         (Globals<Real>::CONS1);
     }
     else if (lamr > lammax) {
       lamr = lammax;
-      nr   = std::exp(3.*std::log(lamr) + std::log(qr) +
-                      std::log(std::tgamma(mu_r+1.)) - log(std::tgamma(mu_r+4.)))/
+      nr   = exp(3.*log(lamr) + log(qr) +
+                 log(tgamma(mu_r+1.)) - log(tgamma(mu_r+4.)))/
         (Globals<Real>::CONS1);
     }
 
-    cdistr  = nr/std::tgamma(mu_r+1.);
+    cdistr  = nr/tgamma(mu_r+1.);
     // note: logn0r is calculated as log10(n0r);
-    logn0r  = std::log10(nr) + (mu_r+1.)*std::log10(lamr) - std::log10(std::tgamma(mu_r+1));
+    logn0r  = log10(nr) + (mu_r+1.)*log10(lamr) - log10(tgamma(mu_r+1));
   }
   else {
     lamr   = 0.0;
@@ -126,28 +128,31 @@ void get_rain_dsd2_kokkos (const Real qr, Real& nr, Real& mu_r, Real& rdumii, in
 
 template <typename Real>
 struct MicroSedFuncPackKokkos {
-  int num_horz, num_vert;
+  int num_horz, num_vert, num_pack, num_pack_p1;
 
   // re-usable scratch views
-  kokkos_2d_t<Real> V_qr, V_nr, flux_qx, flux_nx, mu_r, lamr, rhofacr, inv_dzq, rho, inv_rho, t, tmparr1;
+  kokkos_2d_t<RealPack> V_qr, V_nr, flux_qx, flux_nx, mu_r, lamr, rhofacr, inv_dzq, rho, inv_rho, t, tmparr1;
+  
   kokkos_2d_table_t<Real> vn_table, vm_table;
   kokkos_1d_table_t<Real> mu_r_table;
 
 public:
   MicroSedFuncPackKokkos(int num_horz_, int num_vert_) :
     num_horz(num_horz_), num_vert(num_vert_),
-    V_qr("V_qr", num_horz, num_vert),
-    V_nr("V_nr", num_horz, num_vert),
-    flux_qx("flux_qx", num_horz, num_vert),
-    flux_nx("flux_nx", num_horz, num_vert),
-    mu_r("mu_r", num_horz, num_vert),
-    lamr("lamr", num_horz, num_vert),
-    rhofacr("rhofacr", num_horz, num_vert),
-    inv_dzq("inv_dzq", num_horz, num_vert),
-    rho("rho", num_horz, num_vert),
-    inv_rho("inv_rho", num_horz, num_vert),
-    t("t", num_horz, num_vert),
-    tmparr1("tmparr1", num_horz, num_vert),
+    num_pack((num_vert_ + RealPack::n - 1) / RealPack::n),
+    num_pack_p1((num_vert_ + RealPack::n) / RealPack::n),
+    V_qr("V_qr", num_horz, num_pack),
+    V_nr("V_nr", num_horz, num_pack),
+    flux_qx("flux_qx", num_horz, num_pack),
+    flux_nx("flux_nx", num_horz, num_pack),
+    mu_r("mu_r", num_horz, num_pack),
+    lamr("lamr", num_horz, num_pack),
+    rhofacr("rhofacr", num_horz, num_pack),
+    inv_dzq("inv_dzq", num_horz, num_pack),
+    rho("rho", num_horz, num_pack),
+    inv_rho("inv_rho", num_horz, num_pack),
+    t("t", num_horz, num_pack),
+    tmparr1("tmparr1", num_horz, num_pack),
     vn_table("VN_TABLE"), vm_table("VM_TABLE"),
     mu_r_table("MU_R_TABLE")
   {
@@ -180,47 +185,30 @@ void reset (MicroSedFuncPackKokkos<Real>& msvk) {
   Kokkos::parallel_for("2d reset",
                        util::ExeSpaceUtils<>::get_default_team_policy(msvk.num_horz, msvk.num_vert),
                        KOKKOS_LAMBDA(member_type team_member) {
-    const int i = team_member.league_rank();
-    Kokkos::parallel_for(Kokkos::TeamThreadRange(team_member, msvk.num_vert), [=] (int k) {
-      msvk.V_qr(i, k)    = 0.0;
-      msvk.V_nr(i, k)    = 0.0;
-      msvk.flux_qx(i, k) = 0.0;
-      msvk.flux_nx(i, k) = 0.0;
-      msvk.mu_r(i, k)    = 0.0;
-      msvk.lamr(i, k)    = 0.0;
-      msvk.rhofacr(i, k) = 0.0;
-      msvk.inv_dzq(i, k) = 0.0;
-      msvk.rho(i, k)     = 0.0;
-      msvk.inv_rho(i, k) = 0.0;
-      msvk.t(i, k)       = 0.0;
-      msvk.tmparr1(i, k) = 0.0;
-    });
-  });
+                         const int i = team_member.league_rank();
+                         Kokkos::parallel_for(Kokkos::TeamThreadRange(team_member, msvk.num_pack), [=] (int k) {
+                             msvk.V_qr(i, k)    = 0.0;
+                             msvk.V_nr(i, k)    = 0.0;
+                             msvk.flux_qx(i, k) = 0.0;
+                             msvk.flux_nx(i, k) = 0.0;
+                             msvk.mu_r(i, k)    = 0.0;
+                             msvk.lamr(i, k)    = 0.0;
+                             msvk.rhofacr(i, k) = 0.0;
+                             msvk.inv_dzq(i, k) = 0.0;
+                             msvk.rho(i, k)     = 0.0;
+                             msvk.inv_rho(i, k) = 0.0;
+                             msvk.t(i, k)       = 0.0;
+                             msvk.tmparr1(i, k) = 0.0;
+                           });
+                       });
 }
 
-/**
- * Arg explanation
- *
- * kts: vertical array bound (top)
- * kte: vertical array bound (bottom)
- * ni: number of columns in slab
- * nk: number of vertical levels
- * its: horizontal array bound
- * ite: horizontal array bound
- * dt: time step
- * qr: rain, mass mixing ratio  (in/out)
- * nr: rain, number mixing ratio (in/out)
- * th: potential temperature                    K
- * dzq: vertical grid spacing                   m
- * pres: pressure                               Pa
- * prt_liq: precipitation rate, total liquid    m s-1  (output)
- */
 void micro_sed_func_pack_kokkos (
   MicroSedFuncPackKokkos<Real>& msvk,
   const int kts, const int kte, const int its, const int ite, const Real dt,
-  kokkos_2d_t<Real> & qr, kokkos_2d_t<Real> & nr,
-  kokkos_2d_t<Real> const& th, kokkos_2d_t<Real> const& dzq, kokkos_2d_t<Real> const& pres,
-  kokkos_1d_t<Real> & prt_liq)
+  kokkos_2d_t<RealPack>& qr, kokkos_2d_t<RealPack>& nr,
+  kokkos_2d_t<RealPack> const& th, kokkos_2d_t<RealPack> const& dzq, kokkos_2d_t<RealPack> const& pres,
+  kokkos_1d_t<RealPack>& prt_liq)
 {
   // constants
   const Real odt = 1.0 / dt;
@@ -230,7 +218,7 @@ void micro_sed_func_pack_kokkos (
   const int kbot = (kts < kte) ? 0: msvk.num_vert-1;
   const int kdir = (kts < kte) ? 1  : -1;
 
-  // Rain sedimentation:  (adaptivive substepping)
+  // Rain sedimentation:  (adaptive substepping)
   Kokkos::parallel_for(
     "main rain sed loop",
     util::ExeSpaceUtils<>::get_default_team_policy(msvk.num_horz, msvk.num_vert),
@@ -238,13 +226,15 @@ void micro_sed_func_pack_kokkos (
       const int i = team_member.league_rank();
 
       Kokkos::parallel_for(
-        Kokkos::TeamThreadRange(team_member, msvk.num_vert), [=] (int k) {
+        Kokkos::TeamThreadRange(team_member, msvk.num_pack), [=] (int k) {
           // inverse of thickness of layers
           msvk.inv_dzq(i, k) = 1 / dzq(i, k);
-          msvk.t(i, k) = std::pow(pres(i, k) * 1.e-5, Globals<Real>::RD * Globals<Real>::INV_CP) * th(i, k);
+          msvk.t(i, k) = pow(pres(i, k) * 1.e-5,
+                             Globals<Real>::RD * Globals<Real>::INV_CP)
+            * th(i, k);
           msvk.rho(i, k) = pres(i, k) / (Globals<Real>::RD * msvk.t(i, k));
           msvk.inv_rho(i, k) = 1.0 / msvk.rho(i, k);
-          msvk.rhofacr(i, k) = std::pow(Globals<Real>::RHOSUR * msvk.inv_rho(i, k), 0.54);
+          msvk.rhofacr(i, k) = pow(Globals<Real>::RHOSUR * msvk.inv_rho(i, k), 0.54);
         });
       team_member.team_barrier();
 
@@ -260,15 +250,12 @@ void micro_sed_func_pack_kokkos (
             lmax = k*kdir;
           }
         }, Kokkos::Max<int>(k_qxtop));
-      // If the if statement in the parallel_reduce is never true,
-      // k_qxtop will end up being a large negative number,
-      // Max::init()'s value.
+      // If the if statement in the parallel_reduce is never true, k_qxtop will
+      // end up being a large negative number, Max::init()'s value.
       k_qxtop *= kdir;
       log_qxpresent = k_qxtop >= 0;
 
-      // JGF: It appears rain sedimentation is mostly nothing unless log_qxpresent is true
       if (log_qxpresent) {
-
         Real dt_left = dt;    // time remaining for sedi over full model (mp) time step
         Real prt_accum = 0.0; // precip rate for individual category
         int k_qxbot = 0;
@@ -280,8 +267,8 @@ void micro_sed_func_pack_kokkos (
               lmin = k*kdir;
             }
           }, Kokkos::Min<int>(k_qxbot));
-        // As log_qxpresent is true, we don't have to worry about this
-        // reduction as we did for the one for k_qxtop.
+        // As log_qxpresent is true, we don't have to worry about this reduction
+        // as we did for the one for k_qxtop.
         k_qxbot *= kdir;
 
         while (dt_left > 1.e-4) {
@@ -339,7 +326,8 @@ void micro_sed_func_pack_kokkos (
 
           // calculate fluxes
           util::set_min_max(k_temp, k_qxtop+kdir, kmin, kmax);
-          Kokkos::parallel_for(Kokkos::TeamThreadRange(team_member, kmax-kmin+1), [&] (int k_) {
+          Kokkos::parallel_for(
+            Kokkos::TeamThreadRange(team_member, kmax-kmin+1), [&] (int k_) {
               const int k = kmin + k_;
               msvk.flux_qx(i, k) = msvk.V_qr(i, k) * qr(i, k) * msvk.rho(i, k);
               msvk.flux_nx(i, k) = msvk.V_nr(i, k) * nr(i, k) * msvk.rho(i, k);
@@ -397,7 +385,7 @@ void micro_sed_func_pack_kokkos (
 
 template <typename Real>
 void populate_kokkos_from_vec (
-  const int num_horz, const int num_vert, vector_2d_t<Real> const& vec, kokkos_2d_t<Real>& device)
+  const int num_horz, const int num_vert, vector_2d_t<Real> const& vec, kokkos_2d_t<RealPack>& device)
 {
   typename kokkos_2d_t<Real>::HostMirror mirror = Kokkos::create_mirror_view(device);
 
@@ -434,7 +422,7 @@ void dump_to_file_k (
   Kokkos::deep_copy(pres_m,    pres);
   Kokkos::deep_copy(prt_liq_m, prt_liq);
 
-  dump_to_file("kokkos", qr_m.data(), nr_m.data(), th_m.data(), dzq_m.data(), pres_m.data(),
+  dump_to_file("pack_kokkos", qr_m.data(), nr_m.data(), th_m.data(), dzq_m.data(), pres_m.data(),
                prt_liq_m.data(), ni, nk, dt, ts);
 }
 
@@ -442,11 +430,8 @@ template <typename Real>
 void micro_sed_func_pack_kokkos_wrap (
   const int ni, const int nk, const Real dt, const int ts, const int kdir)
 {
-  vector_2d_t<Real> qr_v(ni,    std::vector<Real>(nk)),
-    nr_v(ni,    std::vector<Real>(nk)),
-    th_v(ni,    std::vector<Real>(nk)),
-    dzq_v(ni,   std::vector<Real>(nk)),
-    pres_v(ni,  std::vector<Real>(nk));
+  std::vector<Real> v(nk);
+  vector_2d_t<Real> qr_v(ni, v), nr_v(ni, v), th_v(ni, v), dzq_v(ni, v), pres_v(ni, v);
 
   util::dump_arch();
   std::cout << "Running micro_sed_pack_kokkos with ni=" << ni << ", nk=" << nk
@@ -454,12 +439,11 @@ void micro_sed_func_pack_kokkos_wrap (
 
   populate_input(ni, nk, kdir, qr_v, nr_v, th_v, dzq_v, pres_v);
 
-  kokkos_2d_t<Real> qr("qr", ni, nk),
-    nr("nr", ni, nk),
-    th("th", ni, nk),
-    dzq("dzq", ni, nk),
-    pres("pres", ni, nk);
-
+  MicroSedFuncPackKokkos<Real> mspk(ni, nk);
+  const int np = mspk.num_pack;
+  
+  kokkos_2d_t<RealPack> qr("qr", ni, np), nr("nr", ni, np), th("th", ni, np), dzq("dzq", ni, np),
+    pres("pres", ni, np);
   kokkos_1d_t<Real> prt_liq("prt_liq", ni);
 
   for (auto item : { std::make_pair(&qr_v, &qr), std::make_pair(&nr_v, &nr), std::make_pair(&th_v, &th),
@@ -467,22 +451,17 @@ void micro_sed_func_pack_kokkos_wrap (
     populate_kokkos_from_vec(ni, nk, *(item.first), *(item.second));
   }
 
-  MicroSedFuncPackKokkos<Real> msvk(ni, nk);
-
   auto start = std::chrono::steady_clock::now();
 
   for (int i = 0; i < ts; ++i) {
-    micro_sed_func_pack_kokkos(msvk,
+    micro_sed_func_pack_kokkos(mspk,
                                kdir == 1 ? 1 : nk, kdir == 1 ? nk : 1,
                                1, ni, dt, qr, nr, th, dzq, pres, prt_liq);
   }
-
   Kokkos::fence();
 
   auto finish = std::chrono::steady_clock::now();
-
   auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(finish - start);
-
   std::cout << "Time = " << duration.count() / 1000.0 << " seconds." << std::endl;
 
   dump_to_file_k(qr, nr, th, dzq, pres, prt_liq, dt, ts);

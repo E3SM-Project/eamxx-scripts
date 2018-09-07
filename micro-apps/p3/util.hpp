@@ -55,7 +55,6 @@
   } while (0)
 
 #if defined __INTEL_COMPILER
-# pragma message "Intel"
 # define vector_ivdep _Pragma("ivdep")
 # ifdef _OPENMP
 #  define vector_simd _Pragma("omp simd")
@@ -63,7 +62,6 @@
 #  define vector_simd _Pragma("simd")
 # endif
 #elif defined __GNUG__
-# pragma message "GCC"
 # define vector_ivdep _Pragma("GCC ivdep")
 # define vector_simd _Pragma("GCC ivdep")
 # define restrict __restrict__
