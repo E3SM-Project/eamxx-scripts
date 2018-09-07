@@ -2,6 +2,7 @@
 #include "util.hpp"
 #include "initial_conditions.hpp"
 #include "micro_sed_vanilla_kokkos.hpp"
+#include "micro_sed_pack_kokkos.hpp"
 #include "micro_kokkos.hpp"
 #include "cmp.hpp"
 
@@ -198,6 +199,16 @@ void micro_sed_func_cpp_kokkos (ic::MicroSedData<Scalar>& d, KokkosCppBridge<Sca
 }
 
 template <typename Scalar>
+void micro_sed_func_cpp_pack_kokkos (ic::MicroSedData<Scalar>& d, KokkosCppBridge<Scalar>& bridge, p3::micro_sed_pack::MicroSedFuncPackKokkos<Real>& msvk)
+{
+  micro_sed_func_pack_kokkos( msvk, d.reverse ? d.nk : 1, d.reverse ? 1 : d.nk,
+                              1, d.ni, d.dt, bridge.qr, bridge.nr, bridge.th,
+                              bridge.dzq, bridge.pres, bridge.prt_liq);
+
+  bridge.sync_to(d);
+}
+
+template <typename Scalar>
 struct MicroSedObserver {
   virtual ~MicroSedObserver () {}
   virtual void observe (const ic::MicroSedData<Scalar>& d) = 0;
@@ -329,7 +340,11 @@ static Int run_and_cmp (const std::string& bfn, const Real& tol, bool verbose) {
       auto d_kokkos_cpp(d_orig_fortran);
       KokkosCppBridge<Scalar> kcpp_bridge(d_kokkos_cpp);
 
+      auto d_pack_kokkos_cpp(d_orig_fortran);
+      KokkosCppBridge<Scalar> kcpp_pack_bridge(d_pack_kokkos_cpp);
+
       p3::micro_sed_vanilla::MicroSedFuncVanillaKokkos<Scalar> msvk(d_ic.ni, d_ic.nk);
+      p3::micro_sed_pack::MicroSedFuncPackKokkos<Scalar> mspk(d_ic.ni, d_ic.nk);
 
       for (Int step = 0; step < BaselineConsts::nstep; ++step) {
         // Read the baseline.
@@ -380,6 +395,18 @@ static Int run_and_cmp (const std::string& bfn, const Real& tol, bool verbose) {
           micro_throw_if( ! util::is_single_precision<Real>::value && tol != 0,
                           "We want BFB in double precision, at least in DEBUG builds.");
           nerr += compare(ss.str(), d_ref, d_kokkos_cpp, kokkos_tol, verbose);
+        }
+
+        { // C++ kokkos with packs.
+          micro_sed_func_cpp_pack_kokkos(d_pack_kokkos_cpp, kcpp_pack_bridge, mspk);
+          std::stringstream ss;
+          ss << "Pack Kokkos C++ step " << step;
+          const Real sptol = 2e-5;
+          Real kokkos_tol = (util::is_single_precision<Real>::value && tol < sptol) ? sptol : tol;
+          // Sanity check.
+          micro_throw_if( ! util::is_single_precision<Real>::value && tol != 0,
+                          "We want BFB in double precision, at least in DEBUG builds.");
+          nerr += compare(ss.str(), d_ref, d_pack_kokkos_cpp, kokkos_tol, verbose);
         }
       }
     }
