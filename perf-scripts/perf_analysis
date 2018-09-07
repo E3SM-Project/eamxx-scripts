@@ -220,6 +220,8 @@ def perf_analysis(ni, nk, dt, ts, num_runs, tests, cmake_options, use_existing, 
     if plot_friendly:
         scaling_exp.plot(results)
 
+    return True
+
 ###############################################################################
 def _main_func(description):
 ###############################################################################
