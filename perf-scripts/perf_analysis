@@ -8,7 +8,7 @@ expected that this will be run from micro-apps directory.
 from utils import run_cmd_no_fail, expect, check_minimum_python_version
 check_minimum_python_version(2, 7)
 
-import argparse, sys, os, tempfile, re
+import argparse, sys, os, tempfile, re, socket
 
 ###############################################################################
 class ScalingExp(object):
@@ -37,7 +37,14 @@ class ScalingExp(object):
         d[self.varname] = int(d[self.varname] * self.scale_factor)
         return d['ni'], d['nk'], d['dt'], d['ts']
 
-    def plot(self, results):
+    def plot(self, results, ni, nk, dt, ts):
+        prov_msg = "Provenance: "
+        for data, name in [(ni, "ni"), (nk, "nk"), (dt, "dt"), (ts, "ts")]:
+            if name != self.varname:
+                prov_msg += " {}={}".format(name, data)
+
+        print "{} machine={} commit={}".format(prov_msg, socket.gethostname(), run_cmd_no_fail("git rev-parse --short HEAD"))
+
         for test_name, test_results in results.iteritems():
             print test_name, self.varname
             for test_result in test_results:
@@ -218,7 +225,7 @@ def perf_analysis(ni, nk, dt, ts, num_runs, tests, cmake_options, use_existing, 
         ni, nk, dt, ts = scaling_exp.update_values(ni, nk, dt, ts)
 
     if plot_friendly:
-        scaling_exp.plot(results)
+        scaling_exp.plot(results, ni, nk, dt, ts)
 
     return True
 

@@ -42,7 +42,9 @@ def plotdata(datafile):
     with open(datafile, "r") as fd:
         for line in fd.readlines():
             line = line.strip()
-            if "," in line:
+            if "Provenance" in line:
+                pass
+            elif "," in line:
                 x, y = [float(item) for item in line.split(", ")]
                 xs.append(x)
                 ys.append(y)
