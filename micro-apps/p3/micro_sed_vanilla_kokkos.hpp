@@ -248,7 +248,7 @@ void micro_sed_func_vanilla_kokkos(MicroSedFuncVanillaKokkos<Real>& msvk,
     // Note, we are skipping supersaturation checks
 
     bool log_qxpresent = false;
-    int k_qxtop = kbot;
+    int k_qxtop;
 
     // find top, determine qxpresent
     Kokkos::parallel_reduce(Kokkos::TeamThreadRange(team_member, msvk.num_vert), [=] (int k, int& lmax) {
@@ -256,8 +256,11 @@ void micro_sed_func_vanilla_kokkos(MicroSedFuncVanillaKokkos<Real>& msvk,
         lmax = k*kdir;
       }
     }, Kokkos::Max<int>(k_qxtop));
-    log_qxpresent = k_qxtop != -msvk.num_vert;
+    // If the if statement in the parallel_reduce is never true,
+    // k_qxtop will end up being a large negative number,
+    // Max::init()'s value.
     k_qxtop *= kdir;
+    log_qxpresent = k_qxtop >= 0;
 
     // JGF: It appears rain sedimentation is mostly nothing unless log_qxpresent is true
     if (log_qxpresent) {
@@ -272,6 +275,8 @@ void micro_sed_func_vanilla_kokkos(MicroSedFuncVanillaKokkos<Real>& msvk,
           lmin = k*kdir;
         }
       }, Kokkos::Min<int>(k_qxbot));
+      // As log_qxpresent is true, we don't have to worry about this
+      // reduction as we did for the one for k_qxtop.
       k_qxbot *= kdir;
 
       while (dt_left > 1.e-4) {
