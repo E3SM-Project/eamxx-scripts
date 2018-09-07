@@ -34,6 +34,26 @@ OR
     return args.datafile
 
 ###############################################################################
+def pad_lim(lim, pad=0.05, mult=False):
+###############################################################################
+    if mult:
+        lims = lim[0] * (1 - pad), lim[1] * (1 + pad)
+    else:
+        d = lim[1] - lim[0]
+        delta = pad * d
+        lims = lim[0] - delta, lim[1] + delta
+    return lims
+
+###############################################################################
+def axis_tight_pad(pad=0.05, mult=False):
+###############################################################################
+    plt.axis('tight')
+    xl = plt.xlim()
+    yl = plt.ylim()
+    plt.xlim(pad_lim(xl, pad, mult))
+    return plt.ylim(pad_lim(yl, pad, mult))
+
+###############################################################################
 def plotdata(datafile):
 ###############################################################################
     xs, ys = [], []
@@ -63,7 +83,8 @@ def plotdata(datafile):
     plt.ylabel("cols/s")
     if title:
         plt.title(title)
-    plt.legend()
+    plt.legend(loc="best")
+    axis_tight_pad()
 
     plt.show()
 
