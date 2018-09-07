@@ -34,7 +34,7 @@ template <typename Scalar>
 static void set_hydrostatic (const Int nk, Scalar* const dzq, Scalar* const pres) {
   const auto dp = (consts::pres_top - consts::pres_surface) / nk;
   const auto c1 = consts::R_d/consts::g, c2 = consts::R_d/consts::c_p;
-  Real z_prev = 0, z;
+  volatile Real z_prev = 0, z;
   for (Int k = 0; k < nk; ++k) {
     const auto p = consts::pres_surface + (k+1)*dp;
     pres[k] = p - 0.5*dp;
