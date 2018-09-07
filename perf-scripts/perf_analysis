@@ -43,7 +43,7 @@ class ScalingExp(object):
             if name != self.varname:
                 prov_msg += " {}={}".format(name, data)
 
-        print "{} machine={} commit={}".format(prov_msg, socket.gethostname(), run_cmd_no_fail("git rev-parse --short HEAD"))
+        print "{} machine={} commit={}".format(prov_msg, socket.gethostname().split(".")[0], run_cmd_no_fail("git rev-parse --short HEAD"))
 
         for test_name, test_results in results.iteritems():
             print test_name, self.varname

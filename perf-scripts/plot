@@ -39,11 +39,12 @@ def plotdata(datafile):
     xs, ys = [], []
     name = None
     xlabel = None
+    title = None
     with open(datafile, "r") as fd:
         for line in fd.readlines():
             line = line.strip()
             if "Provenance" in line:
-                pass
+                title = line.strip("Provenance:").strip()
             elif "," in line:
                 x, y = [float(item) for item in line.split(", ")]
                 xs.append(x)
@@ -60,6 +61,8 @@ def plotdata(datafile):
 
     plt.xlabel(xlabel)
     plt.ylabel("cols/s")
+    if title:
+        plt.title(title)
     plt.legend()
 
     plt.show()
