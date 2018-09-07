@@ -58,6 +58,12 @@ def plotdata(datafile):
 
     plt.plot(xs, ys, label=name)
 
+    plt.xlabel(xlabel)
+    plt.ylabel("cols/s")
+    plt.legend()
+
+    plt.show()
+
     return True
 
 ###############################################################################
