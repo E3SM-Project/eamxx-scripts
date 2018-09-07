@@ -11,10 +11,45 @@ check_minimum_python_version(2, 7)
 import argparse, sys, os, tempfile, re
 
 ###############################################################################
+class ScalingExp(object):
+###############################################################################
+
+    def __init__(self, arg_str):
+        try:
+            self.varname, self.scale_factor, self.upper_limit = arg_str.split(":")
+            self.scale_factor = float(self.scale_factor)
+            self.upper_limit  = int(self.upper_limit)
+        except Exception:
+            expect(False, "Scaling experiment needs to be in format VARNAME:SCALE_FACTOR:MAX")
+
+        expect(self.varname in ["ni", "nk", "dt", "ts"], "Unknown varname '{}'".format(self.varname))
+
+    def should_continue(self, ni, nk, dt, ts):
+        return locals()[self.varname] <= self.upper_limit
+
+    def update_values(self, ni, nk, dt, ts):
+        """
+        >>> se = ScalingExp('ni:2:1000')
+        >>> se.update_values(10, 3, 300, 7)
+        (20, 3, 300, 7)
+        """
+        d = {'ni':ni, 'nk':nk, 'dt':dt, 'ts':ts}
+        d[self.varname] = int(d[self.varname] * self.scale_factor)
+        return d['ni'], d['nk'], d['dt'], d['ts']
+
+    def plot(self, results):
+        for test_name, test_results in results.iteritems():
+            print test_name, self.varname
+            for test_result in test_results:
+                ni, nk, dt, ts, avg_time = test_result
+                cols_sec = float(ni) / avg_time
+                print "{}, {:.2f}".format(locals()[self.varname], cols_sec)
+
+###############################################################################
 def parse_command_line(args, description):
 ###############################################################################
     parser = argparse.ArgumentParser(
-        usage="""\n{0} <NI> <NK> <DT> <TS> <KOKKOS_DIR> [-n num_runs] [--verbose]
+        usage="""\n{0} <NI> <NK> <DT> <TS> <KOKKOS_DIR> [<CXX_COMPILER>] [-n num_runs] [--verbose]
 OR
 {0} --help
 
@@ -30,15 +65,17 @@ OR
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
 
-    parser.add_argument("ni", type=int, help="Num horizontal columns. If doing scaling, this is the lower limit.")
+    parser.add_argument("ni", type=int, help="Num horizontal columns. If doing a scaling experiment, this is the starting value.")
 
-    parser.add_argument("nk", type=int, help="Num vertical columns, recommend 128")
+    parser.add_argument("nk", type=int, help="Num vertical columns. If doing a scaling experiment, this is the starting value.")
 
-    parser.add_argument("dt", type=int, help="Total simulation time(s)")
+    parser.add_argument("dt", type=int, help="Time step length(s). If doing a scaling experiment, this is the starting value.")
 
-    parser.add_argument("ts", type=int, help="Timestep length (s)")
+    parser.add_argument("ts", type=int, help="Number of timesteps. If doing a scaling experiment, this is the starting value.")
 
     parser.add_argument("kokkos", help="Kokkos location")
+
+    parser.add_argument("--cxx", default=os.getenv("CXX"), help="c++ compiler")
 
     parser.add_argument("-n", "--num-runs", type=int, default=1, help="Number of times to repeat run")
 
@@ -51,11 +88,11 @@ OR
     parser.add_argument("-u", "--use-existing", action="store_true",
                         help="Use existing build directory (assumes pwd is build dir)")
 
-    parser.add_argument("-s", "--scaling", type=int,
-                        help="Do a scaling run from ni to this value")
+    parser.add_argument("-s", "--scaling",
+                        help="Do a scaling experiment. Format is VARNAME:SCALE_FACTOR:MAX")
 
-    parser.add_argument("-f", "--scale-factor", type=float, default=2.0,
-                        help="How much to increase columns per scaling run")
+    parser.add_argument("-p", "--plot-friendly", action="store_true",
+                        help="Project plot-friendly output")
 
     args = parser.parse_args(args[1:])
 
@@ -63,22 +100,31 @@ OR
         args.test = ["fortran", "cpp", "kokkos"]
 
     args.cmake_options += " -DCMAKE_BUILD_TYPE=RelWithDebInfo -DKokkos_DIR={}".format(args.kokkos)
+    if args.cxx:
+        args.cmake_options += " -DCMAKE_CXX_COMPILER={}".format(args.cxx)
+
+    expect(not args.plot_friendly or args.scaling, "Doesn't make sense to have plot friendly output without a scaling experiment")
 
     if args.scaling is None:
-        args.scaling = args.ni
+        scaling_exp = ScalingExp("ni:1.0:{}".format(args.ni))
+    else:
+        scaling_exp = ScalingExp(args.scaling)
 
-    return args.ni, args.nk, args.dt, args.ts, args.num_runs, args.test, args.cmake_options, args.use_existing, args.scaling, args.scale_factor
+    return args.ni, args.nk, args.dt, args.ts, args.num_runs, args.test, args.cmake_options, args.use_existing, scaling_exp, args.plot_friendly
 
 ###############################################################################
-def build_p3(cmake_options):
+def build_p3(cmake_options, plot_friendly):
 ###############################################################################
-    run_cmd_no_fail("cmake {} ..".format(cmake_options), arg_stdout=None, arg_stderr=None, verbose=True)
-    run_cmd_no_fail("make -j8", arg_stdout=None, arg_stderr=None, verbose=True)
+    import subprocess
+    pipe = subprocess.PIPE if plot_friendly else None
+    verbose = False if plot_friendly else True
+    run_cmd_no_fail("cmake {} ..".format(cmake_options), arg_stdout=pipe, arg_stderr=pipe, verbose=verbose)
+    run_cmd_no_fail("make -j8", arg_stdout=pipe, arg_stderr=pipe, verbose=verbose)
 
 ###############################################################################
 def get_time(output):
 ###############################################################################
-    """
+    r"""
     >>> output = 'Foo\nTime = 0.047 seconds.\nbar'
     >>> get_time(output)
     0.047
@@ -132,7 +178,7 @@ def user_explain(test, avg_time, reference, ni):
     print msg
 
 ###############################################################################
-def perf_analysis(ni, nk, dt, ts, num_runs, tests, cmake_options, use_existing, scaling, scale_factor):
+def perf_analysis(ni, nk, dt, ts, num_runs, tests, cmake_options, use_existing, scaling_exp, plot_friendly):
 ###############################################################################
     if use_existing:
         expect(os.path.isdir("p3") and os.path.exists("CMakeCache.txt"),
@@ -142,14 +188,15 @@ def perf_analysis(ni, nk, dt, ts, num_runs, tests, cmake_options, use_existing, 
         expect(os.path.basename(os.getcwd()) == "micro-apps", "Please run from micro-apps directory")
 
         tmpdir = tempfile.mkdtemp(prefix="build", dir=os.getcwd())
-        print "Making temporary build direcory:", tmpdir
         os.chdir(tmpdir)
 
-        build_p3(cmake_options)
+        build_p3(cmake_options, plot_friendly)
 
-    while (ni <= scaling):
-        print
-        print "RUNNING NI", ni, "NK", nk, "DT", dt, "TS", ts
+    results = {}
+    while (scaling_exp.should_continue(ni, nk, dt, ts)):
+        if not plot_friendly:
+            print
+            print "RUNNING NI", ni, "NK", nk, "DT", dt, "TS", ts
 
         reference = None
         for test in tests:
@@ -162,18 +209,24 @@ def perf_analysis(ni, nk, dt, ts, num_runs, tests, cmake_options, use_existing, 
             else:
                 expect(False, "Unknown test '{}'".format(test))
 
-            user_explain(test, avg_time, reference, ni)
+            if plot_friendly:
+                results.setdefault(test, []).append((ni, nk, dt, ts, avg_time))
+            else:
+                user_explain(test, avg_time, reference, ni)
             reference = avg_time if reference is None else reference
 
-        ni = int(ni * scale_factor)
+        ni, nk, dt, ts = scaling_exp.update_values(ni, nk, dt, ts)
+
+    if plot_friendly:
+        scaling_exp.plot(results)
 
 ###############################################################################
 def _main_func(description):
 ###############################################################################
-    ni, nk, dt, ts, num_runs, tests, cmake_options, use_existing, scaling, scale_factor = \
+    ni, nk, dt, ts, num_runs, tests, cmake_options, use_existing, scaling_exp, plot_friendly = \
         parse_command_line(sys.argv, description)
 
-    success = perf_analysis(ni, nk, dt, ts, num_runs, tests, cmake_options, use_existing, scaling, scale_factor)
+    success = perf_analysis(ni, nk, dt, ts, num_runs, tests, cmake_options, use_existing, scaling_exp, plot_friendly)
 
     sys.exit(0 if success else 1)
 
