@@ -9,7 +9,7 @@ check_minimum_python_version(2, 7)
 
 import matplotlib.pyplot as plt
 
-import argparse, sys
+import argparse, sys, os
 
 ###############################################################################
 def parse_command_line(args, description):
