@@ -16,6 +16,12 @@ add_executable(unit_test_f90 unit_test.f90)
 target_link_libraries(unit_test_f90 microsed)
 set_target_properties(unit_test_f90 PROPERTIES LINKER_LANGUAGE Fortran)
 
+add_executable(unit_test unit_test.cpp)
+target_link_libraries(unit_test microsed)
+target_include_directories (unit_test PUBLIC ${SCREAM_MICRO_APPS_INCLUDES})
+target_link_libraries (unit_test ${SCREAM_MICRO_APPS_LIBRARIES})
+set_target_properties (unit_test PROPERTIES LINK_FLAGS ${SCREAM_MICRO_APPS_LINK_FLAGS})
+
 add_executable(run_and_cmp run_and_cmp.cpp)
 target_link_libraries(run_and_cmp microsed)
 target_include_directories (run_and_cmp PUBLIC ${SCREAM_MICRO_APPS_INCLUDES})
@@ -56,7 +62,8 @@ set_target_properties (test_cuda PROPERTIES LINK_FLAGS ${SCREAM_MICRO_APPS_LINK_
 
 set(PERF_ARGS 10 128 300 30 1) # ni nk dt ts kdir
 add_test(nanoapp nanoapp -nc 4 -ns 100)
-add_test(run_unit_test unit_test_f90)
+add_test(run_unit_test_f90 unit_test_f90)
+add_test(run_unit_test unit_test)
 add_test(run_micro_sed micro_sed ${PERF_ARGS})
 add_test(run_micro_sed_vanilla micro_sed_vanilla ${PERF_ARGS})
 add_test(run_micro_sed_vanilla_kokkos micro_sed_vanilla_kokkos ${PERF_ARGS})

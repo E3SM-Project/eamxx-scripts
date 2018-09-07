@@ -163,6 +163,25 @@ void initialize()
 #endif
 }
 
+template <typename ExeSpace = Kokkos::DefaultExecutionSpace>
+struct ExeSpaceUtils {
+  static team_policy get_default_team_policy (Int ni, Int nk) {
+#ifdef MIMIC_GPU
+    return team_policy(ni, 7);
+#else
+    return team_policy(ni, 1);
+#endif
+  }  
+};
+#ifdef KOKKOS_ENABLE_CUDA
+template <>
+struct ExeSpaceUtils<Kokkos::Cuda> {
+  static team_policy get_default_team_policy (Int ni, Int nk) {
+    return team_policy(ni, std::min(128, 32*((nk + 31)/32)));
+  }
+};
+#endif
+
 } // namespace util
 
 extern "C" {
