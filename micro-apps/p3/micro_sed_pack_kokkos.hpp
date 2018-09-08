@@ -209,10 +209,11 @@ public:
   }
 };
 
+template <int kdir>
 KOKKOS_INLINE_FUNCTION
 void calc_first_order_upwind_step (
   const MicroSedFuncPackKokkos& m, const member_type& team, const int& i,
-  const int& k_bot, const int& k_top, const int& kdir, const Real& dt_sub,
+  const int& k_bot, const int& k_top, const Real& dt_sub,
   const kokkos_2d_t<RealPack>& pflux, const kokkos_2d_t<RealPack>& pV,
   const kokkos_2d_t<RealPack>& pr)
 {
@@ -230,6 +231,11 @@ void calc_first_order_upwind_step (
 
   int kmin, kmax;
 
+  // for top level only (since flux is 0 above)
+  const int k_top_pack = k_top / RealSmallPack::n;
+  flux(i, k_top_pack) = 0;
+  team.team_barrier();
+
   // calculate fluxes
   util::set_min_max(k_bot, k_top, kmin, kmax);
   kmin /= RealSmallPack::n;
@@ -243,23 +249,45 @@ void calc_first_order_upwind_step (
 
   Kokkos::single(
     Kokkos::PerTeam(team), [&] () {
-      // for top level only (since flux is 0 above)
-      int k = k_top;
+      const int k = k_top_pack;
       // compute flux divergence
-      const auto fluxdiv = -sflux(i, k) * m.inv_dzq(i, k);
+      const auto flux_pkdir = (kdir == -1) ?
+        shift_right(0, flux(i, k)) :
+        shift_left (0, flux(i, k));
+      const auto fluxdiv = (flux_pkdir - flux(i, k)) * inv_dzq(i, k);
       // update prognostic variables
-      sr(i, k) += fluxdiv * dt_sub * m.inv_rho(i, k);
+      r(i, k) += fluxdiv * dt_sub * inv_rho(i, k);
     });
 
-  util::set_min_max(k_bot, k_top - kdir, kmin, kmax);
+  util::set_min_max(k_bot, k_top - kdir * RealSmallPack::n, kmin, kmax);
+  kmin /= RealSmallPack::n;
+  kmax /= RealSmallPack::n;
   Kokkos::parallel_for(
     Kokkos::TeamThreadRange(team, kmax-kmin+1), [&] (int k_) {
       const int k = kmin + k_;
       // compute flux divergence
-      const auto fluxdiv = (sflux(i, k+kdir) - sflux(i, k)) * m.inv_dzq(i, k);
+      const auto flux_pkdir = (kdir == -1) ?
+        shift_right(flux(i, k+kdir), flux(i, k)) :
+        shift_left (flux(i, k+kdir), flux(i, k));
+      const auto fluxdiv = (flux_pkdir - flux(i, k)) * inv_dzq(i, k);
       // update prognostic variables
-      sr(i, k) += fluxdiv * dt_sub * m.inv_rho(i, k);
+      r(i, k) += fluxdiv * dt_sub * inv_rho(i, k);
     });
+}
+
+KOKKOS_INLINE_FUNCTION
+void calc_first_order_upwind_step (
+  const MicroSedFuncPackKokkos& m, const member_type& team, const int& i,
+  const int& k_bot, const int& k_top, const int& kdir, const Real& dt_sub,
+  const kokkos_2d_t<RealPack>& flux, const kokkos_2d_t<RealPack>& V,
+  const kokkos_2d_t<RealPack>& r)
+{
+  if (kdir == 1)
+    calc_first_order_upwind_step< 1>(
+      m, team, i, k_bot, k_top, dt_sub, flux, V, r);
+  else
+    calc_first_order_upwind_step<-1>(
+      m, team, i, k_bot, k_top, dt_sub, flux, V, r);
 }
 
 void micro_sed_func_pack_kokkos (

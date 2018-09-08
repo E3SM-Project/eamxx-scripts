@@ -78,22 +78,6 @@ using OnlyPack = typename std::enable_if<Pack::packtag,Pack>::type;
 template <typename Pack, typename Return>
 using OnlyPackReturn = typename std::enable_if<Pack::packtag,Return>::type;
 
-template <typename Pack> KOKKOS_INLINE_FUNCTION
-OnlyPack<Pack> shift_right (const Pack& pm1, const Pack& p) {
-  Pack s;
-  s[0] = pm1[Pack::n-1];
-  vector_simd for (int i = 1; i < Pack::n; ++i) s[i] = p[i-1];
-  return s;
-}
-
-template <typename Pack> KOKKOS_INLINE_FUNCTION
-OnlyPack<Pack> shift_right (const typename Pack::scalar& pm1, const Pack& p) {
-  Pack s;
-  s[0] = pm1;
-  vector_simd for (int i = 1; i < Pack::n; ++i) s[i] = p[i-1];
-  return s;
-}
-
 #define scream_pack_gen_bin_op_pp(op)                                   \
   template <typename Pack> KOKKOS_FORCEINLINE_FUNCTION                  \
   OnlyPack<Pack> operator op (const Pack& a, const Pack& b) {           \
@@ -196,6 +180,38 @@ OnlyPackReturn<Pack, typename Pack::scalar> max (const Pack& p) {
 scream_pack_gen_bin_fn_all(pow, std::pow)
 scream_pack_gen_bin_fn_all(min, util::min)
 scream_pack_gen_bin_fn_all(max, util::max)
+
+template <typename Pack> KOKKOS_INLINE_FUNCTION
+OnlyPack<Pack> shift_right (const Pack& pm1, const Pack& p) {
+  Pack s;
+  s[0] = pm1[Pack::n-1];
+  vector_simd for (int i = 1; i < Pack::n; ++i) s[i] = p[i-1];
+  return s;
+}
+
+template <typename Pack> KOKKOS_INLINE_FUNCTION
+OnlyPack<Pack> shift_right (const typename Pack::scalar& pm1, const Pack& p) {
+  Pack s;
+  s[0] = pm1;
+  vector_simd for (int i = 1; i < Pack::n; ++i) s[i] = p[i-1];
+  return s;
+}
+
+template <typename Pack> KOKKOS_INLINE_FUNCTION
+OnlyPack<Pack> shift_left (const Pack& pp1, const Pack& p) {
+  Pack s;
+  s[Pack::n-1] = pp1[0];
+  vector_simd for (int i = 0; i < Pack::n-1; ++i) s[i] = p[i+1];
+  return s;
+}
+
+template <typename Pack> KOKKOS_INLINE_FUNCTION
+OnlyPack<Pack> shift_left (const typename Pack::scalar& pp1, const Pack& p) {
+  Pack s;
+  s[Pack::n-1] = pp1;
+  vector_simd for (int i = 0; i < Pack::n-1; ++i) s[i] = p[i+1];
+  return s;
+}
 
 } // namespace scream
 
