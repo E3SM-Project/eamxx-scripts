@@ -460,8 +460,8 @@ void micro_sed_func_pack_kokkos_wrap (
   }
 
   auto finish = std::chrono::steady_clock::now();
-  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(finish - start);
-  printf("Time = %1.3e seconds\n", 1e-3*duration.count());
+  auto duration = std::chrono::duration_cast<std::chrono::microseconds>(finish - start);
+  printf("Time = %1.3e seconds\n", 1e-6*duration.count());
 
   dump_to_file_k(qr, nr, th, dzq, pres, prt_liq, dt, ts);
 }
