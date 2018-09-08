@@ -199,7 +199,7 @@ void micro_sed_func_cpp_kokkos (ic::MicroSedData<Scalar>& d, KokkosCppBridge<Sca
 }
 
 template <typename Scalar>
-void micro_sed_func_cpp_pack_kokkos (ic::MicroSedData<Scalar>& d, KokkosCppBridge<Scalar>& bridge, p3::micro_sed_pack::MicroSedFuncPackKokkos<Real>& msvk)
+void micro_sed_func_cpp_pack_kokkos (ic::MicroSedData<Scalar>& d, KokkosCppBridge<Scalar>& bridge, p3::micro_sed_pack::MicroSedFuncPackKokkos& msvk)
 {
   micro_sed_func_pack_kokkos( msvk, d.reverse ? d.nk : 1, d.reverse ? 1 : d.nk,
                               1, d.ni, d.dt, bridge.qr, bridge.nr, bridge.th,
@@ -344,7 +344,7 @@ static Int run_and_cmp (const std::string& bfn, const Real& tol, bool verbose) {
       KokkosCppBridge<Scalar> kcpp_pack_bridge(d_pack_kokkos_cpp);
 
       p3::micro_sed_vanilla::MicroSedFuncVanillaKokkos<Scalar> msvk(d_ic.ni, d_ic.nk);
-      p3::micro_sed_pack::MicroSedFuncPackKokkos<Scalar> mspk(d_ic.ni, d_ic.nk);
+      p3::micro_sed_pack::MicroSedFuncPackKokkos mspk(d_ic.ni, d_ic.nk);
 
       for (Int step = 0; step < BaselineConsts::nstep; ++step) {
         // Read the baseline.
