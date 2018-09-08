@@ -138,9 +138,10 @@ void get_rain_dsd2_kokkos (
         (Globals<Real>::CONS1);
     }
 
-    cdistr  = nr/std::tgamma(mu_r+1.);
+    // These are not used in the micro-app, but keep them to model flops.
+    cdistr = nr/std::tgamma(mu_r+1.);
     // note: logn0r is calculated as log10(n0r);
-    logn0r  = std::log10(nr) + (mu_r+1.)*std::log10(lamr) - std::log10(std::tgamma(mu_r+1));
+    logn0r = std::log10(nr) + (mu_r+1.)*std::log10(lamr) - std::log10(std::tgamma(mu_r+1));
   }
   else {
     lamr   = 0.0;
@@ -248,8 +249,8 @@ void micro_sed_func_pack_kokkos (
   constexpr Real nsmall = Globals<Real>::NSMALL;
 
   // direction of vertical leveling
-  const int kbot = (kts < kte) ? 0: m.num_vert-1;
-  const int kdir = (kts < kte) ? 1  : -1;
+  const int kbot = (kts < kte) ? 0 : m.num_vert-1;
+  const int kdir = (kts < kte) ? 1 : -1;
 
   const kokkos_2d_t<RealPack>
     pdzq = packize(dzq),
@@ -259,7 +260,9 @@ void micro_sed_func_pack_kokkos (
     pth = packize(th),
     prho = packize(m.rho),
     pinv_rho = packize(m.inv_rho),
-    prhofacr = packize(m.rhofacr);
+    prhofacr = packize(m.rhofacr),
+    pV_qr = packize(m.V_qr),
+    pV_nr = packize(m.V_nr);
 
   // Rain sedimentation:  (adaptive substepping)
   Kokkos::parallel_for(
@@ -314,12 +317,17 @@ void micro_sed_func_pack_kokkos (
           Real Co_max = 0.0;
           int kmin, kmax;
 
+          Kokkos::parallel_for(
+            Kokkos::TeamThreadRange(team, m.num_vert / SCREAM_PACKN), [&] (int k) {
+              pV_qr(i, k) = 0;
+              pV_nr(i, k) = 0;
+            });
+          team.team_barrier();
+
           util::set_min_max(k_qxbot, k_qxtop, kmin, kmax);
           Kokkos::parallel_reduce(
             Kokkos::TeamThreadRange(team, kmax-kmin+1), [&] (int k_, Real& lmax) {
               const int k = kmin + k_;
-              m.V_qr(i, k) = 0;
-              m.V_nr(i, k) = 0;
               if (qr(i, k) > Globals<Real>::QSMALL) {
                 // Compute Vq, Vn:
                 nr(i, k) = util::max(nr(i, k), nsmall);
@@ -344,14 +352,7 @@ void micro_sed_func_pack_kokkos (
           const Real dt_sub = util::min(dt_left, dt_left / tmpint1);
 
           // Move bottom cell down by 1 if not at ground already.
-          int k_temp;
-          if (k_qxbot == kbot) {
-            k_temp = k_qxbot;
-          } else {
-            k_temp = k_qxbot - kdir;
-            m.V_qr(i, k_temp) = 0;
-            m.V_nr(i, k_temp) = 0;
-          }
+          const int k_temp = (k_qxbot == kbot) ? k_qxbot : k_qxbot - kdir;
 
           calc_first_order_upwind_step(m, team, i,
                                        k_temp, k_qxtop, kdir, dt_sub,
