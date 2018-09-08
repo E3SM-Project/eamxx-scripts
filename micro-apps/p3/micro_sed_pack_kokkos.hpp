@@ -42,7 +42,7 @@ void find_lookupTable_indices_3_kokkos (
   const Real mu_r, const Real lamr)
 {
   // find location in scaled mean size space
-  Real dum1 = (mu_r+1.) / lamr;
+  const auto dum1 = (mu_r+1.) / lamr;
   if (dum1 <= 195.e-6) {
     inv_dum3  = 0.1;
     rdumii = (dum1*1.e6+5.)*inv_dum3;
@@ -85,7 +85,7 @@ void get_rain_dsd2_kokkos (
     // find spot in lookup table
     // (scaled N/q for lookup table parameter space_
     nr = util::max(nr, nsmall);
-    Real inv_dum = std::pow(qr / (Globals<Real>::CONS1 * nr * 6.0), Globals<Real>::THRD);
+    const auto inv_dum = std::pow(qr / (Globals<Real>::CONS1 * nr * 6.0), Globals<Real>::THRD);
 
     if (inv_dum < 282.e-6) {
       mu_r = 8.282;
@@ -105,20 +105,16 @@ void get_rain_dsd2_kokkos (
 
     lamr   = std::pow((Globals<Real>::CONS1 *nr *(mu_r+3.0) * (mu_r+2) * (mu_r+1.)/(qr)),
                       Globals<Real>::THRD); // recalculate slope based on mu_r
-    Real lammax = (mu_r+1.)*1.e+5;  // check for slope
-    Real lammin = (mu_r+1.)*1250.0; // set to small value since breakup is explicitly included (mean size 0.8 mm)
+    const auto lammax = (mu_r+1.)*1.e+5;  // check for slope
+    const auto lammin = (mu_r+1.)*1250.0; // set to small value since breakup is explicitly included (mean size 0.8 mm)
 
     // apply lambda limiters for rain
-    if (lamr < lammin) {
-      lamr = lammin;
+    const auto lt = lamr < lammin;
+    const auto gt = lamr > lammax;
+    if (lt || gt) {
+      lamr = lt ? lammin : lammax;
       nr   = std::exp(3.*std::log(lamr) + std::log(qr) +
                       std::log(std::tgamma(mu_r+1.)) - std::log(std::tgamma(mu_r+4.)))/
-        (Globals<Real>::CONS1);
-    }
-    else if (lamr > lammax) {
-      lamr = lammax;
-      nr   = std::exp(3.*std::log(lamr) + std::log(qr) +
-                      std::log(std::tgamma(mu_r+1.)) - log(std::tgamma(mu_r+4.)))/
         (Globals<Real>::CONS1);
     }
 
