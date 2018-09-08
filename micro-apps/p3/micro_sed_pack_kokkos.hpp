@@ -209,6 +209,7 @@ public:
   }
 };
 
+// Calculate the step in the region [k_bot, k_top].
 template <int kdir>
 KOKKOS_INLINE_FUNCTION
 void calc_first_order_upwind_step (
@@ -229,7 +230,11 @@ void calc_first_order_upwind_step (
     sr = scalarize(pr),
     sflux = scalarize(pflux);
 
-  int kmin, kmax;
+  int
+    kmin = ( kdir == 1 ? k_bot : k_top)      / RealSmallPack::n,
+    // Add 1 to make [kmin, kmax). But then the extra term (RealSmallPack::n -
+    // 1) to determine pack index cancels the +1.
+    kmax = ((kdir == 1 ? k_top : k_bot) + RealSmallPack::n) / RealSmallPack::n;
 
   // for top level only (since flux is 0 above)
   const int k_top_pack = k_top / RealSmallPack::n;
@@ -237,9 +242,8 @@ void calc_first_order_upwind_step (
   team.team_barrier();
 
   // calculate fluxes
-  util::set_min_max(k_bot, k_top, kmin, kmax, RealSmallPack::n);
   Kokkos::parallel_for(
-    Kokkos::TeamThreadRange(team, kmax-kmin+1), [&] (int k_) {
+    Kokkos::TeamThreadRange(team, kmax - kmin), [&] (int k_) {
       const int k = kmin + k_;
       flux(i, k) = V(i, k) * r(i, k) * rho(i, k);
     });
@@ -257,10 +261,13 @@ void calc_first_order_upwind_step (
       r(i, k) += fluxdiv * dt_sub * inv_rho(i, k);
     });
 
-  util::set_min_max(k_bot, k_top - kdir * RealSmallPack::n, kmin, kmax,
-                    RealSmallPack::n);
+  if (kdir == 1)
+    --kmax;
+  else
+    ++kmin;
+
   Kokkos::parallel_for(
-    Kokkos::TeamThreadRange(team, kmax-kmin+1), [&] (int k_) {
+    Kokkos::TeamThreadRange(team, kmax - kmin), [&] (int k_) {
       const int k = kmin + k_;
       // compute flux divergence
       const auto flux_pkdir = (kdir == -1) ?
@@ -338,6 +345,7 @@ void micro_sed_func_pack_kokkos (
       bool log_qxpresent = false;
       int k_qxtop = 0;
 
+      //TODO specialize these for the 1-thread case
       // find top, determine qxpresent
       Kokkos::parallel_reduce(
         Kokkos::TeamThreadRange(team, m.num_vert), [&] (int k, int& lmax) {
