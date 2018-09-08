@@ -30,15 +30,15 @@ using IntSmallPack = SmallPack<Int>;
 template <typename T> KOKKOS_FORCEINLINE_FUNCTION
 kokkos_2d_t<T> scalarize (const kokkos_2d_t<BigPack<T> >& vp) {
   return Kokkos::View<T**, Layout, MemSpace, Kokkos::MemoryTraits<Kokkos::Unmanaged> >(
-    reinterpret_cast<T*>(vp.data()), vp.extent_int(0), SCREAM_PACKN * vp.extent_int(1));
+    reinterpret_cast<T*>(vp.data()), vp.extent_int(0), RealPack::n * vp.extent_int(1));
 }
 
 // NOT for general use. This is just for dev work.
 template <typename T> KOKKOS_FORCEINLINE_FUNCTION
 kokkos_2d_t<BigPack<T> > packize (const kokkos_2d_t<T>& vp) {
-  assert(vp.extent_int(1) % SCREAM_PACKN == 0);
+  assert(vp.extent_int(1) % RealPack::n == 0);
   return Kokkos::View<BigPack<T>**, Layout, MemSpace, Kokkos::MemoryTraits<Kokkos::Unmanaged> >(
-    reinterpret_cast<BigPack<T>*>(vp.data()), vp.extent_int(0), vp.extent_int(1) / SCREAM_PACKN);
+    reinterpret_cast<BigPack<T>*>(vp.data()), vp.extent_int(0), vp.extent_int(1) / RealPack::n);
 }
 
 template <typename T> KOKKOS_FORCEINLINE_FUNCTION
@@ -419,7 +419,7 @@ void micro_sed_func_pack_kokkos (
       const int i = team.league_rank();
 
       Kokkos::parallel_for(
-        Kokkos::TeamThreadRange(team, m.num_vert / SCREAM_PACKN), [&] (int k) {
+        Kokkos::TeamThreadRange(team, m.num_vert / RealPack::n), [&] (int k) {
           // inverse of thickness of layers
           pinv_dzq(i, k) = 1 / pdzq(i, k);
           pt(i, k) = pow(ppres(i, k) * 1.e-5, rd_inv_cp) * pth(i, k);
@@ -446,7 +446,7 @@ void micro_sed_func_pack_kokkos (
           int kmin, kmax;
 
           Kokkos::parallel_for(
-            Kokkos::TeamThreadRange(team, m.num_vert / SCREAM_PACKN), [&] (int k) {
+            Kokkos::TeamThreadRange(team, m.num_vert / RealPack::n), [&] (int k) {
               pV_qr(i, k) = 0;
               pV_nr(i, k) = 0;
             });
