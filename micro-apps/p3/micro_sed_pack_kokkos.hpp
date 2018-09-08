@@ -35,52 +35,52 @@ using kokkos_2d_table_t = Kokkos::View<Real[300][10], Layout, MemSpace>;
 template <typename Real>
 using kokkos_1d_table_t = Kokkos::View<Real[150], Layout, MemSpace>;
 
+struct Table3 {
+  int dumii, dumjj;
+  Real rdumii, rdumjj, inv_dum3;
+};
+
 // Finds indices in rain lookup table (3)
 KOKKOS_INLINE_FUNCTION
-void find_lookupTable_indices_3_kokkos (
-  int& dumii, int& dumjj, Real& rdumii, Real& rdumjj, Real& inv_dum3,
-  const Real& mu_r, const Real& lamr)
+void find_lookupTable_indices_3_kokkos (Table3& t, const Real& mu_r, const Real& lamr)
 {
   // find location in scaled mean size space
   const auto dum1 = (mu_r+1.) / lamr;
   if (dum1 <= 195.e-6) {
-    inv_dum3  = 0.1;
-    rdumii = (dum1*1.e6+5.)*inv_dum3;
-    rdumii = util::max<Real>(rdumii, 1.);
-    rdumii = util::min<Real>(rdumii,20.);
-    dumii  = static_cast<int>(rdumii);
-    dumii  = util::max(dumii, 1);
-    dumii  = util::min(dumii,20);
+    t.inv_dum3  = 0.1;
+    t.rdumii = (dum1*1.e6+5.)*t.inv_dum3;
+    t.rdumii = util::max<Real>(t.rdumii, 1.);
+    t.rdumii = util::min<Real>(t.rdumii,20.);
+    t.dumii  = static_cast<int>(t.rdumii);
+    t.dumii  = util::max(t.dumii, 1);
+    t.dumii  = util::min(t.dumii,20);
   }
   else {
-    inv_dum3  = Globals<Real>::THRD*0.1;           // i.e. 1/30
-    rdumii = (dum1*1.e+6-195.)*inv_dum3 + 20.;
-    rdumii = util::max<Real>(rdumii, 20.);
-    rdumii = util::min<Real>(rdumii,300.);
-    dumii  = static_cast<int>(rdumii);
-    dumii  = util::max(dumii, 20);
-    dumii  = util::min(dumii,299);
+    t.inv_dum3  = Globals<Real>::THRD*0.1;
+    t.rdumii = (dum1*1.e+6-195.)*t.inv_dum3 + 20.;
+    t.rdumii = util::max<Real>(t.rdumii, 20.);
+    t.rdumii = util::min<Real>(t.rdumii,300.);
+    t.dumii  = static_cast<int>(t.rdumii);
+    t.dumii  = util::max(t.dumii, 20);
+    t.dumii  = util::min(t.dumii,299);
   }
 
   // find location in mu_r space
-  rdumjj = mu_r+1.;
-  rdumjj = util::max<Real>(rdumjj,1.);
-  rdumjj = util::min<Real>(rdumjj,10.);
-  dumjj  = static_cast<int>(rdumjj);
-  dumjj  = util::max(dumjj,1);
-  dumjj  = util::min(dumjj,9);
+  t.rdumjj = mu_r+1.;
+  t.rdumjj = util::max<Real>(t.rdumjj,1.);
+  t.rdumjj = util::min<Real>(t.rdumjj,10.);
+  t.dumjj  = static_cast<int>(t.rdumjj);
+  t.dumjj  = util::max(t.dumjj,1);
+  t.dumjj  = util::min(t.dumjj,9);
 }
 
 KOKKOS_INLINE_FUNCTION
-Real apply_table (
-  const kokkos_2d_table_t<Real>& table,
-  const int& dumii, const int& dumjj, const Real& rdumii, const Real& rdumjj, const Real& inv_dum3)
-{
-  const auto dum1 = (table(dumii-1, dumjj-1) + (rdumii-dumii) * inv_dum3 *
-                     (table(dumii, dumjj-1) - table(dumii-1, dumjj-1)));
-  const auto dum2 = (table(dumii-1, dumjj) + (rdumii-dumii) * inv_dum3 *
-                     (table(dumii, dumjj) - table(dumii-1, dumjj)));
-  return dum1 + (rdumjj - dumjj) * (dum2 - dum1);
+Real apply_table (const kokkos_2d_table_t<Real>& table, const Table3& t) {
+  const auto dum1 = (table(t.dumii-1, t.dumjj-1) + (t.rdumii-t.dumii) * t.inv_dum3 *
+                     (table(t.dumii, t.dumjj-1) - table(t.dumii-1, t.dumjj-1)));
+  const auto dum2 = (table(t.dumii-1, t.dumjj) + (t.rdumii-t.dumii) * t.inv_dum3 *
+                     (table(t.dumii, t.dumjj) - table(t.dumii-1, t.dumjj)));
+  return dum1 + (t.rdumjj - t.dumjj) * (dum2 - dum1);
 }
 
 // Computes and returns rain size distribution parameters
@@ -266,9 +266,7 @@ void micro_sed_func_pack_kokkos (
       k_qxtop *= kdir;
       log_qxpresent = k_qxtop >= 0;
 
-      // JGF: It appears rain sedimentation is mostly nothing unless log_qxpresent is true
       if (log_qxpresent) {
-
         Real dt_left = dt;    // time remaining for sedi over full model (mp) time step
         Real prt_accum = 0.0; // precip rate for individual category
         int k_qxbot = 0;
@@ -302,18 +300,15 @@ void micro_sed_func_pack_kokkos (
               if (qr(i, k) > Globals<Real>::QSMALL) {
                 // Compute Vq, Vn:
                 nr(i, k) = util::max(nr(i, k), nsmall);
-                Real rdumii, tmp1, tmp2, rdumjj, inv_dum3;
-                int dumii, dumjj;
-                get_rain_dsd2_kokkos(qr(i, k), nr(i, k), m.mu_r(i, k), rdumii, dumii,
+                Real tmp1, tmp2;
+                Table3 t;
+                get_rain_dsd2_kokkos(qr(i, k), nr(i, k), m.mu_r(i, k), t.rdumii, t.dumii,
                                      m.lamr(i, k), m.mu_r_table, tmp1, tmp2);
-                find_lookupTable_indices_3_kokkos(dumii, dumjj, rdumii, rdumjj, inv_dum3,
-                                                  m.mu_r(i, k), m.lamr(i, k));
+                find_lookupTable_indices_3_kokkos(t, m.mu_r(i, k), m.lamr(i, k));
                 // mass-weighted fall speed:
-                m.V_qr(i, k) = apply_table(m.vm_table, dumii, dumjj, rdumii, rdumjj, inv_dum3)
-                  * m.rhofacr(i, k);
+                m.V_qr(i, k) = apply_table(m.vm_table, t) * m.rhofacr(i, k);
                 // number-weighted fall speed:
-                m.V_nr(i, k) = apply_table(m.vn_table, dumii, dumjj, rdumii, rdumjj, inv_dum3)
-                  * m.rhofacr(i, k);
+                m.V_nr(i, k) = apply_table(m.vn_table, t) * m.rhofacr(i, k);
               }
               Real Co_max_local = m.V_qr(i, k) * dt_left * m.inv_dzq(i, k);
               if (Co_max_local > lmax) {
@@ -329,7 +324,8 @@ void micro_sed_func_pack_kokkos (
 
           // calculate fluxes
           util::set_min_max(k_temp, k_qxtop+kdir, kmin, kmax);
-          Kokkos::parallel_for(Kokkos::TeamThreadRange(team_member, kmax-kmin+1), [&] (int k_) {
+          Kokkos::parallel_for(
+            Kokkos::TeamThreadRange(team_member, kmax-kmin+1), [&] (int k_) {
               const int k = kmin + k_;
               m.flux_qx(i, k) = m.V_qr(i, k) * qr(i, k) * m.rho(i, k);
               m.flux_nx(i, k) = m.V_nr(i, k) * nr(i, k) * m.rho(i, k);
@@ -353,7 +349,6 @@ void micro_sed_func_pack_kokkos (
               qr(i, k) += fluxdiv_qx * dt_sub * m.inv_rho(i, k);
               nr(i, k) += fluxdiv_nx * dt_sub * m.inv_rho(i, k);
             });
-          team_member.team_barrier();
 
           util::set_min_max(k_qxtop - kdir, k_temp, kmin, kmax);
           Kokkos::parallel_for(
@@ -365,9 +360,8 @@ void micro_sed_func_pack_kokkos (
                 fluxdiv_nx = (m.flux_nx(i, k+kdir) - m.flux_nx(i, k)) * m.inv_dzq(i, k);
               // update prognostic variables
               qr(i, k) += fluxdiv_qx * dt_sub * m.inv_rho(i, k);
-              nr(i, k) += fluxdiv_nx  *dt_sub * m.inv_rho(i, k);
+              nr(i, k) += fluxdiv_nx * dt_sub * m.inv_rho(i, k);
             });
-          team_member.team_barrier();
 
           dt_left -= dt_sub;  // update time remaining for sedimentation
           if (k_qxbot != kbot) {
