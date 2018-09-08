@@ -203,8 +203,14 @@ KOKKOS_INLINE_FUNCTION
 void calc_first_order_upwind_step (
   const MicroSedFuncPackKokkos& m, const member_type& team, const int& i,
   const int& k_bot, const int& k_top, const int& kdir, const Real& dt_sub,
-  const kokkos_2d_t<Real>& flux, const kokkos_2d_t<Real>& V, const kokkos_2d_t<Real>& r)
+  const kokkos_2d_t<RealPack>& pflux, const kokkos_2d_t<RealPack>& pV,
+  const kokkos_2d_t<RealPack>& pr)
 {
+  const kokkos_2d_t<Real>
+    flux = scalarize(pflux),
+    V = scalarize(pV),
+    r = scalarize(pr);
+
   int kmin, kmax;
 
   // calculate fluxes
@@ -262,7 +268,10 @@ void micro_sed_func_pack_kokkos (
     pinv_rho = packize(m.inv_rho),
     prhofacr = packize(m.rhofacr),
     pV_qr = packize(m.V_qr),
-    pV_nr = packize(m.V_nr);
+    pV_nr = packize(m.V_nr),
+    pflux = packize(m.flux),
+    pqr = packize(qr),
+    pnr = packize(nr);
 
   // Rain sedimentation:  (adaptive substepping)
   Kokkos::parallel_for(
@@ -356,11 +365,11 @@ void micro_sed_func_pack_kokkos (
 
           calc_first_order_upwind_step(m, team, i,
                                        k_temp, k_qxtop, kdir, dt_sub,
-                                       m.flux, m.V_nr, nr);
+                                       pflux, pV_nr, pnr);
           team.team_barrier();
           calc_first_order_upwind_step(m, team, i,
                                        k_temp, k_qxtop, kdir, dt_sub,
-                                       m.flux, m.V_qr, qr);
+                                       pflux, pV_qr, pqr);
           team.team_barrier();
 
           // accumulated precip during time step
