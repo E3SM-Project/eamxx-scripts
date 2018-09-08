@@ -19,7 +19,7 @@ namespace micro_sed_pack {
 using micro_sed_vanilla::Globals;
 using namespace scream;
 
-#define SCREAM_PACKN 1
+#define SCREAM_PACKN 8
 using RealPack = Pack<Real, SCREAM_PACKN>;
 using IntPack = Pack<Int, SCREAM_PACKN>;
 
@@ -27,6 +27,14 @@ KOKKOS_INLINE_FUNCTION
 kokkos_2d_t<Real> scalarize (const kokkos_2d_t<RealPack>& vp) {
   return Kokkos::View<Real**, Layout, MemSpace, Kokkos::MemoryTraits<Kokkos::Unmanaged> >(
     reinterpret_cast<Real*>(vp.data()), vp.extent_int(0), SCREAM_PACKN * vp.extent_int(1));
+}
+
+// NOT for general use. This is just for dev work.
+KOKKOS_INLINE_FUNCTION
+kokkos_2d_t<RealPack> packize (const kokkos_2d_t<Real>& vp) {
+  assert(vp.extent_int(1) % SCREAM_PACKN == 0);
+  return Kokkos::View<RealPack**, Layout, MemSpace, Kokkos::MemoryTraits<Kokkos::Unmanaged> >(
+    reinterpret_cast<RealPack*>(vp.data()), vp.extent_int(0), vp.extent_int(1) / SCREAM_PACKN);
 }
 
 template <typename Real>
@@ -275,15 +283,26 @@ void micro_sed_func_pack_kokkos (
     KOKKOS_LAMBDA(const member_type& team_member) {
       const int i = team_member.league_rank();
 
-      Kokkos::parallel_for(
-        Kokkos::TeamThreadRange(team_member, m.num_vert), [&] (int k) {
-          // inverse of thickness of layers
-          m.inv_dzq(i, k) = 1 / dzq(i, k);
-          m.t(i, k) = std::pow(pres(i, k) * 1.e-5, Globals<Real>::RD * Globals<Real>::INV_CP) * th(i, k);
-          m.rho(i, k) = pres(i, k) / (Globals<Real>::RD * m.t(i, k));
-          m.inv_rho(i, k) = 1.0 / m.rho(i, k);
-          m.rhofacr(i, k) = std::pow(Globals<Real>::RHOSUR * m.inv_rho(i, k), 0.54);
-        });
+      {
+        const kokkos_2d_t<RealPack>
+          pdzq = packize(dzq),
+          ppres = packize(pres),
+          inv_dzq = packize(m.inv_dzq),
+          t = packize(m.t),
+          pth = packize(th),
+          rho = packize(m.rho),
+          inv_rho = packize(m.inv_rho),
+          rhofacr = packize(m.rhofacr);
+        Kokkos::parallel_for(
+          Kokkos::TeamThreadRange(team_member, m.num_vert / SCREAM_PACKN), [&] (int k) {
+            // inverse of thickness of layers
+            inv_dzq(i, k) = 1 / pdzq(i, k);
+            t(i, k) = pow(ppres(i, k) * 1.e-5, Globals<Real>::RD * Globals<Real>::INV_CP) * pth(i, k);
+            rho(i, k) = ppres(i, k) / (Globals<Real>::RD * t(i, k));
+            inv_rho(i, k) = 1.0 / rho(i, k);
+            rhofacr(i, k) = pow(Globals<Real>::RHOSUR * inv_rho(i, k), 0.54);
+          });
+      }
       team_member.team_barrier();
 
       // Note, we are skipping supersaturation checks

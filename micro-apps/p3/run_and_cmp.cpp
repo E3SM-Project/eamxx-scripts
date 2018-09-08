@@ -243,7 +243,8 @@ void run_over_parameter_sets (MicroSedObserver<Scalar>& o, const Int ncol) {
   // will init both fortran and c
   p3::micro_sed_vanilla::p3_init_cpp<Scalar>();
 
-  ic::MicroSedData<Scalar> d(ncol, 111);
+#pragma message "DO NOT KEEP THIS"
+  ic::MicroSedData<Scalar> d(ncol, 128); //111);
   d.dt = dt_tot;
   populate(d, 1);
 
