@@ -407,6 +407,10 @@ void micro_sed_func_pack_kokkos (
     pqr = packize(qr),
     pnr = packize(nr);
 
+  const auto rd = Globals<Real>::RD;
+  const auto rd_inv_cp = Globals<Real>::RD * Globals<Real>::INV_CP;
+  const auto rhosur = Globals<Real>::RHOSUR;
+
   // Rain sedimentation:  (adaptive substepping)
   Kokkos::parallel_for(
     "main rain sed loop",
@@ -418,10 +422,10 @@ void micro_sed_func_pack_kokkos (
         Kokkos::TeamThreadRange(team, m.num_vert / SCREAM_PACKN), [&] (int k) {
           // inverse of thickness of layers
           pinv_dzq(i, k) = 1 / pdzq(i, k);
-          pt(i, k) = pow(ppres(i, k) * 1.e-5, Globals<Real>::RD * Globals<Real>::INV_CP) * pth(i, k);
-          prho(i, k) = ppres(i, k) / (Globals<Real>::RD * pt(i, k));
+          pt(i, k) = pow(ppres(i, k) * 1.e-5, rd_inv_cp) * pth(i, k);
+          prho(i, k) = ppres(i, k) / (rd * pt(i, k));
           pinv_rho(i, k) = 1.0 / prho(i, k);
-          prhofacr(i, k) = pow(Globals<Real>::RHOSUR * pinv_rho(i, k), 0.54);
+          prhofacr(i, k) = pow(rhosur * pinv_rho(i, k), 0.54);
         });
       team.team_barrier();
 
