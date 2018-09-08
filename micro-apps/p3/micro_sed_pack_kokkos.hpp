@@ -298,9 +298,8 @@ void micro_sed_func_pack_kokkos (
             lmax = k*kdir;
           }
         }, Kokkos::Max<int>(k_qxtop));
-      // If the if statement in the parallel_reduce is never true,
-      // k_qxtop will end up being a large negative number,
-      // Max::init()'s value.
+      // If the if statement in the parallel_reduce is never true, k_qxtop will
+      // end up being a large negative number, Max::init()'s value.
       k_qxtop *= kdir;
       log_qxpresent = k_qxtop >= 0;
 
@@ -316,8 +315,8 @@ void micro_sed_func_pack_kokkos (
               lmin = k*kdir;
             }
           }, Kokkos::Min<int>(k_qxbot));
-        // As log_qxpresent is true, we don't have to worry about this
-        // reduction as we did for the one for k_qxtop.
+        // As log_qxpresent is true, we don't have to worry about this reduction
+        // as we did for the one for k_qxtop.
         k_qxbot *= kdir;
 
         while (dt_left > 1.e-4) {
@@ -349,9 +348,8 @@ void micro_sed_func_pack_kokkos (
                 m.V_nr(i, k) = apply_table(m.vn_table, t) * m.rhofacr(i, k);
               }
               Real Co_max_local = m.V_qr(i, k) * dt_left * m.inv_dzq(i, k);
-              if (Co_max_local > lmax) {
+              if (Co_max_local > lmax)
                 lmax = Co_max_local;
-              }
             }, Kokkos::Max<Real>(Co_max));
 
           // compute dt_sub
@@ -369,14 +367,12 @@ void micro_sed_func_pack_kokkos (
 
 
           // accumulated precip during time step
-          if (k_qxbot == kbot) {
+          if (k_qxbot == kbot)
             prt_accum += m.flux_qx(i, kbot) * dt_sub;
-          }
 
           dt_left -= dt_sub;  // update time remaining for sedimentation
-          if (k_qxbot != kbot) {
+          if (k_qxbot != kbot)
             k_qxbot -= kdir;
-          }
         }
 
         Kokkos::single(
