@@ -456,12 +456,12 @@ void micro_sed_func_pack_kokkos_wrap (
     micro_sed_func_pack_kokkos(mspk,
                                kdir == 1 ? 1 : nk, kdir == 1 ? nk : 1,
                                1, ni, dt, qr, nr, th, dzq, pres, prt_liq);
+    Kokkos::fence();
   }
-  Kokkos::fence();
 
   auto finish = std::chrono::steady_clock::now();
   auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(finish - start);
-  std::cout << "Time = " << duration.count() / 1000.0 << " seconds." << std::endl;
+  printf("Time = %1.3e seconds\n", 1e-3*duration.count());
 
   dump_to_file_k(qr, nr, th, dzq, pres, prt_liq, dt, ts);
 }
