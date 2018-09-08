@@ -294,6 +294,49 @@ void calc_first_order_upwind_step (
       m, team, i, k_bot, k_top, dt_sub, flux, V, r);
 }
 
+template <typename Array1>
+KOKKOS_INLINE_FUNCTION
+Int find_top (const member_type& team,
+              const Array1& v, const Real& small,
+              const Int& kbot, const Int& ktop, const Int& kdir,
+              bool& log_present) {
+  log_present = false;
+  Int k_qxtop = 0;
+  if (team.team_size() == 1) {
+    for (Int k = ktop; k != kbot - kdir; k -= kdir) {
+      if (v(k) < small) continue;
+      k_qxtop = k;
+      log_present = true;
+      break;
+    }
+  } else {
+    if (kdir == -1) {
+      Kokkos::parallel_reduce(
+        Kokkos::TeamThreadRange(team, kbot - ktop + 1), [&] (int k_, int& lmin) {
+          const int k = ktop + k_;
+          if (v(k) >= small && k < lmin)
+            lmin = k;
+        }, Kokkos::Min<int>(k_qxtop));
+      log_present = k_qxtop <= kbot;
+    } else {
+      Kokkos::parallel_reduce(
+        Kokkos::TeamThreadRange(team, ktop - kbot + 1), [&] (int k_, int& lmax) {
+          const int k = kbot + k_;
+          if (v(k) >= small && k > lmax)
+            lmax = k;
+        }, Kokkos::Max<int>(k_qxtop));
+      log_present = k_qxtop >= kbot;
+    }
+  }
+  return k_qxtop;
+}
+
+template <typename Array1>
+KOKKOS_INLINE_FUNCTION
+Int find_bottom (const Array1& v, const Int& nk, const Int& kdir) {
+  return -1;
+}
+
 void micro_sed_func_pack_kokkos (
   MicroSedFuncPackKokkos& m,
   const int kts, const int kte, const int its, const int ite, const Real dt,
@@ -307,6 +350,7 @@ void micro_sed_func_pack_kokkos (
 
   // direction of vertical leveling
   const int kbot = (kts < kte) ? 0 : m.num_vert-1;
+  const int ktop = (kts < kte) ? m.num_vert-1 : 0;
   const int kdir = (kts < kte) ? 1 : -1;
 
   const kokkos_2d_t<RealPack>
@@ -342,21 +386,10 @@ void micro_sed_func_pack_kokkos (
         });
       team.team_barrier();
 
-      bool log_qxpresent = false;
-      int k_qxtop = 0;
-
-      //TODO specialize these for the 1-thread case
-      // find top, determine qxpresent
-      Kokkos::parallel_reduce(
-        Kokkos::TeamThreadRange(team, m.num_vert), [&] (int k, int& lmax) {
-          if (qr(i, k) >= Globals<Real>::QSMALL && k*kdir > lmax) {
-            lmax = k*kdir;
-          }
-        }, Kokkos::Max<int>(k_qxtop));
-      // If the if statement in the parallel_reduce is never true, k_qxtop will
-      // end up being a large negative number, Max::init()'s value.
-      k_qxtop *= kdir;
-      log_qxpresent = k_qxtop >= 0;
+      bool log_qxpresent;
+      const auto small = Globals<Real>::QSMALL;
+      const int k_qxtop = find_top(team, Kokkos::subview(qr, i, Kokkos::ALL),
+                                   small, kbot, ktop, kdir, log_qxpresent);
 
       if (log_qxpresent) {
         Real dt_left = dt;    // time remaining for sedi over full model (mp) time step
