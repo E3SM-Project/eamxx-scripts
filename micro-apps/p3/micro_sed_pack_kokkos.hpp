@@ -198,7 +198,7 @@ void reset (MicroSedFuncPackKokkos& msvk) {
     KOKKOS_LAMBDA(member_type team_member) {
       const int i = team_member.league_rank();
       Kokkos::parallel_for(
-        Kokkos::TeamThreadRange(team_member, msvk.num_vert), [=] (int k) {
+        Kokkos::TeamThreadRange(team_member, msvk.num_vert), [&] (int k) {
           msvk.V_qr(i, k)    = 0.0;
           msvk.V_nr(i, k)    = 0.0;
           msvk.flux_qx(i, k) = 0.0;
@@ -238,7 +238,7 @@ void micro_sed_func_pack_kokkos (
       const int i = team_member.league_rank();
 
       Kokkos::parallel_for(
-        Kokkos::TeamThreadRange(team_member, m.num_vert), [=] (int k) {
+        Kokkos::TeamThreadRange(team_member, m.num_vert), [&] (int k) {
           // inverse of thickness of layers
           m.inv_dzq(i, k) = 1 / dzq(i, k);
           m.t(i, k) = std::pow(pres(i, k) * 1.e-5, Globals<Real>::RD * Globals<Real>::INV_CP) * th(i, k);
@@ -255,7 +255,7 @@ void micro_sed_func_pack_kokkos (
 
       // find top, determine qxpresent
       Kokkos::parallel_reduce(
-        Kokkos::TeamThreadRange(team_member, m.num_vert), [=] (int k, int& lmax) {
+        Kokkos::TeamThreadRange(team_member, m.num_vert), [&] (int k, int& lmax) {
           if (qr(i, k) >= Globals<Real>::QSMALL && k*kdir > lmax) {
             lmax = k*kdir;
           }
@@ -273,7 +273,7 @@ void micro_sed_func_pack_kokkos (
 
         // find bottom
         Kokkos::parallel_reduce(
-          Kokkos::TeamThreadRange(team_member, m.num_vert), [=] (int k, int& lmin) {
+          Kokkos::TeamThreadRange(team_member, m.num_vert), [&] (int k, int& lmin) {
             if (qr(i, k) >= Globals<Real>::QSMALL && k*kdir < lmin) {
               lmin = k*kdir;
             }
@@ -286,7 +286,7 @@ void micro_sed_func_pack_kokkos (
           Real Co_max = 0.0;
           Kokkos::parallel_for(
             Kokkos::TeamThreadRange(team_member, m.num_vert),
-            [=] (int kk) {
+            [&] (int kk) {
               m.V_qr(i, kk) = 0.0;
               m.V_nr(i, kk) = 0.0;
             });
@@ -295,7 +295,7 @@ void micro_sed_func_pack_kokkos (
           int kmin, kmax;
           util::set_min_max(k_qxtop, k_qxbot, kmin, kmax);
           Kokkos::parallel_reduce(
-            Kokkos::TeamThreadRange(team_member, kmax-kmin+1), [=] (int k_, Real& lmax) {
+            Kokkos::TeamThreadRange(team_member, kmax-kmin+1), [&] (int k_, Real& lmax) {
               const int k = kmin + k_;
               if (qr(i, k) > Globals<Real>::QSMALL) {
                 // Compute Vq, Vn:
@@ -317,10 +317,10 @@ void micro_sed_func_pack_kokkos (
             }, Kokkos::Max<Real>(Co_max));
 
           // compute dt_sub
-          int tmpint1 = static_cast<int>(Co_max + 1.0);
-          Real dt_sub = util::min(dt_left, dt_left / tmpint1);
+          const int tmpint1 = static_cast<int>(Co_max + 1.0);
+          const Real dt_sub = util::min(dt_left, dt_left / tmpint1);
 
-          int k_temp = (k_qxbot == kbot) ? k_qxbot : (k_qxbot - kdir);
+          const int k_temp = (k_qxbot == kbot) ? k_qxbot : (k_qxbot - kdir);
 
           // calculate fluxes
           util::set_min_max(k_temp, k_qxtop+kdir, kmin, kmax);
@@ -338,7 +338,7 @@ void micro_sed_func_pack_kokkos (
           }
 
           Kokkos::single(
-            Kokkos::PerTeam(team_member), [&]() {
+            Kokkos::PerTeam(team_member), [&] () {
               // for top level only (since flux is 0 above)
               int k = k_qxtop;
               // compute flux divergence
