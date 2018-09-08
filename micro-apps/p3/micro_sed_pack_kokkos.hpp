@@ -19,18 +19,18 @@ namespace micro_sed_pack {
 using micro_sed_vanilla::Globals;
 using namespace scream;
 
-#define SCREAM_PACKN 8
+#define SCREAM_PACKN 16
 using RealPack = Pack<Real, SCREAM_PACKN>;
 using IntPack = Pack<Int, SCREAM_PACKN>;
 
-KOKKOS_INLINE_FUNCTION
+KOKKOS_FORCEINLINE_FUNCTION
 kokkos_2d_t<Real> scalarize (const kokkos_2d_t<RealPack>& vp) {
   return Kokkos::View<Real**, Layout, MemSpace, Kokkos::MemoryTraits<Kokkos::Unmanaged> >(
     reinterpret_cast<Real*>(vp.data()), vp.extent_int(0), SCREAM_PACKN * vp.extent_int(1));
 }
 
 // NOT for general use. This is just for dev work.
-KOKKOS_INLINE_FUNCTION
+KOKKOS_FORCEINLINE_FUNCTION
 kokkos_2d_t<RealPack> packize (const kokkos_2d_t<Real>& vp) {
   assert(vp.extent_int(1) % SCREAM_PACKN == 0);
   return Kokkos::View<RealPack**, Layout, MemSpace, Kokkos::MemoryTraits<Kokkos::Unmanaged> >(
@@ -276,6 +276,16 @@ void micro_sed_func_pack_kokkos (
   const int kbot = (kts < kte) ? 0: m.num_vert-1;
   const int kdir = (kts < kte) ? 1  : -1;
 
+  const kokkos_2d_t<RealPack>
+    pdzq = packize(dzq),
+    ppres = packize(pres),
+    pinv_dzq = packize(m.inv_dzq),
+    pt = packize(m.t),
+    pth = packize(th),
+    prho = packize(m.rho),
+    pinv_rho = packize(m.inv_rho),
+    prhofacr = packize(m.rhofacr);
+
   // Rain sedimentation:  (adaptivive substepping)
   Kokkos::parallel_for(
     "main rain sed loop",
@@ -283,32 +293,21 @@ void micro_sed_func_pack_kokkos (
     KOKKOS_LAMBDA(const member_type& team_member) {
       const int i = team_member.league_rank();
 
-      {
-        const kokkos_2d_t<RealPack>
-          pdzq = packize(dzq),
-          ppres = packize(pres),
-          inv_dzq = packize(m.inv_dzq),
-          t = packize(m.t),
-          pth = packize(th),
-          rho = packize(m.rho),
-          inv_rho = packize(m.inv_rho),
-          rhofacr = packize(m.rhofacr);
-        Kokkos::parallel_for(
-          Kokkos::TeamThreadRange(team_member, m.num_vert / SCREAM_PACKN), [&] (int k) {
-            // inverse of thickness of layers
-            inv_dzq(i, k) = 1 / pdzq(i, k);
-            t(i, k) = pow(ppres(i, k) * 1.e-5, Globals<Real>::RD * Globals<Real>::INV_CP) * pth(i, k);
-            rho(i, k) = ppres(i, k) / (Globals<Real>::RD * t(i, k));
-            inv_rho(i, k) = 1.0 / rho(i, k);
-            rhofacr(i, k) = pow(Globals<Real>::RHOSUR * inv_rho(i, k), 0.54);
-          });
-      }
+      Kokkos::parallel_for(
+        Kokkos::TeamThreadRange(team_member, m.num_vert / SCREAM_PACKN), [&] (int k) {
+          // inverse of thickness of layers
+          pinv_dzq(i, k) = 1 / pdzq(i, k);
+          pt(i, k) = pow(ppres(i, k) * 1.e-5, Globals<Real>::RD * Globals<Real>::INV_CP) * pth(i, k);
+          prho(i, k) = ppres(i, k) / (Globals<Real>::RD * pt(i, k));
+          pinv_rho(i, k) = 1.0 / prho(i, k);
+          prhofacr(i, k) = pow(Globals<Real>::RHOSUR * pinv_rho(i, k), 0.54);
+        });
       team_member.team_barrier();
 
       // Note, we are skipping supersaturation checks
 
       bool log_qxpresent = false;
-      int k_qxtop = -1; // avoid warning, but don't use a meanigful value
+      int k_qxtop = -1; // avoid warning, but don't use a meaningful value
 
       // find top, determine qxpresent
       Kokkos::parallel_reduce(
