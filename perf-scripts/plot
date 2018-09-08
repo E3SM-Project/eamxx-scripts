@@ -55,6 +55,12 @@ def axis_tight_pad(pad=0.05, mult=False):
     return plt.ylim(pad_lim(yl, pad, mult))
 
 ###############################################################################
+def subtle_grid():
+###############################################################################
+    plt.grid(True, lw=0.5, ls='-', color=(0.8, 0.8, 0.8), zorder=-1, which='both')
+    return plt.gca().set_axisbelow(True)
+
+###############################################################################
 class Plotter(object):
 ###############################################################################
 
@@ -62,6 +68,7 @@ class Plotter(object):
         self._scaling_var  = None
         self._consistent   = OrderedDict()
         self._inconsistent = []
+        self._title        = None
 
         for datafile in datafiles:
             with open(datafile, "r") as fd:
@@ -92,11 +99,7 @@ class Plotter(object):
         for key, value in self._consistent.iteritems():
             title.append("{}={}".format(key, value))
 
-        plt.title(" ".join(title))
-        plt.xlabel(self._scaling_var)
-        plt.ylabel("cols/s")
-        plt.legend(loc="best")
-        axis_tight_pad()
+        self._title = " ".join(title)
 
     def plotdata(self, datafile):
         xs, ys = [], []
@@ -126,7 +129,18 @@ class Plotter(object):
                     testname, xlabel = line.split()
                     expect(xlabel == self._scaling_var, "Bad file {}".format(datafile))
 
-        plt.plot(xs, ys, label=testname)
+        plt.plot(xs, ys, label="{}{}".format(testname, line_label))
+
+    def finalize(self):
+
+        subtle_grid()
+        plt.title(self._title)
+        plt.xlabel(self._scaling_var)
+        plt.ylabel("cols/s")
+        plt.legend(loc="best")
+        axis_tight_pad()
+
+        plt.show()
 
 ###############################################################################
 def _main_func(description):
@@ -138,7 +152,7 @@ def _main_func(description):
     for datafile in datafiles:
         plotter.plotdata(datafile)
 
-    plt.show()
+    plotter.finalize()
 
 ###############################################################################
 
