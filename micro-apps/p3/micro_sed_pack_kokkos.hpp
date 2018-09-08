@@ -39,7 +39,7 @@ using kokkos_1d_table_t = Kokkos::View<Real[150], Layout, MemSpace>;
 KOKKOS_INLINE_FUNCTION
 void find_lookupTable_indices_3_kokkos (
   int& dumii, int& dumjj, Real& rdumii, Real& rdumjj, Real& inv_dum3,
-  const Real mu_r, const Real lamr)
+  const Real& mu_r, const Real& lamr)
 {
   // find location in scaled mean size space
   const auto dum1 = (mu_r+1.) / lamr;
@@ -71,11 +71,23 @@ void find_lookupTable_indices_3_kokkos (
   dumjj  = util::min(dumjj,9);
 }
 
+KOKKOS_INLINE_FUNCTION
+Real apply_table (
+  const kokkos_2d_table_t<Real>& table,
+  const int& dumii, const int& dumjj, const Real& rdumii, const Real& rdumjj, const Real& inv_dum3)
+{
+  const auto dum1 = (table(dumii-1, dumjj-1) + (rdumii-dumii) * inv_dum3 *
+                     (table(dumii, dumjj-1) - table(dumii-1, dumjj-1)));
+  const auto dum2 = (table(dumii-1, dumjj) + (rdumii-dumii) * inv_dum3 *
+                     (table(dumii, dumjj) - table(dumii-1, dumjj)));
+  return dum1 + (rdumjj - dumjj) * (dum2 - dum1);
+}
+
 // Computes and returns rain size distribution parameters
 KOKKOS_INLINE_FUNCTION
 void get_rain_dsd2_kokkos (
-  const Real qr, Real& nr, Real& mu_r, Real& rdumii, int& dumii, Real& lamr,
-  kokkos_1d_table_t<Real> const& mu_r_table, Real& cdistr, Real& logn0r)
+  const Real& qr, Real& nr, Real& mu_r, Real& rdumii, int& dumii, Real& lamr,
+  const kokkos_1d_table_t<Real>& mu_r_table, Real& cdistr, Real& logn0r)
 {
   constexpr Real nsmall = Globals<Real>::NSMALL;
   if (qr >= Globals<Real>::QSMALL) {
@@ -290,28 +302,18 @@ void micro_sed_func_pack_kokkos (
               if (qr(i, k) > Globals<Real>::QSMALL) {
                 // Compute Vq, Vn:
                 nr(i, k) = util::max(nr(i, k), nsmall);
-                Real rdumii=0.0, tmp1=0.0, tmp2=0.0, rdumjj=0.0, inv_dum3=0.0;
-                int dumii=0, dumjj=0;
+                Real rdumii, tmp1, tmp2, rdumjj, inv_dum3;
+                int dumii, dumjj;
                 get_rain_dsd2_kokkos(qr(i, k), nr(i, k), m.mu_r(i, k), rdumii, dumii,
                                      m.lamr(i, k), m.mu_r_table, tmp1, tmp2);
                 find_lookupTable_indices_3_kokkos(dumii, dumjj, rdumii, rdumjj, inv_dum3,
                                                   m.mu_r(i, k), m.lamr(i, k));
-
                 // mass-weighted fall speed:
-                Real dum1 = m.vm_table(dumii-1, dumjj-1) + (rdumii-dumii) * inv_dum3 *
-                  (m.vm_table(dumii, dumjj-1) - m.vm_table(dumii-1, dumjj-1));
-                Real dum2 = m.vm_table(dumii-1, dumjj) + (rdumii-dumii) * inv_dum3 *
-                  (m.vm_table(dumii, dumjj) - m.vm_table(dumii-1, dumjj));
-
-                m.V_qr(i, k) = (dum1 + (rdumjj - dumjj) * (dum2 - dum1)) * m.rhofacr(i, k);
-
+                m.V_qr(i, k) = apply_table(m.vm_table, dumii, dumjj, rdumii, rdumjj, inv_dum3)
+                  * m.rhofacr(i, k);
                 // number-weighted fall speed:
-                dum1 = m.vn_table(dumii-1, dumjj-1) + (rdumii-dumii) * inv_dum3 *
-                  (m.vn_table(dumii, dumjj-1) - m.vn_table(dumii-1, dumjj-1));
-                dum2 = m.vn_table(dumii-1, dumjj) + (rdumii-dumii) * inv_dum3 *
-                  (m.vn_table(dumii, dumjj) - m.vn_table(dumii-1, dumjj));
-
-                m.V_nr(i, k) = (dum1 + (rdumjj - dumjj) * (dum2 - dum1)) * m.rhofacr(i, k);
+                m.V_nr(i, k) = apply_table(m.vn_table, dumii, dumjj, rdumii, rdumjj, inv_dum3)
+                  * m.rhofacr(i, k);
               }
               Real Co_max_local = m.V_qr(i, k) * dt_left * m.inv_dzq(i, k);
               if (Co_max_local > lmax) {
