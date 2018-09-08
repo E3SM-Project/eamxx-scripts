@@ -198,26 +198,6 @@ public:
   }
 };
 
-void reset (MicroSedFuncPackKokkos& msvk) {
-  Kokkos::parallel_for(
-    "2d reset",
-    util::ExeSpaceUtils<>::get_default_team_policy(msvk.num_horz, msvk.num_vert),
-    KOKKOS_LAMBDA(const member_type& team) {
-      const int i = team.league_rank();
-      Kokkos::parallel_for(
-        Kokkos::TeamThreadRange(team, msvk.num_vert), [&] (int k) {
-          msvk.mu_r(i, k)    = 0.0;
-          msvk.lamr(i, k)    = 0.0;
-          msvk.rhofacr(i, k) = 0.0;
-          msvk.inv_dzq(i, k) = 0.0;
-          msvk.rho(i, k)     = 0.0;
-          msvk.inv_rho(i, k) = 0.0;
-          msvk.t(i, k)       = 0.0;
-          msvk.tmparr1(i, k) = 0.0;
-        });
-    });
-}
-
 KOKKOS_INLINE_FUNCTION
 void calc_first_order_upwind_step (
   const MicroSedFuncPackKokkos& m, const member_type& team, const int& i,
@@ -281,7 +261,7 @@ void micro_sed_func_pack_kokkos (
     pinv_rho = packize(m.inv_rho),
     prhofacr = packize(m.rhofacr);
 
-  // Rain sedimentation:  (adaptivive substepping)
+  // Rain sedimentation:  (adaptive substepping)
   Kokkos::parallel_for(
     "main rain sed loop",
     util::ExeSpaceUtils<>::get_default_team_policy(m.num_horz, m.num_vert),
@@ -299,10 +279,8 @@ void micro_sed_func_pack_kokkos (
         });
       team.team_barrier();
 
-      // Note, we are skipping supersaturation checks
-
       bool log_qxpresent = false;
-      int k_qxtop = -1; // avoid warning, but don't use a meaningful value
+      int k_qxtop = 0;
 
       // find top, determine qxpresent
       Kokkos::parallel_reduce(
@@ -365,6 +343,7 @@ void micro_sed_func_pack_kokkos (
           const int tmpint1 = static_cast<int>(Co_max + 1.0);
           const Real dt_sub = util::min(dt_left, dt_left / tmpint1);
 
+          // Move bottom cell down by 1 if not at ground already.
           int k_temp;
           if (k_qxbot == kbot) {
             k_temp = k_qxbot;
@@ -384,12 +363,10 @@ void micro_sed_func_pack_kokkos (
           team.team_barrier();
 
           // accumulated precip during time step
-          if (k_qxbot == kbot)
-            prt_accum += m.flux(i, kbot) * dt_sub;
+          if (k_qxbot == kbot) prt_accum += m.flux(i, kbot) * dt_sub;
 
           dt_left -= dt_sub;  // update time remaining for sedimentation
-          if (k_qxbot != kbot)
-            k_qxbot -= kdir;
+          if (k_qxbot != kbot) k_qxbot -= kdir;
         }
 
         Kokkos::single(
@@ -398,8 +375,6 @@ void micro_sed_func_pack_kokkos (
           });
       }
     });
-
-  reset(m);
 }
 
 void populate_kokkos_from_vec (
