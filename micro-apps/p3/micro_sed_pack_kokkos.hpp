@@ -20,21 +20,32 @@ using micro_sed_vanilla::Globals;
 using namespace scream;
 
 #define SCREAM_PACKN 16
-using RealPack = Pack<Real, SCREAM_PACKN>;
-using IntPack = Pack<Int, SCREAM_PACKN>;
+template <typename T> using BigPack = Pack<T, SCREAM_PACKN>;
+template <typename T> using SmallPack = Pack<T, SCREAM_PACKN/2>;
+using RealPack = BigPack<Real>;
+using IntPack = BigPack<Int>;
+using RealSmallPack = SmallPack<Real>;
+using IntSmallPack = SmallPack<Int>;
 
-KOKKOS_FORCEINLINE_FUNCTION
-kokkos_2d_t<Real> scalarize (const kokkos_2d_t<RealPack>& vp) {
-  return Kokkos::View<Real**, Layout, MemSpace, Kokkos::MemoryTraits<Kokkos::Unmanaged> >(
-    reinterpret_cast<Real*>(vp.data()), vp.extent_int(0), SCREAM_PACKN * vp.extent_int(1));
+template <typename T> KOKKOS_FORCEINLINE_FUNCTION
+kokkos_2d_t<T> scalarize (const kokkos_2d_t<BigPack<T> >& vp) {
+  return Kokkos::View<T**, Layout, MemSpace, Kokkos::MemoryTraits<Kokkos::Unmanaged> >(
+    reinterpret_cast<T*>(vp.data()), vp.extent_int(0), SCREAM_PACKN * vp.extent_int(1));
 }
 
 // NOT for general use. This is just for dev work.
-KOKKOS_FORCEINLINE_FUNCTION
-kokkos_2d_t<RealPack> packize (const kokkos_2d_t<Real>& vp) {
+template <typename T> KOKKOS_FORCEINLINE_FUNCTION
+kokkos_2d_t<BigPack<T> > packize (const kokkos_2d_t<T>& vp) {
   assert(vp.extent_int(1) % SCREAM_PACKN == 0);
-  return Kokkos::View<RealPack**, Layout, MemSpace, Kokkos::MemoryTraits<Kokkos::Unmanaged> >(
-    reinterpret_cast<RealPack*>(vp.data()), vp.extent_int(0), vp.extent_int(1) / SCREAM_PACKN);
+  return Kokkos::View<BigPack<T>**, Layout, MemSpace, Kokkos::MemoryTraits<Kokkos::Unmanaged> >(
+    reinterpret_cast<BigPack<T>*>(vp.data()), vp.extent_int(0), vp.extent_int(1) / SCREAM_PACKN);
+}
+
+template <typename T> KOKKOS_FORCEINLINE_FUNCTION
+kokkos_2d_t<SmallPack<T> > smallize (const kokkos_2d_t<BigPack<T> >& vp) {
+  assert(vp.extent_int(1) % SCREAM_PACKN == 0);
+  return Kokkos::View<SmallPack<T>**, Layout, MemSpace, Kokkos::MemoryTraits<Kokkos::Unmanaged> >(
+    reinterpret_cast<SmallPack<T>*>(vp.data()), vp.extent_int(0), vp.extent_int(1) / SCREAM_PACKN);
 }
 
 template <typename Real>
