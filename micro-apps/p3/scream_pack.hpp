@@ -125,13 +125,6 @@ scream_pack_gen_bin_op_all(-)
 scream_pack_gen_bin_op_all(*)
 scream_pack_gen_bin_op_all(/)
 
-template <typename T, typename pack, typename Scalar> KOKKOS_INLINE_FUNCTION
-OnlyPackReturn<pack, Pack<T,pack::n> > min (const Scalar& a, const pack& b) {
-  Pack<T,pack::n> c;
-  vector_simd for (int i = 0; i < pack::n; ++i) c[i] = util::min<T>(a, b[i]);
-  return c;
-}
-
 template <typename T, int n> KOKKOS_INLINE_FUNCTION 
 Pack<T,n> pack_range (const T& start) {
   typedef Pack<T,n> pack;
@@ -147,26 +140,62 @@ OnlyPackReturn<Pack, Mask<Pack::n> > operator >= (const Pack& a, const Scalar& b
   return m;
 }
 
-#define scream_pack_gen_unary_op(op, fn)                            \
-  template <typename Pack> KOKKOS_INLINE_FUNCTION                   \
-  OnlyPack<Pack> op (const Pack& p) {                               \
-    Pack s;                                                         \
-    vector_simd for (int i = 0; i < Pack::n; ++i) s[i] = fn(p[i]);  \
-    return s;                                                       \
+#define scream_pack_gen_unary_fn(fn, impl)                            \
+  template <typename Pack> KOKKOS_INLINE_FUNCTION                     \
+  OnlyPack<Pack> fn (const Pack& p) {                                 \
+    Pack s;                                                           \
+    vector_simd for (int i = 0; i < Pack::n; ++i) s[i] = impl(p[i]);  \
+    return s;                                                         \
   }
-#define scream_pack_gen_unary_stdop(op) scream_pack_gen_unary_op(op, std::op)
-scream_pack_gen_unary_stdop(abs)
-scream_pack_gen_unary_stdop(exp)
-scream_pack_gen_unary_stdop(log)
-scream_pack_gen_unary_stdop(log10)
-scream_pack_gen_unary_stdop(tgamma)
+#define scream_pack_gen_unary_stdfn(fn) scream_pack_gen_unary_fn(fn, std::fn)
+scream_pack_gen_unary_stdfn(abs)
+scream_pack_gen_unary_stdfn(exp)
+scream_pack_gen_unary_stdfn(log)
+scream_pack_gen_unary_stdfn(log10)
+scream_pack_gen_unary_stdfn(tgamma)
 
-template <typename Pack> KOKKOS_INLINE_FUNCTION 
-OnlyPack<Pack> pow (const Pack& p, const typename Pack::scalar& e) { 
-  Pack s; 
-  vector_simd for (int i = 0; i < Pack::n; ++i) s[i] = std::pow(p[i], e);
-  return s;
+template <typename Pack> KOKKOS_INLINE_FUNCTION
+OnlyPackReturn<Pack, typename Pack::scalar> min (const Pack& p) {
+  typename Pack::scalar v(p[0]);
+  vector_simd for (int i = 0; i < Pack::n; ++i) v = util::min(v, p[i]);
+  return v;
 }
+template <typename Pack> KOKKOS_INLINE_FUNCTION
+OnlyPackReturn<Pack, typename Pack::scalar> max (const Pack& p) {
+  typename Pack::scalar v(p[0]);
+  vector_simd for (int i = 0; i < Pack::n; ++i) v = util::max(v, p[i]);
+  return v;
+}
+
+#define scream_pack_gen_bin_fn_pp(fn, impl)                             \
+  template <typename Pack> KOKKOS_INLINE_FUNCTION                       \
+  OnlyPack<Pack> fn (const Pack& a, const Pack& b) {                    \
+    Pack s;                                                             \
+    vector_simd for (int i = 0; i < Pack::n; ++i) s[i] = impl(a[i], b[i]); \
+    return s;                                                           \
+  }
+#define scream_pack_gen_bin_fn_ps(fn, impl)                             \
+  template <typename Pack, typename Scalar> KOKKOS_INLINE_FUNCTION                      \
+  OnlyPack<Pack> fn (const Pack& a, const Scalar& b) {                  \
+    Pack s;                                                             \
+    vector_simd for (int i = 0; i < Pack::n; ++i) s[i] = impl(a[i], b); \
+    return s;                                                           \
+  }
+#define scream_pack_gen_bin_fn_sp(fn, impl)                             \
+  template <typename Pack, typename Scalar> KOKKOS_INLINE_FUNCTION      \
+  OnlyPack<Pack> fn (const Scalar& a, const Pack& b) {                  \
+    Pack s;                                                             \
+    vector_simd for (int i = 0; i < Pack::n; ++i) s[i] = impl(a, b[i]); \
+    return s;                                                           \
+  }
+#define scream_pack_gen_bin_fn_all(fn, impl)    \
+  scream_pack_gen_bin_fn_pp(fn, impl)           \
+  scream_pack_gen_bin_fn_ps(fn, impl)           \
+  scream_pack_gen_bin_fn_sp(fn, impl)
+
+scream_pack_gen_bin_fn_all(pow, std::pow)
+scream_pack_gen_bin_fn_all(min, util::min)
+scream_pack_gen_bin_fn_all(max, util::max)
 
 } // namespace scream
 
