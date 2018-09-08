@@ -195,7 +195,7 @@ void reset (MicroSedFuncPackKokkos& msvk) {
   Kokkos::parallel_for(
     "2d reset",
     util::ExeSpaceUtils<>::get_default_team_policy(msvk.num_horz, msvk.num_vert),
-    KOKKOS_LAMBDA(member_type team_member) {
+    KOKKOS_LAMBDA(const member_type& team_member) {
       const int i = team_member.league_rank();
       Kokkos::parallel_for(
         Kokkos::TeamThreadRange(team_member, msvk.num_vert), [&] (int k) {
@@ -215,12 +215,50 @@ void reset (MicroSedFuncPackKokkos& msvk) {
     });
 }
 
+KOKKOS_INLINE_FUNCTION
+void calc_first_order_upwind_step (
+  const MicroSedFuncPackKokkos& m, const member_type& team_member, const int& i,
+  const int& k_temp, const int& k_qxtop, const int& kdir, const Real& dt_sub,
+  const kokkos_2d_t<Real>& flux, const kokkos_2d_t<Real>& V, const kokkos_2d_t<Real>& r)
+{
+  int kmin, kmax;
+
+  // calculate fluxes
+  util::set_min_max(k_temp, k_qxtop + kdir, kmin, kmax);
+  Kokkos::parallel_for(
+    Kokkos::TeamThreadRange(team_member, kmax-kmin+1), [&] (int k_) {
+      const int k = kmin + k_;
+      flux(i, k) = V(i, k) * r(i, k) * m.rho(i, k);
+    });
+  team_member.team_barrier();
+
+  Kokkos::single(
+    Kokkos::PerTeam(team_member), [&] () {
+      // for top level only (since flux is 0 above)
+      int k = k_qxtop;
+      // compute flux divergence
+      const auto fluxdiv = -flux(i, k) * m.inv_dzq(i, k);
+      // update prognostic variables
+      r(i, k) += fluxdiv * dt_sub * m.inv_rho(i, k);
+    });
+
+  util::set_min_max(k_qxtop - kdir, k_temp, kmin, kmax);
+  Kokkos::parallel_for(
+    Kokkos::TeamThreadRange(team_member, kmax-kmin+1), [&] (int k_) {
+      const int k = kmin + k_;
+      // compute flux divergence
+      const auto fluxdiv = (flux(i, k+kdir) - flux(i, k)) * m.inv_dzq(i, k);
+      // update prognostic variables
+      r(i, k) += fluxdiv * dt_sub * m.inv_rho(i, k);
+    });
+}
+
 void micro_sed_func_pack_kokkos (
   MicroSedFuncPackKokkos& m,
   const int kts, const int kte, const int its, const int ite, const Real dt,
-  kokkos_2d_t<Real>& qr, kokkos_2d_t<Real>& nr,
-  kokkos_2d_t<Real> const& th, kokkos_2d_t<Real> const& dzq, kokkos_2d_t<Real> const& pres,
-  kokkos_1d_t<Real>& prt_liq)
+  const kokkos_2d_t<Real>& qr, const kokkos_2d_t<Real>& nr,
+  const kokkos_2d_t<Real>& th, const kokkos_2d_t<Real>& dzq, const kokkos_2d_t<Real>& pres,
+  const kokkos_1d_t<Real>& prt_liq)
 {
   // constants
   const Real odt = 1.0 / dt;
@@ -234,7 +272,7 @@ void micro_sed_func_pack_kokkos (
   Kokkos::parallel_for(
     "main rain sed loop",
     util::ExeSpaceUtils<>::get_default_team_policy(m.num_horz, m.num_vert),
-    KOKKOS_LAMBDA(member_type team_member) {
+    KOKKOS_LAMBDA(const member_type& team_member) {
       const int i = team_member.league_rank();
 
       Kokkos::parallel_for(
@@ -322,46 +360,18 @@ void micro_sed_func_pack_kokkos (
 
           const int k_temp = (k_qxbot == kbot) ? k_qxbot : (k_qxbot - kdir);
 
-          // calculate fluxes
-          util::set_min_max(k_temp, k_qxtop+kdir, kmin, kmax);
-          Kokkos::parallel_for(
-            Kokkos::TeamThreadRange(team_member, kmax-kmin+1), [&] (int k_) {
-              const int k = kmin + k_;
-              m.flux_qx(i, k) = m.V_qr(i, k) * qr(i, k) * m.rho(i, k);
-              m.flux_nx(i, k) = m.V_nr(i, k) * nr(i, k) * m.rho(i, k);
-            });
-          team_member.team_barrier();
+          calc_first_order_upwind_step(m, team_member, i,
+                                       k_temp, k_qxtop, kdir, dt_sub,
+                                       m.flux_qx, m.V_qr, qr);
+          calc_first_order_upwind_step(m, team_member, i,
+                                       k_temp, k_qxtop, kdir, dt_sub,
+                                       m.flux_nx, m.V_nr, nr);
+
 
           // accumulated precip during time step
           if (k_qxbot == kbot) {
             prt_accum += m.flux_qx(i, kbot) * dt_sub;
           }
-
-          Kokkos::single(
-            Kokkos::PerTeam(team_member), [&] () {
-              // for top level only (since flux is 0 above)
-              int k = k_qxtop;
-              // compute flux divergence
-              const Real
-                fluxdiv_qx = -m.flux_qx(i, k) * m.inv_dzq(i, k),
-                fluxdiv_nx = -m.flux_nx(i, k) * m.inv_dzq(i, k);
-              // update prognostic variables
-              qr(i, k) += fluxdiv_qx * dt_sub * m.inv_rho(i, k);
-              nr(i, k) += fluxdiv_nx * dt_sub * m.inv_rho(i, k);
-            });
-
-          util::set_min_max(k_qxtop - kdir, k_temp, kmin, kmax);
-          Kokkos::parallel_for(
-            Kokkos::TeamThreadRange(team_member, kmax-kmin+1), [&] (int k_) {
-              const int k = kmin + k_;
-              // compute flux divergence
-              const Real
-                fluxdiv_qx = (m.flux_qx(i, k+kdir) - m.flux_qx(i, k)) * m.inv_dzq(i, k),
-                fluxdiv_nx = (m.flux_nx(i, k+kdir) - m.flux_nx(i, k)) * m.inv_dzq(i, k);
-              // update prognostic variables
-              qr(i, k) += fluxdiv_qx * dt_sub * m.inv_rho(i, k);
-              nr(i, k) += fluxdiv_nx * dt_sub * m.inv_rho(i, k);
-            });
 
           dt_left -= dt_sub;  // update time remaining for sedimentation
           if (k_qxbot != kbot) {
