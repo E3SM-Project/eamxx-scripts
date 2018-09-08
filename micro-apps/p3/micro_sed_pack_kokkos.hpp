@@ -153,7 +153,7 @@ struct MicroSedFuncPackKokkos {
   int num_horz, num_vert;
 
   // re-usable scratch views
-  kokkos_2d_t<Real> V_qr, V_nr, flux_qx, flux_nx, mu_r, lamr, rhofacr, inv_dzq, rho, inv_rho, t, tmparr1;
+  kokkos_2d_t<Real> V_qr, V_nr, flux, mu_r, lamr, rhofacr, inv_dzq, rho, inv_rho, t, tmparr1;
   kokkos_2d_table_t<Real> vn_table, vm_table;
   kokkos_1d_table_t<Real> mu_r_table;
 
@@ -162,8 +162,7 @@ public:
     num_horz(num_horz_), num_vert(num_vert_),
     V_qr("V_qr", num_horz, num_vert),
     V_nr("V_nr", num_horz, num_vert),
-    flux_qx("flux_qx", num_horz, num_vert),
-    flux_nx("flux_nx", num_horz, num_vert),
+    flux("flux", num_horz, num_vert),
     mu_r("mu_r", num_horz, num_vert),
     lamr("lamr", num_horz, num_vert),
     rhofacr("rhofacr", num_horz, num_vert),
@@ -203,14 +202,10 @@ void reset (MicroSedFuncPackKokkos& msvk) {
   Kokkos::parallel_for(
     "2d reset",
     util::ExeSpaceUtils<>::get_default_team_policy(msvk.num_horz, msvk.num_vert),
-    KOKKOS_LAMBDA(const member_type& team_member) {
-      const int i = team_member.league_rank();
+    KOKKOS_LAMBDA(const member_type& team) {
+      const int i = team.league_rank();
       Kokkos::parallel_for(
-        Kokkos::TeamThreadRange(team_member, msvk.num_vert), [&] (int k) {
-          msvk.V_qr(i, k)    = 0.0;
-          msvk.V_nr(i, k)    = 0.0;
-          msvk.flux_qx(i, k) = 0.0;
-          msvk.flux_nx(i, k) = 0.0;
+        Kokkos::TeamThreadRange(team, msvk.num_vert), [&] (int k) {
           msvk.mu_r(i, k)    = 0.0;
           msvk.lamr(i, k)    = 0.0;
           msvk.rhofacr(i, k) = 0.0;
@@ -225,34 +220,34 @@ void reset (MicroSedFuncPackKokkos& msvk) {
 
 KOKKOS_INLINE_FUNCTION
 void calc_first_order_upwind_step (
-  const MicroSedFuncPackKokkos& m, const member_type& team_member, const int& i,
-  const int& k_temp, const int& k_qxtop, const int& kdir, const Real& dt_sub,
+  const MicroSedFuncPackKokkos& m, const member_type& team, const int& i,
+  const int& k_bot, const int& k_top, const int& kdir, const Real& dt_sub,
   const kokkos_2d_t<Real>& flux, const kokkos_2d_t<Real>& V, const kokkos_2d_t<Real>& r)
 {
   int kmin, kmax;
 
   // calculate fluxes
-  util::set_min_max(k_temp, k_qxtop + kdir, kmin, kmax);
+  util::set_min_max(k_bot, k_top, kmin, kmax);
   Kokkos::parallel_for(
-    Kokkos::TeamThreadRange(team_member, kmax-kmin+1), [&] (int k_) {
+    Kokkos::TeamThreadRange(team, kmax-kmin+1), [&] (int k_) {
       const int k = kmin + k_;
       flux(i, k) = V(i, k) * r(i, k) * m.rho(i, k);
     });
-  team_member.team_barrier();
+  team.team_barrier();
 
   Kokkos::single(
-    Kokkos::PerTeam(team_member), [&] () {
+    Kokkos::PerTeam(team), [&] () {
       // for top level only (since flux is 0 above)
-      int k = k_qxtop;
+      int k = k_top;
       // compute flux divergence
       const auto fluxdiv = -flux(i, k) * m.inv_dzq(i, k);
       // update prognostic variables
       r(i, k) += fluxdiv * dt_sub * m.inv_rho(i, k);
     });
 
-  util::set_min_max(k_qxtop - kdir, k_temp, kmin, kmax);
+  util::set_min_max(k_bot, k_top - kdir, kmin, kmax);
   Kokkos::parallel_for(
-    Kokkos::TeamThreadRange(team_member, kmax-kmin+1), [&] (int k_) {
+    Kokkos::TeamThreadRange(team, kmax-kmin+1), [&] (int k_) {
       const int k = kmin + k_;
       // compute flux divergence
       const auto fluxdiv = (flux(i, k+kdir) - flux(i, k)) * m.inv_dzq(i, k);
@@ -290,11 +285,11 @@ void micro_sed_func_pack_kokkos (
   Kokkos::parallel_for(
     "main rain sed loop",
     util::ExeSpaceUtils<>::get_default_team_policy(m.num_horz, m.num_vert),
-    KOKKOS_LAMBDA(const member_type& team_member) {
-      const int i = team_member.league_rank();
+    KOKKOS_LAMBDA(const member_type& team) {
+      const int i = team.league_rank();
 
       Kokkos::parallel_for(
-        Kokkos::TeamThreadRange(team_member, m.num_vert / SCREAM_PACKN), [&] (int k) {
+        Kokkos::TeamThreadRange(team, m.num_vert / SCREAM_PACKN), [&] (int k) {
           // inverse of thickness of layers
           pinv_dzq(i, k) = 1 / pdzq(i, k);
           pt(i, k) = pow(ppres(i, k) * 1.e-5, Globals<Real>::RD * Globals<Real>::INV_CP) * pth(i, k);
@@ -302,7 +297,7 @@ void micro_sed_func_pack_kokkos (
           pinv_rho(i, k) = 1.0 / prho(i, k);
           prhofacr(i, k) = pow(Globals<Real>::RHOSUR * pinv_rho(i, k), 0.54);
         });
-      team_member.team_barrier();
+      team.team_barrier();
 
       // Note, we are skipping supersaturation checks
 
@@ -311,7 +306,7 @@ void micro_sed_func_pack_kokkos (
 
       // find top, determine qxpresent
       Kokkos::parallel_reduce(
-        Kokkos::TeamThreadRange(team_member, m.num_vert), [&] (int k, int& lmax) {
+        Kokkos::TeamThreadRange(team, m.num_vert), [&] (int k, int& lmax) {
           if (qr(i, k) >= Globals<Real>::QSMALL && k*kdir > lmax) {
             lmax = k*kdir;
           }
@@ -328,7 +323,7 @@ void micro_sed_func_pack_kokkos (
 
         // find bottom
         Kokkos::parallel_reduce(
-          Kokkos::TeamThreadRange(team_member, m.num_vert), [&] (int k, int& lmin) {
+          Kokkos::TeamThreadRange(team, m.num_vert), [&] (int k, int& lmin) {
             if (qr(i, k) >= Globals<Real>::QSMALL && k*kdir < lmin) {
               lmin = k*kdir;
             }
@@ -339,19 +334,14 @@ void micro_sed_func_pack_kokkos (
 
         while (dt_left > 1.e-4) {
           Real Co_max = 0.0;
-          Kokkos::parallel_for(
-            Kokkos::TeamThreadRange(team_member, m.num_vert),
-            [&] (int kk) {
-              m.V_qr(i, kk) = 0.0;
-              m.V_nr(i, kk) = 0.0;
-            });
-          team_member.team_barrier();
-
           int kmin, kmax;
-          util::set_min_max(k_qxtop, k_qxbot, kmin, kmax);
+
+          util::set_min_max(k_qxbot, k_qxtop, kmin, kmax);
           Kokkos::parallel_reduce(
-            Kokkos::TeamThreadRange(team_member, kmax-kmin+1), [&] (int k_, Real& lmax) {
+            Kokkos::TeamThreadRange(team, kmax-kmin+1), [&] (int k_, Real& lmax) {
               const int k = kmin + k_;
+              m.V_qr(i, k) = 0;
+              m.V_nr(i, k) = 0;
               if (qr(i, k) > Globals<Real>::QSMALL) {
                 // Compute Vq, Vn:
                 nr(i, k) = util::max(nr(i, k), nsmall);
@@ -369,24 +359,33 @@ void micro_sed_func_pack_kokkos (
               if (Co_max_local > lmax)
                 lmax = Co_max_local;
             }, Kokkos::Max<Real>(Co_max));
+          team.team_barrier();
 
           // compute dt_sub
           const int tmpint1 = static_cast<int>(Co_max + 1.0);
           const Real dt_sub = util::min(dt_left, dt_left / tmpint1);
 
-          const int k_temp = (k_qxbot == kbot) ? k_qxbot : (k_qxbot - kdir);
+          int k_temp;
+          if (k_qxbot == kbot) {
+            k_temp = k_qxbot;
+          } else {
+            k_temp = k_qxbot - kdir;
+            m.V_qr(i, k_temp) = 0;
+            m.V_nr(i, k_temp) = 0;
+          }
 
-          calc_first_order_upwind_step(m, team_member, i,
+          calc_first_order_upwind_step(m, team, i,
                                        k_temp, k_qxtop, kdir, dt_sub,
-                                       m.flux_qx, m.V_qr, qr);
-          calc_first_order_upwind_step(m, team_member, i,
+                                       m.flux, m.V_nr, nr);
+          team.team_barrier();
+          calc_first_order_upwind_step(m, team, i,
                                        k_temp, k_qxtop, kdir, dt_sub,
-                                       m.flux_nx, m.V_nr, nr);
-
+                                       m.flux, m.V_qr, qr);
+          team.team_barrier();
 
           // accumulated precip during time step
           if (k_qxbot == kbot)
-            prt_accum += m.flux_qx(i, kbot) * dt_sub;
+            prt_accum += m.flux(i, kbot) * dt_sub;
 
           dt_left -= dt_sub;  // update time remaining for sedimentation
           if (k_qxbot != kbot)
@@ -394,7 +393,7 @@ void micro_sed_func_pack_kokkos (
         }
 
         Kokkos::single(
-          Kokkos::PerTeam(team_member), [&]() {
+          Kokkos::PerTeam(team), [&]() {
             prt_liq(i) += prt_accum * Globals<Real>::INV_RHOW * odt;
           });
       }
