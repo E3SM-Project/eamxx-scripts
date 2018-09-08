@@ -237,9 +237,7 @@ void calc_first_order_upwind_step (
   team.team_barrier();
 
   // calculate fluxes
-  util::set_min_max(k_bot, k_top, kmin, kmax);
-  kmin /= RealSmallPack::n;
-  kmax /= RealSmallPack::n;
+  util::set_min_max(k_bot, k_top, kmin, kmax, RealSmallPack::n);
   Kokkos::parallel_for(
     Kokkos::TeamThreadRange(team, kmax-kmin+1), [&] (int k_) {
       const int k = kmin + k_;
@@ -259,9 +257,8 @@ void calc_first_order_upwind_step (
       r(i, k) += fluxdiv * dt_sub * inv_rho(i, k);
     });
 
-  util::set_min_max(k_bot, k_top - kdir * RealSmallPack::n, kmin, kmax);
-  kmin /= RealSmallPack::n;
-  kmax /= RealSmallPack::n;
+  util::set_min_max(k_bot, k_top - kdir * RealSmallPack::n, kmin, kmax,
+                    RealSmallPack::n);
   Kokkos::parallel_for(
     Kokkos::TeamThreadRange(team, kmax-kmin+1), [&] (int k_) {
       const int k = kmin + k_;
