@@ -43,9 +43,8 @@ kokkos_2d_t<BigPack<T> > packize (const kokkos_2d_t<T>& vp) {
 
 template <typename T> KOKKOS_FORCEINLINE_FUNCTION
 kokkos_2d_t<SmallPack<T> > smallize (const kokkos_2d_t<BigPack<T> >& vp) {
-  assert(vp.extent_int(1) % SCREAM_PACKN == 0);
   return Kokkos::View<SmallPack<T>**, Layout, MemSpace, Kokkos::MemoryTraits<Kokkos::Unmanaged> >(
-    reinterpret_cast<SmallPack<T>*>(vp.data()), vp.extent_int(0), vp.extent_int(1) / SCREAM_PACKN);
+    reinterpret_cast<SmallPack<T>*>(vp.data()), vp.extent_int(0), 2*vp.extent_int(1));
 }
 
 template <typename Real>
@@ -217,19 +216,28 @@ void calc_first_order_upwind_step (
   const kokkos_2d_t<RealPack>& pflux, const kokkos_2d_t<RealPack>& pV,
   const kokkos_2d_t<RealPack>& pr)
 {
+  const kokkos_2d_t<RealSmallPack>
+    flux = smallize(pflux),
+    V = smallize(pV),
+    r = smallize(pr),
+    rho = smallize(packize(m.rho)),
+    inv_rho = smallize(packize(m.inv_rho)),
+    inv_dzq = smallize(packize(m.inv_dzq));
   const kokkos_2d_t<Real>
-    flux = scalarize(pflux),
-    V = scalarize(pV),
-    r = scalarize(pr);
+    sV = scalarize(pV),
+    sr = scalarize(pr),
+    sflux = scalarize(pflux);
 
   int kmin, kmax;
 
   // calculate fluxes
   util::set_min_max(k_bot, k_top, kmin, kmax);
+  kmin /= RealSmallPack::n;
+  kmax /= RealSmallPack::n;
   Kokkos::parallel_for(
     Kokkos::TeamThreadRange(team, kmax-kmin+1), [&] (int k_) {
       const int k = kmin + k_;
-      flux(i, k) = V(i, k) * r(i, k) * m.rho(i, k);
+      flux(i, k) = V(i, k) * r(i, k) * rho(i, k);
     });
   team.team_barrier();
 
@@ -238,9 +246,9 @@ void calc_first_order_upwind_step (
       // for top level only (since flux is 0 above)
       int k = k_top;
       // compute flux divergence
-      const auto fluxdiv = -flux(i, k) * m.inv_dzq(i, k);
+      const auto fluxdiv = -sflux(i, k) * m.inv_dzq(i, k);
       // update prognostic variables
-      r(i, k) += fluxdiv * dt_sub * m.inv_rho(i, k);
+      sr(i, k) += fluxdiv * dt_sub * m.inv_rho(i, k);
     });
 
   util::set_min_max(k_bot, k_top - kdir, kmin, kmax);
@@ -248,9 +256,9 @@ void calc_first_order_upwind_step (
     Kokkos::TeamThreadRange(team, kmax-kmin+1), [&] (int k_) {
       const int k = kmin + k_;
       // compute flux divergence
-      const auto fluxdiv = (flux(i, k+kdir) - flux(i, k)) * m.inv_dzq(i, k);
+      const auto fluxdiv = (sflux(i, k+kdir) - sflux(i, k)) * m.inv_dzq(i, k);
       // update prognostic variables
-      r(i, k) += fluxdiv * dt_sub * m.inv_rho(i, k);
+      sr(i, k) += fluxdiv * dt_sub * m.inv_rho(i, k);
     });
 }
 
