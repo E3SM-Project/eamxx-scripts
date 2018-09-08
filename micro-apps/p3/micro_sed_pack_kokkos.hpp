@@ -294,6 +294,45 @@ void calc_first_order_upwind_step (
       m, team, i, k_bot, k_top, dt_sub, flux, V, r);
 }
 
+// Find the bottom and top of the mixing ratio, e.g., qr. It's worth casing
+// these out in two ways: 1 thread/column vs many, and by kdir.
+template <typename Array1>
+KOKKOS_INLINE_FUNCTION
+Int find_bottom (const member_type& team,
+                 const Array1& v, const Real& small,
+                 const Int& kbot, const Int& ktop, const Int& kdir,
+                 bool& log_present) {
+  log_present = false;
+  Int k_xbot = 0;
+  if (team.team_size() == 1) {
+    for (Int k = kbot; k != ktop + kdir; k += kdir) {
+      if (v(k) < small) continue;
+      k_xbot = k;
+      log_present = true;
+      break;
+    }
+  } else {
+    if (kdir == -1) {
+      Kokkos::parallel_reduce(
+        Kokkos::TeamThreadRange(team, kbot - ktop + 1), [&] (int k_, int& lmax) {
+          const int k = ktop + k_;
+          if (v(k) >= small && k > lmax)
+            lmax = k;
+        }, Kokkos::Max<int>(k_xbot));
+      log_present = k_xbot >= ktop;
+    } else {
+      Kokkos::parallel_reduce(
+        Kokkos::TeamThreadRange(team, ktop - kbot + 1), [&] (int k_, int& lmin) {
+          const int k = kbot + k_;
+          if (v(k) >= small && k < lmin)
+            lmin = k;
+        }, Kokkos::Min<int>(k_xbot));
+      log_present = k_xbot <= ktop;
+    }
+  }
+  return k_xbot;
+}
+
 template <typename Array1>
 KOKKOS_INLINE_FUNCTION
 Int find_top (const member_type& team,
@@ -301,11 +340,11 @@ Int find_top (const member_type& team,
               const Int& kbot, const Int& ktop, const Int& kdir,
               bool& log_present) {
   log_present = false;
-  Int k_qxtop = 0;
+  Int k_xtop = 0;
   if (team.team_size() == 1) {
     for (Int k = ktop; k != kbot - kdir; k -= kdir) {
       if (v(k) < small) continue;
-      k_qxtop = k;
+      k_xtop = k;
       log_present = true;
       break;
     }
@@ -316,19 +355,19 @@ Int find_top (const member_type& team,
           const int k = ktop + k_;
           if (v(k) >= small && k < lmin)
             lmin = k;
-        }, Kokkos::Min<int>(k_qxtop));
-      log_present = k_qxtop <= kbot;
+        }, Kokkos::Min<int>(k_xtop));
+      log_present = k_xtop <= kbot;
     } else {
       Kokkos::parallel_reduce(
         Kokkos::TeamThreadRange(team, ktop - kbot + 1), [&] (int k_, int& lmax) {
           const int k = kbot + k_;
           if (v(k) >= small && k > lmax)
             lmax = k;
-        }, Kokkos::Max<int>(k_qxtop));
-      log_present = k_qxtop >= kbot;
+        }, Kokkos::Max<int>(k_xtop));
+      log_present = k_xtop >= kbot;
     }
   }
-  return k_qxtop;
+  return k_xtop;
 }
 
 template <typename Array1>
@@ -394,18 +433,9 @@ void micro_sed_func_pack_kokkos (
       if (log_qxpresent) {
         Real dt_left = dt;    // time remaining for sedi over full model (mp) time step
         Real prt_accum = 0.0; // precip rate for individual category
-        int k_qxbot = 0;
 
-        // find bottom
-        Kokkos::parallel_reduce(
-          Kokkos::TeamThreadRange(team, m.num_vert), [&] (int k, int& lmin) {
-            if (qr(i, k) >= Globals<Real>::QSMALL && k*kdir < lmin) {
-              lmin = k*kdir;
-            }
-          }, Kokkos::Min<int>(k_qxbot));
-        // As log_qxpresent is true, we don't have to worry about this reduction
-        // as we did for the one for k_qxtop.
-        k_qxbot *= kdir;
+        int k_qxbot = find_bottom(team, Kokkos::subview(qr, i, Kokkos::ALL),
+                                  small, kbot, k_qxtop, kdir, log_qxpresent);
 
         while (dt_left > 1.e-4) {
           Real Co_max = 0.0;
