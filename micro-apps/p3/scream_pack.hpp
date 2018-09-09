@@ -11,12 +11,15 @@ struct Mask {
   enum { masktag = true };
   enum { n = PACKN };
 
+  KOKKOS_FORCEINLINE_FUNCTION explicit Mask () {}
+
   KOKKOS_FORCEINLINE_FUNCTION Mask (const bool& init) {
     vector_simd for (int i = 0; i < n; ++i) d[i] = init;
   }
 
   KOKKOS_FORCEINLINE_FUNCTION void set (const int& i, const bool& val) { d[i] = val; }
   KOKKOS_FORCEINLINE_FUNCTION bool operator[] (const int& i) const { return d[i]; }
+  KOKKOS_FORCEINLINE_FUNCTION char& operator[] (const int& i) { return d[i]; }
 
   bool any () const {
     bool b = false;
@@ -51,17 +54,17 @@ struct Pack {
 
   typedef SCALAR scalar;
 
-  KOKKOS_FORCEINLINE_FUNCTION Pack () {
+  KOKKOS_FORCEINLINE_FUNCTION explicit Pack () {
 #ifndef KOKKOS_ENABLE_CUDA
     vector_simd for (int i = 0; i < n; ++i)
       d[i] = std::numeric_limits<scalar>::quiet_NaN();
 #endif
   }
-  KOKKOS_FORCEINLINE_FUNCTION Pack (const scalar& v) {
+  KOKKOS_FORCEINLINE_FUNCTION explicit Pack (const scalar& v) {
     vector_simd for (int i = 0; i < n; ++i) d[i] = v;
   }
 
-  template <typename PackIn> KOKKOS_FORCEINLINE_FUNCTION
+  template <typename PackIn> KOKKOS_FORCEINLINE_FUNCTION explicit
   Pack (const PackIn& v, typename std::enable_if<PackIn::packtag>::type* = nullptr) {
     static_assert(static_cast<int>(PackIn::n) == static_cast<int>(n),
                   "Pack::n must be the same.");
@@ -77,10 +80,15 @@ struct Pack {
   scream_pack_gen_assign_op_all(*=)
   scream_pack_gen_assign_op_all(/=)
 
-  KOKKOS_FORCEINLINE_FUNCTION void set (const Mask<n>& mask, const scalar& v) {
+  KOKKOS_FORCEINLINE_FUNCTION
+  void set (const Mask<n>& mask, const scalar& v) {
     vector_simd for (int i = 0; i < n; ++i) if (mask[i]) d[i] = v;
   }
-  KOKKOS_FORCEINLINE_FUNCTION void set (const Mask<n>& mask, const Pack& p) {
+  template <typename PackIn> KOKKOS_FORCEINLINE_FUNCTION
+  void set (const Mask<n>& mask, const PackIn& p,
+            typename std::enable_if<PackIn::packtag>::type* = nullptr) {
+    static_assert(static_cast<int>(PackIn::n) == static_cast<int>(n),
+                  "Pack::n must be the same.");
     vector_simd for (int i = 0; i < n; ++i) if (mask[i]) d[i] = p[i];
   }
   
@@ -178,18 +186,24 @@ scream_mask_gen_bin_op_all(<=)
 scream_mask_gen_bin_op_all(>)
 scream_mask_gen_bin_op_all(<)
 
-#define scream_mask_gen_bin_op_mm(op, impl)       \
-  template <typename Mask> KOKKOS_INLINE_FUNCTION \
-  OnlyMask<Mask>                                  \
-  operator op (const Mask& a, const Mask& b) {    \
-    Mask m(false);                                \
-    vector_simd for (int i = 0; i < Mask::n; ++i) \
-      if (a[i] impl b[i]) m.set(i, true);         \
-    return m;                                     \
+#define scream_mask_gen_bin_op_mm(op, impl)                   \
+  template <typename Mask> KOKKOS_INLINE_FUNCTION             \
+  OnlyMask<Mask> operator op (const Mask& a, const Mask& b) { \
+    Mask m(false);                                            \
+    vector_simd for (int i = 0; i < Mask::n; ++i)             \
+      if (a[i] impl b[i]) m.set(i, true);                     \
+    return m;                                                 \
   }
 
 scream_mask_gen_bin_op_mm(&, &&)
 scream_mask_gen_bin_op_mm(|, ||)
+
+template <typename Mask> KOKKOS_INLINE_FUNCTION
+OnlyMask<Mask> operator ~ (const Mask& m) {
+  Mask nm(false);
+  vector_simd for (int i = 0; i < Mask::n; ++i) nm[i] = ! m[i];
+  return nm;
+}
 
 #define scream_pack_gen_unary_fn(fn, impl)                            \
   template <typename Pack> KOKKOS_INLINE_FUNCTION                     \
