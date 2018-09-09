@@ -299,6 +299,15 @@ OnlyPack<Pack> shift_left (const typename Pack::scalar& pp1, const Pack& p) {
 
 // Index a scalar array with Pack indices, returning a compatible Pack of array
 // values.
+template<typename Array1, typename IdxPack> KOKKOS_INLINE_FUNCTION
+OnlyPackReturn<IdxPack, Pack<typename Array1::value_type, IdxPack::n> >
+index (const Array1& a, const IdxPack& i0,
+       typename std::enable_if<Array1::Rank == 1>::type* = nullptr) {
+  Pack<typename Array1::non_const_value_type, IdxPack::n> p;
+  vector_simd for (int i = 0; i < IdxPack::n; ++i)
+    p[i] = a(i0[i]);
+  return p;
+}
 template<typename Array2, typename IdxPack> KOKKOS_INLINE_FUNCTION
 OnlyPackReturn<IdxPack, Pack<typename Array2::value_type, IdxPack::n> >
 index (const Array2& a, const IdxPack& i0, const IdxPack& i1,

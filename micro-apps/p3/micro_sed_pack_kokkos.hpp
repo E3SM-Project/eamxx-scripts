@@ -71,25 +71,21 @@ struct Table3 {
   RealSmallPack rdumii, rdumjj, inv_dum3;
 };
 
-struct ScalarTable3 {
-  Int dumii, dumjj;
-  Real rdumii, rdumjj, inv_dum3;
-};
-
+// Finds indices in rain lookup table (3)
 #if 0
 KOKKOS_INLINE_FUNCTION
 void find_lookupTable_indices_3_kokkos (
-  const SmallMask& mask, Table3& t, const RealSmallPack& mu_r, const RealSmallPack& lamr_)
+  const SmallMask& qr_gt_small, Table3& t, const RealSmallPack& mu_r, const RealSmallPack& lamr_)
 {
   // (FPE safety) Handle /0 using Pack's quiet_NaN.
   RealSmallPack lamr;
-  lamr.set(mask, lamr_);
+  lamr.set(qr_gt_small, lamr_);
 
   // find location in scaled mean size space
   const auto dum1 = (mu_r+1.) / lamr;
   auto dum1_lt = dum1 <= 195.e-6;
-  const auto dum1_gte = mask & ~dum1_lt;
-  dum1_lt = mask & dum1_lt;
+  const auto dum1_gte = qr_gt_small & ~dum1_lt;
+  dum1_lt = qr_gt_small & dum1_lt;
   {
     const auto inv_dum3 = 0.1;
     auto rdumii = (dum1*1.e6+5.)*inv_dum3;
@@ -125,12 +121,16 @@ void find_lookupTable_indices_3_kokkos (
     IntSmallPack dumjj(rdumjj);
     dumjj  = max(dumjj,1);
     dumjj  = min(dumjj,9);
-    t.rdumjj.set(mask, rdumjj);
-    t.dumjj.set(mask, dumjj);
+    t.rdumjj.set(qr_gt_small, rdumjj);
+    t.dumjj.set(qr_gt_small, dumjj);
   }
 }
 #else
-// Finds indices in rain lookup table (3)
+struct ScalarTable3 {
+  Int dumii, dumjj;
+  Real rdumii, rdumjj, inv_dum3;
+};
+
 KOKKOS_INLINE_FUNCTION
 void find_lookupTable_indices_3_kokkos (
   ScalarTable3& t, const Real& mu_r, const Real& lamr)
@@ -167,10 +167,10 @@ void find_lookupTable_indices_3_kokkos (
 
 KOKKOS_INLINE_FUNCTION
 void find_lookupTable_indices_3_kokkos (
-  const SmallMask& mask, Table3& t, const RealSmallPack& mu_r, const RealSmallPack& lamr)
+  const SmallMask& qr_gt_small, Table3& t, const RealSmallPack& mu_r, const RealSmallPack& lamr)
 {
   vector_simd for (int s = 0; s < RealSmallPack::n; ++s) {
-    if ( ! mask[s]) continue;
+    if ( ! qr_gt_small[s]) continue;
     ScalarTable3 st;
     find_lookupTable_indices_3_kokkos(st, mu_r[s], lamr[s]);
     t.dumii[s] = st.dumii;
@@ -184,7 +184,7 @@ void find_lookupTable_indices_3_kokkos (
 
 KOKKOS_INLINE_FUNCTION
 RealSmallPack apply_table (
-  const SmallMask& mask, const kokkos_2d_table_t<Real>& table, const Table3& t)
+  const SmallMask& qr_gt_small, const kokkos_2d_table_t<Real>& table, const Table3& t)
 {
   const auto rdumii_m_dumii = t.rdumii-RealSmallPack(t.dumii);
   const auto t_im1_jm1 = index(table, t.dumii-1, t.dumjj-1);
@@ -197,6 +197,7 @@ RealSmallPack apply_table (
 }
 
 // Computes and returns rain size distribution parameters
+#if 0
 KOKKOS_INLINE_FUNCTION
 void get_rain_dsd2_kokkos (
   const Real& qr, Real& nr, Real& mu_r, Real& rdumii, int& dumii, Real& lamr,
@@ -262,14 +263,78 @@ void get_rain_dsd2_kokkos (
 
 KOKKOS_INLINE_FUNCTION
 void get_rain_dsd2_kokkos (
-  const RealSmallPack& qr, RealSmallPack& nr, RealSmallPack& mu_r, RealSmallPack& rdumii,
-  IntSmallPack& dumii, RealSmallPack& lamr, const kokkos_1d_table_t<Real>& mu_r_table,
-  RealSmallPack& cdistr, RealSmallPack& logn0r)
+  const SmallMask& qr_gt_small, const RealSmallPack& qr, RealSmallPack& nr, RealSmallPack& mu_r,
+  RealSmallPack& rdumii, IntSmallPack& dumii, RealSmallPack& lamr,
+  const kokkos_1d_table_t<Real>& mu_r_table, RealSmallPack& cdistr, RealSmallPack& logn0r)
 {
   vector_simd for (int s = 0; s < RealSmallPack::n; ++s)
     get_rain_dsd2_kokkos(qr[s], nr[s], mu_r[s], rdumii[s], dumii[s], lamr[s],
                          mu_r_table, cdistr[s], logn0r[s]);
 }
+#else
+KOKKOS_INLINE_FUNCTION
+void get_rain_dsd2_kokkos (
+  const SmallMask& qr_gt_small, const RealSmallPack& qr, RealSmallPack& nr, RealSmallPack& mu_r,
+  RealSmallPack& rdumii, IntSmallPack& dumii, RealSmallPack& lamr,
+  const kokkos_1d_table_t<Real>& mu_r_table, RealSmallPack& cdistr, RealSmallPack& logn0r)
+{
+  constexpr auto nsmall = Globals<Real>::NSMALL;
+  constexpr auto thrd = Globals<Real>::THRD;
+
+  lamr = 0;
+  cdistr = 0;
+  logn0r = 0;
+
+  // use lookup table to get mu
+  // mu-lambda relationship is from Cao et al. (2008), eq. (7)
+
+  // find spot in lookup table
+  // (scaled N/q for lookup table parameter space)
+  nr.set(qr_gt_small, max(nr, nsmall));
+  const auto inv_dum = pow(qr / (Globals<Real>::CONS1 * nr * 6.0), thrd);
+
+  mu_r = 0;
+  {
+    const auto m1 = inv_dum < 282.e-6;
+    mu_r.set(m1, 8.282);
+  }
+  {
+    const auto m2 = (inv_dum >= 282.e-6) & (inv_dum < 502.e-6);
+    // interpolate
+    rdumii = (inv_dum - 250.e-6)*0.5e6;
+    rdumii = max(rdumii, 1.0);
+    rdumii = min(rdumii, 150.0);
+    dumii.set(m2, rdumii);
+    dumii  = min(dumii, 149);
+    mu_r.set(m2,
+             index(mu_r_table, dumii-1) + (index(mu_r_table, dumii) -
+                                           index(mu_r_table, dumii-1))
+             * (rdumii - RealSmallPack(dumii)));
+  }
+
+  // recalculate slope based on mu_r
+  lamr.set(qr_gt_small, pow(Globals<Real>::CONS1 * nr * (mu_r + 3) *
+                            (mu_r + 2) * (mu_r + 1)/qr,
+                            thrd));
+  // check for slope
+  const auto lammax = (mu_r+1.)*1.e+5;
+  // set to small value since breakup is explicitly included (mean size 0.8 mm)
+  const auto lammin = (mu_r+1.)*1250.0;
+
+  // apply lambda limiters for rain
+  const auto lt = qr_gt_small & (lamr < lammin);
+  const auto gt = qr_gt_small & (lamr > lammax);
+  const auto either = lt | gt;
+  if (either.any()) {
+    lamr.set(lt, lammin);
+    lamr.set(gt, lammax);
+    nr.set(either,
+           exp(3*log(lamr) + log(qr) +
+               log(tgamma(mu_r + 1)) - log(tgamma(mu_r + 4)))
+           / Globals<Real>::CONS1);
+  }
+}
+#endif
 
 struct MicroSedFuncPackKokkos {
   int num_horz, num_vert;
@@ -487,15 +552,6 @@ void micro_sed_func_pack_kokkos (
   const kokkos_2d_t<Real>& th, const kokkos_2d_t<Real>& dzq, const kokkos_2d_t<Real>& pres,
   const kokkos_1d_t<Real>& prt_liq)
 {
-  // constants
-  const Real odt = 1.0 / dt;
-  constexpr Real nsmall = Globals<Real>::NSMALL;
-
-  // direction of vertical leveling
-  const int kbot = (kts < kte) ? 0 : m.num_vert-1;
-  const int ktop = (kts < kte) ? m.num_vert-1 : 0;
-  const int kdir = (kts < kte) ? 1 : -1;
-
   const kokkos_2d_t<RealPack>
     pdzq = packize(dzq),
     ppres = packize(pres),
@@ -527,10 +583,18 @@ void micro_sed_func_pack_kokkos (
     smu_r = smallize(m.mu_r),
     slamr = smallize(m.lamr);
 
+  // constants
+  const Real odt = 1.0 / dt;
+  constexpr Real nsmall = Globals<Real>::NSMALL;
   const auto rd = Globals<Real>::RD;
   const auto rd_inv_cp = Globals<Real>::RD * Globals<Real>::INV_CP;
   const auto rhosur = Globals<Real>::RHOSUR;
   const auto qsmall = Globals<Real>::QSMALL;
+
+  // direction of vertical leveling
+  const int kbot = (kts < kte) ? 0 : m.num_vert-1;
+  const int ktop = (kts < kte) ? m.num_vert-1 : 0;
+  const int kdir = (kts < kte) ? 1 : -1;
 
   // Rain sedimentation:  (adaptive substepping)
   Kokkos::parallel_for(
@@ -581,7 +645,7 @@ void micro_sed_func_pack_kokkos (
                 snr(i, pk).set(qr_gt_small, max(snr(i, pk), nsmall));
                 Table3 t;
                 RealSmallPack tmp1, tmp2;
-                get_rain_dsd2_kokkos(sqr(i, pk), snr(i, pk), smu_r(i, pk),
+                get_rain_dsd2_kokkos(qr_gt_small, sqr(i, pk), snr(i, pk), smu_r(i, pk),
                                      t.rdumii, t.dumii, slamr(i, pk),
                                      m.mu_r_table, tmp1, tmp2);
                 find_lookupTable_indices_3_kokkos(qr_gt_small, t, smu_r(i, pk), slamr(i, pk));
