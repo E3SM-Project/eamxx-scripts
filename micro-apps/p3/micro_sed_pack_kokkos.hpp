@@ -17,12 +17,17 @@ namespace p3 {
 namespace micro_sed_pack {
 
 using micro_sed_vanilla::Globals;
-using namespace scream;
 
 #define SCREAM_PACKN 16
 #define SCREAM_SMALL_PACK_FACTOR 2
-template <typename T> using BigPack = Pack<T, SCREAM_PACKN>;
-template <typename T> using SmallPack = Pack<T, SCREAM_PACKN / SCREAM_SMALL_PACK_FACTOR>;
+
+template <typename T>
+using BigPack = scream::pack::Pack<T, SCREAM_PACKN>;
+template <typename T>
+using SmallPack = scream::pack::Pack<T, SCREAM_PACKN / SCREAM_SMALL_PACK_FACTOR>;
+using Mask = scream::pack::Mask<BigPack<Real>::n>;
+using SmallMask = scream::pack::Mask<SmallPack<Real>::n>;
+
 using RealPack = BigPack<Real>;
 using IntPack = BigPack<Int>;
 using RealSmallPack = SmallPack<Real>;
@@ -62,13 +67,19 @@ template <typename Real>
 using kokkos_1d_table_t = Kokkos::View<Real[150], Layout, MemSpace>;
 
 struct Table3 {
-  int dumii, dumjj;
+  IntSmallPack dumii, dumjj;
+  RealSmallPack rdumii, rdumjj, inv_dum3;
+};
+
+struct ScalarTable3 {
+  Int dumii, dumjj;
   Real rdumii, rdumjj, inv_dum3;
 };
 
 // Finds indices in rain lookup table (3)
 KOKKOS_INLINE_FUNCTION
-void find_lookupTable_indices_3_kokkos (Table3& t, const Real& mu_r, const Real& lamr)
+void find_lookupTable_indices_3_kokkos (
+  ScalarTable3& t, const Real& mu_r, const Real& lamr)
 {
   // find location in scaled mean size space
   const auto dum1 = (mu_r+1.) / lamr;
@@ -101,12 +112,46 @@ void find_lookupTable_indices_3_kokkos (Table3& t, const Real& mu_r, const Real&
 }
 
 KOKKOS_INLINE_FUNCTION
-Real apply_table (const kokkos_2d_table_t<Real>& table, const Table3& t) {
+void find_lookupTable_indices_3_kokkos (
+  const SmallMask& mask, Table3& t, const RealSmallPack& mu_r, const RealSmallPack& lamr)
+{
+  vector_simd for (int s = 0; s < RealSmallPack::n; ++s) {
+    if ( ! mask[s]) continue;
+    ScalarTable3 st;
+    find_lookupTable_indices_3_kokkos(st, mu_r[s], lamr[s]);
+    t.dumii[s] = st.dumii;
+    t.dumjj[s] = st.dumjj;
+    t.rdumii[s] = st.rdumii;
+    t.rdumjj[s] = st.rdumjj;
+    t.inv_dum3[s] = st.inv_dum3;
+  }
+}
+
+KOKKOS_INLINE_FUNCTION
+Real apply_table (const kokkos_2d_table_t<Real>& table, const ScalarTable3& t) {
   const auto dum1 = (table(t.dumii-1, t.dumjj-1) + (t.rdumii-t.dumii) * t.inv_dum3 *
                      (table(t.dumii, t.dumjj-1) - table(t.dumii-1, t.dumjj-1)));
   const auto dum2 = (table(t.dumii-1, t.dumjj) + (t.rdumii-t.dumii) * t.inv_dum3 *
                      (table(t.dumii, t.dumjj) - table(t.dumii-1, t.dumjj)));
   return dum1 + (t.rdumjj - t.dumjj) * (dum2 - dum1);
+}
+
+KOKKOS_INLINE_FUNCTION
+RealSmallPack apply_table (
+  const SmallMask& mask, const kokkos_2d_table_t<Real>& table, const Table3& t)
+{
+  RealSmallPack p;
+  vector_simd for (int s = 0; s < RealSmallPack::n; ++s) {
+    if ( ! mask[s]) continue;
+    ScalarTable3 st;
+    st.dumii = t.dumii[s];
+    st.dumjj = t.dumjj[s];
+    st.rdumii = t.rdumii[s];
+    st.rdumjj = t.rdumjj[s];
+    st.inv_dum3 = t.inv_dum3[s];
+    p[s] = apply_table(table, st);
+  }
+  return p;
 }
 
 // Computes and returns rain size distribution parameters
@@ -141,10 +186,13 @@ void get_rain_dsd2_kokkos (
       mu_r = 0.0;
     }
 
+    // recalculate slope based on mu_r
     lamr   = std::pow((Globals<Real>::CONS1 *nr *(mu_r+3.0) * (mu_r+2) * (mu_r+1.)/(qr)),
-                      Globals<Real>::THRD); // recalculate slope based on mu_r
-    const auto lammax = (mu_r+1.)*1.e+5;  // check for slope
-    const auto lammin = (mu_r+1.)*1250.0; // set to small value since breakup is explicitly included (mean size 0.8 mm)
+                      Globals<Real>::THRD);
+    // check for slope
+    const auto lammax = (mu_r+1.)*1.e+5;
+    // set to small value since breakup is explicitly included (mean size 0.8 mm)
+    const auto lammin = (mu_r+1.)*1250.0;
 
     // apply lambda limiters for rain
     const auto lt = lamr < lammin;
@@ -232,6 +280,7 @@ public:
 //TODO At the end, if it's still true that computing the steps for qr, nr in
 // sequence is more expensive than together, take arrays of flux, V, r with
 // compile-time size and iterate over them.
+//TODO Unit test.
 
 // Calculate the step in the region [k_bot, k_top].
 template <int kdir>
@@ -311,6 +360,7 @@ void calc_first_order_upwind_step (
       m, team, i, k_bot, k_top, dt_sub, flux, V, r);
 }
 
+//TODO Unit test.
 // Find the bottom and top of the mixing ratio, e.g., qr. It's worth casing
 // these out in two ways: 1 thread/column vs many, and by kdir.
 template <typename Array1>
@@ -350,6 +400,7 @@ Int find_bottom (const member_type& team,
   return k_xbot;
 }
 
+//TODO Unit test.
 template <typename Array1>
 KOKKOS_INLINE_FUNCTION
 Int find_top (const member_type& team,
@@ -385,12 +436,6 @@ Int find_top (const member_type& team,
     }
   }
   return k_xtop;
-}
-
-template <typename Array1>
-KOKKOS_INLINE_FUNCTION
-Int find_bottom (const Array1& v, const Int& nk, const Int& kdir) {
-  return -1;
 }
 
 void micro_sed_func_pack_kokkos (
@@ -454,7 +499,6 @@ void micro_sed_func_pack_kokkos (
 
       Kokkos::parallel_for(
         Kokkos::TeamThreadRange(team, m.num_vert / RealPack::n), [&] (int k) {
-          // inverse of thickness of layers
           pinv_dzq(i, k) = 1 / pdzq(i, k);
           pt(i, k) = pow(ppres(i, k) * 1.e-5, rd_inv_cp) * pth(i, k);
           prho(i, k) = ppres(i, k) / (rd * pt(i, k));
@@ -495,22 +539,16 @@ void micro_sed_func_pack_kokkos (
               if (qr_gt_small.any()) {
                 // Compute Vq, Vn:
                 snr(i, pk).set(qr_gt_small, max(snr(i, pk), nsmall));
-                RealSmallPack tmp1, tmp2, rdumii;
-                IntSmallPack dumii;
-                get_rain_dsd2_kokkos(sqr(i, pk), snr(i, pk), smu_r(i, pk), rdumii, dumii,
-                                     slamr(i, pk), m.mu_r_table, tmp1, tmp2);
-                for (int s = 0; s < RealSmallPack::n; ++s) {
-                  const int k = pk*RealSmallPack::n + s;
-                  if (qr(i,k) <= qsmall) continue;
-                  Table3 t;
-                  t.rdumii = rdumii[s];
-                  t.dumii = dumii[s];
-                  find_lookupTable_indices_3_kokkos(t, m.mu_r(i, k), m.lamr(i, k));
-                  // mass-weighted fall speed:
-                  m.V_qr(i, k) = apply_table(m.vm_table, t) * m.rhofacr(i, k);
-                  // number-weighted fall speed:
-                  m.V_nr(i, k) = apply_table(m.vn_table, t) * m.rhofacr(i, k);
-                }
+                Table3 t;
+                RealSmallPack tmp1, tmp2;
+                get_rain_dsd2_kokkos(sqr(i, pk), snr(i, pk), smu_r(i, pk),
+                                     t.rdumii, t.dumii, slamr(i, pk),
+                                     m.mu_r_table, tmp1, tmp2);
+                find_lookupTable_indices_3_kokkos(qr_gt_small, t, smu_r(i, pk), slamr(i, pk));
+                // mass-weighted fall speed:
+                sV_qr(i, pk).set(qr_gt_small, apply_table(qr_gt_small, m.vm_table, t) * srhofacr(i, pk));
+                // number-weighted fall speed:
+                sV_nr(i, pk).set(qr_gt_small, apply_table(qr_gt_small, m.vn_table, t) * srhofacr(i, pk));
               }
               for (int s = 0; s < RealSmallPack::n; ++s) {
                 const int k = pk*RealSmallPack::n + s;

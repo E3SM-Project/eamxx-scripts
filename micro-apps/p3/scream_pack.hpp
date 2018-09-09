@@ -4,6 +4,8 @@
 #include "util.hpp"
 
 namespace scream {
+namespace pack {
+
 template <int PACKN>
 struct Mask {
   enum { packtag = true };
@@ -169,26 +171,29 @@ OnlyPackReturn<Pack, typename Pack::scalar> max (const Pack& p) {
   return v;
 }
 
-#define scream_pack_gen_bin_fn_pp(fn, impl)                             \
-  template <typename Pack> KOKKOS_INLINE_FUNCTION                       \
-  OnlyPack<Pack> fn (const Pack& a, const Pack& b) {                    \
-    Pack s;                                                             \
-    vector_simd for (int i = 0; i < Pack::n; ++i) s[i] = impl(a[i], b[i]); \
-    return s;                                                           \
+#define scream_pack_gen_bin_fn_pp(fn, impl)           \
+  template <typename Pack> KOKKOS_INLINE_FUNCTION     \
+  OnlyPack<Pack> fn (const Pack& a, const Pack& b) {  \
+    Pack s;                                           \
+    vector_simd for (int i = 0; i < Pack::n; ++i)     \
+      s[i] = impl(a[i], b[i]);                        \
+    return s;                                         \
   }
-#define scream_pack_gen_bin_fn_ps(fn, impl)                             \
-  template <typename Pack, typename Scalar> KOKKOS_INLINE_FUNCTION                      \
-  OnlyPack<Pack> fn (const Pack& a, const Scalar& b) {                  \
-    Pack s;                                                             \
-    vector_simd for (int i = 0; i < Pack::n; ++i) s[i] = impl(a[i], b); \
-    return s;                                                           \
+#define scream_pack_gen_bin_fn_ps(fn, impl)                         \
+  template <typename Pack, typename Scalar> KOKKOS_INLINE_FUNCTION  \
+  OnlyPack<Pack> fn (const Pack& a, const Scalar& b) {              \
+    Pack s;                                                         \
+    vector_simd for (int i = 0; i < Pack::n; ++i)                   \
+      s[i] = impl(a[i], b);                                         \
+    return s;                                                       \
   }
-#define scream_pack_gen_bin_fn_sp(fn, impl)                             \
-  template <typename Pack, typename Scalar> KOKKOS_INLINE_FUNCTION      \
-  OnlyPack<Pack> fn (const Scalar& a, const Pack& b) {                  \
-    Pack s;                                                             \
-    vector_simd for (int i = 0; i < Pack::n; ++i) s[i] = impl(a, b[i]); \
-    return s;                                                           \
+#define scream_pack_gen_bin_fn_sp(fn, impl)                         \
+  template <typename Pack, typename Scalar> KOKKOS_INLINE_FUNCTION  \
+  OnlyPack<Pack> fn (const Scalar& a, const Pack& b) {              \
+    Pack s;                                                         \
+    vector_simd for (int i = 0; i < Pack::n; ++i)                   \
+      s[i] = impl(a, b[i]);                                         \
+    return s;                                                       \
   }
 #define scream_pack_gen_bin_fn_all(fn, impl)    \
   scream_pack_gen_bin_fn_pp(fn, impl)           \
@@ -231,6 +236,7 @@ OnlyPack<Pack> shift_left (const typename Pack::scalar& pp1, const Pack& p) {
   return s;
 }
 
+} // namespace pack
 } // namespace scream
 
 #endif
