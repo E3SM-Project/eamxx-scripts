@@ -549,12 +549,16 @@ void micro_sed_func_pack_kokkos (
                 // number-weighted fall speed:
                 sV_nr(i, pk).set(qr_gt_small,
                                  apply_table(qr_gt_small, m.vn_table, t) * srhofacr(i, pk));
-                auto Co_max_local = max(sV_qr(i, pk) * dt_left * sinv_dzq(i, pk));
+                const auto Co_max_local = max(sV_qr(i, pk) * dt_left * sinv_dzq(i, pk));
                 if (Co_max_local > lmax)
                   lmax = Co_max_local;
               }
             }, Kokkos::Max<Real>(Co_max));
           team.team_barrier();
+          if (Co_max < 0) {
+            // qr is everywhere too small. Exit dt_left loop.
+            break;
+          }
 
           // compute dt_sub
           const int tmpint1 = static_cast<int>(Co_max + 1.0);
