@@ -168,6 +168,17 @@ void get_rain_dsd2_kokkos (
   }
 }
 
+KOKKOS_INLINE_FUNCTION
+void get_rain_dsd2_kokkos (
+  const RealSmallPack& qr, RealSmallPack& nr, RealSmallPack& mu_r, RealSmallPack& rdumii,
+  IntSmallPack& dumii, RealSmallPack& lamr, const kokkos_1d_table_t<Real>& mu_r_table,
+  RealSmallPack& cdistr, RealSmallPack& logn0r)
+{
+  for (int s = 0; s < RealSmallPack::n; ++s)
+    get_rain_dsd2_kokkos(qr[s], nr[s], mu_r[s], rdumii[s], dumii[s], lamr[s],
+                         mu_r_table, cdistr[s], logn0r[s]);
+}
+
 struct MicroSedFuncPackKokkos {
   int num_horz, num_vert;
 
@@ -423,7 +434,9 @@ void micro_sed_func_pack_kokkos (
     sV_nr = smallize(m.V_nr),
     sflux = smallize(m.flux),
     sqr = smallize(qr),
-    snr = smallize(nr);
+    snr = smallize(nr),
+    smu_r = smallize(m.mu_r),
+    slamr = smallize(m.lamr);
 
   const auto rd = Globals<Real>::RD;
   const auto rd_inv_cp = Globals<Real>::RD * Globals<Real>::INV_CP;
@@ -480,13 +493,16 @@ void micro_sed_func_pack_kokkos (
               if (qr_gt_small.any()) {
                 // Compute Vq, Vn:
                 snr(i, pk).set(qr_gt_small, max(snr(i, pk), nsmall));
+                RealSmallPack tmp1, tmp2, rdumii;
+                IntSmallPack dumii;
+                get_rain_dsd2_kokkos(sqr(i, pk), snr(i, pk), smu_r(i, pk), rdumii, dumii,
+                                     slamr(i, pk), m.mu_r_table, tmp1, tmp2);
                 for (int s = 0; s < RealSmallPack::n; ++s) {
                   const int k = pk*RealSmallPack::n + s;
                   if (qr(i,k) <= qsmall) continue;
-                  Real tmp1, tmp2;
                   Table3 t;
-                  get_rain_dsd2_kokkos(qr(i, k), nr(i, k), m.mu_r(i, k), t.rdumii, t.dumii,
-                                       m.lamr(i, k), m.mu_r_table, tmp1, tmp2);
+                  t.rdumii = rdumii[s];
+                  t.dumii = dumii[s];
                   find_lookupTable_indices_3_kokkos(t, m.mu_r(i, k), m.lamr(i, k));
                   // mass-weighted fall speed:
                   m.V_qr(i, k) = apply_table(m.vm_table, t) * m.rhofacr(i, k);
