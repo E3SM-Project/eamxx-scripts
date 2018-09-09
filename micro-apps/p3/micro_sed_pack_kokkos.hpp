@@ -76,6 +76,60 @@ struct ScalarTable3 {
   Real rdumii, rdumjj, inv_dum3;
 };
 
+#if 0
+KOKKOS_INLINE_FUNCTION
+void find_lookupTable_indices_3_kokkos (
+  const SmallMask& mask, Table3& t, const RealSmallPack& mu_r, const RealSmallPack& lamr_)
+{
+  // (FPE safety) Handle /0 using Pack's quiet_NaN.
+  RealSmallPack lamr;
+  lamr.set(mask, lamr_);
+
+  // find location in scaled mean size space
+  const auto dum1 = (mu_r+1.) / lamr;
+  auto dum1_lt = dum1 <= 195.e-6;
+  const auto dum1_gte = mask & ~dum1_lt;
+  dum1_lt = mask & dum1_lt;
+  {
+    const auto inv_dum3 = 0.1;
+    auto rdumii = (dum1*1.e6+5.)*inv_dum3;
+    rdumii = max(rdumii,  1.);
+    rdumii = min(rdumii, 20.);
+    IntSmallPack dumii(0);
+    dumii.set(dum1_lt, rdumii); // FPE safety
+    dumii = max(dumii,  1);
+    dumii = min(dumii, 20);
+    t.inv_dum3.set(dum1_lt, inv_dum3);
+    t.rdumii.set(dum1_lt, rdumii);
+    t.dumii.set(dum1_lt, dumii);
+  }
+  {
+    const auto inv_dum3  = Globals<Real>::THRD*0.1;
+    auto rdumii = (dum1*1.e+6-195.)*inv_dum3 + 20.;
+    rdumii = max(rdumii, 20.);
+    rdumii = min(rdumii,300.);
+    IntSmallPack dumii(0);
+    dumii.set(dum1_gte, rdumii);
+    dumii  = max(dumii, 20);
+    dumii  = min(dumii,299);
+    t.inv_dum3.set(dum1_gte, inv_dum3);
+    t.rdumii.set(dum1_gte, rdumii);
+    t.dumii.set(dum1_gte, dumii);
+  }
+
+  // find location in mu_r space
+  {
+    auto rdumjj = mu_r+1.;
+    rdumjj = max(rdumjj,1.);
+    rdumjj = min(rdumjj,10.);
+    IntSmallPack dumjj(rdumjj);
+    dumjj  = max(dumjj,1);
+    dumjj  = min(dumjj,9);
+    t.rdumjj.set(mask, rdumjj);
+    t.dumjj.set(mask, dumjj);
+  }
+}
+#else
 // Finds indices in rain lookup table (3)
 KOKKOS_INLINE_FUNCTION
 void find_lookupTable_indices_3_kokkos (
@@ -126,6 +180,7 @@ void find_lookupTable_indices_3_kokkos (
     t.inv_dum3[s] = st.inv_dum3;
   }
 }
+#endif
 
 KOKKOS_INLINE_FUNCTION
 RealSmallPack apply_table (
