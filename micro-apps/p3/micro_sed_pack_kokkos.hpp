@@ -156,10 +156,12 @@ void get_rain_dsd2_kokkos (
         (Globals<Real>::CONS1);
     }
 
-    // These are not used in the micro-app, but keep them to model flops.
-    cdistr = nr/std::tgamma(mu_r+1.);
+    // These are not used in the micro-app, and they're being selectively
+    // optimized out, so we need to comment these out or force them not to be
+    // optimized out.
+    cdistr = 0; //nr/std::tgamma(mu_r+1.);
     // note: logn0r is calculated as log10(n0r);
-    logn0r = std::log10(nr) + (mu_r+1.)*std::log10(lamr) - std::log10(std::tgamma(mu_r+1));
+    logn0r = 0; //std::log10(nr) + (mu_r+1.)*std::log10(lamr) - std::log10(std::tgamma(mu_r+1));
   }
   else {
     lamr   = 0.0;
@@ -174,7 +176,7 @@ void get_rain_dsd2_kokkos (
   IntSmallPack& dumii, RealSmallPack& lamr, const kokkos_1d_table_t<Real>& mu_r_table,
   RealSmallPack& cdistr, RealSmallPack& logn0r)
 {
-  for (int s = 0; s < RealSmallPack::n; ++s)
+  vector_simd for (int s = 0; s < RealSmallPack::n; ++s)
     get_rain_dsd2_kokkos(qr[s], nr[s], mu_r[s], rdumii[s], dumii[s], lamr[s],
                          mu_r_table, cdistr[s], logn0r[s]);
 }
