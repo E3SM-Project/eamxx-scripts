@@ -246,6 +246,8 @@ OnlyPack<Pack> shift_left (const typename Pack::scalar& pp1, const Pack& p) {
   return s;
 }
 
+// Index a scalar array with Pack indices, returning a compatible Pack of array
+// values.
 template<typename Array2, typename IdxPack> KOKKOS_INLINE_FUNCTION
 OnlyPackReturn<IdxPack, Pack<typename Array2::value_type, IdxPack::n> >
 index (const Array2& a, const IdxPack& i0, const IdxPack& i1,
