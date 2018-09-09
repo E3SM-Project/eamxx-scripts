@@ -16,6 +16,12 @@ struct Mask {
   KOKKOS_FORCEINLINE_FUNCTION void set (const int& i, const bool& val) { d[i] = val; }
   KOKKOS_FORCEINLINE_FUNCTION bool operator[] (const int& i) const { return d[i]; }
 
+  bool any () const {
+    bool b = false;
+    vector_simd for (int i = 0; i < n; ++i) if (d[i]) b = true;
+    return b;
+  }
+
 private:
   char d[n];
 };
@@ -64,6 +70,9 @@ struct Pack {
 
   KOKKOS_FORCEINLINE_FUNCTION void set (const Mask<n>& mask, const scalar& v) {
     vector_simd for (int i = 0; i < n; ++i) if (mask[i]) d[i] = v;
+  }
+  KOKKOS_FORCEINLINE_FUNCTION void set (const Mask<n>& mask, const Pack& p) {
+    vector_simd for (int i = 0; i < n; ++i) if (mask[i]) d[i] = p[i];
   }
   
 private:
@@ -117,12 +126,21 @@ Pack<T,n> pack_range (const T& start) {
   return p;
 }
 
-template <typename Pack, typename Scalar> KOKKOS_INLINE_FUNCTION
-OnlyPackReturn<Pack, Mask<Pack::n> > operator >= (const Pack& a, const Scalar& b) {
-  Mask<Pack::n> m(false);
-  vector_simd for (int i = 0; i < Pack::n; ++i) if (a[i] >= b) m.set(i, true);
-  return m;
-}
+#define scream_mask_gen_bin_op(op)                                  \
+  template <typename Pack, typename Scalar> KOKKOS_INLINE_FUNCTION  \
+  OnlyPackReturn<Pack, Mask<Pack::n> >                              \
+  operator op (const Pack& a, const Scalar& b) {                    \
+    Mask<Pack::n> m(false);                                         \
+    vector_simd for (int i = 0; i < Pack::n; ++i)                   \
+      if (a[i] op b) m.set(i, true);                                \
+    return m;                                                       \
+  }
+
+scream_mask_gen_bin_op(==)
+scream_mask_gen_bin_op(>=)
+scream_mask_gen_bin_op(<=)
+scream_mask_gen_bin_op(>)
+scream_mask_gen_bin_op(<)
 
 #define scream_pack_gen_unary_fn(fn, impl)                            \
   template <typename Pack> KOKKOS_INLINE_FUNCTION                     \

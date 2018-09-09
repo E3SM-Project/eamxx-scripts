@@ -235,7 +235,7 @@ void calc_first_order_upwind_step (
     inv_dzq = smallize(m.inv_dzq);
 
   int
-    kmin = ( kdir == 1 ? k_bot : k_top)      / RealSmallPack::n,
+    kmin = ( kdir == 1 ? k_bot : k_top)                     / RealSmallPack::n,
     // Add 1 to make [kmin, kmax). But then the extra term (RealSmallPack::n -
     // 1) to determine pack index cancels the +1.
     kmax = ((kdir == 1 ? k_top : k_bot) + RealSmallPack::n) / RealSmallPack::n;
@@ -428,6 +428,7 @@ void micro_sed_func_pack_kokkos (
   const auto rd = Globals<Real>::RD;
   const auto rd_inv_cp = Globals<Real>::RD * Globals<Real>::INV_CP;
   const auto rhosur = Globals<Real>::RHOSUR;
+  const auto qsmall = Globals<Real>::QSMALL;
 
   // Rain sedimentation:  (adaptive substepping)
   Kokkos::parallel_for(
@@ -448,16 +449,15 @@ void micro_sed_func_pack_kokkos (
       team.team_barrier();
 
       bool log_qxpresent;
-      const auto small = Globals<Real>::QSMALL;
       const int k_qxtop = find_top(team, Kokkos::subview(qr, i, Kokkos::ALL),
-                                   small, kbot, ktop, kdir, log_qxpresent);
+                                   qsmall, kbot, ktop, kdir, log_qxpresent);
 
       if (log_qxpresent) {
         Real dt_left = dt;    // time remaining for sedi over full model (mp) time step
         Real prt_accum = 0.0; // precip rate for individual category
 
         int k_qxbot = find_bottom(team, Kokkos::subview(qr, i, Kokkos::ALL),
-                                  small, kbot, k_qxtop, kdir, log_qxpresent);
+                                  qsmall, kbot, k_qxtop, kdir, log_qxpresent);
 
         while (dt_left > 1.e-4) {
           Real Co_max = 0.0;
@@ -471,25 +471,35 @@ void micro_sed_func_pack_kokkos (
           team.team_barrier();
 
           util::set_min_max(k_qxbot, k_qxtop, kmin, kmax);
+          kmin /= RealSmallPack::n;
+          kmax /= RealSmallPack::n;
           Kokkos::parallel_reduce(
-            Kokkos::TeamThreadRange(team, kmax-kmin+1), [&] (int k_, Real& lmax) {
-              const int k = kmin + k_;
-              if (qr(i, k) > Globals<Real>::QSMALL) {
+            Kokkos::TeamThreadRange(team, kmax-kmin+1), [&] (int pk_, Real& lmax) {
+              const int pk = kmin + pk_;
+              const auto qr_gt_small = sqr(i, pk) > qsmall;
+              if (qr_gt_small.any()) {
                 // Compute Vq, Vn:
-                nr(i, k) = util::max(nr(i, k), nsmall);
-                Real tmp1, tmp2;
-                Table3 t;
-                get_rain_dsd2_kokkos(qr(i, k), nr(i, k), m.mu_r(i, k), t.rdumii, t.dumii,
-                                     m.lamr(i, k), m.mu_r_table, tmp1, tmp2);
-                find_lookupTable_indices_3_kokkos(t, m.mu_r(i, k), m.lamr(i, k));
-                // mass-weighted fall speed:
-                m.V_qr(i, k) = apply_table(m.vm_table, t) * m.rhofacr(i, k);
-                // number-weighted fall speed:
-                m.V_nr(i, k) = apply_table(m.vn_table, t) * m.rhofacr(i, k);
+                snr(i, pk).set(qr_gt_small, max(snr(i, pk), nsmall));
+                for (int s = 0; s < RealSmallPack::n; ++s) {
+                  const int k = pk*RealSmallPack::n + s;
+                  if (qr(i,k) <= qsmall) continue;
+                  Real tmp1, tmp2;
+                  Table3 t;
+                  get_rain_dsd2_kokkos(qr(i, k), nr(i, k), m.mu_r(i, k), t.rdumii, t.dumii,
+                                       m.lamr(i, k), m.mu_r_table, tmp1, tmp2);
+                  find_lookupTable_indices_3_kokkos(t, m.mu_r(i, k), m.lamr(i, k));
+                  // mass-weighted fall speed:
+                  m.V_qr(i, k) = apply_table(m.vm_table, t) * m.rhofacr(i, k);
+                  // number-weighted fall speed:
+                  m.V_nr(i, k) = apply_table(m.vn_table, t) * m.rhofacr(i, k);
+                }
               }
-              Real Co_max_local = m.V_qr(i, k) * dt_left * m.inv_dzq(i, k);
-              if (Co_max_local > lmax)
-                lmax = Co_max_local;
+              for (int s = 0; s < RealSmallPack::n; ++s) {
+                const int k = pk*RealSmallPack::n + s;
+                Real Co_max_local = m.V_qr(i, k) * dt_left * m.inv_dzq(i, k);
+                if (Co_max_local > lmax)
+                  lmax = Co_max_local;
+              }
             }, Kokkos::Max<Real>(Co_max));
           team.team_barrier();
 
