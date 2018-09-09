@@ -529,9 +529,7 @@ void micro_sed_func_pack_kokkos (
             });
           team.team_barrier();
 
-          util::set_min_max(k_qxbot, k_qxtop, kmin, kmax);
-          kmin /= RealSmallPack::n;
-          kmax /= RealSmallPack::n;
+          util::set_min_max(k_qxbot, k_qxtop, kmin, kmax, RealSmallPack::n);
           Kokkos::parallel_reduce(
             Kokkos::TeamThreadRange(team, kmax-kmin+1), [&] (int pk_, Real& lmax) {
               const int pk = kmin + pk_;
@@ -546,13 +544,12 @@ void micro_sed_func_pack_kokkos (
                                      m.mu_r_table, tmp1, tmp2);
                 find_lookupTable_indices_3_kokkos(qr_gt_small, t, smu_r(i, pk), slamr(i, pk));
                 // mass-weighted fall speed:
-                sV_qr(i, pk).set(qr_gt_small, apply_table(qr_gt_small, m.vm_table, t) * srhofacr(i, pk));
+                sV_qr(i, pk).set(qr_gt_small,
+                                 apply_table(qr_gt_small, m.vm_table, t) * srhofacr(i, pk));
                 // number-weighted fall speed:
-                sV_nr(i, pk).set(qr_gt_small, apply_table(qr_gt_small, m.vn_table, t) * srhofacr(i, pk));
-              }
-              for (int s = 0; s < RealSmallPack::n; ++s) {
-                const int k = pk*RealSmallPack::n + s;
-                Real Co_max_local = m.V_qr(i, k) * dt_left * m.inv_dzq(i, k);
+                sV_nr(i, pk).set(qr_gt_small,
+                                 apply_table(qr_gt_small, m.vn_table, t) * srhofacr(i, pk));
+                auto Co_max_local = max(sV_qr(i, pk) * dt_left * sinv_dzq(i, pk));
                 if (Co_max_local > lmax)
                   lmax = Co_max_local;
               }
