@@ -166,7 +166,7 @@ struct MicroSedFuncPackKokkos {
   int num_horz, num_vert;
 
   // re-usable scratch views
-  kokkos_2d_t<Real> V_qr, V_nr, flux, mu_r, lamr, rhofacr, inv_dzq, rho, inv_rho, t, tmparr1;
+  kokkos_2d_t<Real> V_qr, V_nr, flux, mu_r, lamr, rhofacr, inv_dzq, rho, inv_rho, t;
   kokkos_2d_table_t<Real> vn_table, vm_table;
   kokkos_1d_table_t<Real> mu_r_table;
 
@@ -183,7 +183,6 @@ public:
     rho("rho", num_horz, num_vert),
     inv_rho("inv_rho", num_horz, num_vert),
     t("t", num_horz, num_vert),
-    tmparr1("tmparr1", num_horz, num_vert),
     vn_table("VN_TABLE"), vm_table("VM_TABLE"),
     mu_r_table("MU_R_TABLE")
   {
@@ -227,10 +226,6 @@ void calc_first_order_upwind_step (
     rho = smallize(packize(m.rho)),
     inv_rho = smallize(packize(m.inv_rho)),
     inv_dzq = smallize(packize(m.inv_dzq));
-  const kokkos_2d_t<Real>
-    sV = scalarize(pV),
-    sr = scalarize(pr),
-    sflux = scalarize(pflux);
 
   int
     kmin = ( kdir == 1 ? k_bot : k_top)      / RealSmallPack::n,
