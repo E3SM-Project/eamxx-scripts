@@ -20,8 +20,9 @@ using micro_sed_vanilla::Globals;
 using namespace scream;
 
 #define SCREAM_PACKN 16
+#define SCREAM_SMALL_PACK_FACTOR 2
 template <typename T> using BigPack = Pack<T, SCREAM_PACKN>;
-template <typename T> using SmallPack = Pack<T, SCREAM_PACKN/2>;
+template <typename T> using SmallPack = Pack<T, SCREAM_PACKN / SCREAM_SMALL_PACK_FACTOR>;
 using RealPack = BigPack<Real>;
 using IntPack = BigPack<Int>;
 using RealSmallPack = SmallPack<Real>;
@@ -44,7 +45,8 @@ kokkos_2d_t<BigPack<T> > packize (const kokkos_2d_t<T>& vp) {
 template <typename T> KOKKOS_FORCEINLINE_FUNCTION
 kokkos_2d_t<SmallPack<T> > smallize (const kokkos_2d_t<BigPack<T> >& vp) {
   return Kokkos::View<SmallPack<T>**, Layout, MemSpace, Kokkos::MemoryTraits<Kokkos::Unmanaged> >(
-    reinterpret_cast<SmallPack<T>*>(vp.data()), vp.extent_int(0), 2*vp.extent_int(1));
+    reinterpret_cast<SmallPack<T>*>(vp.data()), vp.extent_int(0),
+    SCREAM_SMALL_PACK_FACTOR * vp.extent_int(1));
 }
 
 template <typename Real>
