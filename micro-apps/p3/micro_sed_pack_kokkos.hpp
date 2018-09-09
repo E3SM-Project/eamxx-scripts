@@ -210,6 +210,10 @@ public:
   }
 };
 
+//TODO At the end, if it's still true that computing the steps for qr, nr in
+// sequence is more expensive than together, take arrays of flux, V, r with
+// compile-time size and iterate over them.
+
 // Calculate the step in the region [k_bot, k_top].
 template <int kdir>
 KOKKOS_INLINE_FUNCTION
