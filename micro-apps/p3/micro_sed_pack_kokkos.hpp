@@ -41,6 +41,12 @@ kokkos_2d_t<BigPack<T> > packize (const kokkos_2d_t<T>& vp) {
   return Kokkos::View<BigPack<T>**, Layout, MemSpace, Kokkos::MemoryTraits<Kokkos::Unmanaged> >(
     reinterpret_cast<BigPack<T>*>(vp.data()), vp.extent_int(0), vp.extent_int(1) / RealPack::n);
 }
+template <typename T> KOKKOS_FORCEINLINE_FUNCTION
+kokkos_2d_t<SmallPack<T> > smallize (const kokkos_2d_t<T>& vp) {
+  assert(vp.extent_int(1) % RealSmallPack::n == 0);
+  return Kokkos::View<SmallPack<T>**, Layout, MemSpace, Kokkos::MemoryTraits<Kokkos::Unmanaged> >(
+    reinterpret_cast<SmallPack<T>*>(vp.data()), vp.extent_int(0), vp.extent_int(1) / RealSmallPack::n);
+}
 
 template <typename T> KOKKOS_FORCEINLINE_FUNCTION
 kokkos_2d_t<SmallPack<T> > smallize (const kokkos_2d_t<BigPack<T> >& vp) {
@@ -220,16 +226,13 @@ KOKKOS_INLINE_FUNCTION
 void calc_first_order_upwind_step (
   const MicroSedFuncPackKokkos& m, const member_type& team, const int& i,
   const int& k_bot, const int& k_top, const Real& dt_sub,
-  const kokkos_2d_t<RealPack>& pflux, const kokkos_2d_t<RealPack>& pV,
-  const kokkos_2d_t<RealPack>& pr)
+  const kokkos_2d_t<RealSmallPack>& flux, const kokkos_2d_t<RealSmallPack>& V,
+  const kokkos_2d_t<RealSmallPack>& r)
 {
   const kokkos_2d_t<RealSmallPack>
-    flux = smallize(pflux),
-    V = smallize(pV),
-    r = smallize(pr),
-    rho = smallize(packize(m.rho)),
-    inv_rho = smallize(packize(m.inv_rho)),
-    inv_dzq = smallize(packize(m.inv_dzq));
+    rho = smallize(m.rho),
+    inv_rho = smallize(m.inv_rho),
+    inv_dzq = smallize(m.inv_dzq);
 
   int
     kmin = ( kdir == 1 ? k_bot : k_top)      / RealSmallPack::n,
@@ -284,8 +287,8 @@ KOKKOS_INLINE_FUNCTION
 void calc_first_order_upwind_step (
   const MicroSedFuncPackKokkos& m, const member_type& team, const int& i,
   const int& k_bot, const int& k_top, const int& kdir, const Real& dt_sub,
-  const kokkos_2d_t<RealPack>& flux, const kokkos_2d_t<RealPack>& V,
-  const kokkos_2d_t<RealPack>& r)
+  const kokkos_2d_t<RealSmallPack>& flux, const kokkos_2d_t<RealSmallPack>& V,
+  const kokkos_2d_t<RealSmallPack>& r)
 {
   if (kdir == 1)
     calc_first_order_upwind_step< 1>(
@@ -407,6 +410,20 @@ void micro_sed_func_pack_kokkos (
     pflux = packize(m.flux),
     pqr = packize(qr),
     pnr = packize(nr);
+  const kokkos_2d_t<RealSmallPack>
+    sdzq = smallize(dzq),
+    spres = smallize(pres),
+    sinv_dzq = smallize(m.inv_dzq),
+    st = smallize(m.t),
+    sth = smallize(th),
+    srho = smallize(m.rho),
+    sinv_rho = smallize(m.inv_rho),
+    srhofacr = smallize(m.rhofacr),
+    sV_qr = smallize(m.V_qr),
+    sV_nr = smallize(m.V_nr),
+    sflux = smallize(m.flux),
+    sqr = smallize(qr),
+    snr = smallize(nr);
 
   const auto rd = Globals<Real>::RD;
   const auto rd_inv_cp = Globals<Real>::RD * Globals<Real>::INV_CP;
@@ -485,11 +502,11 @@ void micro_sed_func_pack_kokkos (
 
           calc_first_order_upwind_step(m, team, i,
                                        k_temp, k_qxtop, kdir, dt_sub,
-                                       pflux, pV_nr, pnr);
+                                       sflux, sV_nr, snr);
           team.team_barrier();
           calc_first_order_upwind_step(m, team, i,
                                        k_temp, k_qxtop, kdir, dt_sub,
-                                       pflux, pV_qr, pqr);
+                                       sflux, sV_qr, sqr);
           team.team_barrier();
 
           // accumulated precip during time step
