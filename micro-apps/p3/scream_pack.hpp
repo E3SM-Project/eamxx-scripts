@@ -61,6 +61,13 @@ struct Pack {
     vector_simd for (int i = 0; i < n; ++i) d[i] = v;
   }
 
+  template <typename PackIn> KOKKOS_FORCEINLINE_FUNCTION
+  Pack (const PackIn& v, typename std::enable_if<PackIn::packtag>::type* = nullptr) {
+    static_assert(static_cast<int>(PackIn::n) == static_cast<int>(n),
+                  "Pack::n must be the same.");
+    vector_simd for (int i = 0; i < n; ++i) d[i] = v[i];
+  }
+
   KOKKOS_FORCEINLINE_FUNCTION const scalar& operator[] (const int& i) const { return d[i]; }
   KOKKOS_FORCEINLINE_FUNCTION scalar& operator[] (const int& i) { return d[i]; }
 
@@ -88,6 +95,9 @@ template <typename Pack>
 using OnlyPack = typename std::enable_if<Pack::packtag,Pack>::type;
 template <typename Pack, typename Return>
 using OnlyPackReturn = typename std::enable_if<Pack::packtag,Return>::type;
+
+// Later, we might support type promotion. For now, caller must explicitly
+// promote a pack's scalar type in mixed-type arithmetic.
 
 #define scream_pack_gen_bin_op_pp(op)                                   \
   template <typename Pack> KOKKOS_FORCEINLINE_FUNCTION                  \
@@ -234,6 +244,16 @@ OnlyPack<Pack> shift_left (const typename Pack::scalar& pp1, const Pack& p) {
   s[Pack::n-1] = pp1;
   vector_simd for (int i = 0; i < Pack::n-1; ++i) s[i] = p[i+1];
   return s;
+}
+
+template<typename Array2, typename IdxPack> KOKKOS_INLINE_FUNCTION
+OnlyPackReturn<IdxPack, Pack<typename Array2::value_type, IdxPack::n> >
+index (const Array2& a, const IdxPack& i0, const IdxPack& i1,
+       typename std::enable_if<Array2::Rank == 2>::type* = nullptr) {
+  Pack<typename Array2::non_const_value_type, IdxPack::n> p;
+  vector_simd for (int i = 0; i < IdxPack::n; ++i)
+    p[i] = a(i0[i], i1[i]);
+  return p;
 }
 
 } // namespace pack

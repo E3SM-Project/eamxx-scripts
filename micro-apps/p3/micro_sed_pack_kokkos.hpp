@@ -128,30 +128,17 @@ void find_lookupTable_indices_3_kokkos (
 }
 
 KOKKOS_INLINE_FUNCTION
-Real apply_table (const kokkos_2d_table_t<Real>& table, const ScalarTable3& t) {
-  const auto dum1 = (table(t.dumii-1, t.dumjj-1) + (t.rdumii-t.dumii) * t.inv_dum3 *
-                     (table(t.dumii, t.dumjj-1) - table(t.dumii-1, t.dumjj-1)));
-  const auto dum2 = (table(t.dumii-1, t.dumjj) + (t.rdumii-t.dumii) * t.inv_dum3 *
-                     (table(t.dumii, t.dumjj) - table(t.dumii-1, t.dumjj)));
-  return dum1 + (t.rdumjj - t.dumjj) * (dum2 - dum1);
-}
-
-KOKKOS_INLINE_FUNCTION
 RealSmallPack apply_table (
   const SmallMask& mask, const kokkos_2d_table_t<Real>& table, const Table3& t)
 {
-  RealSmallPack p;
-  vector_simd for (int s = 0; s < RealSmallPack::n; ++s) {
-    if ( ! mask[s]) continue;
-    ScalarTable3 st;
-    st.dumii = t.dumii[s];
-    st.dumjj = t.dumjj[s];
-    st.rdumii = t.rdumii[s];
-    st.rdumjj = t.rdumjj[s];
-    st.inv_dum3 = t.inv_dum3[s];
-    p[s] = apply_table(table, st);
-  }
-  return p;
+  const auto rdumii_m_dumii = t.rdumii-RealSmallPack(t.dumii);
+  const auto t_im1_jm1 = index(table, t.dumii-1, t.dumjj-1);
+  const auto dum1 = (t_im1_jm1 + rdumii_m_dumii * t.inv_dum3 *
+                     (index(table, t.dumii, t.dumjj-1) - t_im1_jm1));
+  const auto t_im1_j = index(table, t.dumii-1, t.dumjj);
+  const auto dum2 = (t_im1_j + rdumii_m_dumii * t.inv_dum3 *
+                     (index(table, t.dumii, t.dumjj) - t_im1_j));
+  return dum1 + (t.rdumjj - RealSmallPack(t.dumjj)) * (dum2 - dum1);  
 }
 
 // Computes and returns rain size distribution parameters
