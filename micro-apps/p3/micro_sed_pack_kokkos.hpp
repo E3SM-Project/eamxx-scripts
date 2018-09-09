@@ -500,7 +500,7 @@ void micro_sed_func_pack_kokkos (
         }
 
         Kokkos::single(
-          Kokkos::PerTeam(team), [&]() {
+          Kokkos::PerTeam(team), [&] () {
             prt_liq(i) += prt_accum * Globals<Real>::INV_RHOW * odt;
           });
       }

@@ -129,13 +129,6 @@ void set_min_max (const Integer& lim0, const Integer& lim1,
   max = util::max(lim0, lim1);
 }
 
-template <typename Integer, typename Integer1> KOKKOS_INLINE_FUNCTION
-void set_min_max (const Integer& lim0, const Integer& lim1,
-                  Integer& min, Integer& max, const Integer1& vector_size) {
-  min = util::min(lim0, lim1) / vector_size;
-  max = util::max(lim0, lim1) / vector_size;
-}
-
 inline
 std::string active_avx_string () {
   std::string s;
