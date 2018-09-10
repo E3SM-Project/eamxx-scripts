@@ -31,6 +31,28 @@ private:
   char d[n];
 };
 
+template <typename Mask>
+using OnlyMask = typename std::enable_if<Mask::masktag,Mask>::type;
+
+#define scream_mask_gen_bin_op_mm(op, impl)                   \
+  template <typename Mask> KOKKOS_INLINE_FUNCTION             \
+  OnlyMask<Mask> operator op (const Mask& a, const Mask& b) { \
+    Mask m(false);                                            \
+    vector_simd for (int i = 0; i < Mask::n; ++i)             \
+      if (a[i] impl b[i]) m.set(i, true);                     \
+    return m;                                                 \
+  }
+
+scream_mask_gen_bin_op_mm(&, &&)
+scream_mask_gen_bin_op_mm(|, ||)
+
+template <typename Mask> KOKKOS_INLINE_FUNCTION
+OnlyMask<Mask> operator ~ (const Mask& m) {
+  Mask nm(false);
+  vector_simd for (int i = 0; i < Mask::n; ++i) nm[i] = ! m[i];
+  return nm;
+}
+
 #define scream_pack_gen_assign_op_p(op)                   \
   KOKKOS_FORCEINLINE_FUNCTION                             \
   Pack& operator op (const Pack& a) {                     \
@@ -103,8 +125,6 @@ template <typename Pack>
 using OnlyPack = typename std::enable_if<Pack::packtag,Pack>::type;
 template <typename Pack, typename Return>
 using OnlyPackReturn = typename std::enable_if<Pack::packtag,Return>::type;
-template <typename Mask>
-using OnlyMask = typename std::enable_if<Mask::masktag,Mask>::type;
 
 // Later, we might support type promotion. For now, caller must explicitly
 // promote a pack's scalar type in mixed-type arithmetic.
@@ -146,63 +166,6 @@ Pack<T,n> pack_range (const T& start) {
   pack p;
   vector_simd for (int i = 0; i < n; ++i) p[i] = start + i;
   return p;
-}
-
-#define scream_mask_gen_bin_op_pp(op)             \
-  template <typename Pack> KOKKOS_INLINE_FUNCTION \
-  OnlyPackReturn<Pack, Mask<Pack::n> >            \
-  operator op (const Pack& a, const Pack& b) {    \
-    Mask<Pack::n> m(false);                       \
-    vector_simd for (int i = 0; i < Pack::n; ++i) \
-      if (a[i] op b[i]) m.set(i, true);           \
-    return m;                                     \
-  }
-#define scream_mask_gen_bin_op_ps(op)                               \
-  template <typename Pack, typename Scalar> KOKKOS_INLINE_FUNCTION  \
-  OnlyPackReturn<Pack, Mask<Pack::n> >                              \
-  operator op (const Pack& a, const Scalar& b) {                    \
-    Mask<Pack::n> m(false);                                         \
-    vector_simd for (int i = 0; i < Pack::n; ++i)                   \
-      if (a[i] op b) m.set(i, true);                                \
-    return m;                                                       \
-  }
-#define scream_mask_gen_bin_op_sp(op)                               \
-  template <typename Pack, typename Scalar> KOKKOS_INLINE_FUNCTION  \
-  OnlyPackReturn<Pack, Mask<Pack::n> >                              \
-  operator op (const Scalar& a, const Pack& b) {                    \
-    Mask<Pack::n> m(false);                                         \
-    vector_simd for (int i = 0; i < Pack::n; ++i)                   \
-      if (a op b[i]) m.set(i, true);                                \
-    return m;                                                       \
-  }
-#define scream_mask_gen_bin_op_all(op)          \
-  scream_mask_gen_bin_op_pp(op)                 \
-  scream_mask_gen_bin_op_ps(op)                 \
-  scream_mask_gen_bin_op_sp(op)
-
-scream_mask_gen_bin_op_all(==)
-scream_mask_gen_bin_op_all(>=)
-scream_mask_gen_bin_op_all(<=)
-scream_mask_gen_bin_op_all(>)
-scream_mask_gen_bin_op_all(<)
-
-#define scream_mask_gen_bin_op_mm(op, impl)                   \
-  template <typename Mask> KOKKOS_INLINE_FUNCTION             \
-  OnlyMask<Mask> operator op (const Mask& a, const Mask& b) { \
-    Mask m(false);                                            \
-    vector_simd for (int i = 0; i < Mask::n; ++i)             \
-      if (a[i] impl b[i]) m.set(i, true);                     \
-    return m;                                                 \
-  }
-
-scream_mask_gen_bin_op_mm(&, &&)
-scream_mask_gen_bin_op_mm(|, ||)
-
-template <typename Mask> KOKKOS_INLINE_FUNCTION
-OnlyMask<Mask> operator ~ (const Mask& m) {
-  Mask nm(false);
-  vector_simd for (int i = 0; i < Mask::n; ++i) nm[i] = ! m[i];
-  return nm;
 }
 
 #define scream_pack_gen_unary_fn(fn, impl)                            \
@@ -296,6 +259,44 @@ OnlyPack<Pack> shift_left (const typename Pack::scalar& pp1, const Pack& p) {
   vector_simd for (int i = 0; i < Pack::n-1; ++i) s[i] = p[i+1];
   return s;
 }
+
+#define scream_mask_gen_bin_op_pp(op)             \
+  template <typename Pack> KOKKOS_INLINE_FUNCTION \
+  OnlyPackReturn<Pack, Mask<Pack::n> >            \
+  operator op (const Pack& a, const Pack& b) {    \
+    Mask<Pack::n> m(false);                       \
+    vector_simd for (int i = 0; i < Pack::n; ++i) \
+      if (a[i] op b[i]) m.set(i, true);           \
+    return m;                                     \
+  }
+#define scream_mask_gen_bin_op_ps(op)                               \
+  template <typename Pack, typename Scalar> KOKKOS_INLINE_FUNCTION  \
+  OnlyPackReturn<Pack, Mask<Pack::n> >                              \
+  operator op (const Pack& a, const Scalar& b) {                    \
+    Mask<Pack::n> m(false);                                         \
+    vector_simd for (int i = 0; i < Pack::n; ++i)                   \
+      if (a[i] op b) m.set(i, true);                                \
+    return m;                                                       \
+  }
+#define scream_mask_gen_bin_op_sp(op)                               \
+  template <typename Pack, typename Scalar> KOKKOS_INLINE_FUNCTION  \
+  OnlyPackReturn<Pack, Mask<Pack::n> >                              \
+  operator op (const Scalar& a, const Pack& b) {                    \
+    Mask<Pack::n> m(false);                                         \
+    vector_simd for (int i = 0; i < Pack::n; ++i)                   \
+      if (a op b[i]) m.set(i, true);                                \
+    return m;                                                       \
+  }
+#define scream_mask_gen_bin_op_all(op)          \
+  scream_mask_gen_bin_op_pp(op)                 \
+  scream_mask_gen_bin_op_ps(op)                 \
+  scream_mask_gen_bin_op_sp(op)
+
+scream_mask_gen_bin_op_all(==)
+scream_mask_gen_bin_op_all(>=)
+scream_mask_gen_bin_op_all(<=)
+scream_mask_gen_bin_op_all(>)
+scream_mask_gen_bin_op_all(<)
 
 // Index a scalar array with Pack indices, returning a compatible Pack of array
 // values.

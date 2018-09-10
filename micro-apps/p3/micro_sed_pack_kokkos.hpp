@@ -1,6 +1,8 @@
 #ifndef MICRO_SED_PACK_KOKKOS_HPP
 #define MICRO_SED_PACK_KOKKOS_HPP
 
+#pragma message "I THINK I NEED A MASKEDPACK."
+
 #include "util.hpp"
 #include "initial_conditions.hpp"
 #include "micro_kokkos.hpp"
@@ -12,6 +14,8 @@
 #include <chrono>
 #include <iostream>
 #include <iomanip>
+
+#define PACK_IMPL 0
 
 namespace p3 {
 namespace micro_sed_pack {
@@ -72,7 +76,7 @@ struct Table3 {
 };
 
 // Finds indices in rain lookup table (3)
-#if 0
+#if PACK_IMPL == 1
 KOKKOS_INLINE_FUNCTION
 void find_lookupTable_indices_3_kokkos (
   const SmallMask& qr_gt_small, Table3& t, const RealSmallPack& mu_r, const RealSmallPack& lamr_)
@@ -125,7 +129,7 @@ void find_lookupTable_indices_3_kokkos (
     t.dumjj.set(qr_gt_small, dumjj);
   }
 }
-#else
+#elif PACK_IMPL == 0
 struct ScalarTable3 {
   Int dumii, dumjj;
   Real rdumii, rdumjj, inv_dum3;
@@ -197,7 +201,7 @@ RealSmallPack apply_table (
 }
 
 // Computes and returns rain size distribution parameters
-#if 0
+#if PACK_IMPL == 0
 KOKKOS_INLINE_FUNCTION
 void get_rain_dsd2_kokkos (
   const Real& qr, Real& nr, Real& mu_r, Real& rdumii, int& dumii, Real& lamr,
@@ -271,7 +275,7 @@ void get_rain_dsd2_kokkos (
     get_rain_dsd2_kokkos(qr[s], nr[s], mu_r[s], rdumii[s], dumii[s], lamr[s],
                          mu_r_table, cdistr[s], logn0r[s]);
 }
-#else
+#elif PACK_IMPL == 1
 KOKKOS_INLINE_FUNCTION
 void get_rain_dsd2_kokkos (
   const SmallMask& qr_gt_small, const RealSmallPack& qr, RealSmallPack& nr, RealSmallPack& mu_r,
