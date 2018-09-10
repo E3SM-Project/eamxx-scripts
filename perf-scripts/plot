@@ -1,0 +1,160 @@
+#!/usr/bin/env python
+
+"""
+Plot results from perf_analysis
+"""
+
+from utils import expect, check_minimum_python_version
+check_minimum_python_version(2, 7)
+
+import matplotlib.pyplot as plt
+
+from collections import OrderedDict
+import argparse, sys, os
+
+###############################################################################
+def parse_command_line(args, description):
+###############################################################################
+    parser = argparse.ArgumentParser(
+        usage="""\n{0} <DATAFILE> [<DATAFILE>]
+OR
+{0} --help
+
+\033[1mEXAMPLES:\033[0m
+    \033[1;32m# Plot data file \033[0m
+    > {0} data
+""".format(os.path.basename(args[0])),
+        description=description,
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+
+    parser.add_argument("datafiles", nargs="+", help="Data file to plot")
+
+    args = parser.parse_args(args[1:])
+
+    return args.datafiles
+
+###############################################################################
+def pad_lim(lim, pad=0.05, mult=False):
+###############################################################################
+    if mult:
+        lims = lim[0] * (1 - pad), lim[1] * (1 + pad)
+    else:
+        d = lim[1] - lim[0]
+        delta = pad * d
+        lims = lim[0] - delta, lim[1] + delta
+    return lims
+
+###############################################################################
+def axis_tight_pad(pad=0.05, mult=False):
+###############################################################################
+    plt.axis('tight')
+    xl = plt.xlim()
+    yl = plt.ylim()
+    plt.xlim(pad_lim(xl, pad, mult))
+    return plt.ylim(pad_lim(yl, pad, mult))
+
+###############################################################################
+def subtle_grid():
+###############################################################################
+    plt.grid(True, lw=0.5, ls='-', color=(0.8, 0.8, 0.8), zorder=-1, which='both')
+    return plt.gca().set_axisbelow(True)
+
+###############################################################################
+class Plotter(object):
+###############################################################################
+
+    def __init__(self, datafiles):
+        self._scaling_var  = None
+        self._consistent   = OrderedDict()
+        self._inconsistent = []
+        self._title        = None
+
+        for datafile in datafiles:
+            with open(datafile, "r") as fd:
+                lines = [line.strip() for line in fd.readlines()]
+
+            prov_line = lines[0]
+            test_line = lines[1]
+
+            scaling_var = test_line.split()[1]
+            first_file = self._scaling_var is None
+            if first_file:
+                self._scaling_var = scaling_var
+            else:
+                expect(self._scaling_var == scaling_var, "Incompatible files, scaling vars don't match")
+
+            for item in prov_line.split()[1:]:
+                key, value = item.split("=")
+                if first_file:
+                    self._consistent[key] = value
+                else:
+                    if key in self._inconsistent:
+                        pass
+                    elif self._consistent[key] != value:
+                        del self._consistent[key]
+                        self._inconsistent.append(key)
+
+        title = []
+        for key, value in self._consistent.iteritems():
+            title.append("{}={}".format(key, value))
+
+        self._title = " ".join(title)
+
+    def plotdata(self, datafile):
+        xs, ys = [], []
+        testname = None
+        line_label = ""
+        xlabel = None
+        with open(datafile, "r") as fd:
+            for line in fd.readlines():
+                line = line.strip()
+                if "Provenance" in line:
+                    for item in line.split()[1:]:
+                        key, value = item.split("=")
+                        if key in self._inconsistent:
+                            line_label += "_{}".format(value)
+
+                elif "," in line:
+                    x, y = [float(item) for item in line.split(", ")]
+                    xs.append(x)
+                    ys.append(y)
+
+                elif line != "":
+                    if xs:
+                        plt.plot(xs, ys, label="{}{}".format(testname, line_label))
+                        xs = []
+                        ys = []
+
+                    testname, xlabel = line.split()
+                    expect(xlabel == self._scaling_var, "Bad file {}".format(datafile))
+
+        plt.plot(xs, ys, label="{}{}".format(testname, line_label))
+
+    def finalize(self):
+
+        subtle_grid()
+        plt.title(self._title)
+        plt.xlabel(self._scaling_var)
+        plt.ylabel("cols/s")
+        plt.legend(loc="best")
+        axis_tight_pad()
+
+        plt.show()
+
+###############################################################################
+def _main_func(description):
+###############################################################################
+    datafiles = parse_command_line(sys.argv, description)
+
+    plotter = Plotter(datafiles)
+
+    for datafile in datafiles:
+        plotter.plotdata(datafile)
+
+    plotter.finalize()
+
+###############################################################################
+
+if (__name__ == "__main__"):
+    _main_func(__doc__)

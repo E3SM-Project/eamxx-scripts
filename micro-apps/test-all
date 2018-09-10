@@ -16,16 +16,16 @@ set -x
 
 mkdir test-all-build
 cd test-all-build
-cmake -DCMAKE_CXX_COMPILER=$cpp_compiler -DKokkos_DIR=$kokkos_dir ..
+cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_COMPILER=$cpp_compiler -DKokkos_DIR=$kokkos_dir ..
 make -j8
 make baseline
-make test
+OMP_NUM_THREADS=17 make test
 
-cmake -DCMAKE_CXX_COMPILER=$cpp_compiler -DKokkos_DIR=$kokkos_dir -DDOUBLE_PRECISION=FALSE ..
+cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_COMPILER=$cpp_compiler -DKokkos_DIR=$kokkos_dir -DDOUBLE_PRECISION=FALSE ..
 make -j8
 make baseline
-make test
+OMP_NUM_THREADS=17 make test
 
-cmake -DCMAKE_CXX_COMPILER=$cpp_compiler -DKokkos_DIR=$kokkos_dir -DENABLE_TRACING=TRUE ..
+cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_COMPILER=$cpp_compiler -DKokkos_DIR=$kokkos_dir -DENABLE_TRACING=TRUE ..
 make -j8
 # no run
