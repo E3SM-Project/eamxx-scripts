@@ -15,7 +15,7 @@
 #include <iostream>
 #include <iomanip>
 
-#define PACK_IMPL 0
+#define PACK_IMPL 3
 
 namespace p3 {
 namespace micro_sed_pack {
@@ -90,7 +90,7 @@ void find_lookupTable_indices_3_kokkos (
   auto dum1_lt = dum1 <= 195.e-6;
   const auto dum1_gte = qr_gt_small & ~dum1_lt;
   dum1_lt = qr_gt_small & dum1_lt;
-  {
+  if (dum1_lt.any()) {
     const auto inv_dum3 = 0.1;
     auto rdumii = (dum1*1.e6+5.)*inv_dum3;
     rdumii = max(rdumii,  1.);
@@ -103,7 +103,7 @@ void find_lookupTable_indices_3_kokkos (
     t.rdumii.set(dum1_lt, rdumii);
     t.dumii.set(dum1_lt, dumii);
   }
-  {
+  if (dum1_gte.any()) {
     const auto inv_dum3  = Globals<Real>::THRD*0.1;
     auto rdumii = (dum1*1.e+6-195.)*inv_dum3 + 20.;
     rdumii = max(rdumii, 20.);
@@ -129,7 +129,7 @@ void find_lookupTable_indices_3_kokkos (
     t.dumjj.set(qr_gt_small, dumjj);
   }
 }
-#elif PACK_IMPL == 0
+#elif PACK_IMPL == 0 || PACK_IMPL == 2 || PACK_IMPL == 3
 struct ScalarTable3 {
   Int dumii, dumjj;
   Real rdumii, rdumjj, inv_dum3;
@@ -173,16 +173,16 @@ KOKKOS_INLINE_FUNCTION
 void find_lookupTable_indices_3_kokkos (
   const SmallMask& qr_gt_small, Table3& t, const RealSmallPack& mu_r, const RealSmallPack& lamr)
 {
-  vector_simd for (int s = 0; s < RealSmallPack::n; ++s) {
-    if ( ! qr_gt_small[s]) continue;
-    ScalarTable3 st;
-    find_lookupTable_indices_3_kokkos(st, mu_r[s], lamr[s]);
-    t.dumii[s] = st.dumii;
-    t.dumjj[s] = st.dumjj;
-    t.rdumii[s] = st.rdumii;
-    t.rdumjj[s] = st.rdumjj;
-    t.inv_dum3[s] = st.inv_dum3;
-  }
+  scream_masked_loop
+    (qr_gt_small, {
+      ScalarTable3 st;
+      find_lookupTable_indices_3_kokkos(st, mu_r[s], lamr[s]);
+      t.dumii[s] = st.dumii;
+      t.dumjj[s] = st.dumjj;
+      t.rdumii[s] = st.rdumii;
+      t.rdumjj[s] = st.rdumjj;
+      t.inv_dum3[s] = st.inv_dum3;
+    });
 }
 #endif
 
@@ -289,6 +289,8 @@ void get_rain_dsd2_kokkos (
   cdistr = 0;
   logn0r = 0;
 
+  if ( ! qr_gt_small.any()) return;
+
   // use lookup table to get mu
   // mu-lambda relationship is from Cao et al. (2008), eq. (7)
 
@@ -304,16 +306,18 @@ void get_rain_dsd2_kokkos (
   }
   {
     const auto m2 = (inv_dum >= 282.e-6) & (inv_dum < 502.e-6);
-    // interpolate
-    rdumii = (inv_dum - 250.e-6)*0.5e6;
-    rdumii = max(rdumii, 1.0);
-    rdumii = min(rdumii, 150.0);
-    dumii.set(m2, rdumii);
-    dumii  = min(dumii, 149);
-    mu_r.set(m2,
-             index(mu_r_table, dumii-1) + (index(mu_r_table, dumii) -
-                                           index(mu_r_table, dumii-1))
-             * (rdumii - RealSmallPack(dumii)));
+    if (m2.any()) {
+      // interpolate
+      rdumii = (inv_dum - 250.e-6)*0.5e6;
+      rdumii = max(rdumii, 1.0);
+      rdumii = min(rdumii, 150.0);
+      dumii.set(m2, rdumii);
+      dumii  = min(dumii, 149);
+      mu_r.set(m2,
+               index(mu_r_table, dumii-1) + (index(mu_r_table, dumii) -
+                                             index(mu_r_table, dumii-1))
+               * (rdumii - RealSmallPack(dumii)));
+    }
   }
 
   // recalculate slope based on mu_r
@@ -336,6 +340,150 @@ void get_rain_dsd2_kokkos (
            exp(3*log(lamr) + log(qr) +
                log(tgamma(mu_r + 1)) - log(tgamma(mu_r + 4)))
            / Globals<Real>::CONS1);
+  }
+}
+#elif PACK_IMPL == 2
+KOKKOS_INLINE_FUNCTION
+void get_rain_dsd2_kokkos (
+  const SmallMask& qr_gt_small, const RealSmallPack& qr, RealSmallPack& nr, RealSmallPack& mu_r,
+  RealSmallPack& rdumii, IntSmallPack& dumii, RealSmallPack& lamr,
+  const kokkos_1d_table_t<Real>& mu_r_table, RealSmallPack& cdistr, RealSmallPack& logn0r)
+{
+  constexpr auto nsmall = Globals<Real>::NSMALL;
+  constexpr auto thrd = Globals<Real>::THRD;
+
+  lamr = 0;
+  cdistr = 0;
+  logn0r = 0;
+
+  RealSmallPack inv_dum;
+  scream_masked_loop
+    (qr_gt_small, {
+      nr[s] = util::max<Real>(nr[s], nsmall);
+      inv_dum[s] = pow(qr[s] / (Globals<Real>::CONS1 * nr[s] * 6.0), thrd);
+    });
+
+  vector_simd for (int s = 0; s < SmallMask::n; ++s) {
+    if ( ! qr_gt_small[s]) continue;
+    if (inv_dum[s] < 282.e-6) {
+      mu_r[s] = 8.282;
+    } else if ((inv_dum[s] >= 282.e-6) & (inv_dum[s ]< 502.e-6)) {
+      // interpolate
+      Real rdumiis = (inv_dum[s] - 250.e-6)*0.5e6;
+      rdumiis = util::max<Real>(rdumiis, 1.0);
+      rdumiis = util::min<Real>(rdumiis, 150.0);
+      rdumii[s] = rdumiis;
+      Int dumiis = rdumiis;
+      dumiis = util::min(dumiis, 149);
+      dumii[s] = dumiis;
+      const auto mu_r_im1 = mu_r_table(dumiis-1);
+      mu_r[s] = mu_r_im1 + (mu_r_table(dumiis) - mu_r_im1) * (rdumiis - dumiis);      
+    } else {
+      mu_r[s] = 0;
+    }
+  }
+
+  // recalculate slope based on mu_r
+  scream_masked_loop
+    (qr_gt_small, {
+      lamr[s] = std::pow(Globals<Real>::CONS1 * nr[s] * (mu_r[s] + 3) *
+                         (mu_r[s] + 2) * (mu_r[s] + 1)/qr[s],
+                         thrd);
+    });
+
+  // apply lambda limiters for rain
+  vector_simd for (int s = 0; s < RealSmallPack::n; ++s) {
+    const auto lammax = (mu_r[s]+1.)*1.e+5;
+    const auto lammin = (mu_r[s]+1.)*1250.0; 
+    const auto lt = qr_gt_small[s] && (lamr[s] < lammin); 
+    const auto gt = qr_gt_small[s] && (lamr[s] > lammax); 
+    const auto either = lt || gt; 
+    if ( ! either) continue;
+    if (lt) lamr[s] = lammin; 
+    else lamr[s] = lammax;
+    nr[s] = std::exp(3*std::log(lamr[s]) + std::log(qr[s]) +
+                     std::log(std::tgamma(mu_r[s] + 1)) - std::log(std::tgamma(mu_r[s] + 4)))
+      / Globals<Real>::CONS1; 
+  } 
+}
+#elif PACK_IMPL == 3
+KOKKOS_INLINE_FUNCTION
+void get_rain_dsd2_kokkos (
+  const SmallMask& qr_gt_small, const RealSmallPack& qr, RealSmallPack& nr, RealSmallPack& mu_r,
+  RealSmallPack& rdumii, IntSmallPack& dumii, RealSmallPack& lamr,
+  const kokkos_1d_table_t<Real>& mu_r_table, RealSmallPack& cdistr, RealSmallPack& logn0r)
+{
+  constexpr auto nsmall = Globals<Real>::NSMALL;
+  constexpr auto thrd = Globals<Real>::THRD;
+
+  lamr = 0;
+  cdistr = 0;
+  logn0r = 0;
+
+  if ( ! qr_gt_small.any()) return;
+
+  // use lookup table to get mu
+  // mu-lambda relationship is from Cao et al. (2008), eq. (7)
+
+  // find spot in lookup table
+  // (scaled N/q for lookup table parameter space)
+  RealSmallPack inv_dum;
+  scream_masked_loop
+    (qr_gt_small, {
+      nr[s] = util::max<Real>(nr[s], nsmall);
+      inv_dum[s] = pow(qr[s] / (Globals<Real>::CONS1 * nr[s] * 6.0), thrd);
+    });
+
+  mu_r = 0;
+  {
+    const auto m1 = inv_dum < 282.e-6;
+    mu_r.set(m1, 8.282);
+  }
+  {
+    const auto m2 = qr_gt_small & (inv_dum >= 282.e-6) & (inv_dum < 502.e-6);
+    if (m2.any()) {
+      scream_masked_loop
+        (m2, {
+          // interpolate
+          Real rdumiis = (inv_dum[s] - 250.e-6)*0.5e6;
+          rdumiis = util::max<Real>(rdumiis, 1.0);
+          rdumiis = util::min<Real>(rdumiis, 150.0);
+          rdumii[s] = rdumiis;
+          Int dumiis = rdumiis;
+          dumiis = util::min(dumiis, 149);
+          dumii[s] = dumiis;
+          const auto mu_r_im1 = mu_r_table(dumiis-1);
+          mu_r[s] = mu_r_im1 + (mu_r_table(dumiis) - mu_r_im1) * (rdumiis - dumiis);
+        });
+    }
+  }
+
+  // recalculate slope based on mu_r
+  scream_masked_loop
+    (qr_gt_small, {
+      lamr[s] = std::pow(Globals<Real>::CONS1 * nr[s] * (mu_r[s] + 3) *
+                         (mu_r[s] + 2) * (mu_r[s] + 1)/qr[s],
+                         thrd);
+    });
+
+  // check for slope
+  const auto lammax = (mu_r+1.)*1.e+5;
+  // set to small value since breakup is explicitly included (mean size 0.8 mm)
+  const auto lammin = (mu_r+1.)*1250.0;
+
+  // apply lambda limiters for rain
+  const auto lt = qr_gt_small & (lamr < lammin);
+  const auto gt = qr_gt_small & (lamr > lammax);
+  const auto either = lt | gt;
+  if (either.any()) {
+    lamr.set(lt, lammin);
+    lamr.set(gt, lammax);
+    scream_masked_loop
+      (either, {
+        nr[s] = std::exp(3*std::log(lamr[s]) + std::log(qr[s]) +
+                         std::log(std::tgamma(mu_r[s] + 1)) - std::log(std::tgamma(mu_r[s] + 4)))
+          / Globals<Real>::CONS1;
+      });
   }
 }
 #endif
