@@ -13,10 +13,11 @@
 #include <iostream>
 #include <iomanip>
 
+#pragma message "COMBINE FLUX CALCS"
 
 // On KNL and SKX, 16/1 or 32/2 are the best pack size/small pack factor values.
 #ifndef SCREAM_PACKN
-# define SCREAM_PACKN 1
+# define SCREAM_PACKN 16
 #endif
 #ifndef SCREAM_SMALL_PACK_FACTOR
 # define SCREAM_SMALL_PACK_FACTOR 1
@@ -220,7 +221,7 @@ struct MicroSedFuncPackKokkos {
   int num_horz, num_vert;
 
   // re-usable scratch views
-  kokkos_2d_t<Real> V_qr, V_nr, flux, mu_r, lamr, rhofacr, inv_dzq, rho, inv_rho, t;
+  kokkos_2d_t<Real> V_qr, V_nr, flux_qr, flux_nr, mu_r, lamr, rhofacr, inv_dzq, rho, inv_rho, t;
   kokkos_2d_table_t<Real> vn_table, vm_table;
   kokkos_1d_table_t<Real> mu_r_table;
 
@@ -229,7 +230,8 @@ public:
     num_horz(num_horz_), num_vert(num_vert_),
     V_qr("V_qr", num_horz, num_vert),
     V_nr("V_nr", num_horz, num_vert),
-    flux("flux", num_horz, num_vert),
+    flux_qr("flux_qr", num_horz, num_vert),
+    flux_nr("flux_nr", num_horz, num_vert),
     mu_r("mu_r", num_horz, num_vert),
     lamr("lamr", num_horz, num_vert),
     rhofacr("rhofacr", num_horz, num_vert),
@@ -247,7 +249,7 @@ public:
     auto mirror_mu_table = Kokkos::create_mirror_view(mu_r_table);
 
     for (int i = 0; i < 300; ++i) {
-      for (int k = 0; k < 10; ++k) {
+      for (Int k = 0; k < 10; ++k) {
         mirror_vn_table(i, k) = Globals<Real>::VN_TABLE[i][k];
         mirror_vm_table(i, k) = Globals<Real>::VM_TABLE[i][k];
       }
@@ -264,19 +266,16 @@ public:
   }
 };
 
-//TODO At the end, if it's still true that computing the steps for qr, nr in
-// sequence is more expensive than together, take arrays of flux, V, r with
-// compile-time size and iterate over them.
 //TODO Unit test.
-
 // Calculate the step in the region [k_bot, k_top].
-template <int kdir>
+template <Int kdir, int nfield>
 KOKKOS_INLINE_FUNCTION
 void calc_first_order_upwind_step (
   const MicroSedFuncPackKokkos& m, const member_type& team, const int& i,
   const int& k_bot, const int& k_top, const Real& dt_sub,
-  const kokkos_2d_t<RealSmallPack>& flux, const kokkos_2d_t<RealSmallPack>& V,
-  const kokkos_2d_t<RealSmallPack>& r)
+  const Kokkos::Array<const kokkos_2d_t<RealSmallPack>*,nfield>& flux,
+  const Kokkos::Array<const kokkos_2d_t<RealSmallPack>*,nfield>& V,
+  const Kokkos::Array<const kokkos_2d_t<RealSmallPack>*,nfield>& r)
 {
   const kokkos_2d_t<RealSmallPack>
     rho = smallize(m.rho),
@@ -290,28 +289,32 @@ void calc_first_order_upwind_step (
     kmax = ((kdir == 1 ? k_top : k_bot) + RealSmallPack::n) / RealSmallPack::n;
 
   // for top level only (since flux is 0 above)
-  const int k_top_pack = k_top / RealSmallPack::n;
-  flux(i, k_top_pack) = 0;
+  const Int k_top_pack = k_top / RealSmallPack::n;
+  for (int f = 0; f < nfield; ++f)
+    (*flux[f])(i, k_top_pack) = 0;
   team.team_barrier();
 
   // calculate fluxes
   Kokkos::parallel_for(
-    Kokkos::TeamThreadRange(team, kmax - kmin), [&] (int k_) {
-      const int k = kmin + k_;
-      flux(i, k) = V(i, k) * r(i, k) * rho(i, k);
+    Kokkos::TeamThreadRange(team, kmax - kmin), [&] (Int k_) {
+      const Int k = kmin + k_;
+      for (int f = 0; f < nfield; ++f)
+        (*flux[f])(i, k) = (*V[f])(i, k) * (*r[f])(i, k) * rho(i, k);
     });
   team.team_barrier();
 
   Kokkos::single(
     Kokkos::PerTeam(team), [&] () {
-      const int k = k_top_pack;
-      // compute flux divergence
-      const auto flux_pkdir = (kdir == -1) ?
-        shift_right(0, flux(i, k)) :
-        shift_left (0, flux(i, k));
-      const auto fluxdiv = (flux_pkdir - flux(i, k)) * inv_dzq(i, k);
-      // update prognostic variables
-      r(i, k) += fluxdiv * dt_sub * inv_rho(i, k);
+      const Int k = k_top_pack;
+      for (int f = 0; f < nfield; ++f) {
+        // compute flux divergence
+        const auto flux_pkdir = (kdir == -1) ?
+          shift_right(0, (*flux[f])(i, k)) :
+          shift_left (0, (*flux[f])(i, k));
+        const auto fluxdiv = (flux_pkdir - (*flux[f])(i, k)) * inv_dzq(i, k);
+        // update prognostic variables
+        (*r[f])(i, k) += fluxdiv * dt_sub * inv_rho(i, k);
+      }
     });
 
   if (kdir == 1)
@@ -320,30 +323,33 @@ void calc_first_order_upwind_step (
     ++kmin;
 
   Kokkos::parallel_for(
-    Kokkos::TeamThreadRange(team, kmax - kmin), [&] (int k_) {
-      const int k = kmin + k_;
-      // compute flux divergence
-      const auto flux_pkdir = (kdir == -1) ?
-        shift_right(flux(i, k+kdir), flux(i, k)) :
-        shift_left (flux(i, k+kdir), flux(i, k));
-      const auto fluxdiv = (flux_pkdir - flux(i, k)) * inv_dzq(i, k);
-      // update prognostic variables
-      r(i, k) += fluxdiv * dt_sub * inv_rho(i, k);
+    Kokkos::TeamThreadRange(team, kmax - kmin), [&] (Int k_) {
+      const Int k = kmin + k_;
+      for (int f = 0; f < nfield; ++f) {
+        // compute flux divergence
+        const auto flux_pkdir = (kdir == -1) ?
+          shift_right((*flux[f])(i, k+kdir), (*flux[f])(i, k)) :
+          shift_left ((*flux[f])(i, k+kdir), (*flux[f])(i, k));
+        const auto fluxdiv = (flux_pkdir - (*flux[f])(i, k)) * inv_dzq(i, k);
+        // update prognostic variables
+        (*r[f])(i, k) += fluxdiv * dt_sub * inv_rho(i, k);
+      }
     });
 }
 
-KOKKOS_INLINE_FUNCTION
+template <int nfield> KOKKOS_INLINE_FUNCTION
 void calc_first_order_upwind_step (
   const MicroSedFuncPackKokkos& m, const member_type& team, const int& i,
   const int& k_bot, const int& k_top, const int& kdir, const Real& dt_sub,
-  const kokkos_2d_t<RealSmallPack>& flux, const kokkos_2d_t<RealSmallPack>& V,
-  const kokkos_2d_t<RealSmallPack>& r)
+  const Kokkos::Array<const kokkos_2d_t<RealSmallPack>*,nfield>& flux,
+  const Kokkos::Array<const kokkos_2d_t<RealSmallPack>*,nfield>& V,
+  const Kokkos::Array<const kokkos_2d_t<RealSmallPack>*,nfield>& r)
 {
   if (kdir == 1)
-    calc_first_order_upwind_step< 1>(
+    calc_first_order_upwind_step< 1, nfield>(
       m, team, i, k_bot, k_top, dt_sub, flux, V, r);
   else
-    calc_first_order_upwind_step<-1>(
+    calc_first_order_upwind_step<-1, nfield>(
       m, team, i, k_bot, k_top, dt_sub, flux, V, r);
 }
 
@@ -368,16 +374,16 @@ Int find_bottom (const member_type& team,
   } else {
     if (kdir == -1) {
       Kokkos::parallel_reduce(
-        Kokkos::TeamThreadRange(team, kbot - ktop + 1), [&] (int k_, int& lmax) {
-          const int k = ktop + k_;
+        Kokkos::TeamThreadRange(team, kbot - ktop + 1), [&] (Int k_, int& lmax) {
+          const Int k = ktop + k_;
           if (v(k) >= small && k > lmax)
             lmax = k;
         }, Kokkos::Max<int>(k_xbot));
       log_present = k_xbot >= ktop;
     } else {
       Kokkos::parallel_reduce(
-        Kokkos::TeamThreadRange(team, ktop - kbot + 1), [&] (int k_, int& lmin) {
-          const int k = kbot + k_;
+        Kokkos::TeamThreadRange(team, ktop - kbot + 1), [&] (Int k_, int& lmin) {
+          const Int k = kbot + k_;
           if (v(k) >= small && k < lmin)
             lmin = k;
         }, Kokkos::Min<int>(k_xbot));
@@ -406,16 +412,16 @@ Int find_top (const member_type& team,
   } else {
     if (kdir == -1) {
       Kokkos::parallel_reduce(
-        Kokkos::TeamThreadRange(team, kbot - ktop + 1), [&] (int k_, int& lmin) {
-          const int k = ktop + k_;
+        Kokkos::TeamThreadRange(team, kbot - ktop + 1), [&] (Int k_, int& lmin) {
+          const Int k = ktop + k_;
           if (v(k) >= small && k < lmin)
             lmin = k;
         }, Kokkos::Min<int>(k_xtop));
       log_present = k_xtop <= kbot;
     } else {
       Kokkos::parallel_reduce(
-        Kokkos::TeamThreadRange(team, ktop - kbot + 1), [&] (int k_, int& lmax) {
-          const int k = kbot + k_;
+        Kokkos::TeamThreadRange(team, ktop - kbot + 1), [&] (Int k_, int& lmax) {
+          const Int k = kbot + k_;
           if (v(k) >= small && k > lmax)
             lmax = k;
         }, Kokkos::Max<int>(k_xtop));
@@ -427,7 +433,7 @@ Int find_top (const member_type& team,
 
 void micro_sed_func_pack_kokkos (
   MicroSedFuncPackKokkos& m,
-  const int kts, const int kte, const int its, const int ite, const Real dt,
+  const Int kts, const Int kte, const int its, const int ite, const Real dt,
   const kokkos_2d_t<Real>& qr, const kokkos_2d_t<Real>& nr,
   const kokkos_2d_t<Real>& th, const kokkos_2d_t<Real>& dzq, const kokkos_2d_t<Real>& pres,
   const kokkos_1d_t<Real>& prt_liq)
@@ -443,7 +449,6 @@ void micro_sed_func_pack_kokkos (
     prhofacr = packize(m.rhofacr),
     pV_qr = packize(m.V_qr),
     pV_nr = packize(m.V_nr),
-    pflux = packize(m.flux),
     pqr = packize(qr),
     pnr = packize(nr);
   const kokkos_2d_t<RealSmallPack>
@@ -457,7 +462,8 @@ void micro_sed_func_pack_kokkos (
     srhofacr = smallize(m.rhofacr),
     sV_qr = smallize(m.V_qr),
     sV_nr = smallize(m.V_nr),
-    sflux = smallize(m.flux),
+    sflux_qr = smallize(m.flux_qr),
+    sflux_nr = smallize(m.flux_nr),
     sqr = smallize(qr),
     snr = smallize(nr),
     smu_r = smallize(m.mu_r),
@@ -472,9 +478,9 @@ void micro_sed_func_pack_kokkos (
   const auto qsmall = Globals<Real>::QSMALL;
 
   // direction of vertical leveling
-  const int kbot = (kts < kte) ? 0 : m.num_vert-1;
-  const int ktop = (kts < kte) ? m.num_vert-1 : 0;
-  const int kdir = (kts < kte) ? 1 : -1;
+  const Int kbot = (kts < kte) ? 0 : m.num_vert-1;
+  const Int ktop = (kts < kte) ? m.num_vert-1 : 0;
+  const Int kdir = (kts < kte) ? 1 : -1;
 
   // Rain sedimentation:  (adaptive substepping)
   Kokkos::parallel_for(
@@ -484,7 +490,7 @@ void micro_sed_func_pack_kokkos (
       const int i = team.league_rank();
 
       Kokkos::parallel_for(
-        Kokkos::TeamThreadRange(team, m.num_vert / RealPack::n), [&] (int k) {
+        Kokkos::TeamThreadRange(team, m.num_vert / RealPack::n), [&] (Int k) {
           pinv_dzq(i, k) = 1 / pdzq(i, k);
           pt(i, k) = pow(ppres(i, k) * 1.e-5, rd_inv_cp) * pth(i, k);
           prho(i, k) = ppres(i, k) / (rd * pt(i, k));
@@ -494,22 +500,22 @@ void micro_sed_func_pack_kokkos (
       team.team_barrier();
 
       bool log_qxpresent;
-      const int k_qxtop = find_top(team, Kokkos::subview(qr, i, Kokkos::ALL),
+      const Int k_qxtop = find_top(team, Kokkos::subview(qr, i, Kokkos::ALL),
                                    qsmall, kbot, ktop, kdir, log_qxpresent);
 
       if (log_qxpresent) {
         Real dt_left = dt;    // time remaining for sedi over full model (mp) time step
         Real prt_accum = 0.0; // precip rate for individual category
 
-        int k_qxbot = find_bottom(team, Kokkos::subview(qr, i, Kokkos::ALL),
+        Int k_qxbot = find_bottom(team, Kokkos::subview(qr, i, Kokkos::ALL),
                                   qsmall, kbot, k_qxtop, kdir, log_qxpresent);
 
         while (dt_left > 1.e-4) {
           Real Co_max = 0.0;
-          int kmin, kmax;
+          Int kmin, kmax;
 
           Kokkos::parallel_for(
-            Kokkos::TeamThreadRange(team, m.num_vert / RealPack::n), [&] (int k) {
+            Kokkos::TeamThreadRange(team, m.num_vert / RealPack::n), [&] (Int k) {
               pV_qr(i, k) = 0;
               pV_nr(i, k) = 0;
             });
@@ -551,19 +557,16 @@ void micro_sed_func_pack_kokkos (
           const Real dt_sub = util::min(dt_left, dt_left / tmpint1);
 
           // Move bottom cell down by 1 if not at ground already.
-          const int k_temp = (k_qxbot == kbot) ? k_qxbot : k_qxbot - kdir;
+          const Int k_temp = (k_qxbot == kbot) ? k_qxbot : k_qxbot - kdir;
 
-          calc_first_order_upwind_step(m, team, i,
-                                       k_temp, k_qxtop, kdir, dt_sub,
-                                       sflux, sV_nr, snr);
-          team.team_barrier();
-          calc_first_order_upwind_step(m, team, i,
-                                       k_temp, k_qxtop, kdir, dt_sub,
-                                       sflux, sV_qr, sqr);
+          calc_first_order_upwind_step<2>(
+            m, team, i,
+            k_temp, k_qxtop, kdir, dt_sub,
+            {&sflux_qr, &sflux_nr}, {&sV_qr, &sV_nr}, {&sqr, &snr});
           team.team_barrier();
 
           // accumulated precip during time step
-          if (k_qxbot == kbot) prt_accum += m.flux(i, kbot) * dt_sub;
+          if (k_qxbot == kbot) prt_accum += m.flux_qr(i, kbot) * dt_sub;
 
           dt_left -= dt_sub;  // update time remaining for sedimentation
           if (k_qxbot != kbot) k_qxbot -= kdir;
@@ -583,7 +586,7 @@ void populate_kokkos_from_vec (
   typename kokkos_2d_t<Real>::HostMirror mirror = Kokkos::create_mirror_view(device);
 
   for (int i = 0; i < num_horz; ++i) {
-    for (int k = 0; k < num_vert; ++k) {
+    for (Int k = 0; k < num_vert; ++k) {
       mirror(i, k) = vec[i][k];
     }
   }
@@ -619,7 +622,7 @@ void dump_to_file_k (
 }
 
 void micro_sed_func_pack_kokkos_wrap (
-  const int ni, const int nk, const Real dt, const int ts, const int kdir)
+  const int ni, const int nk, const Real dt, const int ts, const Int kdir)
 {
   std::vector<Real> v(nk);
   vector_2d_t<Real> qr_v(ni, v), nr_v(ni, v), th_v(ni, v), dzq_v(ni, v), pres_v(ni, v);
