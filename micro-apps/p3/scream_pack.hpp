@@ -111,6 +111,19 @@ struct Pack {
     vector_simd for (int i = 0; i < n; ++i) d[i] = v[i];
   }
 
+  template <typename PackIn> KOKKOS_FORCEINLINE_FUNCTION explicit
+  Pack (const Mask<Pack::n>& m, const PackIn& p) {
+    static_assert(static_cast<int>(PackIn::n) == static_cast<int>(n),
+                  "Pack::n must be the same.");
+#ifndef KOKKOS_ENABLE_CUDA
+    vector_simd for (int i = 0; i < n; ++i)
+      d[i] = m[i] ? p[i] : std::numeric_limits<scalar>::quiet_NaN();
+#else
+    vector_simd for (int i = 0; i < n; ++i)
+      d[i] = m[i] ? p[i] : 0;
+#endif
+  }
+
   KOKKOS_FORCEINLINE_FUNCTION const scalar& operator[] (const int& i) const { return d[i]; }
   KOKKOS_FORCEINLINE_FUNCTION scalar& operator[] (const int& i) { return d[i]; }
 

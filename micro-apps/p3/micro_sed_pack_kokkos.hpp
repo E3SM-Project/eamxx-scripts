@@ -14,19 +14,25 @@
 #include <iomanip>
 
 /*
-  0 p -> s
-  1 p
-  2 heavily scalarized
-  3 less heavily scalarized
+  0 pack -> scalar
+  1 max pack
+  2 heavily scalarized internally
+  3 mix of pack and internal scalarization
+
+  On KNL and SKX, 16/1 or 32/2 are the best pack size/small pack factor values.
+
+  On KNL and SKX, 0 and 3 are the best impls. 3 represents the pattern we want
+  to use in the sense that it makes choices between pack and scalarized impls at
+  the level of small bits of code.
  */
 #ifndef PACK_IMPL
-# define PACK_IMPL 3
+# define PACK_IMPL 0
 #endif
 #ifndef SCREAM_PACKN
 # define SCREAM_PACKN 16
 #endif
 #ifndef SCREAM_SMALL_PACK_FACTOR
-# define SCREAM_SMALL_PACK_FACTOR 2
+# define SCREAM_SMALL_PACK_FACTOR 1
 #endif
 
 namespace p3 {
@@ -144,11 +150,8 @@ KOKKOS_INLINE_FUNCTION
 void find_lookupTable_indices_3_kokkos (
   const SmallMask& qr_gt_small, Table3& t, const RealSmallPack& mu_r, const RealSmallPack& lamr_)
 {
-  // (FPE safety) Handle /0 using Pack's quiet_NaN.
-  RealSmallPack lamr;
-  lamr.set(qr_gt_small, lamr_);
-
   // find location in scaled mean size space
+  RealSmallPack lamr(qr_gt_small, lamr_); // (FPE safety) Handle /0 using Pack's quiet_NaN.
   const auto dum1 = (mu_r+1.) / lamr;
   auto dum1_lt = dum1 <= 195.e-6;
   const auto dum1_gte = qr_gt_small & ~dum1_lt;
@@ -158,8 +161,7 @@ void find_lookupTable_indices_3_kokkos (
     auto rdumii = (dum1*1.e6+5.)*inv_dum3;
     rdumii = max(rdumii,  1.);
     rdumii = min(rdumii, 20.);
-    IntSmallPack dumii(0);
-    dumii.set(dum1_lt, rdumii); // FPE safety
+    IntSmallPack dumii(dum1_lt, rdumii); // FPE safety
     dumii = max(dumii,  1);
     dumii = min(dumii, 20);
     t.inv_dum3.set(dum1_lt, inv_dum3);
@@ -171,9 +173,7 @@ void find_lookupTable_indices_3_kokkos (
     auto rdumii = (dum1*1.e+6-195.)*inv_dum3 + 20.;
     rdumii = max(rdumii, 20.);
     rdumii = min(rdumii,300.);
-    IntSmallPack dumii(0);
-    dumii.set(dum1_gte, rdumii);
-    dumii  = max(dumii, 20);
+    IntSmallPack dumii(dum1_gte, rdumii);
     dumii  = min(dumii,299);
     t.inv_dum3.set(dum1_gte, inv_dum3);
     t.rdumii.set(dum1_gte, rdumii);
@@ -241,11 +241,8 @@ KOKKOS_INLINE_FUNCTION
 void find_lookupTable_indices_3_kokkos (
   const SmallMask& qr_gt_small, Table3& t, const RealSmallPack& mu_r, const RealSmallPack& lamr_)
 {
-  // (FPE safety) Handle /0 using Pack's quiet_NaN.
-  RealSmallPack lamr;
-  lamr.set(qr_gt_small, lamr_);
-
   // find location in scaled mean size space
+  RealSmallPack lamr(qr_gt_small, lamr_); // (FPE safety) Handle /0 using Pack's quiet_NaN.
   const auto dum1 = (mu_r+1.) / lamr;
   const auto dum1_lt  = qr_gt_small & (dum1 <= 195.e-6);
   if (dum1_lt.any())
@@ -399,8 +396,7 @@ void get_rain_dsd2_kokkos (
 
   // find spot in lookup table
   // (scaled N/q for lookup table parameter space)
-  RealSmallPack nr_safe;
-  nr_safe.set(qr_gt_small, max(nr, nsmall));
+  RealSmallPack nr_safe(qr_gt_small, max(nr, nsmall));
   const auto inv_dum = pow(qr / (Globals<Real>::CONS1 * nr_safe * 6.0), thrd);
 
   mu_r = 0;
@@ -426,8 +422,7 @@ void get_rain_dsd2_kokkos (
 
   // recalculate slope based on mu_r
   {
-    RealSmallPack qr_safe;
-    qr_safe.set(qr_gt_small, qr);
+    RealSmallPack qr_safe(qr_gt_small, qr);
     lamr.set(qr_gt_small,
              pow(Globals<Real>::CONS1 * nr_safe * (mu_r + 3) *
                  (mu_r + 2) * (mu_r + 1)/qr_safe,
@@ -532,8 +527,7 @@ void get_rain_dsd2_kokkos (
 
   // find spot in lookup table
   // (scaled N/q for lookup table parameter space)
-  RealSmallPack nr_safe;
-  nr_safe.set(qr_gt_small, max(nr, nsmall));
+  RealSmallPack nr_safe(qr_gt_small, max(nr, nsmall));
   const auto inv_dum = pow(qr / (Globals<Real>::CONS1 * nr_safe * 6.0), thrd);
 
   mu_r = 0;
@@ -560,8 +554,7 @@ void get_rain_dsd2_kokkos (
   }
 
   // recalculate slope based on mu_r
-  RealSmallPack qr_safe;
-  qr_safe.set(qr_gt_small, qr);
+  RealSmallPack qr_safe(qr_gt_small, qr);
   lamr.set(qr_gt_small,
            pow(Globals<Real>::CONS1 * nr_safe * (mu_r + 3) *
                (mu_r + 2) * (mu_r + 1)/qr_safe,
