@@ -16,7 +16,7 @@
 
 // On KNL and SKX, 16/1 or 32/2 are the best pack size/small pack factor values.
 #ifndef SCREAM_PACKN
-# define SCREAM_PACKN 16
+# define SCREAM_PACKN 1
 #endif
 #ifndef SCREAM_SMALL_PACK_FACTOR
 # define SCREAM_SMALL_PACK_FACTOR 1
@@ -86,7 +86,7 @@ void find_lookupTable_indices_3_kokkos (
   lamr.set(qr_gt_small, lamr_);
   const auto dum1 = (mu_r+1.) / lamr;
   const auto dum1_lt = qr_gt_small & (dum1 <= 195.e-6);
-  if (dum1_lt.any())
+  if (dum1_lt.any()) {
     scream_masked_loop(dum1_lt) {
       const auto inv_dum3 = 0.1;
       auto rdumii = (dum1[s]*1.e6+5.)*inv_dum3;
@@ -99,8 +99,9 @@ void find_lookupTable_indices_3_kokkos (
       t.rdumii[s] = rdumii;
       t.dumii[s] = dumii;
     }
+  }
   const auto dum1_gte = qr_gt_small & ~dum1_lt;
-  if (dum1_gte.any())
+  if (dum1_gte.any()) {
     scream_masked_loop(dum1_gte) {
       const auto inv_dum3 = Globals<Real>::THRD*0.1;
       auto rdumii = (dum1[s]*1.e+6-195.)*inv_dum3 + 20.;
@@ -113,6 +114,7 @@ void find_lookupTable_indices_3_kokkos (
       t.rdumii[s] = rdumii;
       t.dumii[s] = dumii;
     }
+  }
 
   // find location in mu_r space
   {
@@ -150,6 +152,7 @@ void get_rain_dsd2_kokkos (
 {
   constexpr auto nsmall = Globals<Real>::NSMALL;
   constexpr auto thrd = Globals<Real>::THRD;
+  constexpr auto cons1 = Globals<Real>::CONS1;
 
   lamr = 0;
   cdistr = 0;
@@ -163,7 +166,7 @@ void get_rain_dsd2_kokkos (
   RealSmallPack nr_safe(qr_gt_small, max(nr, nsmall)), qr_safe(qr_gt_small, qr);
   RealSmallPack inv_dum(0);
   inv_dum.set(qr_gt_small,
-              pow(qr_safe / (Globals<Real>::CONS1 * nr_safe * 6.0), thrd));
+              pow(qr_safe / (cons1 * nr_safe * 6.0), thrd));
 
   mu_r = 0;
   {
@@ -190,7 +193,7 @@ void get_rain_dsd2_kokkos (
 
   // recalculate slope based on mu_r
   lamr.set(qr_gt_small,
-           pow(Globals<Real>::CONS1 * nr_safe * (mu_r + 3) *
+           pow(cons1 * nr_safe * (mu_r + 3) *
                (mu_r + 2) * (mu_r + 1)/qr_safe,
                thrd));
 
@@ -208,7 +211,7 @@ void get_rain_dsd2_kokkos (
     scream_masked_loop(either) {
       nr[s] = std::exp(3*std::log(lamr[s]) + std::log(qr[s]) +
                        std::log(std::tgamma(mu_r[s] + 1)) - std::log(std::tgamma(mu_r[s] + 4)))
-        / Globals<Real>::CONS1;
+        / cons1;
     }
   }
 }

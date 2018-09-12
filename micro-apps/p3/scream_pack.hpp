@@ -27,7 +27,7 @@ struct Mask {
   KOKKOS_FORCEINLINE_FUNCTION void set (const int& i, const bool& val) { d[i] = val; }
   KOKKOS_FORCEINLINE_FUNCTION bool operator[] (const int& i) const { return d[i]; }
 
-  bool any () const {
+  KOKKOS_FORCEINLINE_FUNCTION bool any () const {
     bool b = false;
     vector_simd for (int i = 0; i < n; ++i) if (d[i]) b = true;
     return b;
