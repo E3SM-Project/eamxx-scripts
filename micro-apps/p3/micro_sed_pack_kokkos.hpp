@@ -82,7 +82,8 @@ void find_lookupTable_indices_3_kokkos (
   const SmallMask& qr_gt_small, Table3& t, const RealSmallPack& mu_r, const RealSmallPack& lamr_)
 {
   // find location in scaled mean size space
-  RealSmallPack lamr(qr_gt_small, lamr_); // (FPE safety) Handle /0 using Pack's quiet_NaN.
+  RealSmallPack lamr(1);
+  lamr.set(qr_gt_small, lamr_); // (FPE safety) Handle /0 using Pack's quiet_NaN.
   const auto dum1 = (mu_r+1.) / lamr;
   const auto dum1_lt  = qr_gt_small & (dum1 <= 195.e-6);
   if (dum1_lt.any())
@@ -159,12 +160,14 @@ void get_rain_dsd2_kokkos (
 
   // find spot in lookup table
   // (scaled N/q for lookup table parameter space)
-  RealSmallPack nr_safe(qr_gt_small, max(nr, nsmall));
-  const auto inv_dum = pow(qr / (Globals<Real>::CONS1 * nr_safe * 6.0), thrd);
+  RealSmallPack nr_safe(qr_gt_small, max(nr, nsmall)), qr_safe(qr_gt_small, qr);
+  RealSmallPack inv_dum(0);
+  inv_dum.set(qr_gt_small,
+              pow(qr_safe / (Globals<Real>::CONS1 * nr_safe * 6.0), thrd));
 
   mu_r = 0;
   {
-    const auto m1 = inv_dum < 282.e-6;
+    const auto m1 = qr_gt_small & (inv_dum < 282.e-6);
     mu_r.set(m1, 8.282);
   }
   {
@@ -186,7 +189,6 @@ void get_rain_dsd2_kokkos (
   }
 
   // recalculate slope based on mu_r
-  RealSmallPack qr_safe(qr_gt_small, qr);
   lamr.set(qr_gt_small,
            pow(Globals<Real>::CONS1 * nr_safe * (mu_r + 3) *
                (mu_r + 2) * (mu_r + 1)/qr_safe,
