@@ -367,7 +367,7 @@ void get_rain_dsd2_kokkos (
     if ( ! qr_gt_small[s]) continue;
     if (inv_dum[s] < 282.e-6) {
       mu_r[s] = 8.282;
-    } else if ((inv_dum[s] >= 282.e-6) & (inv_dum[s ]< 502.e-6)) {
+    } else if ((inv_dum[s] >= 282.e-6) & (inv_dum[s] < 502.e-6)) {
       // interpolate
       Real rdumiis = (inv_dum[s] - 250.e-6)*0.5e6;
       rdumiis = util::max<Real>(rdumiis, 1.0);
@@ -898,7 +898,8 @@ void micro_sed_func_pack_kokkos_wrap (
 
   util::dump_arch();
   std::cout << "Running micro_sed_pack_kokkos with ni=" << ni << ", nk=" << nk
-            << ", dt=" << dt << ", ts=" << ts << ", kdir=" << kdir << std::endl;
+            << ", dt=" << dt << ", ts=" << ts << ", kdir=" << kdir
+            << " packimpl " << PACK_IMPL << "\n";
 
   p3::micro_sed_vanilla::populate_input(ni, nk, kdir, qr_v, nr_v, th_v, dzq_v, pres_v);
 

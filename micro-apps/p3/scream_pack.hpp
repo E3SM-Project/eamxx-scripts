@@ -11,6 +11,10 @@ namespace pack {
 
 template <int PACKN>
 struct Mask {
+  // One tends to think a short boolean type would be useful here, but that is
+  // bad for vectorization. int or long are best.
+  typedef long type;
+
   enum { masktag = true };
   enum { n = PACKN };
 
@@ -22,7 +26,6 @@ struct Mask {
 
   KOKKOS_FORCEINLINE_FUNCTION void set (const int& i, const bool& val) { d[i] = val; }
   KOKKOS_FORCEINLINE_FUNCTION bool operator[] (const int& i) const { return d[i]; }
-  KOKKOS_FORCEINLINE_FUNCTION char& operator[] (const int& i) { return d[i]; }
 
   bool any () const {
     bool b = false;
@@ -31,7 +34,7 @@ struct Mask {
   }
 
 private:
-  char d[n];
+  type d[n];
 };
 
 template <typename Mask>
@@ -59,7 +62,7 @@ loop (const Mask& m, const std::function<void(int)>& f) {
   OnlyMask<Mask> operator op (const Mask& a, const Mask& b) { \
     Mask m(false);                                            \
     vector_simd for (int i = 0; i < Mask::n; ++i)             \
-      m[i] = a[i] impl b[i];                                  \
+      if (a[i] impl b[i]) m.set(i, true);                     \
     return m;                                                 \
   }
 
@@ -69,7 +72,7 @@ scream_mask_gen_bin_op_mm(|, ||)
 template <typename Mask> KOKKOS_INLINE_FUNCTION
 OnlyMask<Mask> operator ~ (const Mask& m) {
   Mask nm(false);
-  vector_simd for (int i = 0; i < Mask::n; ++i) nm[i] = ! m[i];
+  vector_simd for (int i = 0; i < Mask::n; ++i) nm.set(i, ! m[i]);
   return nm;
 }
 
@@ -278,7 +281,7 @@ OnlyPack<Pack> shift_left (const typename Pack::scalar& pp1, const Pack& p) {
   operator op (const Pack& a, const Pack& b) {    \
     Mask<Pack::n> m(false);                       \
     vector_simd for (int i = 0; i < Pack::n; ++i) \
-      m[i] = a[i] op b[i];                        \
+      if (a[i] op b[i]) m.set(i, true);           \
     return m;                                     \
   }
 #define scream_mask_gen_bin_op_ps(op)                               \
@@ -287,7 +290,7 @@ OnlyPack<Pack> shift_left (const typename Pack::scalar& pp1, const Pack& p) {
   operator op (const Pack& a, const Scalar& b) {                    \
     Mask<Pack::n> m(false);                                         \
     vector_simd for (int i = 0; i < Pack::n; ++i)                   \
-      m[i] = a[i] op b;                                             \
+      if (a[i] op b) m.set(i, true);                                \
     return m;                                                       \
   }
 #define scream_mask_gen_bin_op_sp(op)                               \
@@ -296,7 +299,7 @@ OnlyPack<Pack> shift_left (const typename Pack::scalar& pp1, const Pack& p) {
   operator op (const Scalar& a, const Pack& b) {                    \
     Mask<Pack::n> m(false);                                         \
     vector_simd for (int i = 0; i < Pack::n; ++i)                   \
-      m[i] = a op b[i];                                             \
+      if (a op b[i]) m.set(i, true);                                \
     return m;                                                       \
   }
 #define scream_mask_gen_bin_op_all(op)          \
