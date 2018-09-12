@@ -83,9 +83,9 @@ void find_lookupTable_indices_3_kokkos (
 {
   // find location in scaled mean size space
   RealSmallPack lamr(1);
-  lamr.set(qr_gt_small, lamr_); // (FPE safety) Handle /0 using Pack's quiet_NaN.
+  lamr.set(qr_gt_small, lamr_);
   const auto dum1 = (mu_r+1.) / lamr;
-  const auto dum1_lt  = qr_gt_small & (dum1 <= 195.e-6);
+  const auto dum1_lt = qr_gt_small & (dum1 <= 195.e-6);
   if (dum1_lt.any())
     scream_masked_loop(dum1_lt) {
       const auto inv_dum3 = 0.1;

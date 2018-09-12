@@ -231,7 +231,7 @@ OnlyPackReturn<Pack, typename Pack::scalar> max (const Pack& p) {
   OnlyPack<Pack> fn (const Pack& a, const Scalar& b) {              \
     Pack s;                                                         \
     vector_simd for (int i = 0; i < Pack::n; ++i)                   \
-      s[i] = impl(a[i], b);                                         \
+      s[i] = impl<typename Pack::scalar>(a[i], b);                  \
     return s;                                                       \
   }
 #define scream_pack_gen_bin_fn_sp(fn, impl)                         \
@@ -239,7 +239,7 @@ OnlyPackReturn<Pack, typename Pack::scalar> max (const Pack& p) {
   OnlyPack<Pack> fn (const Scalar& a, const Pack& b) {              \
     Pack s;                                                         \
     vector_simd for (int i = 0; i < Pack::n; ++i)                   \
-      s[i] = impl(a, b[i]);                                         \
+      s[i] = impl<typename Pack::scalar>(a, b[i]);                  \
     return s;                                                       \
   }
 #define scream_pack_gen_bin_fn_all(fn, impl)    \
