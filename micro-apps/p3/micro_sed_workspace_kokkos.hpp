@@ -1,10 +1,10 @@
-#ifndef MICRO_SED_VANILLA_KOKKOS_HPP
-#define MICRO_SED_VANILLA_KOKKOS_HPP
+#ifndef MICRO_SED_WORKSPACE_KOKKOS_HPP
+#define MICRO_SED_WORKSPACE_KOKKOS_HPP
 
 #include "util.hpp"
 #include "initial_conditions.hpp"
 #include "micro_kokkos.hpp"
-#include "micro_sed_vanilla.hpp"
+#include "micro_sed_vanilla_kokkos.hpp"
 
 #include <vector>
 #include <cmath>
@@ -16,124 +16,28 @@ namespace p3 {
 namespace micro_sed {
 
 template <typename Real>
-using kokkos_2d_table_t = Kokkos::View<Real[300][10], Layout, MemSpace>;
-
-template <typename Real>
-using kokkos_1d_table_t = Kokkos::View<Real[150], Layout, MemSpace>;
-
-/**
- * Finds indices in rain lookup table (3)
- */
-template <typename Real> KOKKOS_FUNCTION
-void find_lookupTable_indices_3_kokkos(int& dumii, int& dumjj, Real& rdumii, Real& rdumjj, Real& inv_dum3,
-                                       const Real mu_r, const Real lamr)
+struct MicroSedFuncWorkspaceKokkos
 {
-  // find location in scaled mean size space
-  Real dum1 = (mu_r+1.) / lamr;
-  if (dum1 <= 195.e-6) {
-    inv_dum3  = 0.1;
-    rdumii = (dum1*1.e6+5.)*inv_dum3;
-    rdumii = util::max<Real>(rdumii, 1.);
-    rdumii = util::min<Real>(rdumii,20.);
-    dumii  = static_cast<int>(rdumii);
-    dumii  = util::max(dumii, 1);
-    dumii  = util::min(dumii,20);
-  }
-  else {
-    inv_dum3  = Globals<Real>::THRD*0.1;           // i.e. 1/30
-    rdumii = (dum1*1.e+6-195.)*inv_dum3 + 20.;
-    rdumii = util::max<Real>(rdumii, 20.);
-    rdumii = util::min<Real>(rdumii,300.);
-    dumii  = static_cast<int>(rdumii);
-    dumii  = util::max(dumii, 20);
-    dumii  = util::min(dumii,299);
-  }
+  int num_horz, num_vert, concurrency;
 
-  // find location in mu_r space
-  rdumjj = mu_r+1.;
-  rdumjj = util::max<Real>(rdumjj,1.);
-  rdumjj = util::min<Real>(rdumjj,10.);
-  dumjj  = static_cast<int>(rdumjj);
-  dumjj  = util::max(dumjj,1);
-  dumjj  = util::min(dumjj,9);
-}
-
-/**
- * Computes and returns rain size distribution parameters
- */
-template <typename Real> KOKKOS_FUNCTION
-void get_rain_dsd2_kokkos(const Real qr, Real& nr, Real& mu_r, Real& rdumii, int& dumii, Real& lamr,
-                          kokkos_1d_table_t<Real> const& mu_r_table, Real& cdistr, Real& logn0r)
-{
-  constexpr Real nsmall = Globals<Real>::NSMALL;
-  if (qr >= Globals<Real>::QSMALL) {
-    // use lookup table to get mu
-    // mu-lambda relationship is from Cao et al. (2008), eq. (7)
-
-    // find spot in lookup table
-    // (scaled N/q for lookup table parameter space_
-    nr = util::max(nr, nsmall);
-    Real inv_dum = std::pow(qr / (Globals<Real>::CONS1 * nr * 6.0), Globals<Real>::THRD);
-
-    if (inv_dum < 282.e-6) {
-      mu_r = 8.282;
-    }
-    else if (inv_dum >= 282.e-6 && inv_dum < 502.e-6) {
-      // interpolate
-      rdumii = (inv_dum-250.e-6)*1.e+6*0.5;
-      rdumii = util::max<Real>(rdumii,1.0);
-      rdumii = util::min<Real>(rdumii,150.0);
-      dumii  = static_cast<int>(rdumii);
-      dumii  = util::min(149,dumii);
-      mu_r   = mu_r_table(dumii-1) + (mu_r_table(dumii) - mu_r_table(dumii-1)) * (rdumii-dumii);
-    }
-    else if (inv_dum >= 502.e-6) {
-      mu_r = 0.0;
-    }
-
-    lamr   = std::pow((Globals<Real>::CONS1 *nr *(mu_r+3.0) * (mu_r+2) * (mu_r+1.)/(qr)), Globals<Real>::THRD); // recalculate slope based on mu_r
-    Real lammax = (mu_r+1.)*1.e+5;  // check for slope
-    Real lammin = (mu_r+1.)*1250.0; // set to small value since breakup is explicitly included (mean size 0.8 mm)
-
-    // apply lambda limiters for rain
-    if (lamr < lammin) {
-      lamr = lammin;
-      nr   = std::exp(3.*std::log(lamr) + std::log(qr) + std::log(std::tgamma(mu_r+1.)) - std::log(std::tgamma(mu_r+4.)))/(Globals<Real>::CONS1);
-    }
-    else if (lamr > lammax) {
-      lamr = lammax;
-      nr   = std::exp(3.*std::log(lamr) + std::log(qr) + std::log(std::tgamma(mu_r+1.)) - log(std::tgamma(mu_r+4.)))/(Globals<Real>::CONS1);
-    }
-
-    cdistr  = nr/std::tgamma(mu_r+1.);
-    logn0r  = std::log10(nr) + (mu_r+1.)*std::log10(lamr) - std::log10(std::tgamma(mu_r+1)); // note: logn0r is calculated as log10(n0r);
-  }
-  else {
-    lamr   = 0.0;
-    cdistr = 0.0;
-    logn0r = 0.0;
-  }
-}
-
-template <typename Real>
-struct MicroSedFuncVanillaKokkos
-{
-  int num_horz, num_vert;
-
+  //
   // re-usable scratch views
-  kokkos_2d_t<Real> V_qr, V_nr, flux_qx, flux_nx, mu_r, lamr, rhofacr, inv_dzq, rho, inv_rho, t, tmparr1;
+  //
+  kokkos_2d_t<Real> V_qr, V_nr, flux_qx, flux_nx; // 2d to prevent race conditions
+  kokkos_2d_t<Real> mu_r, lamr, rhofacr, inv_dzq, rho, inv_rho, t, tmparr1; // legit 2d
+
   kokkos_2d_table_t<Real> vn_table, vm_table;
   kokkos_1d_table_t<Real> mu_r_table;
 
-  static constexpr char* NAME = "kokkos_vanilla";
+  static constexpr char* NAME = "kokkos_workspace";
 
 public:
-  MicroSedFuncVanillaKokkos(int num_horz_, int num_vert_) :
-    num_horz(num_horz_), num_vert(num_vert_),
-    V_qr("V_qr", num_horz, num_vert),
-    V_nr("V_nr", num_horz, num_vert),
-    flux_qx("flux_qx", num_horz, num_vert),
-    flux_nx("flux_nx", num_horz, num_vert),
+  MicroSedFuncWorkspaceKokkos(int num_horz_, int num_vert_) :
+    num_horz(num_horz_), num_vert(num_vert_), concurrency(num_horz_), // TODO
+    V_qr("V_qr", concurrency, num_vert),
+    V_nr("V_nr", concurrency, num_vert),
+    flux_qx("flux_qx", concurrency, num_vert),
+    flux_nx("flux_nx", concurrency, num_vert),
     mu_r("mu_r", num_horz, num_vert),
     lamr("lamr", num_horz, num_vert),
     rhofacr("rhofacr", num_horz, num_vert),
@@ -170,17 +74,19 @@ public:
 };
 
 template <typename Real>
-void reset(MicroSedFuncVanillaKokkos<Real>& msvk)
+void reset(MicroSedFuncWorkspaceKokkos<Real>& msvk)
 {
   Kokkos::parallel_for("2d reset",
                        util::ExeSpaceUtils<>::get_default_team_policy(msvk.num_horz, msvk.num_vert),
                        KOKKOS_LAMBDA(member_type team_member) {
     const int i = team_member.league_rank();
     Kokkos::parallel_for(Kokkos::TeamThreadRange(team_member, msvk.num_vert), [=] (int k) {
-      msvk.V_qr(i, k)    = 0.0;
-      msvk.V_nr(i, k)    = 0.0;
-      msvk.flux_qx(i, k) = 0.0;
-      msvk.flux_nx(i, k) = 0.0;
+      if (k < msvk.concurrency) {
+        msvk.V_qr(i, k)    = 0.0;
+        msvk.V_nr(i, k)    = 0.0;
+        msvk.flux_qx(i, k) = 0.0;
+        msvk.flux_nx(i, k) = 0.0;
+      }
       msvk.mu_r(i, k)    = 0.0;
       msvk.lamr(i, k)    = 0.0;
       msvk.rhofacr(i, k) = 0.0;
@@ -210,7 +116,7 @@ void reset(MicroSedFuncVanillaKokkos<Real>& msvk)
  * pres: pressure                               Pa
  * prt_liq: precipitation rate, total liquid    m s-1  (output)
  */
-void micro_sed_func(MicroSedFuncVanillaKokkos<Real>& msvk,
+void micro_sed_func(MicroSedFuncWorkspaceKokkos<Real>& msvk,
                     const int kts, const int kte, const int its, const int ite, const Real dt,
                     kokkos_2d_t<Real> & qr, kokkos_2d_t<Real> & nr,
                     kokkos_2d_t<Real> const& th, kokkos_2d_t<Real> const& dzq, kokkos_2d_t<Real> const& pres,
@@ -397,97 +303,6 @@ void micro_sed_func(MicroSedFuncVanillaKokkos<Real>& msvk,
   });
 
   reset(msvk);
-}
-
-template <typename Real>
-void populate_kokkos_from_vec(const int num_horz, const int num_vert, vector_2d_t<Real> const& vec, kokkos_2d_t<Real>& device)
-{
-  typename kokkos_2d_t<Real>::HostMirror mirror = Kokkos::create_mirror_view(device);
-
-  for (int i = 0; i < num_horz; ++i) {
-    for (int k = 0; k < num_vert; ++k) {
-      mirror(i, k) = vec[i][k];
-    }
-  }
-
-  Kokkos::deep_copy(device, mirror);
-
-}
-
-template <typename Real>
-void dump_to_file_k(const char* basename,
-                    const kokkos_2d_t<Real>& qr, const kokkos_2d_t<Real>& nr, const kokkos_2d_t<Real>& th, const kokkos_2d_t<Real>& dzq,
-                    const kokkos_2d_t<Real>& pres, const kokkos_1d_t<Real>& prt_liq, const Real dt, const int ts)
-{
-  const int ni = qr.extent_int(0);
-  const int nk = qr.extent_int(1);
-
-  auto qr_m      = Kokkos::create_mirror_view(qr);
-  auto nr_m      = Kokkos::create_mirror_view(nr);
-  auto th_m      = Kokkos::create_mirror_view(th);
-  auto dzq_m     = Kokkos::create_mirror_view(dzq);
-  auto pres_m    = Kokkos::create_mirror_view(pres);
-  auto prt_liq_m = Kokkos::create_mirror_view(prt_liq);
-
-  Kokkos::deep_copy(qr_m,      qr);
-  Kokkos::deep_copy(nr_m,      nr);
-  Kokkos::deep_copy(th_m,      th);
-  Kokkos::deep_copy(dzq_m,     dzq);
-  Kokkos::deep_copy(pres_m,    pres);
-  Kokkos::deep_copy(prt_liq_m, prt_liq);
-
-  dump_to_file(basename, qr_m.data(), nr_m.data(), th_m.data(), dzq_m.data(), pres_m.data(), prt_liq_m.data(), ni, nk, dt, ts);
-}
-
-template <typename Real, typename MSK>
-void micro_sed_func_kokkos_wrap(const int ni, const int nk, const Real dt, const int ts, const int kdir)
-{
-  util::dump_arch();
-
-  std::cout << "Running " << MSK::NAME <<  " with ni=" << ni << ", nk=" << nk
-            << ", dt=" << dt << ", ts=" << ts << ", kdir=" << kdir << std::endl;
-
-  kokkos_2d_t<Real> qr("qr", ni, nk),
-    nr("nr", ni, nk),
-    th("th", ni, nk),
-    dzq("dzq", ni, nk),
-    pres("pres", ni, nk);
-
-  kokkos_1d_t<Real> prt_liq("prt_liq", ni);
-
-  {
-    vector_2d_t<Real> qr_v(ni,    std::vector<Real>(nk)),
-                      nr_v(ni,    std::vector<Real>(nk)),
-                      th_v(ni,    std::vector<Real>(nk)),
-                      dzq_v(ni,   std::vector<Real>(nk)),
-                      pres_v(ni,  std::vector<Real>(nk));
-
-    populate_input(ni, nk, kdir, qr_v, nr_v, th_v, dzq_v, pres_v);
-
-    for (auto item : { std::make_pair(&qr_v, &qr), std::make_pair(&nr_v, &nr), std::make_pair(&th_v, &th),
-          std::make_pair(&dzq_v, &dzq), std::make_pair(&pres_v, &pres)}) {
-      populate_kokkos_from_vec(ni, nk, *(item.first), *(item.second));
-    }
-  }
-
-  MSK msk(ni, nk);
-
-  auto start = std::chrono::steady_clock::now();
-
-  for (int i = 0; i < ts; ++i) {
-    micro_sed_func(msk,
-                   kdir == 1 ? 1 : nk, kdir == 1 ? nk : 1,
-                   1, ni, dt, qr, nr, th, dzq, pres, prt_liq);
-  }
-
-  Kokkos::fence();
-
-  auto finish = std::chrono::steady_clock::now();
-
-  auto duration = std::chrono::duration_cast<std::chrono::microseconds>(finish - start);
-  printf("Time = %1.3e seconds\n", 1e-6*duration.count());
-
-  dump_to_file_k(MSK::NAME, qr, nr, th, dzq, pres, prt_liq, dt, ts);
 }
 
 } // namespace p3

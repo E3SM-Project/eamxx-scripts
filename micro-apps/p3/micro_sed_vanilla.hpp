@@ -20,7 +20,7 @@ Real* c_get_mu_r_table();
 }
 
 namespace p3 {
-namespace micro_sed_vanilla {
+namespace micro_sed {
 
 // Change this to modify how indices are presented in trace. +1 implies fortran-like indices
 #define adjust_indices(index) index + 1
@@ -244,10 +244,10 @@ void get_rain_dsd2(const Real qr, Real& nr, Real& mu_r, Real& rdumii, int& dumii
  * prt_liq: precipitation rate, total liquid    m s-1  (output)
  */
 template <typename Real>
-void micro_sed_func_vanilla(const int kts, const int kte, const int its, const int ite, const Real dt,
-                            vector_2d_t<Real> & qr, vector_2d_t<Real> & nr,
-                            vector_2d_t<Real> const& th, vector_2d_t<Real> const& dzq, vector_2d_t<Real> const& pres,
-                            std::vector<Real> & prt_liq)
+void micro_sed_func(const int kts, const int kte, const int its, const int ite, const Real dt,
+                    vector_2d_t<Real> & qr, vector_2d_t<Real> & nr,
+                    vector_2d_t<Real> const& th, vector_2d_t<Real> const& dzq, vector_2d_t<Real> const& pres,
+                    std::vector<Real> & prt_liq)
 {
   const int num_vert = abs(kte - kts) + 1;
   const int num_horz = (ite - its) + 1;
@@ -475,7 +475,6 @@ void dump_to_file_v(const vector_2d_t<Real>& qr, const vector_2d_t<Real>& nr, co
   dump_to_file("vanilla", qr_1d.data(), nr_1d.data(), th_1d.data(), dzq_1d.data(), pres_1d.data(), prt_liq.data(), ni, nk, dt, ts);
 }
 
-
 template <typename Real>
 void micro_sed_func_vanilla_wrap(const int ni, const int nk, const Real dt, const int ts, const int kdir)
 {
@@ -496,20 +495,19 @@ void micro_sed_func_vanilla_wrap(const int ni, const int nk, const Real dt, cons
   auto start = std::chrono::steady_clock::now();
 
   for (int i = 0; i < ts; ++i) {
-    micro_sed_func_vanilla<Real>(kdir == 1 ? 1 : nk, kdir == 1 ? nk : 1,
-                                 1, ni, dt, qr, nr, th, dzq, pres, prt_liq);
+    micro_sed_func<Real>(kdir == 1 ? 1 : nk, kdir == 1 ? nk : 1,
+                         1, ni, dt, qr, nr, th, dzq, pres, prt_liq);
   }
 
   auto finish = std::chrono::steady_clock::now();
 
-  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(finish - start);
-
-  std::cout << "Time = " << duration.count() / 1000.0 << " seconds." << std::endl;
+  auto duration = std::chrono::duration_cast<std::chrono::microseconds>(finish - start);
+  printf("Time = %1.3e seconds\n", 1e-6*duration.count());
 
   dump_to_file_v(qr, nr, th, dzq, pres, prt_liq, dt, ts);
 }
 
 } // namespace p3
-} // namespace micro_sed_vanilla
+} // namespace micro_sed
 
 #endif
