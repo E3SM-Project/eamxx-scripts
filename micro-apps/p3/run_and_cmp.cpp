@@ -2,6 +2,7 @@
 #include "util.hpp"
 #include "initial_conditions.hpp"
 #include "micro_sed_vanilla_kokkos.hpp"
+#include "micro_sed_workspace_kokkos.hpp"
 #include "micro_kokkos.hpp"
 #include "cmp.hpp"
 
@@ -198,6 +199,16 @@ void micro_sed_func_cpp_kokkos (ic::MicroSedData<Scalar>& d, KokkosCppBridge<Sca
 }
 
 template <typename Scalar>
+void micro_sed_func_cpp_kokkos_workspace (ic::MicroSedData<Scalar>& d, KokkosCppBridge<Scalar>& bridge, p3::micro_sed_vanilla::MicroSedFuncWorkspaceKokkos<Real>& msvk)
+{
+  micro_sed_func_workspace_kokkos( msvk, d.reverse ? d.nk : 1, d.reverse ? 1 : d.nk,
+                                   1, d.ni, d.dt, bridge.qr, bridge.nr, bridge.th,
+                                   bridge.dzq, bridge.pres, bridge.prt_liq);
+
+  bridge.sync_to(d);
+}
+
+template <typename Scalar>
 struct MicroSedObserver {
   virtual ~MicroSedObserver () {}
   virtual void observe (const ic::MicroSedData<Scalar>& d) = 0;
@@ -304,6 +315,20 @@ static Int compare (const std::string& label, const ic::MicroSedData<Scalar>& d_
           cmp::compare(label + " pres", d_ref.pres, d.pres + os, n, 0, verbose));
 }
 
+template <typename Bridge, typename Lambda, typename Scalar>
+int do_compare(const Lambda& func, ic::MicroSedData<Scalar>& d, const ic::MicroSedData<Scalar>& d_ref, const Real& tol,
+               const char* label, int step, bool verbose)
+{
+  Bridge bridge(d);
+
+  func(d, bridge);
+
+  std::stringstream ss;
+  ss << label << " step " << step;
+
+  return compare(ss.str(), d_ref, d, tol, verbose);
+}
+
 template <typename Scalar>
 static Int run_and_cmp (const std::string& bfn, const Real& tol, bool verbose) {
   struct Observer : public BaselineObserver {
@@ -316,20 +341,21 @@ static Int run_and_cmp (const std::string& bfn, const Real& tol, bool verbose) {
     {
       fid = util::FILEPtr(fopen(bfn.c_str(), "r"));
       micro_throw_if( ! fid, "run_and_cmp can't read " << bfn);
+
+      // Sanity check.
+      micro_throw_if( ! util::is_single_precision<Real>::value && tol != 0,
+                      "We want BFB in double precision, at least in DEBUG builds.");
     }
 
     virtual void observe (const ic::MicroSedData<Scalar>& d_ic) override {
-      auto d_orig_fortran(d_ic);
-      d_orig_fortran.dt /= BaselineConsts::nstep;
-      FortranBridge<Scalar> f_bridge(d_orig_fortran);
+      auto d_ic_cp(d_ic);
+      d_ic_cp.dt /= BaselineConsts::nstep;
 
-      auto d_vanilla_cpp(d_orig_fortran);
-      VanillaCppBridge<Scalar> vcpp_bridge(d_vanilla_cpp);
-
-      auto d_kokkos_cpp(d_orig_fortran);
-      KokkosCppBridge<Scalar> kcpp_bridge(d_kokkos_cpp);
+      std::vector<ic::MicroSedData<Scalar> > ds = {ic::MicroSedData<Scalar>(d_ic_cp), ic::MicroSedData<Scalar>(d_ic_cp), ic::MicroSedData<Scalar>(d_ic_cp), ic::MicroSedData<Scalar>(d_ic_cp)};
 
       p3::micro_sed_vanilla::MicroSedFuncVanillaKokkos<Scalar> msvk(d_ic.ni, d_ic.nk);
+
+      p3::micro_sed_vanilla::MicroSedFuncWorkspaceKokkos<Scalar> mswk(d_ic.ni, d_ic.nk, d_ic.ni);
 
       for (Int step = 0; step < BaselineConsts::nstep; ++step) {
         // Read the baseline.
@@ -351,36 +377,25 @@ static Int run_and_cmp (const std::string& bfn, const Real& tol, bool verbose) {
 
         // Run various models and compare to baseline.
 
-        { // Compare the Fortran code in case we need to change it, as we will
-          // for handling the issue of single vs double precision. In this case,
-          // we expect the baseline file to be generated from the master-branch
-          // version, and we're comparing a modified version in a branch.
-          micro_sed_func(d_orig_fortran, f_bridge);
-          std::stringstream ss;
-          ss << "Original Fortran step " << step;
-          nerr += compare(ss.str(), d_ref, d_orig_fortran, tol, verbose);
-        }
+        const Real sptol = 2e-5;
+        Real cpp_tol = (util::is_single_precision<Real>::value && tol < sptol) ? sptol : tol;
 
-        { // Super-vanilla C++.
-          micro_sed_func_cpp(d_vanilla_cpp, vcpp_bridge);
-          std::stringstream ss;
-          ss << "Super-vanilla C++ step " << step;
-          const Real sptol = 2e-5;
-          Real fortran_tol = (util::is_single_precision<Real>::value && tol < sptol) ? sptol : tol;
-          nerr += compare(ss.str(), d_ref, d_vanilla_cpp, fortran_tol, verbose);
-        }
+        // Compare the Fortran code in case we need to change it, as we will
+        // for handling the issue of single vs double precision. In this case,
+        // we expect the baseline file to be generated from the master-branch
+        // version, and we're comparing a modified version in a branch.
+        nerr += do_compare<FortranBridge<Scalar> >([] (ic::MicroSedData<Scalar>& d, FortranBridge<Scalar>& b) { micro_sed_func(d, b); },
+                                                   ds[0], d_ref, tol, "Original Fortran", step, verbose);
 
-        { // Vanilla C++ kokkos.
-          micro_sed_func_cpp_kokkos(d_kokkos_cpp, kcpp_bridge, msvk);
-          std::stringstream ss;
-          ss << "Vanilla Kokkos C++ step " << step;
-          const Real sptol = 2e-5;
-          Real kokkos_tol = (util::is_single_precision<Real>::value && tol < sptol) ? sptol : tol;
-          // Sanity check.
-          micro_throw_if( ! util::is_single_precision<Real>::value && tol != 0,
-                          "We want BFB in double precision, at least in DEBUG builds.");
-          nerr += compare(ss.str(), d_ref, d_kokkos_cpp, kokkos_tol, verbose);
-        }
+        nerr += do_compare<VanillaCppBridge<Scalar> >([] (ic::MicroSedData<Scalar>& d, VanillaCppBridge<Scalar>& b) { micro_sed_func_cpp(d, b); },
+                                                      ds[1], d_ref, cpp_tol, "Super-vanilla C++", step, verbose);
+
+        nerr += do_compare<KokkosCppBridge<Scalar> >([&] (ic::MicroSedData<Scalar>& d, KokkosCppBridge<Scalar>& b) { micro_sed_func_cpp_kokkos(d, b, msvk); },
+                                                     ds[2], d_ref, cpp_tol, "Vanilla Kokkos C++", step, verbose);
+
+        nerr += do_compare<KokkosCppBridge<Scalar> >([&] (ic::MicroSedData<Scalar>& d, KokkosCppBridge<Scalar>& b) { micro_sed_func_cpp_kokkos_workspace(d, b, mswk); },
+                                                     ds[3], d_ref, cpp_tol, "Workspace Kokkos C++", step, verbose);
+
       }
     }
   };
