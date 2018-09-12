@@ -13,8 +13,6 @@
 #include <iostream>
 #include <iomanip>
 
-#pragma message "COMBINE FLUX CALCS"
-
 // On KNL and SKX, 16/1 or 32/2 are the best pack size/small pack factor values.
 #ifndef SCREAM_PACKN
 # define SCREAM_PACKN 16
