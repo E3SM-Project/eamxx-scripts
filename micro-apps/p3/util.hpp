@@ -54,6 +54,22 @@
       Kokkos::abort(#condition " led to the exception\n" message);  \
   } while (0)
 
+#if defined __INTEL_COMPILER
+# define vector_ivdep _Pragma("ivdep")
+# ifdef _OPENMP
+#  define vector_simd _Pragma("omp simd")
+# else
+#  define vector_simd _Pragma("simd")
+# endif
+#elif defined __GNUG__
+# define vector_ivdep _Pragma("GCC ivdep")
+# define vector_simd _Pragma("GCC ivdep")
+# define restrict __restrict__
+#else
+# define vector_ivdep
+# define vector_simd
+# define restrict
+#endif
 
 namespace util {
 
@@ -111,6 +127,13 @@ void set_min_max (const Integer& lim0, const Integer& lim1,
                   Integer& min, Integer& max) {
   min = util::min(lim0, lim1);
   max = util::max(lim0, lim1);
+}
+
+template <typename Integer, typename Integer1> KOKKOS_INLINE_FUNCTION
+void set_min_max (const Integer& lim0, const Integer& lim1,
+                  Integer& min, Integer& max, const Integer1& vector_size) {
+  min = util::min(lim0, lim1) / vector_size;
+  max = util::max(lim0, lim1) / vector_size;
 }
 
 inline

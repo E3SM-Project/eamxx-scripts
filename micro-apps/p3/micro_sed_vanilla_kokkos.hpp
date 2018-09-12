@@ -105,8 +105,8 @@ void get_rain_dsd2_kokkos(const Real qr, Real& nr, Real& mu_r, Real& rdumii, int
       nr   = std::exp(3.*std::log(lamr) + std::log(qr) + std::log(std::tgamma(mu_r+1.)) - log(std::tgamma(mu_r+4.)))/(Globals<Real>::CONS1);
     }
 
-    cdistr  = nr/std::tgamma(mu_r+1.);
-    logn0r  = std::log10(nr) + (mu_r+1.)*std::log10(lamr) - std::log10(std::tgamma(mu_r+1)); // note: logn0r is calculated as log10(n0r);
+    cdistr  = 0; //nr/std::tgamma(mu_r+1.);
+    logn0r  = 0; //std::log10(nr) + (mu_r+1.)*std::log10(lamr) - std::log10(std::tgamma(mu_r+1)); // note: logn0r is calculated as log10(n0r);
   }
   else {
     lamr   = 0.0;
@@ -478,9 +478,8 @@ void micro_sed_func_vanilla_kokkos_wrap(const int ni, const int nk, const Real d
 
   auto finish = std::chrono::steady_clock::now();
 
-  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(finish - start);
-
-  std::cout << "Time = " << duration.count() / 1000.0 << " seconds." << std::endl;
+  auto duration = std::chrono::duration_cast<std::chrono::microseconds>(finish - start);
+  printf("Time = %1.3e seconds\n", 1e-6*duration.count());
 
   dump_to_file_k(qr, nr, th, dzq, pres, prt_liq, dt, ts);
 }
