@@ -158,8 +158,7 @@ void initialize()
   _MM_SET_EXCEPTION_MASK(_MM_GET_EXCEPTION_MASK() &
                          ~( _MM_MASK_INVALID |
                             _MM_MASK_DIV_ZERO |
-                            _MM_MASK_OVERFLOW |
-                            _MM_MASK_UNDERFLOW ));
+                            _MM_MASK_OVERFLOW ));
 #endif
 }
 
@@ -171,7 +170,7 @@ struct ExeSpaceUtils {
 #else
     return team_policy(ni, 1);
 #endif
-  }  
+  }
 };
 #ifdef KOKKOS_ENABLE_CUDA
 template <>
