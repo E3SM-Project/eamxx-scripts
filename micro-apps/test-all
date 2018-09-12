@@ -23,8 +23,7 @@ OMP_NUM_THREADS=17 make test
 
 cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_COMPILER=$cpp_compiler -DKokkos_DIR=$kokkos_dir -DDOUBLE_PRECISION=FALSE ..
 make -j8
-make baseline
-OMP_NUM_THREADS=17 make test
+# no run
 
 cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_COMPILER=$cpp_compiler -DKokkos_DIR=$kokkos_dir -DENABLE_TRACING=TRUE ..
 make -j8
