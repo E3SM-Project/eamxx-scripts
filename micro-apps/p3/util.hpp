@@ -61,7 +61,7 @@
   int ni(atoi(argv[1])), nk(atoi(argv[2])), ts(atoi(argv[4])), kdir(atoi(argv[5]));         \
   Real dt(atof(argv[3]));                                                                   \
   micro_throw_if(kdir != -1 && kdir != 1, "kdir must be -1 or 1"); \
-  p3::micro_sed_vanilla::p3_init_cpp<Real>()
+  p3::micro_sed::p3_init_cpp<Real>()
 
 namespace util {
 

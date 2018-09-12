@@ -70,8 +70,8 @@ bool dump_all(const char* filename,
       cmp::transpose<cmp::TransposeDirection::f2c>(item.first, item.second, ni, nk);
     }
 
-    p3::micro_sed_vanilla::dump_to_file(filename, qr_t.data(), nr_t.data(), th_t.data(), dzq_t.data(), pres_t.data(),
-                                        *prt_liq, ni, nk, dt, ts);
+    p3::micro_sed::dump_to_file(filename, qr_t.data(), nr_t.data(), th_t.data(), dzq_t.data(), pres_t.data(),
+                                *prt_liq, ni, nk, dt, ts);
     return true;
   } catch (std::exception& e) {
     std::cerr << "dump_all failed with: " << e.what() << "\n";

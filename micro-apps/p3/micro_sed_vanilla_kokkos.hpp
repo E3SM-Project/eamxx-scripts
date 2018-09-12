@@ -13,7 +13,7 @@
 #include <iomanip>
 
 namespace p3 {
-namespace micro_sed_vanilla {
+namespace micro_sed {
 
 template <typename Real>
 using kokkos_2d_table_t = Kokkos::View<Real[300][10], Layout, MemSpace>;
@@ -125,6 +125,8 @@ struct MicroSedFuncVanillaKokkos
   kokkos_2d_table_t<Real> vn_table, vm_table;
   kokkos_1d_table_t<Real> mu_r_table;
 
+  static constexpr char* NAME = "kokkos_vanilla";
+
 public:
   MicroSedFuncVanillaKokkos(int num_horz_, int num_vert_) :
     num_horz(num_horz_), num_vert(num_vert_),
@@ -208,11 +210,11 @@ void reset(MicroSedFuncVanillaKokkos<Real>& msvk)
  * pres: pressure                               Pa
  * prt_liq: precipitation rate, total liquid    m s-1  (output)
  */
-void micro_sed_func_vanilla_kokkos(MicroSedFuncVanillaKokkos<Real>& msvk,
-                                   const int kts, const int kte, const int its, const int ite, const Real dt,
-                                   kokkos_2d_t<Real> & qr, kokkos_2d_t<Real> & nr,
-                                   kokkos_2d_t<Real> const& th, kokkos_2d_t<Real> const& dzq, kokkos_2d_t<Real> const& pres,
-                                   kokkos_1d_t<Real> & prt_liq)
+void micro_sed_func(MicroSedFuncVanillaKokkos<Real>& msvk,
+                    const int kts, const int kte, const int its, const int ite, const Real dt,
+                    kokkos_2d_t<Real> & qr, kokkos_2d_t<Real> & nr,
+                    kokkos_2d_t<Real> const& th, kokkos_2d_t<Real> const& dzq, kokkos_2d_t<Real> const& pres,
+                    kokkos_1d_t<Real> & prt_liq)
 {
   // constants
   const Real odt = 1.0 / dt;
@@ -437,20 +439,13 @@ void dump_to_file_k(const char* basename,
   dump_to_file(basename, qr_m.data(), nr_m.data(), th_m.data(), dzq_m.data(), pres_m.data(), prt_liq_m.data(), ni, nk, dt, ts);
 }
 
-template <typename Real>
-void micro_sed_func_vanilla_kokkos_wrap(const int ni, const int nk, const Real dt, const int ts, const int kdir)
+template <typename Real, typename MSK>
+void micro_sed_func_kokkos_wrap(const int ni, const int nk, const Real dt, const int ts, const int kdir)
 {
-  vector_2d_t<Real> qr_v(ni,    std::vector<Real>(nk)),
-                    nr_v(ni,    std::vector<Real>(nk)),
-                    th_v(ni,    std::vector<Real>(nk)),
-                    dzq_v(ni,   std::vector<Real>(nk)),
-                    pres_v(ni,  std::vector<Real>(nk));
-
   util::dump_arch();
-  std::cout << "Running micro_sed_vanilla_kokkos with ni=" << ni << ", nk=" << nk
-            << ", dt=" << dt << ", ts=" << ts << ", kdir=" << kdir << std::endl;
 
-  populate_input(ni, nk, kdir, qr_v, nr_v, th_v, dzq_v, pres_v);
+  std::cout << "Running " << MSK::NAME <<  " with ni=" << ni << ", nk=" << nk
+            << ", dt=" << dt << ", ts=" << ts << ", kdir=" << kdir << std::endl;
 
   kokkos_2d_t<Real> qr("qr", ni, nk),
     nr("nr", ni, nk),
@@ -460,33 +455,42 @@ void micro_sed_func_vanilla_kokkos_wrap(const int ni, const int nk, const Real d
 
   kokkos_1d_t<Real> prt_liq("prt_liq", ni);
 
-  for (auto item : { std::make_pair(&qr_v, &qr), std::make_pair(&nr_v, &nr), std::make_pair(&th_v, &th),
-        std::make_pair(&dzq_v, &dzq), std::make_pair(&pres_v, &pres)}) {
-    populate_kokkos_from_vec(ni, nk, *(item.first), *(item.second));
+  {
+    vector_2d_t<Real> qr_v(ni,    std::vector<Real>(nk)),
+                      nr_v(ni,    std::vector<Real>(nk)),
+                      th_v(ni,    std::vector<Real>(nk)),
+                      dzq_v(ni,   std::vector<Real>(nk)),
+                      pres_v(ni,  std::vector<Real>(nk));
+
+    populate_input(ni, nk, kdir, qr_v, nr_v, th_v, dzq_v, pres_v);
+
+    for (auto item : { std::make_pair(&qr_v, &qr), std::make_pair(&nr_v, &nr), std::make_pair(&th_v, &th),
+          std::make_pair(&dzq_v, &dzq), std::make_pair(&pres_v, &pres)}) {
+      populate_kokkos_from_vec(ni, nk, *(item.first), *(item.second));
+    }
   }
 
-  MicroSedFuncVanillaKokkos<Real> msvk(ni, nk);
+  MSK msk(ni, nk);
 
   auto start = std::chrono::steady_clock::now();
 
   for (int i = 0; i < ts; ++i) {
-    micro_sed_func_vanilla_kokkos(msvk,
-                                  kdir == 1 ? 1 : nk, kdir == 1 ? nk : 1,
-                                  1, ni, dt, qr, nr, th, dzq, pres, prt_liq);
+    micro_sed_func(msk,
+                   kdir == 1 ? 1 : nk, kdir == 1 ? nk : 1,
+                   1, ni, dt, qr, nr, th, dzq, pres, prt_liq);
   }
 
   Kokkos::fence();
 
   auto finish = std::chrono::steady_clock::now();
 
-  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(finish - start);
+  auto duration = std::chrono::duration_cast<std::chrono::microseconds>(finish - start);
+  printf("Time = %1.3e seconds\n", 1e-6*duration.count());
 
-  std::cout << "Time = " << duration.count() / 1000.0 << " seconds." << std::endl;
-
-  dump_to_file_k("kokkos_vanilla", qr, nr, th, dzq, pres, prt_liq, dt, ts);
+  dump_to_file_k(MSK::NAME, qr, nr, th, dzq, pres, prt_liq, dt, ts);
 }
 
 } // namespace p3
-} // namespace micro_sed_vanilla
+} // namespace micro_sed
 
 #endif

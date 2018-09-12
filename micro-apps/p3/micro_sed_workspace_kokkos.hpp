@@ -13,7 +13,7 @@
 #include <iomanip>
 
 namespace p3 {
-namespace micro_sed_vanilla {
+namespace micro_sed {
 
 template <typename Real>
 struct MicroSedFuncWorkspaceKokkos
@@ -29,13 +29,15 @@ struct MicroSedFuncWorkspaceKokkos
   kokkos_2d_table_t<Real> vn_table, vm_table;
   kokkos_1d_table_t<Real> mu_r_table;
 
+  static constexpr char* NAME = "kokkos_workspace";
+
 public:
-  MicroSedFuncWorkspaceKokkos(int num_horz_, int num_vert_, int concurrency_) :
-    num_horz(num_horz_), num_vert(num_vert_), concurrency(concurrency_),
-    V_qr("V_qr", concurrency_, num_vert),
-    V_nr("V_nr", concurrency_, num_vert),
-    flux_qx("flux_qx", concurrency_, num_vert),
-    flux_nx("flux_nx", concurrency_, num_vert),
+  MicroSedFuncWorkspaceKokkos(int num_horz_, int num_vert_) :
+    num_horz(num_horz_), num_vert(num_vert_), concurrency(num_horz_), // TODO
+    V_qr("V_qr", concurrency, num_vert),
+    V_nr("V_nr", concurrency, num_vert),
+    flux_qx("flux_qx", concurrency, num_vert),
+    flux_nx("flux_nx", concurrency, num_vert),
     mu_r("mu_r", num_horz, num_vert),
     lamr("lamr", num_horz, num_vert),
     rhofacr("rhofacr", num_horz, num_vert),
@@ -114,11 +116,11 @@ void reset(MicroSedFuncWorkspaceKokkos<Real>& msvk)
  * pres: pressure                               Pa
  * prt_liq: precipitation rate, total liquid    m s-1  (output)
  */
-void micro_sed_func_workspace_kokkos(MicroSedFuncWorkspaceKokkos<Real>& msvk,
-                                     const int kts, const int kte, const int its, const int ite, const Real dt,
-                                     kokkos_2d_t<Real> & qr, kokkos_2d_t<Real> & nr,
-                                     kokkos_2d_t<Real> const& th, kokkos_2d_t<Real> const& dzq, kokkos_2d_t<Real> const& pres,
-                                     kokkos_1d_t<Real> & prt_liq)
+void micro_sed_func(MicroSedFuncWorkspaceKokkos<Real>& msvk,
+                    const int kts, const int kte, const int its, const int ite, const Real dt,
+                    kokkos_2d_t<Real> & qr, kokkos_2d_t<Real> & nr,
+                    kokkos_2d_t<Real> const& th, kokkos_2d_t<Real> const& dzq, kokkos_2d_t<Real> const& pres,
+                    kokkos_1d_t<Real> & prt_liq)
 {
   // constants
   const Real odt = 1.0 / dt;
@@ -303,56 +305,7 @@ void micro_sed_func_workspace_kokkos(MicroSedFuncWorkspaceKokkos<Real>& msvk,
   reset(msvk);
 }
 
-template <typename Real>
-void micro_sed_func_workspace_kokkos_wrap(const int ni, const int nk, const Real dt, const int ts, const int kdir)
-{
-  vector_2d_t<Real> qr_v(ni,    std::vector<Real>(nk)),
-                    nr_v(ni,    std::vector<Real>(nk)),
-                    th_v(ni,    std::vector<Real>(nk)),
-                    dzq_v(ni,   std::vector<Real>(nk)),
-                    pres_v(ni,  std::vector<Real>(nk));
-
-  util::dump_arch();
-  std::cout << "Running micro_sed_workspace_kokkos with ni=" << ni << ", nk=" << nk
-            << ", dt=" << dt << ", ts=" << ts << ", kdir=" << kdir << std::endl;
-
-  populate_input(ni, nk, kdir, qr_v, nr_v, th_v, dzq_v, pres_v);
-
-  kokkos_2d_t<Real> qr("qr", ni, nk),
-    nr("nr", ni, nk),
-    th("th", ni, nk),
-    dzq("dzq", ni, nk),
-    pres("pres", ni, nk);
-
-  kokkos_1d_t<Real> prt_liq("prt_liq", ni);
-
-  for (auto item : { std::make_pair(&qr_v, &qr), std::make_pair(&nr_v, &nr), std::make_pair(&th_v, &th),
-        std::make_pair(&dzq_v, &dzq), std::make_pair(&pres_v, &pres)}) {
-    populate_kokkos_from_vec(ni, nk, *(item.first), *(item.second));
-  }
-
-  MicroSedFuncWorkspaceKokkos<Real> msvk(ni, nk, ni); // TODO: 3rd arg needs to be concurrency
-
-  auto start = std::chrono::steady_clock::now();
-
-  for (int i = 0; i < ts; ++i) {
-    micro_sed_func_workspace_kokkos(msvk,
-                                  kdir == 1 ? 1 : nk, kdir == 1 ? nk : 1,
-                                  1, ni, dt, qr, nr, th, dzq, pres, prt_liq);
-  }
-
-  Kokkos::fence();
-
-  auto finish = std::chrono::steady_clock::now();
-
-  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(finish - start);
-
-  std::cout << "Time = " << duration.count() / 1000.0 << " seconds." << std::endl;
-
-  dump_to_file_k("kokkos_workspace", qr, nr, th, dzq, pres, prt_liq, dt, ts);
-}
-
 } // namespace p3
-} // namespace micro_sed_vanilla
+} // namespace micro_sed
 
 #endif
