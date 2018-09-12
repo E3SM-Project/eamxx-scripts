@@ -393,15 +393,15 @@ void get_rain_dsd2_kokkos (
   cdistr = 0;
   logn0r = 0;
 
-  if ( ! qr_gt_small.any()) return;
 
   // use lookup table to get mu
   // mu-lambda relationship is from Cao et al. (2008), eq. (7)
 
   // find spot in lookup table
   // (scaled N/q for lookup table parameter space)
-  nr.set(qr_gt_small, max(nr, nsmall));
-  const auto inv_dum = pow(qr / (Globals<Real>::CONS1 * nr * 6.0), thrd);
+  RealSmallPack nr_safe;
+  nr_safe.set(qr_gt_small, max(nr, nsmall));
+  const auto inv_dum = pow(qr / (Globals<Real>::CONS1 * nr_safe * 6.0), thrd);
 
   mu_r = 0;
   {
@@ -425,14 +425,19 @@ void get_rain_dsd2_kokkos (
   }
 
   // recalculate slope based on mu_r
-  lamr.set(qr_gt_small, pow(Globals<Real>::CONS1 * nr * (mu_r + 3) *
-                            (mu_r + 2) * (mu_r + 1)/qr,
-                            thrd));
+  {
+    RealSmallPack qr_safe;
+    qr_safe.set(qr_gt_small, qr);
+    lamr.set(qr_gt_small,
+             pow(Globals<Real>::CONS1 * nr_safe * (mu_r + 3) *
+                 (mu_r + 2) * (mu_r + 1)/qr_safe,
+                 thrd));
+  }
+
   // check for slope
   const auto lammax = (mu_r+1.)*1.e+5;
   // set to small value since breakup is explicitly included (mean size 0.8 mm)
   const auto lammin = (mu_r+1.)*1250.0;
-
   // apply lambda limiters for rain
   const auto lt = qr_gt_small & (lamr < lammin);
   const auto gt = qr_gt_small & (lamr > lammax);
@@ -440,10 +445,11 @@ void get_rain_dsd2_kokkos (
   if (either.any()) {
     lamr.set(lt, lammin);
     lamr.set(gt, lammax);
-    nr.set(either,
-           exp(3*log(lamr) + log(qr) +
-               log(tgamma(mu_r + 1)) - log(tgamma(mu_r + 4)))
-           / Globals<Real>::CONS1);
+    scream_masked_loop(either) {
+      nr[s] = std::exp(3*std::log(lamr[s]) + std::log(qr[s]) +
+                       std::log(std::tgamma(mu_r[s] + 1)) - std::log(std::tgamma(mu_r[s] + 4)))
+        / Globals<Real>::CONS1;
+    }
   }
 }
 #elif PACK_IMPL == 2
