@@ -21,9 +21,13 @@
 
   On KNL and SKX, 16/1 or 32/2 are the best pack size/small pack factor values.
 
-  On KNL and SKX, 0 and 3 are the best impls. 3 represents the pattern we want
-  to use in the sense that it makes choices between pack and scalarized impls at
-  the level of small bits of code.
+  Impl 2 is not interesting.  On KNL and SKX, each of 0, 1, 3 can be the
+  fastest, depending on other configuration details. But 1 is a bit heavy
+  handed: it operates at the pack level entirely except in one spot. Is is
+  interesting only in that it shows we can leave an entire routine in its
+  original scalar impl form if we want to. 3 represents the pattern we want to
+  use in general: it makes choices between pack and scalarized impls at the
+  level of small bits of code.
  */
 #ifndef PACK_IMPL
 # define PACK_IMPL 0
