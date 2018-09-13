@@ -21,6 +21,9 @@
 # define SCREAM_SMALL_PACK_FACTOR 1
 #endif
 
+#define AMB_NO_MPI
+#include "/home/ambradl/climate/sik/hommexx/dbg.hpp"
+
 namespace p3 {
 namespace micro_sed_pack {
 
@@ -264,7 +267,7 @@ template <Int kdir, int nfield>
 KOKKOS_INLINE_FUNCTION
 void calc_first_order_upwind_step (
   const MicroSedFuncPackKokkos& m, const member_type& team, const int& i,
-  const int& k_bot, const int& k_top, const Real& dt_sub,
+  const Int& nk, const Int& k_bot, const Int& k_top, const Real& dt_sub,
   const Kokkos::Array<const kokkos_2d_t<RealSmallPack>*,nfield>& flux,
   const Kokkos::Array<const kokkos_2d_t<RealSmallPack>*,nfield>& V,
   const Kokkos::Array<const kokkos_2d_t<RealSmallPack>*,nfield>& r)
@@ -274,17 +277,12 @@ void calc_first_order_upwind_step (
     inv_rho = smallize(m.inv_rho),
     inv_dzq = smallize(m.inv_dzq);
 
-  int
+  Int
     kmin = ( kdir == 1 ? k_bot : k_top)                     / RealSmallPack::n,
     // Add 1 to make [kmin, kmax). But then the extra term (RealSmallPack::n -
     // 1) to determine pack index cancels the +1.
     kmax = ((kdir == 1 ? k_top : k_bot) + RealSmallPack::n) / RealSmallPack::n;
-
-  // for top level only (since flux is 0 above)
   const Int k_top_pack = k_top / RealSmallPack::n;
-  for (int f = 0; f < nfield; ++f)
-    (*flux[f])(i, k_top_pack) = 0;
-  team.team_barrier();
 
   // calculate fluxes
   Kokkos::parallel_for(
@@ -298,6 +296,12 @@ void calc_first_order_upwind_step (
   Kokkos::single(
     Kokkos::PerTeam(team), [&] () {
       const Int k = k_top_pack;
+      if (nk % RealSmallPack::n != 0) {
+        const auto mask =
+          scream::pack::range<IntSmallPack>(k_top_pack*RealSmallPack::n) >= nk;
+        for (int f = 0; f < nfield; ++f)
+          (*flux[f])(i, k_top_pack).set(mask, 0);
+      }
       for (int f = 0; f < nfield; ++f) {
         // compute flux divergence
         const auto flux_pkdir = (kdir == -1) ?
@@ -332,17 +336,17 @@ void calc_first_order_upwind_step (
 template <int nfield> KOKKOS_INLINE_FUNCTION
 void calc_first_order_upwind_step (
   const MicroSedFuncPackKokkos& m, const member_type& team, const int& i,
-  const int& k_bot, const int& k_top, const int& kdir, const Real& dt_sub,
+  const Int& nk, const Int& k_bot, const Int& k_top, const Int& kdir, const Real& dt_sub,
   const Kokkos::Array<const kokkos_2d_t<RealSmallPack>*,nfield>& flux,
   const Kokkos::Array<const kokkos_2d_t<RealSmallPack>*,nfield>& V,
   const Kokkos::Array<const kokkos_2d_t<RealSmallPack>*,nfield>& r)
 {
   if (kdir == 1)
     calc_first_order_upwind_step< 1, nfield>(
-      m, team, i, k_bot, k_top, dt_sub, flux, V, r);
+      m, team, i, nk, k_bot, k_top, dt_sub, flux, V, r);
   else
     calc_first_order_upwind_step<-1, nfield>(
-      m, team, i, k_bot, k_top, dt_sub, flux, V, r);
+      m, team, i, nk, k_bot, k_top, dt_sub, flux, V, r);
 }
 
 //TODO Unit test.
@@ -467,7 +471,7 @@ void micro_sed_func_pack_kokkos (
 
       Kokkos::parallel_for(
         Kokkos::TeamThreadRange(team, m.num_pack), [&] (Int k) {
-          m.inv_dzq(i, k) = 1 / dzq(i, k);
+          m.inv_dzq(i, k) = 1.0 / dzq(i, k);
           m.t(i, k) = pow(pres(i, k) * 1.e-5, rd_inv_cp) * th(i, k);
           m.rho(i, k) = pres(i, k) / (rd * m.t(i, k));
           m.inv_rho(i, k) = 1.0 / m.rho(i, k);
@@ -520,7 +524,7 @@ void micro_sed_func_pack_kokkos (
                 // number-weighted fall speed:
                 lV_nr(i, pk).set(qr_gt_small,
                                  apply_table(qr_gt_small, m.vn_table, t) * lrhofacr(i, pk));
-                const auto Co_max_local = max(qr_gt_small, 0,
+                const auto Co_max_local = max(qr_gt_small, -1,
                                               lV_qr(i, pk) * dt_left * linv_dzq(i, pk));
                 if (Co_max_local > lmax)
                   lmax = Co_max_local;
@@ -533,15 +537,15 @@ void micro_sed_func_pack_kokkos (
           }
 
           // compute dt_sub
-          const int tmpint1 = static_cast<int>(Co_max + 1.0);
-          const Real dt_sub = util::min(dt_left, dt_left / tmpint1);
+          const Int Co_max_p1 = static_cast<Int>(Co_max + 1.0);
+          const Real dt_sub = util::min(dt_left, dt_left / Co_max_p1);
 
           // Move bottom cell down by 1 if not at ground already.
           const Int k_temp = (k_qxbot == kbot) ? k_qxbot : k_qxbot - kdir;
 
           calc_first_order_upwind_step<2>(
             m, team, i,
-            k_temp, k_qxtop, kdir, dt_sub,
+            m.num_vert, k_temp, k_qxtop, kdir, dt_sub,
             {&lflux_qr, &lflux_nr}, {&lV_qr, &lV_nr}, {&lqr, &lnr});
           team.team_barrier();
 
