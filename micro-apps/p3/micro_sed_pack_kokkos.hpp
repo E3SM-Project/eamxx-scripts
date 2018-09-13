@@ -461,12 +461,12 @@ void micro_sed_func_pack_kokkos (
   // Rain sedimentation:  (adaptive substepping)
   Kokkos::parallel_for(
     "main rain sed loop",
-    util::ExeSpaceUtils<>::get_default_team_policy(m.num_horz, m.num_vert),
+    util::ExeSpaceUtils<>::get_default_team_policy(m.num_horz, m.num_pack),
     KOKKOS_LAMBDA(const member_type& team) {
       const int i = team.league_rank();
 
       Kokkos::parallel_for(
-        Kokkos::TeamThreadRange(team, m.num_vert / RealPack::n), [&] (Int k) {
+        Kokkos::TeamThreadRange(team, m.num_pack), [&] (Int k) {
           m.inv_dzq(i, k) = 1 / dzq(i, k);
           m.t(i, k) = pow(pres(i, k) * 1.e-5, rd_inv_cp) * th(i, k);
           m.rho(i, k) = pres(i, k) / (rd * m.t(i, k));
@@ -491,7 +491,7 @@ void micro_sed_func_pack_kokkos (
           Int kmin, kmax;
 
           Kokkos::parallel_for(
-            Kokkos::TeamThreadRange(team, m.num_vert / RealPack::n), [&] (Int k) {
+            Kokkos::TeamThreadRange(team, m.num_pack), [&] (Int k) {
               m.V_qr(i, k) = 0;
               m.V_nr(i, k) = 0;
             });
