@@ -28,3 +28,10 @@ make -j8
 cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_COMPILER=$cpp_compiler -DKokkos_DIR=$kokkos_dir -DENABLE_TRACING=TRUE ..
 make -j8
 # no run
+
+cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=$cpp_compiler -DKokkos_DIR=$kokkos_dir -DENABLE_TRACING=TRUE ..
+make -j8
+./p3/micro_sed 10000 128 300 30 1
+./p3/micro_sed_vanilla 10000 128 300 30 1
+./p3/micro_sed_vanilla_kokkos 10000 128 300 30 1
+./p3/micro_sed_workspace_kokkos 10000 128 300 30 1
