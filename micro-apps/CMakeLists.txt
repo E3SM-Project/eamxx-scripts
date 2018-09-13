@@ -80,7 +80,6 @@ endif()
 
 STRING(TOLOWER "${CMAKE_BUILD_TYPE}" CMAKE_BUILD_TYPE_ci)
 if (CMAKE_BUILD_TYPE_ci STREQUAL "debug")
-  set(ENABLE_FPE TRUE)
   set(MIMIC_GPU TRUE)
   if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel")
     message("Disabling vectorization in this DEBUG build.")

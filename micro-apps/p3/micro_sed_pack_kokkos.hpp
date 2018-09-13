@@ -156,10 +156,10 @@ void get_rain_dsd2_kokkos (
 
   // find spot in lookup table
   // (scaled N/q for lookup table parameter space)
-  nr.set(qr_gt_small, max(nr, nsmall));
+  const auto nr_lim = max(nr, nsmall);
   RealSmallPack inv_dum(0);
   inv_dum.set(qr_gt_small,
-              pow(qr / (cons1 * nr * 6.0), thrd));
+              pow(qr / (cons1 * nr_lim * 6.0), thrd));
 
   mu_r = 0;
   {
@@ -186,7 +186,7 @@ void get_rain_dsd2_kokkos (
 
   // recalculate slope based on mu_r
   lamr.set(qr_gt_small,
-           pow(cons1 * nr * (mu_r + 3) *
+           pow(cons1 * nr_lim * (mu_r + 3) *
                (mu_r + 2) * (mu_r + 1)/qr,
                thrd));
 
@@ -198,6 +198,7 @@ void get_rain_dsd2_kokkos (
   const auto lt = qr_gt_small & (lamr < lammin);
   const auto gt = qr_gt_small & (lamr > lammax);
   const auto either = lt | gt;
+  nr.set(qr_gt_small, nr_lim);
   if (either.any()) {
     lamr.set(lt, lammin);
     lamr.set(gt, lammax);
