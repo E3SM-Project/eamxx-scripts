@@ -358,6 +358,14 @@ OnlyPackReturn<Pack,Int> npack(const Int& nscalar) {
   return (nscalar + Pack::n - 1) / Pack::n;
 }
 
+template <typename Pack> KOKKOS_INLINE_FUNCTION
+OnlyPack<Pack> range (const typename Pack::scalar& start) {
+  typedef Pack pack;
+  pack p;
+  vector_simd for (int i = 0; i < Pack::n; ++i) p[i] = start + i;
+  return p;
+}
+
 } // namespace pack
 } // namespace scream
 

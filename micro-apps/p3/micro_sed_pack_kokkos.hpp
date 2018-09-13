@@ -44,13 +44,6 @@ kokkos_2d_t<T> scalarize (const kokkos_2d_t<BigPack<T> >& vp) {
     reinterpret_cast<T*>(vp.data()), vp.extent_int(0), RealPack::n * vp.extent_int(1));
 }
 
-// NOT for general use. This is just for dev work.
-template <typename T> KOKKOS_FORCEINLINE_FUNCTION
-kokkos_2d_t<BigPack<T> > packize (const kokkos_2d_t<T>& vp) {
-  assert(vp.extent_int(1) % RealPack::n == 0);
-  return Kokkos::View<BigPack<T>**, Layout, MemSpace, Kokkos::MemoryTraits<Kokkos::Unmanaged> >(
-    reinterpret_cast<BigPack<T>*>(vp.data()), vp.extent_int(0), vp.extent_int(1) / RealPack::n);
-}
 template <typename T> KOKKOS_FORCEINLINE_FUNCTION
 kokkos_2d_t<SmallPack<T> > smallize (const kokkos_2d_t<T>& vp) {
   assert(vp.extent_int(1) % RealSmallPack::n == 0);
@@ -508,7 +501,10 @@ void micro_sed_func_pack_kokkos (
           Kokkos::parallel_reduce(
             Kokkos::TeamThreadRange(team, kmax-kmin+1), [&] (int pk_, Real& lmax) {
               const int pk = kmin + pk_;
-              const auto qr_gt_small = lqr(i, pk) > qsmall;
+              auto qr_gt_small = (lqr(i, pk) > qsmall);
+              if (m.num_vert % RealSmallPack::n != 0)
+                qr_gt_small = qr_gt_small &
+                  (scream::pack::range<IntSmallPack>(pk*RealSmallPack::n) <= m.num_vert);
               if (qr_gt_small.any()) {
                 // Compute Vq, Vn:
                 lnr(i, pk).set(qr_gt_small, max(lnr(i, pk), nsmall));
