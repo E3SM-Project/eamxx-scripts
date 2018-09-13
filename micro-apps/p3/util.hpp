@@ -179,13 +179,29 @@ struct ExeSpaceUtils {
     return team_policy(ni, 1);
 #endif
   }
+
+  template <typename TeamPolicy>
+  static int get_num_concurrent_teams(const TeamPolicy& policy)
+  {
+    const int team_size = policy.team_size();
+    const int concurrency = ExeSpace::concurrency();
+    return (concurrency + team_size - 1) / team_size;
+  }
 };
+
 #ifdef KOKKOS_ENABLE_CUDA
 template <>
 struct ExeSpaceUtils<Kokkos::Cuda> {
   static team_policy get_default_team_policy (Int ni, Int nk) {
     return team_policy(ni, std::min(128, 32*((nk + 31)/32)));
   }
+
+  template <typename TeamPolicy>
+  static int get_num_concurrent_teams(const TeamPolicy& policy)
+  {
+    return policy.league_size();
+  }
+
 };
 #endif
 
