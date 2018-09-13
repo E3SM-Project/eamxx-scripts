@@ -14,6 +14,10 @@ fi
 set -e
 set -x
 
+if [ -d test-all-build ]; then
+    /bin/rm -rf test-all-build
+fi
+
 mkdir test-all-build
 cd test-all-build
 cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_COMPILER=$cpp_compiler -DKokkos_DIR=$kokkos_dir ..
@@ -21,15 +25,18 @@ make -j8
 make baseline
 OMP_NUM_THREADS=17 make test
 
+/bin/rm -rf *
 cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_COMPILER=$cpp_compiler -DKokkos_DIR=$kokkos_dir -DDOUBLE_PRECISION=FALSE ..
 make -j8
 # no run
 
+/bin/rm -rf *
 cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_COMPILER=$cpp_compiler -DKokkos_DIR=$kokkos_dir -DENABLE_TRACING=TRUE ..
 make -j8
 # no run
 
-cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=$cpp_compiler -DKokkos_DIR=$kokkos_dir -DENABLE_TRACING=TRUE ..
+/bin/rm -rf *
+cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=$cpp_compiler -DKokkos_DIR=$kokkos_dir ..
 make -j8
 ./p3/micro_sed 10000 128 300 30 1
 ./p3/micro_sed_vanilla 10000 128 300 30 1
