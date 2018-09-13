@@ -434,24 +434,26 @@ void micro_sed_func_vanilla(const int kts, const int kte, const int its, const i
 template <typename Real>
 void dump_to_file(const char* filename,
                   const Real* qr, const Real* nr, const Real* th, const Real* dzq, const Real* pres, const Real* prt_liq,
-                  const int ni, const int nk, const Real dt, const int ts)
+                  const int ni, const int nk, const Real dt, const int ts, int ldk = -1)
 {
+  if (ldk < 0) ldk = nk;
+
   std::string full_fn(filename);
   full_fn += "_perf_run.dat" + std::to_string(sizeof(Real));
 
   util::FILEPtr fid(fopen(full_fn.c_str(), "w"));
   micro_throw_if( !fid, "dump_to_file can't write " << filename);
 
-  const int n = ni * nk;
   util::write(&ni, 1, fid);
   util::write(&nk, 1, fid);
   util::write(&dt, 1, fid);
   util::write(&ts, 1, fid);
-  util::write(qr, n, fid);
-  util::write(nr, n, fid);
-  util::write(th, n, fid);
-  util::write(dzq, n, fid);
-  util::write(pres, n, fid);
+  // Account for possible alignment padding.
+  for (int i = 0; i < ni; ++i) util::write(qr + ldk*i, nk, fid);
+  for (int i = 0; i < ni; ++i) util::write(nr + ldk*i, nk, fid);
+  for (int i = 0; i < ni; ++i) util::write(th + ldk*i, nk, fid);
+  for (int i = 0; i < ni; ++i) util::write(dzq + ldk*i, nk, fid);
+  for (int i = 0; i < ni; ++i) util::write(pres + ldk*i, nk, fid);
   util::write(prt_liq, ni, fid);
 }
 

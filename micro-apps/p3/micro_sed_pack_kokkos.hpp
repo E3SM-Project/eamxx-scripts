@@ -216,27 +216,28 @@ void get_rain_dsd2_kokkos (
 }
 
 struct MicroSedFuncPackKokkos {
-  int num_horz, num_vert;
+  int num_horz, num_vert, num_pack;
 
   // re-usable scratch views
-  kokkos_2d_t<Real> V_qr, V_nr, flux_qr, flux_nr, mu_r, lamr, rhofacr, inv_dzq, rho, inv_rho, t;
+  kokkos_2d_t<RealPack> V_qr, V_nr, flux_qr, flux_nr, mu_r, lamr, rhofacr, inv_dzq, rho, inv_rho, t;
   kokkos_2d_table_t<Real> vn_table, vm_table;
   kokkos_1d_table_t<Real> mu_r_table;
 
 public:
   MicroSedFuncPackKokkos(int num_horz_, int num_vert_) :
     num_horz(num_horz_), num_vert(num_vert_),
-    V_qr("V_qr", num_horz, num_vert),
-    V_nr("V_nr", num_horz, num_vert),
-    flux_qr("flux_qr", num_horz, num_vert),
-    flux_nr("flux_nr", num_horz, num_vert),
-    mu_r("mu_r", num_horz, num_vert),
-    lamr("lamr", num_horz, num_vert),
-    rhofacr("rhofacr", num_horz, num_vert),
-    inv_dzq("inv_dzq", num_horz, num_vert),
-    rho("rho", num_horz, num_vert),
-    inv_rho("inv_rho", num_horz, num_vert),
-    t("t", num_horz, num_vert),
+    num_pack(scream::pack::npack<RealPack>(num_vert)),
+    V_qr("V_qr", num_horz, num_pack),
+    V_nr("V_nr", num_horz, num_pack),
+    flux_qr("flux_qr", num_horz, num_pack),
+    flux_nr("flux_nr", num_horz, num_pack),
+    mu_r("mu_r", num_horz, num_pack),
+    lamr("lamr", num_horz, num_pack),
+    rhofacr("rhofacr", num_horz, num_pack),
+    inv_dzq("inv_dzq", num_horz, num_pack),
+    rho("rho", num_horz, num_pack),
+    inv_rho("inv_rho", num_horz, num_pack),
+    t("t", num_horz, num_pack),
     vn_table("VN_TABLE"), vm_table("VM_TABLE"),
     mu_r_table("MU_R_TABLE")
   {
@@ -432,48 +433,32 @@ Int find_top (const member_type& team,
 void micro_sed_func_pack_kokkos (
   MicroSedFuncPackKokkos& m,
   const Int kts, const Int kte, const int its, const int ite, const Real dt,
-  const kokkos_2d_t<Real>& qr, const kokkos_2d_t<Real>& nr,
-  const kokkos_2d_t<Real>& th, const kokkos_2d_t<Real>& dzq, const kokkos_2d_t<Real>& pres,
+  const kokkos_2d_t<RealPack>& qr, const kokkos_2d_t<RealPack>& nr,
+  const kokkos_2d_t<RealPack>& th, const kokkos_2d_t<RealPack>& dzq, const kokkos_2d_t<RealPack>& pres,
   const kokkos_1d_t<Real>& prt_liq)
 {
-  const kokkos_2d_t<RealPack>
-    pdzq = packize(dzq),
-    ppres = packize(pres),
-    pinv_dzq = packize(m.inv_dzq),
-    pt = packize(m.t),
-    pth = packize(th),
-    prho = packize(m.rho),
-    pinv_rho = packize(m.inv_rho),
-    prhofacr = packize(m.rhofacr),
-    pV_qr = packize(m.V_qr),
-    pV_nr = packize(m.V_nr),
-    pqr = packize(qr),
-    pnr = packize(nr);
   const kokkos_2d_t<RealSmallPack>
-    sdzq = smallize(dzq),
-    spres = smallize(pres),
-    sinv_dzq = smallize(m.inv_dzq),
-    st = smallize(m.t),
-    sth = smallize(th),
-    srho = smallize(m.rho),
-    sinv_rho = smallize(m.inv_rho),
-    srhofacr = smallize(m.rhofacr),
-    sV_qr = smallize(m.V_qr),
-    sV_nr = smallize(m.V_nr),
-    sflux_qr = smallize(m.flux_qr),
-    sflux_nr = smallize(m.flux_nr),
-    sqr = smallize(qr),
-    snr = smallize(nr),
-    smu_r = smallize(m.mu_r),
-    slamr = smallize(m.lamr);
+    linv_dzq = smallize(m.inv_dzq),
+    lrhofacr = smallize(m.rhofacr),
+    lV_qr = smallize(m.V_qr),
+    lV_nr = smallize(m.V_nr),
+    lflux_qr = smallize(m.flux_qr),
+    lflux_nr = smallize(m.flux_nr),
+    lqr = smallize(qr),
+    lnr = smallize(nr),
+    lmu_r = smallize(m.mu_r),
+    llamr = smallize(m.lamr);
+  const kokkos_2d_t<Real>
+    sqr = scalarize(qr),
+    flux_qr = scalarize(m.flux_qr);
 
   // constants
   const Real odt = 1.0 / dt;
-  constexpr Real nsmall = Globals<Real>::NSMALL;
-  const auto rd = Globals<Real>::RD;
-  const auto rd_inv_cp = Globals<Real>::RD * Globals<Real>::INV_CP;
-  const auto rhosur = Globals<Real>::RHOSUR;
-  const auto qsmall = Globals<Real>::QSMALL;
+  constexpr auto nsmall = Globals<Real>::NSMALL;
+  constexpr auto rd = Globals<Real>::RD;
+  constexpr auto rd_inv_cp = Globals<Real>::RD * Globals<Real>::INV_CP;
+  constexpr auto rhosur = Globals<Real>::RHOSUR;
+  constexpr auto qsmall = Globals<Real>::QSMALL;
 
   // direction of vertical leveling
   const Int kbot = (kts < kte) ? 0 : m.num_vert-1;
@@ -489,23 +474,23 @@ void micro_sed_func_pack_kokkos (
 
       Kokkos::parallel_for(
         Kokkos::TeamThreadRange(team, m.num_vert / RealPack::n), [&] (Int k) {
-          pinv_dzq(i, k) = 1 / pdzq(i, k);
-          pt(i, k) = pow(ppres(i, k) * 1.e-5, rd_inv_cp) * pth(i, k);
-          prho(i, k) = ppres(i, k) / (rd * pt(i, k));
-          pinv_rho(i, k) = 1.0 / prho(i, k);
-          prhofacr(i, k) = pow(rhosur * pinv_rho(i, k), 0.54);
+          m.inv_dzq(i, k) = 1 / dzq(i, k);
+          m.t(i, k) = pow(pres(i, k) * 1.e-5, rd_inv_cp) * th(i, k);
+          m.rho(i, k) = pres(i, k) / (rd * m.t(i, k));
+          m.inv_rho(i, k) = 1.0 / m.rho(i, k);
+          m.rhofacr(i, k) = pow(rhosur * m.inv_rho(i, k), 0.54);
         });
       team.team_barrier();
 
       bool log_qxpresent;
-      const Int k_qxtop = find_top(team, Kokkos::subview(qr, i, Kokkos::ALL),
+      const Int k_qxtop = find_top(team, Kokkos::subview(sqr, i, Kokkos::ALL),
                                    qsmall, kbot, ktop, kdir, log_qxpresent);
 
       if (log_qxpresent) {
         Real dt_left = dt;    // time remaining for sedi over full model (mp) time step
         Real prt_accum = 0.0; // precip rate for individual category
 
-        Int k_qxbot = find_bottom(team, Kokkos::subview(qr, i, Kokkos::ALL),
+        Int k_qxbot = find_bottom(team, Kokkos::subview(sqr, i, Kokkos::ALL),
                                   qsmall, kbot, k_qxtop, kdir, log_qxpresent);
 
         while (dt_left > 1.e-4) {
@@ -514,8 +499,8 @@ void micro_sed_func_pack_kokkos (
 
           Kokkos::parallel_for(
             Kokkos::TeamThreadRange(team, m.num_vert / RealPack::n), [&] (Int k) {
-              pV_qr(i, k) = 0;
-              pV_nr(i, k) = 0;
+              m.V_qr(i, k) = 0;
+              m.V_nr(i, k) = 0;
             });
           team.team_barrier();
 
@@ -523,23 +508,23 @@ void micro_sed_func_pack_kokkos (
           Kokkos::parallel_reduce(
             Kokkos::TeamThreadRange(team, kmax-kmin+1), [&] (int pk_, Real& lmax) {
               const int pk = kmin + pk_;
-              const auto qr_gt_small = sqr(i, pk) > qsmall;
+              const auto qr_gt_small = lqr(i, pk) > qsmall;
               if (qr_gt_small.any()) {
                 // Compute Vq, Vn:
-                snr(i, pk).set(qr_gt_small, max(snr(i, pk), nsmall));
+                lnr(i, pk).set(qr_gt_small, max(lnr(i, pk), nsmall));
                 Table3 t;
                 RealSmallPack tmp1, tmp2;
-                get_rain_dsd2_kokkos(qr_gt_small, sqr(i, pk), snr(i, pk), smu_r(i, pk),
-                                     t.rdumii, t.dumii, slamr(i, pk),
+                get_rain_dsd2_kokkos(qr_gt_small, lqr(i, pk), lnr(i, pk), lmu_r(i, pk),
+                                     t.rdumii, t.dumii, llamr(i, pk),
                                      m.mu_r_table, tmp1, tmp2);
-                find_lookupTable_indices_3_kokkos(qr_gt_small, t, smu_r(i, pk), slamr(i, pk));
+                find_lookupTable_indices_3_kokkos(qr_gt_small, t, lmu_r(i, pk), llamr(i, pk));
                 // mass-weighted fall speed:
-                sV_qr(i, pk).set(qr_gt_small,
-                                 apply_table(qr_gt_small, m.vm_table, t) * srhofacr(i, pk));
+                lV_qr(i, pk).set(qr_gt_small,
+                                 apply_table(qr_gt_small, m.vm_table, t) * lrhofacr(i, pk));
                 // number-weighted fall speed:
-                sV_nr(i, pk).set(qr_gt_small,
-                                 apply_table(qr_gt_small, m.vn_table, t) * srhofacr(i, pk));
-                const auto Co_max_local = max(sV_qr(i, pk) * dt_left * sinv_dzq(i, pk));
+                lV_nr(i, pk).set(qr_gt_small,
+                                 apply_table(qr_gt_small, m.vn_table, t) * lrhofacr(i, pk));
+                const auto Co_max_local = max(lV_qr(i, pk) * dt_left * linv_dzq(i, pk));
                 if (Co_max_local > lmax)
                   lmax = Co_max_local;
               }
@@ -560,11 +545,11 @@ void micro_sed_func_pack_kokkos (
           calc_first_order_upwind_step<2>(
             m, team, i,
             k_temp, k_qxtop, kdir, dt_sub,
-            {&sflux_qr, &sflux_nr}, {&sV_qr, &sV_nr}, {&sqr, &snr});
+            {&lflux_qr, &lflux_nr}, {&lV_qr, &lV_nr}, {&lqr, &lnr});
           team.team_barrier();
 
           // accumulated precip during time step
-          if (k_qxbot == kbot) prt_accum += m.flux_qr(i, kbot) * dt_sub;
+          if (k_qxbot == kbot) prt_accum += flux_qr(i, kbot) * dt_sub;
 
           dt_left -= dt_sub;  // update time remaining for sedimentation
           if (k_qxbot != kbot) k_qxbot -= kdir;
@@ -579,13 +564,14 @@ void micro_sed_func_pack_kokkos (
 }
 
 void populate_kokkos_from_vec (
-  const int num_horz, const int num_vert, vector_2d_t<Real> const& vec, kokkos_2d_t<Real>& device)
+  const int num_horz, const int num_vert, vector_2d_t<Real> const& vec, kokkos_2d_t<RealPack>& device)
 {
-  typename kokkos_2d_t<Real>::HostMirror mirror = Kokkos::create_mirror_view(device);
+  const auto mirror = Kokkos::create_mirror_view(device);
+  const auto smirror = scalarize(mirror);
 
   for (int i = 0; i < num_horz; ++i) {
     for (Int k = 0; k < num_vert; ++k) {
-      mirror(i, k) = vec[i][k];
+      smirror(i, k) = vec[i][k];
     }
   }
 
@@ -593,13 +579,10 @@ void populate_kokkos_from_vec (
 }
 
 void dump_to_file_k (
-  const kokkos_2d_t<Real>& qr, const kokkos_2d_t<Real>& nr, const kokkos_2d_t<Real>& th,
-  const kokkos_2d_t<Real>& dzq, const kokkos_2d_t<Real>& pres, const kokkos_1d_t<Real>& prt_liq,
-  const Real dt, const int ts)
+  const kokkos_2d_t<RealPack>& qr, const kokkos_2d_t<RealPack>& nr, const kokkos_2d_t<RealPack>& th,
+  const kokkos_2d_t<RealPack>& dzq, const kokkos_2d_t<RealPack>& pres, const kokkos_1d_t<Real>& prt_liq,
+  const int nk, const Real dt, const int ts)
 {
-  const int ni = qr.extent_int(0);
-  const int nk = qr.extent_int(1);
-
   auto qr_m      = Kokkos::create_mirror_view(qr);
   auto nr_m      = Kokkos::create_mirror_view(nr);
   auto th_m      = Kokkos::create_mirror_view(th);
@@ -614,9 +597,18 @@ void dump_to_file_k (
   Kokkos::deep_copy(pres_m,    pres);
   Kokkos::deep_copy(prt_liq_m, prt_liq);
 
+  const auto
+    sqr = scalarize(qr_m),
+    snr = scalarize(nr_m),
+    sth = scalarize(th_m),
+    sdzq = scalarize(dzq_m),
+    spres = scalarize(pres_m);
+  const int ni = qr.extent_int(0);
+  const int ldk = sqr.extent_int(1);
+
   p3::micro_sed_vanilla::dump_to_file(
-    "pack_kokkos", qr_m.data(), nr_m.data(), th_m.data(), dzq_m.data(), pres_m.data(),
-    prt_liq_m.data(), ni, nk, dt, ts);
+    "pack_kokkos", sqr.data(), snr.data(), sth.data(), sdzq.data(), spres.data(),
+    prt_liq_m.data(), ni, nk, dt, ts, ldk);
 }
 
 void micro_sed_func_pack_kokkos_wrap (
@@ -633,9 +625,9 @@ void micro_sed_func_pack_kokkos_wrap (
   p3::micro_sed_vanilla::populate_input(ni, nk, kdir, qr_v, nr_v, th_v, dzq_v, pres_v);
 
   MicroSedFuncPackKokkos mspk(ni, nk);
-  const int np = mspk.num_vert;
+  const int np = mspk.num_pack;
   
-  kokkos_2d_t<Real> qr("qr", ni, np), nr("nr", ni, np), th("th", ni, np), dzq("dzq", ni, np),
+  kokkos_2d_t<RealPack> qr("qr", ni, np), nr("nr", ni, np), th("th", ni, np), dzq("dzq", ni, np),
     pres("pres", ni, np);
   kokkos_1d_t<Real> prt_liq("prt_liq", ni);
 
@@ -657,7 +649,7 @@ void micro_sed_func_pack_kokkos_wrap (
   auto duration = std::chrono::duration_cast<std::chrono::microseconds>(finish - start);
   printf("Time = %1.3e seconds\n", 1e-6*duration.count());
 
-  dump_to_file_k(qr, nr, th, dzq, pres, prt_liq, dt, ts);
+  dump_to_file_k(qr, nr, th, dzq, pres, prt_liq, nk, dt, ts);
 }
 
 } // namespace p3

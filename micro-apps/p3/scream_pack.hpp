@@ -353,6 +353,11 @@ index (const Array2& a, const IdxPack& i0, const IdxPack& i1,
   return p;
 }
 
+template <typename Pack> KOKKOS_INLINE_FUNCTION
+OnlyPackReturn<Pack,Int> npack(const Int& nscalar) {
+  return (nscalar + Pack::n - 1) / Pack::n;
+}
+
 } // namespace pack
 } // namespace scream
 
