@@ -247,9 +247,20 @@ OnlyPackReturn<Pack, typename Pack::scalar> max (const Pack& p) {
   scream_pack_gen_bin_fn_ps(fn, impl)           \
   scream_pack_gen_bin_fn_sp(fn, impl)
 
-scream_pack_gen_bin_fn_all(pow, std::pow)
 scream_pack_gen_bin_fn_all(min, util::min)
 scream_pack_gen_bin_fn_all(max, util::max)
+
+// On Intel 17 for KNL, I'm getting a ~1-ulp diff on const Scalar& b. I don't
+// understand its source. But, in any case, I'm writing a separate impl here to
+// get around that.
+//scream_pack_gen_bin_fn_all(pow, std::pow)
+template <typename Pack, typename Scalar> KOKKOS_INLINE_FUNCTION
+OnlyPack<Pack> pow (const Pack& a, const Scalar/*&*/ b) {
+  Pack s;
+  vector_simd for (int i = 0; i < Pack::n; ++i)
+    s[i] = std::pow<typename Pack::scalar>(a[i], b);
+  return s;
+}
 
 template <typename Pack> KOKKOS_INLINE_FUNCTION
 OnlyPack<Pack> shift_right (const Pack& pm1, const Pack& p) {
