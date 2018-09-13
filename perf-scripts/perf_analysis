@@ -104,7 +104,7 @@ OR
     args = parser.parse_args(args[1:])
 
     if not args.test:
-        args.test = ["fortran", "cpp", "kokkos"]
+        args.test = ["fortran", "cpp", "kokkos", "workspace"]
 
     args.cmake_options += " -DCMAKE_BUILD_TYPE=RelWithDebInfo -DKokkos_DIR={}".format(args.kokkos)
     if args.cxx:
@@ -113,7 +113,7 @@ OR
     expect(not args.plot_friendly or args.scaling, "Doesn't make sense to have plot friendly output without a scaling experiment")
 
     if args.scaling is None:
-        scaling_exp = ScalingExp("ni:1.0:{}".format(args.ni))
+        scaling_exp = ScalingExp("ni:2.0:{}".format(args.ni))
     else:
         scaling_exp = ScalingExp(args.scaling)
 
@@ -136,7 +136,7 @@ def get_time(output):
     >>> get_time(output)
     0.047
     """
-    regex = re.compile(r'Time\s*=\s*([0-9.]+)\s*seconds')
+    regex = re.compile(r'Time\s*=\s*([^\s]+)\s*seconds')
     the_time = None
     for line in output.splitlines():
         m = regex.match(line)
@@ -171,6 +171,11 @@ def run_cpp(ni, nk, dt, ts, num_runs):
 def run_kokkos(ni, nk, dt, ts, num_runs):
 ###############################################################################
     return run_p3("micro_sed_vanilla_kokkos", ni, nk, dt, ts, num_runs)
+
+###############################################################################
+def run_kokkos_workspace(ni, nk, dt, ts, num_runs):
+###############################################################################
+    return run_p3("micro_sed_workspace_kokkos", ni, nk, dt, ts, num_runs)
 
 ###############################################################################
 def user_explain(test, avg_time, reference, ni):
@@ -213,6 +218,8 @@ def perf_analysis(ni, nk, dt, ts, num_runs, tests, cmake_options, use_existing, 
                 avg_time = run_cpp(ni, nk, dt, ts, num_runs)
             elif test == "kokkos":
                 avg_time = run_kokkos(ni, nk, dt, ts, num_runs)
+            elif test == "workspace":
+                avg_time = run_kokkos_workspace(ni, nk, dt, ts, num_runs)
             else:
                 expect(False, "Unknown test '{}'".format(test))
 
