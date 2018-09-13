@@ -345,9 +345,11 @@ void run_over_parameter_sets (MicroSedObserver<Scalar>& o, const Int ncol) {
   d.dt = dt_tot;
   populate(d, 1);
 
+  std::cout << "amb fwd\n";
   o.observe(d);
 
   const auto d_rev(reverse_k(d));
+  std::cout << "amb bwd\n";
   o.observe(d_rev);
 }
 

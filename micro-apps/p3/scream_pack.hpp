@@ -218,6 +218,15 @@ OnlyPackReturn<Pack, typename Pack::scalar> max (const Pack& p) {
   return v;
 }
 
+// max(init, max(p(mask)))
+template <typename Pack> KOKKOS_INLINE_FUNCTION
+OnlyPackReturn<Pack, typename Pack::scalar>
+max (const Mask<Pack::n>& mask, typename Pack::scalar init, const Pack& p) {
+  vector_simd for (int i = 0; i < Pack::n; ++i)
+    if (mask[i]) init = util::max(init, p[i]);
+  return init;
+}
+
 #define scream_pack_gen_bin_fn_pp(fn, impl)           \
   template <typename Pack> KOKKOS_INLINE_FUNCTION     \
   OnlyPack<Pack> fn (const Pack& a, const Pack& b) {  \

@@ -504,7 +504,7 @@ void micro_sed_func_pack_kokkos (
               auto qr_gt_small = (lqr(i, pk) > qsmall);
               if (m.num_vert % RealSmallPack::n != 0)
                 qr_gt_small = qr_gt_small &
-                  (scream::pack::range<IntSmallPack>(pk*RealSmallPack::n) <= m.num_vert);
+                  (scream::pack::range<IntSmallPack>(pk*RealSmallPack::n) < m.num_vert);
               if (qr_gt_small.any()) {
                 // Compute Vq, Vn:
                 lnr(i, pk).set(qr_gt_small, max(lnr(i, pk), nsmall));
@@ -520,7 +520,8 @@ void micro_sed_func_pack_kokkos (
                 // number-weighted fall speed:
                 lV_nr(i, pk).set(qr_gt_small,
                                  apply_table(qr_gt_small, m.vn_table, t) * lrhofacr(i, pk));
-                const auto Co_max_local = max(lV_qr(i, pk) * dt_left * linv_dzq(i, pk));
+                const auto Co_max_local = max(qr_gt_small, 0,
+                                              lV_qr(i, pk) * dt_left * linv_dzq(i, pk));
                 if (Co_max_local > lmax)
                   lmax = Co_max_local;
               }
