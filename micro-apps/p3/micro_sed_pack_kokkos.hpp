@@ -21,9 +21,6 @@
 # define SCREAM_SMALL_PACK_FACTOR 1
 #endif
 
-#define AMB_NO_MPI
-#include "/home/ambradl/climate/sik/hommexx/dbg.hpp"
-
 namespace p3 {
 namespace micro_sed_pack {
 
@@ -41,9 +38,10 @@ using IntPack = BigPack<Int>;
 using RealSmallPack = SmallPack<Real>;
 using IntSmallPack = SmallPack<Int>;
 
-template <typename T> KOKKOS_FORCEINLINE_FUNCTION
-kokkos_2d_t<T> scalarize (const kokkos_2d_t<BigPack<T> >& vp) {
-  return Kokkos::View<T**, Layout, MemSpace, Kokkos::MemoryTraits<Kokkos::Unmanaged> >(
+template <typename T, typename ...Parms> KOKKOS_FORCEINLINE_FUNCTION
+Kokkos::View<T**, Parms..., Kokkos::MemoryTraits<Kokkos::Unmanaged> >
+scalarize (const Kokkos::View<BigPack<T>**, Parms...>& vp) {
+  return Kokkos::View<T**, Parms..., Kokkos::MemoryTraits<Kokkos::Unmanaged> >(
     reinterpret_cast<T*>(vp.data()), vp.extent_int(0), RealPack::n * vp.extent_int(1));
 }
 
