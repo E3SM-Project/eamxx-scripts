@@ -156,10 +156,10 @@ void get_rain_dsd2_kokkos (
 
   // find spot in lookup table
   // (scaled N/q for lookup table parameter space)
-  RealSmallPack nr_safe(qr_gt_small, max(nr, nsmall)), qr_safe(qr_gt_small, qr);
+  nr.set(qr_gt_small, max(nr, nsmall));
   RealSmallPack inv_dum(0);
   inv_dum.set(qr_gt_small,
-              pow(qr_safe / (cons1 * nr_safe * 6.0), thrd));
+              pow(qr / (cons1 * nr * 6.0), thrd));
 
   mu_r = 0;
   {
@@ -186,8 +186,8 @@ void get_rain_dsd2_kokkos (
 
   // recalculate slope based on mu_r
   lamr.set(qr_gt_small,
-           pow(cons1 * nr_safe * (mu_r + 3) *
-               (mu_r + 2) * (mu_r + 1)/qr_safe,
+           pow(cons1 * nr * (mu_r + 3) *
+               (mu_r + 2) * (mu_r + 1)/qr,
                thrd));
 
   // check for slope
@@ -504,9 +504,6 @@ void micro_sed_func_pack_kokkos (
             Kokkos::TeamThreadRange(team, kmax-kmin+1), [&] (int pk_, Real& lmax) {
               const int pk = kmin + pk_;
               auto qr_gt_small = (lqr(i, pk) > qsmall);
-              if (m.num_vert % RealSmallPack::n != 0)
-                qr_gt_small = qr_gt_small &
-                  (scream::pack::range<IntSmallPack>(pk*RealSmallPack::n) < m.num_vert);
               if (qr_gt_small.any()) {
                 // Compute Vq, Vn:
                 lnr(i, pk).set(qr_gt_small, max(lnr(i, pk), nsmall));
