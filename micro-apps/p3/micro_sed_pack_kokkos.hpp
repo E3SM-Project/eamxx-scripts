@@ -443,7 +443,7 @@ void micro_sed_func_pack_kokkos (
     llamr = smallize(m.lamr);
   const kokkos_2d_t<Real>
     sqr = scalarize(qr),
-    flux_qr = scalarize(m.flux_qr);
+    sflux_qr = scalarize(m.flux_qr);
 
   // constants
   const Real odt = 1.0 / dt;
@@ -546,7 +546,7 @@ void micro_sed_func_pack_kokkos (
           team.team_barrier();
 
           // accumulated precip during time step
-          if (k_qxbot == kbot) prt_accum += flux_qr(i, kbot) * dt_sub;
+          if (k_qxbot == kbot) prt_accum += sflux_qr(i, kbot) * dt_sub;
 
           dt_left -= dt_sub;  // update time remaining for sedimentation
           if (k_qxbot != kbot) k_qxbot -= kdir;
