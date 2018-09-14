@@ -105,8 +105,8 @@ void get_rain_dsd2_kokkos(const Real qr, Real& nr, Real& mu_r, Real& rdumii, int
       nr   = std::exp(3.*std::log(lamr) + std::log(qr) + std::log(std::tgamma(mu_r+1.)) - log(std::tgamma(mu_r+4.)))/(Globals<Real>::CONS1);
     }
 
-    cdistr  = nr/std::tgamma(mu_r+1.);
-    logn0r  = std::log10(nr) + (mu_r+1.)*std::log10(lamr) - std::log10(std::tgamma(mu_r+1)); // note: logn0r is calculated as log10(n0r);
+    cdistr  = 0; //nr/std::tgamma(mu_r+1.);
+    logn0r  = 0; //std::log10(nr) + (mu_r+1.)*std::log10(lamr) - std::log10(std::tgamma(mu_r+1)); // note: logn0r is calculated as log10(n0r);
   }
   else {
     lamr   = 0.0;
@@ -125,7 +125,7 @@ struct MicroSedFuncVanillaKokkos
   kokkos_2d_table_t<Real> vn_table, vm_table;
   kokkos_1d_table_t<Real> mu_r_table;
 
-  static constexpr char* NAME = "kokkos_vanilla";
+  static constexpr const char* NAME = "kokkos_vanilla";
 
 public:
   MicroSedFuncVanillaKokkos(int num_horz_, int num_vert_) :

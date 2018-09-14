@@ -681,8 +681,8 @@ contains
           nr   = exp(3.*log(lamr)+log(qr)+log(gamma(mu_r+1.))-log(gamma(mu_r+4.)))/(CONS1)
        endif
 
-       cdistr  = nr/gamma(mu_r+1.)
-       logn0r  = alog10(nr)+(mu_r+1.)*alog10(lamr)-alog10(gamma(mu_r+1)) !note: logn0r is calculated as log10(n0r)
+       cdistr  = 0. !nr/gamma(mu_r+1.)
+       logn0r  = 0. !alog10(nr)+(mu_r+1.)*alog10(lamr)-alog10(gamma(mu_r+1)) !note: logn0r is calculated as log10(n0r)
 
     else
 

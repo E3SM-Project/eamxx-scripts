@@ -29,7 +29,7 @@ struct MicroSedFuncWorkspaceKokkos
   kokkos_2d_table_t<Real> vn_table, vm_table;
   kokkos_1d_table_t<Real> mu_r_table;
 
-  static constexpr char* NAME = "kokkos_workspace";
+  static constexpr const char* NAME = "kokkos_workspace";
 
 public:
   MicroSedFuncWorkspaceKokkos(int num_horz_, int num_vert_) :
