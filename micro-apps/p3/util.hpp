@@ -187,12 +187,6 @@ struct ExeSpaceUtils {
     const int concurrency = ExeSpace::concurrency();
     return (concurrency + team_size - 1) / team_size;
   }
-
-  template <typename TeamPolicy, typename MemberType>
-  static int get_team_idx(const TeamPolicy& policy, const MemberType& team_member)
-  {
-    return omp_get_thread_num() / policy.team_size();
-  }
 };
 
 #ifdef KOKKOS_ENABLE_CUDA
@@ -206,12 +200,6 @@ struct ExeSpaceUtils<Kokkos::Cuda> {
   static int get_num_concurrent_teams(const TeamPolicy& policy)
   {
     return policy.league_size();
-  }
-
-  template <typename TeamPolicy, typename MemberType>
-  static int get_team_idx(const TeamPolicy& policy, const MemberType& team_member)
-  {
-    return team_member.league_rank();
   }
 };
 #endif
