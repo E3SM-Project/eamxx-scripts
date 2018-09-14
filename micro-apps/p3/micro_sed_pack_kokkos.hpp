@@ -14,7 +14,7 @@
 #include <iomanip>
 
 namespace p3 {
-namespace micro_sed_pack {
+namespace micro_sed {
 
 using micro_sed::Globals;
 
@@ -56,6 +56,58 @@ using kokkos_2d_table_t = Kokkos::View<Real[300][10], Layout, MemSpace>;
 
 template <typename Real>
 using kokkos_1d_table_t = Kokkos::View<Real[150], Layout, MemSpace>;
+
+struct MicroSedFuncPackKokkos {
+  int num_horz, num_vert, num_pack;
+
+  // re-usable scratch views
+  kokkos_2d_t<RealPack> V_qr, V_nr, flux_qr, flux_nr, mu_r, lamr, rhofacr, inv_dzq, rho, inv_rho, t;
+  kokkos_2d_table_t<Real> vn_table, vm_table;
+  kokkos_1d_table_t<Real> mu_r_table;
+
+  static constexpr const char* NAME = "kokkos_pack";
+
+public:
+  MicroSedFuncPackKokkos(int num_horz_, int num_vert_) :
+    num_horz(num_horz_), num_vert(num_vert_),
+    num_pack(scream::pack::npack<RealPack>(num_vert)),
+    V_qr("V_qr", num_horz, num_pack),
+    V_nr("V_nr", num_horz, num_pack),
+    flux_qr("flux_qr", num_horz, num_pack),
+    flux_nr("flux_nr", num_horz, num_pack),
+    mu_r("mu_r", num_horz, num_pack),
+    lamr("lamr", num_horz, num_pack),
+    rhofacr("rhofacr", num_horz, num_pack),
+    inv_dzq("inv_dzq", num_horz, num_pack),
+    rho("rho", num_horz, num_pack),
+    inv_rho("inv_rho", num_horz, num_pack),
+    t("t", num_horz, num_pack),
+    vn_table("VN_TABLE"), vm_table("VM_TABLE"),
+    mu_r_table("MU_R_TABLE")
+  {
+    // initialize on host
+
+    auto mirror_vn_table = Kokkos::create_mirror_view(vn_table);
+    auto mirror_vm_table = Kokkos::create_mirror_view(vm_table);
+    auto mirror_mu_table = Kokkos::create_mirror_view(mu_r_table);
+
+    for (int i = 0; i < 300; ++i) {
+      for (Int k = 0; k < 10; ++k) {
+        mirror_vn_table(i, k) = Globals<Real>::VN_TABLE[i][k];
+        mirror_vm_table(i, k) = Globals<Real>::VM_TABLE[i][k];
+      }
+    }
+
+    for (int i = 0; i < 150; ++i) {
+      mirror_mu_table(i) = Globals<Real>::MU_R_TABLE[i];
+    }
+
+    // deep copy to device
+    Kokkos::deep_copy(vn_table, mirror_vn_table);
+    Kokkos::deep_copy(vm_table, mirror_vm_table);
+    Kokkos::deep_copy(mu_r_table, mirror_mu_table);
+  }
+};
 
 struct Table3 {
   IntSmallPack dumii, dumjj;
@@ -201,56 +253,6 @@ void get_rain_dsd2_kokkos (
     }
   }
 }
-
-struct MicroSedFuncPackKokkos {
-  int num_horz, num_vert, num_pack;
-
-  // re-usable scratch views
-  kokkos_2d_t<RealPack> V_qr, V_nr, flux_qr, flux_nr, mu_r, lamr, rhofacr, inv_dzq, rho, inv_rho, t;
-  kokkos_2d_table_t<Real> vn_table, vm_table;
-  kokkos_1d_table_t<Real> mu_r_table;
-
-public:
-  MicroSedFuncPackKokkos(int num_horz_, int num_vert_) :
-    num_horz(num_horz_), num_vert(num_vert_),
-    num_pack(scream::pack::npack<RealPack>(num_vert)),
-    V_qr("V_qr", num_horz, num_pack),
-    V_nr("V_nr", num_horz, num_pack),
-    flux_qr("flux_qr", num_horz, num_pack),
-    flux_nr("flux_nr", num_horz, num_pack),
-    mu_r("mu_r", num_horz, num_pack),
-    lamr("lamr", num_horz, num_pack),
-    rhofacr("rhofacr", num_horz, num_pack),
-    inv_dzq("inv_dzq", num_horz, num_pack),
-    rho("rho", num_horz, num_pack),
-    inv_rho("inv_rho", num_horz, num_pack),
-    t("t", num_horz, num_pack),
-    vn_table("VN_TABLE"), vm_table("VM_TABLE"),
-    mu_r_table("MU_R_TABLE")
-  {
-    // initialize on host
-
-    auto mirror_vn_table = Kokkos::create_mirror_view(vn_table);
-    auto mirror_vm_table = Kokkos::create_mirror_view(vm_table);
-    auto mirror_mu_table = Kokkos::create_mirror_view(mu_r_table);
-
-    for (int i = 0; i < 300; ++i) {
-      for (Int k = 0; k < 10; ++k) {
-        mirror_vn_table(i, k) = Globals<Real>::VN_TABLE[i][k];
-        mirror_vm_table(i, k) = Globals<Real>::VM_TABLE[i][k];
-      }
-    }
-
-    for (int i = 0; i < 150; ++i) {
-      mirror_mu_table(i) = Globals<Real>::MU_R_TABLE[i];
-    }
-
-    // deep copy to device
-    Kokkos::deep_copy(vn_table, mirror_vn_table);
-    Kokkos::deep_copy(vm_table, mirror_vm_table);
-    Kokkos::deep_copy(mu_r_table, mirror_mu_table);
-  }
-};
 
 //TODO Unit test.
 // Calculate the step in the region [k_bot, k_top].
@@ -418,7 +420,7 @@ Int find_top (const member_type& team,
   return k_xtop;
 }
 
-void micro_sed_func_pack_kokkos (
+void micro_sed_func (
   MicroSedFuncPackKokkos& m,
   const Int kts, const Int kte, const int its, const int ite, const Real dt,
   const kokkos_2d_t<RealPack>& qr, const kokkos_2d_t<RealPack>& nr,
@@ -628,9 +630,9 @@ void micro_sed_func_pack_kokkos_wrap (
   auto start = std::chrono::steady_clock::now();
 
   for (int i = 0; i < ts; ++i) {
-    micro_sed_func_pack_kokkos(mspk,
-                               kdir == 1 ? 1 : nk, kdir == 1 ? nk : 1,
-                               1, ni, dt, qr, nr, th, dzq, pres, prt_liq);
+    micro_sed_func(mspk,
+                   kdir == 1 ? 1 : nk, kdir == 1 ? nk : 1,
+                   1, ni, dt, qr, nr, th, dzq, pres, prt_liq);
     Kokkos::fence();
   }
 
@@ -642,6 +644,6 @@ void micro_sed_func_pack_kokkos_wrap (
 }
 
 } // namespace p3
-} // namespace micro_sed_pack
+} // namespace micro_sed
 
 #endif

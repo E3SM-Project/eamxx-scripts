@@ -1,4 +1,3 @@
-#include "micro_sed_vanilla_kokkos.hpp"
 #include "micro_sed_pack_kokkos.hpp"
 #include "types.hpp"
 #include "util.hpp"
@@ -20,7 +19,7 @@ int main(int argc, char** argv)
 
   Kokkos::initialize(argc, argv); {
     p3::micro_sed::p3_init_cpp<Real>();
-    p3::micro_sed_pack::micro_sed_func_pack_kokkos_wrap(ni, nk, dt, ts, kdir);
+    p3::micro_sed::micro_sed_func_pack_kokkos_wrap(ni, nk, dt, ts, kdir);
   } Kokkos::finalize();
 
   return 0;

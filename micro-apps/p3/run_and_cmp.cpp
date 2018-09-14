@@ -182,7 +182,7 @@ public:
 template <typename Scalar>
 class KokkosPackBridge {
 public:
-  using RealPack = p3::micro_sed_pack::RealPack;
+  using RealPack = p3::micro_sed::RealPack;
 
   int np;
   kokkos_2d_t<RealPack> qr, nr, th, dzq, pres;
@@ -202,7 +202,7 @@ public:
 
   void sync_from(const ic::MicroSedData<Scalar>& d)
   {
-    using p3::micro_sed_pack::scalarize;
+    using p3::micro_sed::scalarize;
 
     const auto
       qr_m = Kokkos::create_mirror_view(qr),
@@ -240,7 +240,7 @@ public:
 
   void sync_to(ic::MicroSedData<Scalar>& d) const
   {
-    using p3::micro_sed_pack::scalarize;
+    using p3::micro_sed::scalarize;
 
     const auto
       qr_m = Kokkos::create_mirror_view(qr),
@@ -287,22 +287,12 @@ void micro_sed_func_cpp (ic::MicroSedData<Scalar>& d, VanillaCppBridge<Scalar>& 
   bridge.sync_to(d);
 }
 
-template <typename Scalar, typename MSK>
-void micro_sed_func_cpp_kokkos (ic::MicroSedData<Scalar>& d, KokkosCppBridge<Scalar>& bridge, MSK& msk)
+template <typename Scalar, typename MSK, typename BridgeType>
+void micro_sed_func_cpp_kokkos (ic::MicroSedData<Scalar>& d, BridgeType& bridge, MSK& msk)
 {
   p3::micro_sed::micro_sed_func( msk, d.reverse ? d.nk : 1, d.reverse ? 1 : d.nk,
                                  1, d.ni, d.dt, bridge.qr, bridge.nr, bridge.th,
                                  bridge.dzq, bridge.pres, bridge.prt_liq);
-
-  bridge.sync_to(d);
-}
-
-template <typename Scalar>
-void micro_sed_func_cpp_pack_kokkos (ic::MicroSedData<Scalar>& d, KokkosPackBridge<Scalar>& bridge, p3::micro_sed_pack::MicroSedFuncPackKokkos& msvk)
-{
-  micro_sed_func_pack_kokkos( msvk, d.reverse ? d.nk : 1, d.reverse ? 1 : d.nk,
-                              1, d.ni, d.dt, bridge.qr, bridge.nr, bridge.th,
-                              bridge.dzq, bridge.pres, bridge.prt_liq);
 
   bridge.sync_to(d);
 }
@@ -450,14 +440,12 @@ static Int run_and_cmp (const std::string& bfn, const Real& tol, bool verbose) {
       auto d_ic_cp(d_ic);
       d_ic_cp.dt /= BaselineConsts::nstep;
 
-      std::vector<ic::MicroSedData<Scalar> > ds = {ic::MicroSedData<Scalar>(d_ic_cp), ic::MicroSedData<Scalar>(d_ic_cp), ic::MicroSedData<Scalar>(d_ic_cp), ic::MicroSedData<Scalar>(d_ic_cp)};
+      std::vector<ic::MicroSedData<Scalar> > ds
+        = {ic::MicroSedData<Scalar>(d_ic_cp), ic::MicroSedData<Scalar>(d_ic_cp), ic::MicroSedData<Scalar>(d_ic_cp), ic::MicroSedData<Scalar>(d_ic_cp), ic::MicroSedData<Scalar>(d_ic_cp)};
 
       p3::micro_sed::MicroSedFuncWorkspaceKokkos<Scalar> mswk(d_ic.ni, d_ic.nk);
       p3::micro_sed::MicroSedFuncVanillaKokkos<Scalar> msvk(d_ic.ni, d_ic.nk);
-
-      p3::micro_sed_pack::MicroSedFuncPackKokkos mspk(d_ic.ni, d_ic.nk);
-      auto d_pack_kokkos_cpp(d_ic_cp);
-      KokkosPackBridge<Scalar> kcpp_pack_bridge(d_pack_kokkos_cpp);
+      p3::micro_sed::MicroSedFuncPackKokkos mspk(d_ic.ni, d_ic.nk);
 
       for (Int step = 0; step < BaselineConsts::nstep; ++step) {
         // Read the baseline.
@@ -481,6 +469,8 @@ static Int run_and_cmp (const std::string& bfn, const Real& tol, bool verbose) {
 
         const Real sptol = 2e-5;
         Real cpp_tol = (util::is_single_precision<Real>::value && tol < sptol) ? sptol : tol;
+        micro_throw_if( ! util::is_single_precision<Real>::value && tol != 0,
+                        "Must remain bfb in double precision.");
 
         // Compare the Fortran code in case we need to change it, as we will
         // for handling the issue of single vs double precision. In this case,
@@ -498,17 +488,11 @@ static Int run_and_cmp (const std::string& bfn, const Real& tol, bool verbose) {
         nerr += do_compare<KokkosCppBridge<Scalar> >([&] (ic::MicroSedData<Scalar>& d, KokkosCppBridge<Scalar>& b) { micro_sed_func_cpp_kokkos(d, b, mswk); },
                                                      ds[3], d_ref, cpp_tol, "Workspace Kokkos C++", step, verbose);
 
-        { // C++ kokkos with packs.
-          micro_sed_func_cpp_pack_kokkos(d_pack_kokkos_cpp, kcpp_pack_bridge, mspk);
-          std::stringstream ss;
-          ss << "Pack Kokkos C++ step " << step;
-          const Real sptol = 2e-5;
-          Real kokkos_tol = (util::is_single_precision<Real>::value && tol < sptol) ? sptol : tol;
-          // Sanity check.
-          micro_throw_if( ! util::is_single_precision<Real>::value && tol != 0,
-                          "We want BFB in double precision, at least in DEBUG builds.");
-          nerr += compare(ss.str(), d_ref, d_pack_kokkos_cpp, kokkos_tol, verbose);
-        }
+        nerr += do_compare<KokkosPackBridge<Scalar> >(
+          [&] (ic::MicroSedData<Scalar>& d, KokkosPackBridge<Scalar>& b) {
+            micro_sed_func_cpp_kokkos(d, b, mspk);
+          },
+          ds[4], d_ref, cpp_tol, "Pack Kokkos C++", step, verbose);        
       }
     }
   };
