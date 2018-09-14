@@ -29,7 +29,7 @@ struct MicroSedFuncWorkspaceKokkos
   // re-usable scratch views
   //
   kokkos_2d_t<Real> V_qr, V_nr, flux_qx, flux_nx; // 2d to prevent race conditions
-  kokkos_2d_t<Real> mu_r, lamr, rhofacr, inv_dzq, rho, inv_rho, t, tmparr1; // legit 2d
+  kokkos_2d_t<Real> mu_r, lamr, rhofacr, inv_dzq, rho, inv_rho, t, tmparr1;
 
   kokkos_2d_table_t<Real> vn_table, vm_table;
   kokkos_1d_table_t<Real> mu_r_table;
@@ -46,14 +46,14 @@ public:
     V_nr("V_nr", concurrency, num_vert),
     flux_qx("flux_qx", concurrency, num_vert),
     flux_nx("flux_nx", concurrency, num_vert),
-    mu_r("mu_r", num_horz, num_vert),
-    lamr("lamr", num_horz, num_vert),
-    rhofacr("rhofacr", num_horz, num_vert),
-    inv_dzq("inv_dzq", num_horz, num_vert),
-    rho("rho", num_horz, num_vert),
-    inv_rho("inv_rho", num_horz, num_vert),
-    t("t", num_horz, num_vert),
-    tmparr1("tmparr1", num_horz, num_vert),
+    mu_r("mu_r", concurrency, num_vert),
+    lamr("lamr", concurrency, num_vert),
+    rhofacr("rhofacr", concurrency, num_vert),
+    inv_dzq("inv_dzq", concurrency, num_vert),
+    rho("rho", concurrency, num_vert),
+    inv_rho("inv_rho", concurrency, num_vert),
+    t("t", concurrency, num_vert),
+    tmparr1("tmparr1", concurrency, num_vert),
     vn_table("VN_TABLE"), vm_table("VM_TABLE"),
     mu_r_table("MU_R_TABLE")
   {
@@ -85,16 +85,14 @@ template <typename Real>
 void reset(MicroSedFuncWorkspaceKokkos<Real>& msvk)
 {
   Kokkos::parallel_for("2d reset",
-                       msvk.policy,
+                       util::ExeSpaceUtils<>::get_default_team_policy(msvk.concurrency, msvk.num_vert),
                        KOKKOS_LAMBDA(member_type team_member) {
     const int i = team_member.league_rank();
     Kokkos::parallel_for(Kokkos::TeamThreadRange(team_member, msvk.num_vert), [=] (int k) {
-      if (i < msvk.concurrency) {
-        msvk.V_qr(i, k)    = 0.0;
-        msvk.V_nr(i, k)    = 0.0;
-        msvk.flux_qx(i, k) = 0.0;
-        msvk.flux_nx(i, k) = 0.0;
-      }
+      msvk.V_qr(i, k)    = 0.0;
+      msvk.V_nr(i, k)    = 0.0;
+      msvk.flux_qx(i, k) = 0.0;
+      msvk.flux_nx(i, k) = 0.0;
       msvk.mu_r(i, k)    = 0.0;
       msvk.lamr(i, k)    = 0.0;
       msvk.rhofacr(i, k) = 0.0;
@@ -146,30 +144,18 @@ void micro_sed_func(MicroSedFuncWorkspaceKokkos<Real>& msvk,
   Kokkos::parallel_for("main rain sed loop",
                        msvk.policy,
                        KOKKOS_LAMBDA(member_type team_member) {
-    const int i = team_member.league_rank();
-    const int i_team1 = msvk.team_utils.get_workspace_idx(i);
-
-    const int i_team2 = i % msvk.concurrency;
-    const int i_team3 = omp_get_thread_num();
-    const int i_team = i_team1;
-
-    // for (int j = 0; j < omp_get_num_threads(); ++j) {
-    //   if (j == i_team3) {
-    //     std::cout << "For team: " << i << ", team_rank=" << team_member.team_rank() << ", thread: " << i_team3 << " , i_team1: " << i_team1 << " , i_team2: " << i_team2 << ", conc: " << msvk.concurrency << std::endl;
-    //   }
-    //   std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    //   team_member.team_barrier();
-    // }
+    const int i      = team_member.league_rank();
+    const int i_team = msvk.team_utils.get_workspace_idx(i);
 
     trace_loop("  k_loop_1", kbot, ktop);
     Kokkos::parallel_for(Kokkos::TeamThreadRange(team_member, msvk.num_vert), [=] (int k) {
       // inverse of thickness of layers
-      msvk.inv_dzq(i, k) = 1 / dzq(i, k);
-      msvk.t(i, k) = std::pow(pres(i, k) * 1.e-5, Globals<Real>::RD * Globals<Real>::INV_CP) * th(i, k);
-      msvk.rho(i, k) = pres(i, k) / (Globals<Real>::RD * msvk.t(i, k));
-      msvk.inv_rho(i, k) = 1.0 / msvk.rho(i, k);
-      msvk.rhofacr(i, k) = std::pow(Globals<Real>::RHOSUR * msvk.inv_rho(i, k), 0.54);
-      trace_data("    rhofacr", i, k, msvk.rhofacr(i, k));
+      msvk.inv_dzq(i_team, k) = 1 / dzq(i, k);
+      msvk.t(i_team, k) = std::pow(pres(i, k) * 1.e-5, Globals<Real>::RD * Globals<Real>::INV_CP) * th(i, k);
+      msvk.rho(i_team, k) = pres(i, k) / (Globals<Real>::RD * msvk.t(i_team, k));
+      msvk.inv_rho(i_team, k) = 1.0 / msvk.rho(i_team, k);
+      msvk.rhofacr(i_team, k) = std::pow(Globals<Real>::RHOSUR * msvk.inv_rho(i_team, k), 0.54);
+      trace_data("    rhofacr", i, k, msvk.rhofacr(i_team, k));
     });
     team_member.team_barrier();
 
@@ -226,8 +212,8 @@ void micro_sed_func(MicroSedFuncWorkspaceKokkos<Real>& msvk,
             trace_data("    nr", i, k, nr(i, k));
             Real rdumii=0.0, tmp1=0.0, tmp2=0.0, rdumjj=0.0, inv_dum3=0.0;
             int dumii=0, dumjj=0;
-            get_rain_dsd2_kokkos(qr(i, k), nr(i, k), msvk.mu_r(i, k), rdumii, dumii, msvk.lamr(i, k), msvk.mu_r_table, tmp1, tmp2);
-            find_lookupTable_indices_3_kokkos(dumii, dumjj, rdumii, rdumjj, inv_dum3, msvk.mu_r(i, k), msvk.lamr(i, k));
+            get_rain_dsd2_kokkos(qr(i, k), nr(i, k), msvk.mu_r(i_team, k), rdumii, dumii, msvk.lamr(i_team, k), msvk.mu_r_table, tmp1, tmp2);
+            find_lookupTable_indices_3_kokkos(dumii, dumjj, rdumii, rdumjj, inv_dum3, msvk.mu_r(i_team, k), msvk.lamr(i_team, k));
 
             // mass-weighted fall speed:
             Real dum1 = msvk.vm_table(dumii-1, dumjj-1) + (rdumii-dumii) * inv_dum3 *
@@ -235,7 +221,7 @@ void micro_sed_func(MicroSedFuncWorkspaceKokkos<Real>& msvk,
             Real dum2 = msvk.vm_table(dumii-1, dumjj) + (rdumii-dumii) * inv_dum3 *
               (msvk.vm_table(dumii, dumjj) - msvk.vm_table(dumii-1, dumjj));
 
-            msvk.V_qr(i_team, k) = (dum1 + (rdumjj - dumjj) * (dum2 - dum1)) * msvk.rhofacr(i, k);
+            msvk.V_qr(i_team, k) = (dum1 + (rdumjj - dumjj) * (dum2 - dum1)) * msvk.rhofacr(i_team, k);
             trace_data("    V_qr", i_team, k, msvk.V_qr(i_team, k));
 
             // number-weighted fall speed:
@@ -244,10 +230,10 @@ void micro_sed_func(MicroSedFuncWorkspaceKokkos<Real>& msvk,
             dum2 = msvk.vn_table(dumii-1, dumjj) + (rdumii-dumii) * inv_dum3 *
               (msvk.vn_table(dumii, dumjj) - msvk.vn_table(dumii-1, dumjj));
 
-            msvk.V_nr(i_team, k) = (dum1 + (rdumjj - dumjj) * (dum2 - dum1)) * msvk.rhofacr(i, k);
+            msvk.V_nr(i_team, k) = (dum1 + (rdumjj - dumjj) * (dum2 - dum1)) * msvk.rhofacr(i_team, k);
             trace_data("    V_nr", i_team, k, msvk.V_nr(i_team, k));
           }
-          Real Co_max_local = msvk.V_qr(i_team, k) * dt_left * msvk.inv_dzq(i, k);
+          Real Co_max_local = msvk.V_qr(i_team, k) * dt_left * msvk.inv_dzq(i_team, k);
           if (Co_max_local > lmax) {
             lmax = Co_max_local;
           }
@@ -265,9 +251,9 @@ void micro_sed_func(MicroSedFuncWorkspaceKokkos<Real>& msvk,
         util::set_min_max(k_temp, k_qxtop+kdir, kmin, kmax);
         Kokkos::parallel_for(Kokkos::TeamThreadRange(team_member, kmax-kmin+1), [&] (int k_) {
           const int k = kmin + k_;
-          msvk.flux_qx(i_team, k) = msvk.V_qr(i_team, k) * qr(i, k) * msvk.rho(i, k);
+          msvk.flux_qx(i_team, k) = msvk.V_qr(i_team, k) * qr(i, k) * msvk.rho(i_team, k);
           trace_data("    flux_qx", i_team, k, msvk.flux_qx(i_team, k));
-          msvk.flux_nx(i_team, k) = msvk.V_nr(i_team, k) * nr(i, k) * msvk.rho(i, k);
+          msvk.flux_nx(i_team, k) = msvk.V_nr(i_team, k) * nr(i, k) * msvk.rho(i_team, k);
           trace_data("    flux_nx", i_team, k, msvk.flux_nx(i_team, k));
         });
         team_member.team_barrier();
@@ -281,12 +267,12 @@ void micro_sed_func(MicroSedFuncWorkspaceKokkos<Real>& msvk,
           // for top level only (since flux is 0 above)
           int k = k_qxtop;
           // compute flux divergence
-          const Real fluxdiv_qx = -msvk.flux_qx(i_team, k) * msvk.inv_dzq(i, k);
-          const Real fluxdiv_nx = -msvk.flux_nx(i_team, k) * msvk.inv_dzq(i, k);
+          const Real fluxdiv_qx = -msvk.flux_qx(i_team, k) * msvk.inv_dzq(i_team, k);
+          const Real fluxdiv_nx = -msvk.flux_nx(i_team, k) * msvk.inv_dzq(i_team, k);
           // update prognostic variables
-          qr(i, k) += fluxdiv_qx * dt_sub * msvk.inv_rho(i, k);
+          qr(i, k) += fluxdiv_qx * dt_sub * msvk.inv_rho(i_team, k);
           trace_data("  qr", i, k, qr(i, k));
-          nr(i, k) += fluxdiv_nx * dt_sub * msvk.inv_rho(i, k);
+          nr(i, k) += fluxdiv_nx * dt_sub * msvk.inv_rho(i_team, k);
           trace_data("  nr", i, k, nr(i, k));
         });
         team_member.team_barrier();
@@ -297,12 +283,12 @@ void micro_sed_func(MicroSedFuncWorkspaceKokkos<Real>& msvk,
           const int k = kmin + k_;
           {
             // compute flux divergence
-            const Real fluxdiv_qx = (msvk.flux_qx(i_team, k+kdir) - msvk.flux_qx(i_team, k)) * msvk.inv_dzq(i, k);
-            const Real fluxdiv_nx = (msvk.flux_nx(i_team, k+kdir) - msvk.flux_nx(i_team, k)) * msvk.inv_dzq(i, k);
+            const Real fluxdiv_qx = (msvk.flux_qx(i_team, k+kdir) - msvk.flux_qx(i_team, k)) * msvk.inv_dzq(i_team, k);
+            const Real fluxdiv_nx = (msvk.flux_nx(i_team, k+kdir) - msvk.flux_nx(i_team, k)) * msvk.inv_dzq(i_team, k);
             // update prognostic variables
-            qr(i, k) += fluxdiv_qx * dt_sub * msvk.inv_rho(i, k);
+            qr(i, k) += fluxdiv_qx * dt_sub * msvk.inv_rho(i_team, k);
             trace_data("    qr", i, k, qr(i, k));
-            nr(i, k) += fluxdiv_nx  *dt_sub * msvk.inv_rho(i, k);
+            nr(i, k) += fluxdiv_nx  *dt_sub * msvk.inv_rho(i_team, k);
             trace_data("    nr", i, k, nr(i, k));
           }
         });
