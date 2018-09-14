@@ -16,7 +16,7 @@ set(MIMIC_GPU FALSE CACHE LOGICAL "Mimic GPU to correctness test inter-column pa
 set(ENABLE_FPE FALSE CACHE LOGICAL "Enable floating point error exception")
 set(CHUNKSIZE 0 CACHE INTEGER "Chunk size for impls that want it")
 set(PACKSIZE 16 CACHE INTEGER "Vector pack size")
-set(SMALLPACKFACTOR 1 CACHE INTEGER "A small back is this factor smaller than a regular pack")
+set(SMALLPACKFACTOR 1 CACHE INTEGER "A small pack is this factor smaller than a regular pack; e.g., with PACKSIZE 16 and SMALLPACKFACTOR 2, a small pack has size 8.")
 
 if (Kokkos_DIR)
   include (${Kokkos_DIR}/kokkos_generated_settings.cmake)

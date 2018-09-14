@@ -116,11 +116,9 @@ struct Table3 {
 
 KOKKOS_INLINE_FUNCTION
 void find_lookupTable_indices_3_kokkos (
-  const SmallMask& qr_gt_small, Table3& t, const RealSmallPack& mu_r, const RealSmallPack& lamr_)
+  const SmallMask& qr_gt_small, Table3& t, const RealSmallPack& mu_r, const RealSmallPack& lamr)
 {
   // find location in scaled mean size space
-  RealSmallPack lamr(1);
-  lamr.set(qr_gt_small, lamr_);
   const auto dum1 = (mu_r+1.) / lamr;
   const auto dum1_lt = qr_gt_small & (dum1 <= 195.e-6);
   if (dum1_lt.any()) {
