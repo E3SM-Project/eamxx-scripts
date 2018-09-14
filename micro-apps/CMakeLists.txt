@@ -111,6 +111,11 @@ if (${MIMIC_GPU})
   endif ()
 endif()
 
+if (CUDA_BUILD)
+  set(PACKSIZE 1)
+  set(SMALLPACKFACTOR 1)
+endif()
+
 add_definitions(-DCHUNKSIZE=${CHUNKSIZE})
 add_definitions(-DSCREAM_PACKN=${PACKSIZE})
 add_definitions(-DSCREAM_SMALL_PACK_FACTOR=${SMALLPACKFACTOR})
