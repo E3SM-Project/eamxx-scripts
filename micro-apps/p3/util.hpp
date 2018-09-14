@@ -187,6 +187,12 @@ struct ExeSpaceUtils {
     const int concurrency = ExeSpace::concurrency();
     return (concurrency + team_size - 1) / team_size;
   }
+
+  template <typename TeamPolicy, typename MemberType>
+  static int get_team_idx(const TeamPolicy& policy, const MemberType& team_member)
+  {
+    return omp_get_thread_num() / policy.team_size();
+  }
 };
 
 #ifdef KOKKOS_ENABLE_CUDA
@@ -202,6 +208,44 @@ struct ExeSpaceUtils<Kokkos::Cuda> {
     return policy.league_size();
   }
 
+  template <typename TeamPolicy, typename MemberType>
+  static int get_team_idx(const TeamPolicy& policy, const MemberType& team_member)
+  {
+    return team_member.league_rank();
+  }
+};
+#endif
+
+template <typename ExeSpace = Kokkos::DefaultExecutionSpace>
+struct TeamUtils
+{
+  int _team_size;
+
+  template <typename TeamPolicy>
+  TeamUtils(const TeamPolicy& policy) : _team_size(0)
+  {
+    const int max_threads = omp_get_max_threads();
+    const int team_size = policy.team_size();
+    const int num_teams = max_threads / team_size;
+    _team_size = max_threads / num_teams;
+  }
+
+  KOKKOS_INLINE_FUNCTION
+  int get_workspace_idx(const int team_id) const
+  {
+    return omp_get_thread_num() / _team_size;
+  }
+};
+
+#ifdef KOKKOS_ENABLE_CUDA
+template <>
+struct TeamUtils<Kokkos::Cuda>
+{
+  template <typename TeamPolicy>
+  TeamUtils(const TeamPolicy& policy) {}
+
+  KOKKOS_INLINE_FUNCTION
+  int get_workspace_idx(const int team_id) const { return team_id; }
 };
 #endif
 

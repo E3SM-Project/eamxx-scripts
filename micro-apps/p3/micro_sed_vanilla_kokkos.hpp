@@ -125,7 +125,7 @@ struct MicroSedFuncVanillaKokkos
   kokkos_2d_table_t<Real> vn_table, vm_table;
   kokkos_1d_table_t<Real> mu_r_table;
 
-  static constexpr char* NAME = "kokkos_vanilla";
+  static constexpr const char* NAME = "kokkos_vanilla";
 
 public:
   MicroSedFuncVanillaKokkos(int num_horz_, int num_vert_) :
@@ -478,9 +478,8 @@ void micro_sed_func_kokkos_wrap(const int ni, const int nk, const Real dt, const
     micro_sed_func(msk,
                    kdir == 1 ? 1 : nk, kdir == 1 ? nk : 1,
                    1, ni, dt, qr, nr, th, dzq, pres, prt_liq);
+    Kokkos::fence();
   }
-
-  Kokkos::fence();
 
   auto finish = std::chrono::steady_clock::now();
 

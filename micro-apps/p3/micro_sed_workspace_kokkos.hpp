@@ -12,12 +12,17 @@
 #include <iostream>
 #include <iomanip>
 
+#include <thread>
+
 namespace p3 {
 namespace micro_sed {
 
 template <typename Real>
 struct MicroSedFuncWorkspaceKokkos
 {
+  team_policy policy;
+  util::TeamUtils<> team_utils;
+
   int num_horz, num_vert, concurrency;
 
   //
@@ -29,12 +34,14 @@ struct MicroSedFuncWorkspaceKokkos
   kokkos_2d_table_t<Real> vn_table, vm_table;
   kokkos_1d_table_t<Real> mu_r_table;
 
-  static constexpr char* NAME = "kokkos_workspace";
+  static constexpr const char* NAME = "kokkos_workspace";
 
 public:
   MicroSedFuncWorkspaceKokkos(int num_horz_, int num_vert_) :
+    policy(util::ExeSpaceUtils<>::get_default_team_policy(num_horz_, num_vert_)),
+    team_utils(policy),
     num_horz(num_horz_), num_vert(num_vert_),
-    concurrency(util::ExeSpaceUtils<>::get_num_concurrent_teams(util::ExeSpaceUtils<>::get_default_team_policy(num_horz, num_vert))),
+    concurrency(util::ExeSpaceUtils<>::get_num_concurrent_teams(policy)),
     V_qr("V_qr", concurrency, num_vert),
     V_nr("V_nr", concurrency, num_vert),
     flux_qx("flux_qx", concurrency, num_vert),
@@ -78,7 +85,7 @@ template <typename Real>
 void reset(MicroSedFuncWorkspaceKokkos<Real>& msvk)
 {
   Kokkos::parallel_for("2d reset",
-                       util::ExeSpaceUtils<>::get_default_team_policy(msvk.num_horz, msvk.num_vert),
+                       msvk.policy,
                        KOKKOS_LAMBDA(member_type team_member) {
     const int i = team_member.league_rank();
     Kokkos::parallel_for(Kokkos::TeamThreadRange(team_member, msvk.num_vert), [=] (int k) {
@@ -137,10 +144,22 @@ void micro_sed_func(MicroSedFuncWorkspaceKokkos<Real>& msvk,
   // Rain sedimentation:  (adaptivive substepping)
   trace_loop("i_loop_main", 0, msvk.num_horz);
   Kokkos::parallel_for("main rain sed loop",
-                       util::ExeSpaceUtils<>::get_default_team_policy(msvk.num_horz, msvk.num_vert),
+                       msvk.policy,
                        KOKKOS_LAMBDA(member_type team_member) {
     const int i = team_member.league_rank();
-    const int i_team = i % msvk.concurrency;
+    const int i_team1 = msvk.team_utils.get_workspace_idx(i);
+
+    const int i_team2 = i % msvk.concurrency;
+    const int i_team3 = omp_get_thread_num();
+    const int i_team = i_team1;
+
+    // for (int j = 0; j < omp_get_num_threads(); ++j) {
+    //   if (j == i_team3) {
+    //     std::cout << "For team: " << i << ", team_rank=" << team_member.team_rank() << ", thread: " << i_team3 << " , i_team1: " << i_team1 << " , i_team2: " << i_team2 << ", conc: " << msvk.concurrency << std::endl;
+    //   }
+    //   std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    //   team_member.team_barrier();
+    // }
 
     trace_loop("  k_loop_1", kbot, ktop);
     Kokkos::parallel_for(Kokkos::TeamThreadRange(team_member, msvk.num_vert), [=] (int k) {

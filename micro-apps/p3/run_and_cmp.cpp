@@ -394,7 +394,7 @@ static Int run_and_cmp (const std::string& bfn, const Real& tol, bool verbose) {
   Int ne = Observer(bfn, tol, verbose).run(1);
   if (ne) std::cout << "1-column test failed.\n";
   nerr += ne;
-  ne = Observer(bfn, tol, verbose).run(7);
+  ne = Observer(bfn, tol, verbose).run(13);
   if (ne) std::cout << "Multiple-column test failed.\n";
   nerr += ne;
   return nerr;
