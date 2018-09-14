@@ -14,7 +14,9 @@ set(DOUBLE_PRECISION TRUE CACHE LOGICAL "Set to double precision (default True)"
 set(ENABLE_TRACING FALSE CACHE LOGICAL "Enable detailed tracing")
 set(MIMIC_GPU FALSE CACHE LOGICAL "Mimic GPU to correctness test inter-column parallelism on non-GPU platform")
 set(ENABLE_FPE FALSE CACHE LOGICAL "Enable floating point error exception")
-set(CHUNKSIZE 16 CACHE INTEGER "Chunk size for impls that want it")
+set(CHUNKSIZE 0 CACHE INTEGER "Chunk size for impls that want it")
+set(PACKSIZE 16 CACHE INTEGER "Vector pack size")
+set(SMALLPACKFACTOR 1 CACHE INTEGER "A small back is this factor smaller than a regular pack")
 
 if (Kokkos_DIR)
   include (${Kokkos_DIR}/kokkos_generated_settings.cmake)
@@ -80,7 +82,6 @@ endif()
 
 STRING(TOLOWER "${CMAKE_BUILD_TYPE}" CMAKE_BUILD_TYPE_ci)
 if (CMAKE_BUILD_TYPE_ci STREQUAL "debug")
-  set(ENABLE_FPE TRUE)
   set(MIMIC_GPU TRUE)
   if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel")
     message("Disabling vectorization in this DEBUG build.")
@@ -108,6 +109,8 @@ if (${MIMIC_GPU})
 endif()
 
 add_definitions(-DCHUNKSIZE=${CHUNKSIZE})
+add_definitions(-DSCREAM_PACKN=${PACKSIZE})
+add_definitions(-DSCREAM_SMALL_PACK_FACTOR=${SMALLPACKFACTOR})
 
 enable_testing()
 
