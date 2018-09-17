@@ -150,9 +150,10 @@ def get_time(output):
 def run_p3(exename, ni, nk, dt, ts, num_runs):
 ###############################################################################
     avg = 0.0
+    prefix = "" if "NUMA_PREFIX" not in os.environ else "{} ".format(os.environ["NUMA_PREFIX"])
     for _ in range(num_runs):
-        output = run_cmd_no_fail("{} {} {} {} {} 1".format(exename, ni, nk, dt, ts),
-                                 from_dir="p3")
+        output = run_cmd_no_fail("{}{} {} {} {} {} 1".format(prefix, exename, ni, nk, dt, ts),
+                                 from_dir="p3", verbose=True)
         avg += get_time(output)
 
     return avg / num_runs # Maybe we should use minimum instead of avg?
@@ -230,10 +231,25 @@ def perf_analysis(ni, nk, dt, ts, num_runs, tests, cmake_options, use_existing, 
     return True
 
 ###############################################################################
+def machine_specific_init():
+###############################################################################
+    host = socket.gethostname().split(".")[0]
+
+    if host.startswith("bowman"):
+        os.environ["KMP_AFFINITY"] = "balanced,granularity=fine"
+        os.environ["OMP_NUM_THREADS"] = 272
+        os.environ["NUMA_PREFIX"] = "numactl -i 1"
+    elif host.startswith("blake"):
+        os.environ["KMP_AFFINITY"] = "balanced,granularity=fine"
+        os.environ["OMP_NUM_THREADS"] = 96
+
+###############################################################################
 def _main_func(description):
 ###############################################################################
     ni, nk, dt, ts, num_runs, tests, cmake_options, use_existing, scaling_exp, plot_friendly = \
         parse_command_line(sys.argv, description)
+
+    machine_specific_init()
 
     success = perf_analysis(ni, nk, dt, ts, num_runs, tests, cmake_options, use_existing, scaling_exp, plot_friendly)
 
