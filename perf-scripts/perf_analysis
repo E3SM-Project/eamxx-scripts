@@ -127,7 +127,7 @@ def build_p3(cmake_options):
         cmake_cmd = "cmake {} ..".format(cmake_options)
         make_cmd  = "make -j8 VERBOSE=1"
         fd.write(cmake_cmd + "\n")
-        fd.write(run_cmd_no_fail(cmake_cmd, combine_output=True) + "\n")
+        fd.write(run_cmd_no_fail(cmake_cmd, combine_output=True) + "\n\n")
         fd.write(make_cmd + "\n")
         fd.write(run_cmd_no_fail(make_cmd, combine_output=True) + "\n")
 
