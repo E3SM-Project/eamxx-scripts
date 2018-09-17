@@ -5,7 +5,7 @@ Run different versions of p3 micro app and compare performance. It is
 expected that this will be run from micro-apps directory.
 """
 
-from utils import run_cmd_no_fail, expect, check_minimum_python_version
+from utils import run_cmd_no_fail, expect, check_minimum_python_version, median
 check_minimum_python_version(2, 7)
 
 import argparse, sys, os, tempfile, re, socket
@@ -48,8 +48,8 @@ class ScalingExp(object):
         for test_name, test_results in results.iteritems():
             print test_name, self.varname
             for test_result in test_results:
-                ni, nk, dt, ts, avg_time = test_result
-                cols_sec = float(ni) / avg_time
+                ni, nk, dt, ts, med_time = test_result
+                cols_sec = float(ni) / med_time
                 print "{}, {:.2f}".format(locals()[self.varname], cols_sec)
 
 ###############################################################################
@@ -120,13 +120,15 @@ OR
     return args.ni, args.nk, args.dt, args.ts, args.num_runs, args.test, args.cmake_options, args.use_existing, scaling_exp, args.plot_friendly
 
 ###############################################################################
-def build_p3(cmake_options, plot_friendly):
+def build_p3(cmake_options):
 ###############################################################################
-    import subprocess
-    pipe = subprocess.PIPE if plot_friendly else None
-    verbose = False if plot_friendly else True
-    run_cmd_no_fail("cmake {} ..".format(cmake_options), arg_stdout=pipe, arg_stderr=pipe, verbose=verbose)
-    run_cmd_no_fail("make -j8", arg_stdout=pipe, arg_stderr=pipe, verbose=verbose)
+    with open("build.perf.log", "w") as fd:
+        cmake_cmd = "cmake {} ..".format(cmake_options)
+        make_cmd  = "make -j8 VERBOSE=1"
+        fd.write(cmake_cmd + "\n")
+        fd.write(run_cmd_no_fail(cmake_cmd, combine_output=True) + "\n\n")
+        fd.write(make_cmd + "\n")
+        fd.write(run_cmd_no_fail(make_cmd, combine_output=True) + "\n")
 
 ###############################################################################
 def get_time(output):
@@ -149,13 +151,20 @@ def get_time(output):
 ###############################################################################
 def run_p3(exename, ni, nk, dt, ts, num_runs):
 ###############################################################################
-    avg = 0.0
-    for _ in range(num_runs):
-        output = run_cmd_no_fail("{} {} {} {} {} 1".format(exename, ni, nk, dt, ts),
-                                 from_dir="p3")
-        avg += get_time(output)
+    machine_specific_init()
+    test_specific_init(exename)
+    prefix = "" if "NUMA_PREFIX" not in os.environ else "{} ".format(os.environ["NUMA_PREFIX"])
+    cmd = "{}{} {} {} {} {} 1".format(prefix, exename, ni, nk, dt, ts)
+    results = []
+    with open("{}.perf.log".format(exename), "w") as fd:
+        fd.write(cmd + "\n\n")
+        fd.write("ENV: \n{}\n\n".format(run_cmd_no_fail("env")))
+        for _ in range(num_runs):
+            output = run_cmd_no_fail(cmd, from_dir="p3")
+            fd.write(output + "\n\n")
+            results.append(get_time(output))
 
-    return avg / num_runs # Maybe we should use minimum instead of avg?
+    return median(results)
 
 ###############################################################################
 def run_fortran(ni, nk, dt, ts, num_runs):
@@ -173,14 +182,14 @@ def run_kokkos(ni, nk, dt, ts, num_runs):
     return run_p3("micro_sed_vanilla_kokkos", ni, nk, dt, ts, num_runs)
 
 ###############################################################################
-def user_explain(test, avg_time, reference, ni):
+def user_explain(test, med_time, reference, ni):
 ###############################################################################
-    msg = "{} ran in {} seconds".format(test, avg_time)
+    msg = "{} ran in {} seconds".format(test, med_time)
     if reference:
-        speedup = (1.0 - (avg_time / reference)) * 100
+        speedup = (1.0 - (med_time / reference)) * 100
         msg += ", speedup={:.2f}%".format(speedup)
 
-    msg +=", {:.2f} cols/sec".format(ni / avg_time)
+    msg +=", {:.2f} cols/sec".format(ni / med_time)
 
     print msg
 
@@ -197,7 +206,10 @@ def perf_analysis(ni, nk, dt, ts, num_runs, tests, cmake_options, use_existing, 
         tmpdir = tempfile.mkdtemp(prefix="build", dir=os.getcwd())
         os.chdir(tmpdir)
 
-        build_p3(cmake_options, plot_friendly)
+        if not plot_friendly:
+            print "BUILDING"
+
+        build_p3(cmake_options)
 
     results = {}
     while (scaling_exp.should_continue(ni, nk, dt, ts)):
@@ -208,19 +220,19 @@ def perf_analysis(ni, nk, dt, ts, num_runs, tests, cmake_options, use_existing, 
         reference = None
         for test in tests:
             if test == "fortran":
-                avg_time = run_fortran(ni, nk, dt, ts, num_runs)
+                med_time = run_fortran(ni, nk, dt, ts, num_runs)
             elif test == "cpp":
-                avg_time = run_cpp(ni, nk, dt, ts, num_runs)
+                med_time = run_cpp(ni, nk, dt, ts, num_runs)
             elif test == "kokkos":
-                avg_time = run_kokkos(ni, nk, dt, ts, num_runs)
+                med_time = run_kokkos(ni, nk, dt, ts, num_runs)
             else:
                 expect(False, "Unknown test '{}'".format(test))
 
             if plot_friendly:
-                results.setdefault(test, []).append((ni, nk, dt, ts, avg_time))
+                results.setdefault(test, []).append((ni, nk, dt, ts, med_time))
             else:
-                user_explain(test, avg_time, reference, ni)
-            reference = avg_time if reference is None else reference
+                user_explain(test, med_time, reference, ni)
+            reference = med_time if reference is None else reference
 
         ni, nk, dt, ts = scaling_exp.update_values(ni, nk, dt, ts)
 
@@ -230,10 +242,33 @@ def perf_analysis(ni, nk, dt, ts, num_runs, tests, cmake_options, use_existing, 
     return True
 
 ###############################################################################
+def test_specific_init(test):
+###############################################################################
+    host = socket.gethostname()
+
+    if "blake" in host and test == "micro_sed":
+        os.environ["OMP_NUM_THREADS"] = "48"
+
+###############################################################################
+def machine_specific_init():
+###############################################################################
+    host = socket.gethostname()
+
+    if "bowman" in host:
+        os.environ["KMP_AFFINITY"] = "balanced,granularity=fine"
+        os.environ["OMP_NUM_THREADS"] = "272"
+        os.environ["NUMA_PREFIX"] = "numactl -i 1"
+    elif "blake" in host:
+        os.environ["KMP_AFFINITY"] = "balanced,granularity=fine"
+        os.environ["OMP_NUM_THREADS"] = "96"
+
+###############################################################################
 def _main_func(description):
 ###############################################################################
     ni, nk, dt, ts, num_runs, tests, cmake_options, use_existing, scaling_exp, plot_friendly = \
         parse_command_line(sys.argv, description)
+
+    machine_specific_init()
 
     success = perf_analysis(ni, nk, dt, ts, num_runs, tests, cmake_options, use_existing, scaling_exp, plot_friendly)
 
