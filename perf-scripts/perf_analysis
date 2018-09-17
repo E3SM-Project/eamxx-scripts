@@ -120,13 +120,15 @@ OR
     return args.ni, args.nk, args.dt, args.ts, args.num_runs, args.test, args.cmake_options, args.use_existing, scaling_exp, args.plot_friendly
 
 ###############################################################################
-def build_p3(cmake_options, plot_friendly):
+def build_p3(cmake_options):
 ###############################################################################
-    import subprocess
-    pipe = subprocess.PIPE if plot_friendly else None
-    verbose = False if plot_friendly else True
-    run_cmd_no_fail("cmake {} ..".format(cmake_options), arg_stdout=pipe, arg_stderr=pipe, verbose=verbose)
-    run_cmd_no_fail("make -j8", arg_stdout=pipe, arg_stderr=pipe, verbose=verbose)
+    with open("build.perf.log", "w") as fd:
+        cmake_cmd = "cmake {} ..".format(cmake_options)
+        make_cmd  = "make -j8 VERBOSE=1"
+        fd.write(cmake_cmd + "\n")
+        fd.write(run_cmd_no_fail(cmake_cmd, combine_output=True) + "\n")
+        fd.write(make_cmd + "\n")
+        fd.write(run_cmd_no_fail(make_cmd, combine_output=True) + "\n")
 
 ###############################################################################
 def get_time(output):
@@ -151,10 +153,15 @@ def run_p3(exename, ni, nk, dt, ts, num_runs):
 ###############################################################################
     avg = 0.0
     prefix = "" if "NUMA_PREFIX" not in os.environ else "{} ".format(os.environ["NUMA_PREFIX"])
-    for _ in range(num_runs):
-        output = run_cmd_no_fail("{}{} {} {} {} {} 1".format(prefix, exename, ni, nk, dt, ts),
-                                 from_dir="p3", verbose=True) # Turn off verbose once correctness confirmed
-        avg += get_time(output)
+    cmd = "{}{} {} {} {} {} 1".format(prefix, exename, ni, nk, dt, ts)
+    with open("{}.perf.log".format(exename), "w") as fd:
+        fd.write(cmd + "\n\n")
+        fd.write("ENV: \n{}\n\n".format(run_cmd_no_fail("env")))
+
+        for _ in range(num_runs):
+            output = run_cmd_no_fail(cmd, from_dir="p3")
+            fd.write(output + "\n\n")
+            avg += get_time(output)
 
     return avg / num_runs # Maybe we should use minimum instead of avg?
 
@@ -198,7 +205,10 @@ def perf_analysis(ni, nk, dt, ts, num_runs, tests, cmake_options, use_existing, 
         tmpdir = tempfile.mkdtemp(prefix="build", dir=os.getcwd())
         os.chdir(tmpdir)
 
-        build_p3(cmake_options, plot_friendly)
+        if not plot_friendly:
+            print "BUILDING"
+
+        build_p3(cmake_options)
 
     results = {}
     while (scaling_exp.should_continue(ni, nk, dt, ts)):
