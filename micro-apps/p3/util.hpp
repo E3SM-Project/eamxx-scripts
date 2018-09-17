@@ -174,10 +174,16 @@ template <typename ExeSpace = Kokkos::DefaultExecutionSpace>
 struct ExeSpaceUtils {
   static team_policy get_default_team_policy (Int ni, Int nk) {
 #ifdef MIMIC_GPU
-    return team_policy(ni, 7);
+    const int max_threads = omp_get_max_threads();
+    const int team_size = max_threads < 7 ? max_threads : 7;
+    return team_policy(ni, team_size);
 #else
     return team_policy(ni, 1);
 #endif
+  }
+
+  static team_policy get_team_policy_force_team_size (Int ni, Int team_size) {
+    return team_policy(ni, team_size);
   }
 
   template <typename TeamPolicy>
