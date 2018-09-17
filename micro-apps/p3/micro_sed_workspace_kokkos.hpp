@@ -145,7 +145,7 @@ void micro_sed_func(MicroSedFuncWorkspaceKokkos<Real>& msvk,
                        msvk.policy,
                        KOKKOS_LAMBDA(member_type team_member) {
     const int i      = team_member.league_rank();
-    const int i_team = msvk.team_utils.get_workspace_idx(i);
+    const int i_team = msvk.team_utils.get_workspace_idx(team_member);
 
     trace_loop("  k_loop_1", kbot, ktop);
     Kokkos::parallel_for(Kokkos::TeamThreadRange(team_member, msvk.num_vert), [=] (int k) {

@@ -218,8 +218,9 @@ struct TeamUtils
     _team_size = max_threads / num_teams;
   }
 
+  template <typename MemberType>
   KOKKOS_INLINE_FUNCTION
-  int get_workspace_idx(const int team_id) const
+  int get_workspace_idx(const MemberType& team_member) const
   {
     return omp_get_thread_num() / _team_size;
   }
@@ -232,8 +233,9 @@ struct TeamUtils<Kokkos::Cuda>
   template <typename TeamPolicy>
   TeamUtils(const TeamPolicy& policy) {}
 
+  template <typename MemberType>
   KOKKOS_INLINE_FUNCTION
-  int get_workspace_idx(const int team_id) const { return team_id; }
+  int get_workspace_idx(const MemberType& team_member) const { return team_member.league_rank(); }
 };
 #endif
 
