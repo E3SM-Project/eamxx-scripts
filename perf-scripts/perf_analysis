@@ -151,6 +151,7 @@ def get_time(output):
 ###############################################################################
 def run_p3(exename, ni, nk, dt, ts, num_runs):
 ###############################################################################
+    machine_specific_init()
     test_specific_init(exename)
     prefix = "" if "NUMA_PREFIX" not in os.environ else "{} ".format(os.environ["NUMA_PREFIX"])
     cmd = "{}{} {} {} {} {} 1".format(prefix, exename, ni, nk, dt, ts)
