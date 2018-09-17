@@ -153,7 +153,7 @@ def run_p3(exename, ni, nk, dt, ts, num_runs):
     prefix = "" if "NUMA_PREFIX" not in os.environ else "{} ".format(os.environ["NUMA_PREFIX"])
     for _ in range(num_runs):
         output = run_cmd_no_fail("{}{} {} {} {} {} 1".format(prefix, exename, ni, nk, dt, ts),
-                                 from_dir="p3", verbose=True)
+                                 from_dir="p3", verbose=True) # Turn off verbose once correctness confirmed
         avg += get_time(output)
 
     return avg / num_runs # Maybe we should use minimum instead of avg?
@@ -237,11 +237,11 @@ def machine_specific_init():
 
     if "bowman" in host:
         os.environ["KMP_AFFINITY"] = "balanced,granularity=fine"
-        os.environ["OMP_NUM_THREADS"] = 272
+        os.environ["OMP_NUM_THREADS"] = "272"
         os.environ["NUMA_PREFIX"] = "numactl -i 1"
     elif "blake" in host:
         os.environ["KMP_AFFINITY"] = "balanced,granularity=fine"
-        os.environ["OMP_NUM_THREADS"] = 96
+        os.environ["OMP_NUM_THREADS"] = "96"
 
 ###############################################################################
 def _main_func(description):
