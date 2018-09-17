@@ -233,13 +233,13 @@ def perf_analysis(ni, nk, dt, ts, num_runs, tests, cmake_options, use_existing, 
 ###############################################################################
 def machine_specific_init():
 ###############################################################################
-    host = socket.gethostname().split(".")[0]
+    host = socket.gethostname()
 
-    if host.startswith("bowman"):
+    if "bowman" in host:
         os.environ["KMP_AFFINITY"] = "balanced,granularity=fine"
         os.environ["OMP_NUM_THREADS"] = 272
         os.environ["NUMA_PREFIX"] = "numactl -i 1"
-    elif host.startswith("blake"):
+    elif "blake" in host:
         os.environ["KMP_AFFINITY"] = "balanced,granularity=fine"
         os.environ["OMP_NUM_THREADS"] = 96
 
