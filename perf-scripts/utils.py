@@ -258,3 +258,21 @@ def filter_unicode(unistr):
     Sometimes unicode chars can cause problems
     """
     return "".join([i if ord(i) < 128 else ' ' for i in unistr])
+
+def median(items):
+    """
+    >>> items = [2.3]
+    >>> median(items)
+    2.3
+    >>> items = [2.3, 8.1, 3.4, 1.5, 11, 3.42321]
+    >>> median(items)
+    3.4116049999999998
+    >>> items = [2.3, 8.1, 3.4, 1.5, 11, 3.42321, -3.1]
+    >>> median(items)
+    3.4
+    """
+    if not items:
+        return None
+    else:
+        quotient, remainder = divmod(len(items), 2)
+        return sorted(items)[quotient] if remainder else sum(sorted(items)[quotient - 1:quotient + 1]) / 2.
