@@ -86,7 +86,7 @@ OR
 
     parser.add_argument("-n", "--num-runs", type=int, default=1, help="Number of times to repeat run")
 
-    parser.add_argument("-t", "--test", type=list, default=[], action="append", choices=("fortran", "cpp", "kokkos"),
+    parser.add_argument("-t", "--test", action="append", choices=("fortran", "cpp", "kokkos", "pack"),
                         help="Select which tests to run, default is all. First one will be used as reference point")
 
     parser.add_argument("-c", "--cmake-options", default="",
