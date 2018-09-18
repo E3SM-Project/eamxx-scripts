@@ -22,24 +22,24 @@ class ScalingExp(object):
         except Exception:
             expect(False, "Scaling experiment needs to be in format VARNAME:SCALE_FACTOR:MAX")
 
-        expect(self.varname in ["ni", "nk", "dt", "ts"], "Unknown varname '{}'".format(self.varname))
+        expect(self.varname in ["ni", "nk", "dt", "ts", "threads"], "Unknown varname '{}'".format(self.varname))
 
-    def should_continue(self, ni, nk, dt, ts):
+    def should_continue(self, ni, nk, dt, ts, threads):
         return locals()[self.varname] <= self.upper_limit
 
-    def update_values(self, ni, nk, dt, ts):
+    def update_values(self, ni, nk, dt, ts, threads):
         """
         >>> se = ScalingExp('ni:2:1000')
-        >>> se.update_values(10, 3, 300, 7)
-        (20, 3, 300, 7)
+        >>> se.update_values(10, 3, 300, 7, 4)
+        (20, 3, 300, 7, 4)
         """
-        d = {'ni':ni, 'nk':nk, 'dt':dt, 'ts':ts}
+        d = {'ni':ni, 'nk':nk, 'dt':dt, 'ts':ts, 'threads':threads}
         d[self.varname] = int(d[self.varname] * self.scale_factor)
-        return d['ni'], d['nk'], d['dt'], d['ts']
+        return d['ni'], d['nk'], d['dt'], d['ts'], d['threads']
 
-    def plot(self, results, ni, nk, dt, ts):
+    def plot(self, results, ni, nk, dt, ts, force_threads):
         prov_msg = "Provenance: "
-        for data, name in [(ni, "ni"), (nk, "nk"), (dt, "dt"), (ts, "ts")]:
+        for data, name in [(ni, "ni"), (nk, "nk"), (dt, "dt"), (ts, "ts"), (force_threads, "threads")]:
             if name != self.varname:
                 prov_msg += " {}={}".format(name, data)
 
@@ -48,7 +48,7 @@ class ScalingExp(object):
         for test_name, test_results in results.iteritems():
             print test_name, self.varname
             for test_result in test_results:
-                ni, nk, dt, ts, med_time = test_result
+                ni, nk, dt, ts, threads, med_time = test_result
                 cols_sec = float(ni) / med_time
                 print "{}, {:.2f}".format(locals()[self.varname], cols_sec)
 
@@ -101,10 +101,12 @@ OR
     parser.add_argument("-p", "--plot-friendly", action="store_true",
                         help="Project plot-friendly output")
 
+    parser.add_argument("-T", "--force-threads", type=int, help="Override the machine default for threads.")
+
     args = parser.parse_args(args[1:])
 
     if not args.test:
-        args.test = ["fortran", "cpp", "kokkos"]
+        args.test = ["fortran", "cpp", "kokkos", "pack"]
 
     args.cmake_options += " -DCMAKE_BUILD_TYPE=RelWithDebInfo -DKokkos_DIR={}".format(args.kokkos)
     if args.cxx:
@@ -116,8 +118,10 @@ OR
         scaling_exp = ScalingExp("ni:1.0:{}".format(args.ni))
     else:
         scaling_exp = ScalingExp(args.scaling)
+        expect(not (scaling_exp.varname == "threads" and args.force_threads is None),
+               "Need to set --force-threads if doing a threading scaling experiment")
 
-    return args.ni, args.nk, args.dt, args.ts, args.num_runs, args.test, args.cmake_options, args.use_existing, scaling_exp, args.plot_friendly
+    return args.ni, args.nk, args.dt, args.ts, args.force_threads, args.num_runs, args.test, args.cmake_options, args.use_existing, scaling_exp, args.plot_friendly
 
 ###############################################################################
 def build_p3(cmake_options):
@@ -128,7 +132,7 @@ def build_p3(cmake_options):
         fd.write(cmake_cmd + "\n")
         fd.write(run_cmd_no_fail(cmake_cmd, combine_output=True) + "\n\n")
         fd.write(make_cmd + "\n")
-        fd.write(run_cmd_no_fail(make_cmd, combine_output=True) + "\n")
+        fd.write(run_cmd_no_fail(make_cmd, combine_output=True).encode('utf-8') + "\n")
 
 ###############################################################################
 def get_time(output):
@@ -137,8 +141,11 @@ def get_time(output):
     >>> output = 'Foo\nTime = 0.047 seconds.\nbar'
     >>> get_time(output)
     0.047
+    >>> output = 'Foo\nTime = 1.732e+01 seconds.\nbar'
+    >>> get_time(output)
+    17.32
     """
-    regex = re.compile(r'Time\s*=\s*([0-9.]+)\s*seconds')
+    regex = re.compile(r'Time\s*=\s*([^\s]+)\s*seconds')
     the_time = None
     for line in output.splitlines():
         m = regex.match(line)
@@ -149,10 +156,24 @@ def get_time(output):
     return the_time
 
 ###############################################################################
-def run_p3(exename, ni, nk, dt, ts, num_runs):
+def get_threads(output):
 ###############################################################################
-    machine_specific_init()
-    test_specific_init(exename)
+    r"""
+    >>>
+    """
+    for line in output.splitlines():
+        if "nthread" in line:
+            items = line.split()
+            threads = int(items[items.index("nthread") + 1])
+            return threads
+
+    expect(False, "Failed to find threads in:\n\n{}".format(output))
+
+###############################################################################
+def run_p3(exename, ni, nk, dt, ts, force_threads, num_runs):
+###############################################################################
+    machine_specific_init(force_threads)
+    test_specific_init(exename, force_threads)
     prefix = "" if "NUMA_PREFIX" not in os.environ else "{} ".format(os.environ["NUMA_PREFIX"])
     cmd = "{}{} {} {} {} {} 1".format(prefix, exename, ni, nk, dt, ts)
     results = []
@@ -164,22 +185,29 @@ def run_p3(exename, ni, nk, dt, ts, num_runs):
             fd.write(output + "\n\n")
             results.append(get_time(output))
 
-    return median(results)
+        threads = get_threads(output)
+
+    return median(results), threads
 
 ###############################################################################
-def run_fortran(ni, nk, dt, ts, num_runs):
+def run_fortran(ni, nk, dt, ts, force_threads, num_runs):
 ###############################################################################
-    return run_p3("micro_sed", ni, nk, dt, ts, num_runs)
+    return run_p3("micro_sed", ni, nk, dt, ts, force_threads, num_runs)
 
 ###############################################################################
-def run_cpp(ni, nk, dt, ts, num_runs):
+def run_cpp(ni, nk, dt, ts, force_threads, num_runs):
 ###############################################################################
-    return run_p3("micro_sed_vanilla", ni, nk, dt, ts, num_runs)
+    return run_p3("micro_sed_vanilla", ni, nk, dt, ts, force_threads, num_runs)
 
 ###############################################################################
-def run_kokkos(ni, nk, dt, ts, num_runs):
+def run_kokkos(ni, nk, dt, ts, force_threads, num_runs):
 ###############################################################################
-    return run_p3("micro_sed_vanilla_kokkos", ni, nk, dt, ts, num_runs)
+    return run_p3("micro_sed_vanilla_kokkos", ni, nk, dt, ts, force_threads, num_runs)
+
+###############################################################################
+def run_pack(ni, nk, dt, ts, force_threads, num_runs):
+###############################################################################
+    return run_p3("micro_sed_pack_kokkos", ni, nk, dt, ts, force_threads, num_runs)
 
 ###############################################################################
 def user_explain(test, med_time, reference, ni):
@@ -194,7 +222,7 @@ def user_explain(test, med_time, reference, ni):
     print msg
 
 ###############################################################################
-def perf_analysis(ni, nk, dt, ts, num_runs, tests, cmake_options, use_existing, scaling_exp, plot_friendly):
+def perf_analysis(ni, nk, dt, ts, force_threads, num_runs, tests, cmake_options, use_existing, scaling_exp, plot_friendly):
 ###############################################################################
     if use_existing:
         expect(os.path.isdir("p3") and os.path.exists("CMakeCache.txt"),
@@ -212,45 +240,43 @@ def perf_analysis(ni, nk, dt, ts, num_runs, tests, cmake_options, use_existing, 
         build_p3(cmake_options)
 
     results = {}
-    while (scaling_exp.should_continue(ni, nk, dt, ts)):
+    while (scaling_exp.should_continue(ni, nk, dt, ts, force_threads)):
         if not plot_friendly:
             print
-            print "RUNNING NI", ni, "NK", nk, "DT", dt, "TS", ts
+            print "RUNNING NI", ni, "NK", nk, "DT", dt, "TS", ts, "THREADS {}".format(force_threads) if force_threads else ""
 
         reference = None
         for test in tests:
-            if test == "fortran":
-                med_time = run_fortran(ni, nk, dt, ts, num_runs)
-            elif test == "cpp":
-                med_time = run_cpp(ni, nk, dt, ts, num_runs)
-            elif test == "kokkos":
-                med_time = run_kokkos(ni, nk, dt, ts, num_runs)
-            else:
-                expect(False, "Unknown test '{}'".format(test))
+            func_name = "run_{}".format(test)
+            expect(func_name in globals(), "Unknown test '{}'".format(test))
+            med_time, threads = globals()[func_name](ni, nk, dt, ts, force_threads, num_runs)
 
             if plot_friendly:
-                results.setdefault(test, []).append((ni, nk, dt, ts, med_time))
+                results.setdefault(test, []).append((ni, nk, dt, ts, threads, med_time))
             else:
                 user_explain(test, med_time, reference, ni)
             reference = med_time if reference is None else reference
 
-        ni, nk, dt, ts = scaling_exp.update_values(ni, nk, dt, ts)
+        ni, nk, dt, ts, force_threads = scaling_exp.update_values(ni, nk, dt, ts, force_threads)
 
     if plot_friendly:
-        scaling_exp.plot(results, ni, nk, dt, ts)
+        scaling_exp.plot(results, ni, nk, dt, ts, force_threads)
 
     return True
 
 ###############################################################################
-def test_specific_init(test):
+def test_specific_init(test, force_threads):
 ###############################################################################
     host = socket.gethostname()
 
     if "blake" in host and test == "micro_sed":
         os.environ["OMP_NUM_THREADS"] = "48"
 
+    if force_threads:
+        os.environ["OMP_NUM_THREADS"] = str(force_threads)
+
 ###############################################################################
-def machine_specific_init():
+def machine_specific_init(force_threads):
 ###############################################################################
     host = socket.gethostname()
 
@@ -262,15 +288,18 @@ def machine_specific_init():
         os.environ["KMP_AFFINITY"] = "balanced,granularity=fine"
         os.environ["OMP_NUM_THREADS"] = "96"
 
+    if force_threads:
+        os.environ["OMP_NUM_THREADS"] = str(force_threads)
+
 ###############################################################################
 def _main_func(description):
 ###############################################################################
-    ni, nk, dt, ts, num_runs, tests, cmake_options, use_existing, scaling_exp, plot_friendly = \
+    ni, nk, dt, ts, force_threads, num_runs, tests, cmake_options, use_existing, scaling_exp, plot_friendly = \
         parse_command_line(sys.argv, description)
 
-    machine_specific_init()
+    machine_specific_init(force_threads)
 
-    success = perf_analysis(ni, nk, dt, ts, num_runs, tests, cmake_options, use_existing, scaling_exp, plot_friendly)
+    success = perf_analysis(ni, nk, dt, ts, force_threads, num_runs, tests, cmake_options, use_existing, scaling_exp, plot_friendly)
 
     sys.exit(0 if success else 1)
 
