@@ -1,4 +1,4 @@
-Provenance:  nk=128 dt=300 ts=30 threads=None machine=waterman10 commit=942e2f9
+Provenance:  nk=128 dt=300 ts=30 threads=None machine=waterman commit=942e2f9
 pack ni
 64, 17541.46
 128, 33199.33

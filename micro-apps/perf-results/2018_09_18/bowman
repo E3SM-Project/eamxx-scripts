@@ -1,4 +1,4 @@
-Provenance:  nk=128 dt=300 ts=30 threads=272 machine=node02 commit=942e2f9
+Provenance:  nk=128 dt=300 ts=30 threads=272 machine=bowman commit=942e2f9
 fortran ni
 64, 683.03
 128, 1354.50
