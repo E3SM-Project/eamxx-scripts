@@ -269,7 +269,7 @@ contains
 
     integer, parameter :: chunksize = CHUNKSIZE
     real, dimension(chunksize,nk) :: cqr, cnr, cth, cdzq, cpres
-    real, dimension(ni,nk), target :: qr, nr, th, dzq, pres
+    real, dimension(:,:), allocatable, target :: qr, nr, th, dzq, pres
     real, dimension(chunksize) :: cprt_liq
     real, dimension(ni), target :: prt_liq
     real(8) :: start, finish
@@ -277,6 +277,12 @@ contains
     logical :: ok
 
     character (kind=c_char, len=*), parameter :: filename = c_char_"fortran"//char(0)
+
+    allocate(qr(ni,nk))
+    allocate(nr(ni,nk))
+    allocate(th(ni,nk))
+    allocate(dzq(ni,nk))
+    allocate(pres(ni,nk))
 
     call dump_arch_f90()
     print '("Running with ni=",I0," nk=",I0," dt=",F6.2," ts=",I0)', ni, nk, dt, ts
@@ -313,6 +319,8 @@ contains
     print '("Time = ",E20.3," seconds.")', finish - start
 
     ok = dump_all(filename, c_loc(qr), c_loc(nr), c_loc(th), c_loc(dzq), c_loc(pres), c_loc(prt_liq), ni, nk, dt, ts)
+
+    deallocate(qr, nr, th, dzq, pres)
 
   end subroutine micro_sed_func_wrap
 
