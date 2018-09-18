@@ -5,7 +5,7 @@ Run different versions of p3 micro app and compare performance. It is
 expected that this will be run from micro-apps directory.
 """
 
-from utils import run_cmd_no_fail, expect, check_minimum_python_version, median
+from utils import run_cmd_no_fail, run_cmd, expect, check_minimum_python_version, median
 check_minimum_python_version(2, 7)
 
 import argparse, sys, os, tempfile, re, socket
@@ -43,7 +43,9 @@ class ScalingExp(object):
             if name != self.varname:
                 prov_msg += " {}={}".format(name, data)
 
-        print "{} machine={} commit={}".format(prov_msg, socket.gethostname().split(".")[0], run_cmd_no_fail("git rev-parse --short HEAD"))
+        st, out, err = run_cmd("git rev-parse --short HEAD")
+        git_commit = out if st == 0 else "Unknown"
+        print "{} machine={} commit={}".format(prov_msg, socket.gethostname().split(".")[0], git_commit)
 
         for test_name, test_results in results.iteritems():
             print test_name, self.varname
