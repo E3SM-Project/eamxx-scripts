@@ -159,7 +159,9 @@ def get_time(output):
 def get_threads(output):
 ###############################################################################
     r"""
-    >>>
+    >>> output = 'Foo\nARCH: dp 1 avx  FPE 0 nthread 48\nTime = 0.047 seconds.\nbar'
+    >>> get_threads(output)
+    48
     """
     for line in output.splitlines():
         if "nthread" in line:
