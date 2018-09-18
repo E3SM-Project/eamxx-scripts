@@ -115,7 +115,7 @@ OR
     expect(not args.plot_friendly or args.scaling, "Doesn't make sense to have plot friendly output without a scaling experiment")
 
     if args.scaling is None:
-        scaling_exp = ScalingExp("ni:1.0:{}".format(args.ni))
+        scaling_exp = ScalingExp("ni:2.0:{}".format(args.ni))
     else:
         scaling_exp = ScalingExp(args.scaling)
         expect(not (scaling_exp.varname == "threads" and args.force_threads is None),
