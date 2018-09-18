@@ -21,7 +21,8 @@ struct Mask {
   KOKKOS_FORCEINLINE_FUNCTION explicit Mask () {}
 
   KOKKOS_FORCEINLINE_FUNCTION Mask (const bool& init) {
-    vector_simd for (int i = 0; i < n; ++i) d[i] = init;
+    //vector_simd // Intel 18 is having an issue with this loop.
+    for (int i = 0; i < n; ++i) d[i] = init;
   }
 
   KOKKOS_FORCEINLINE_FUNCTION void set (const int& i, const bool& val) { d[i] = val; }
