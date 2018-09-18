@@ -310,7 +310,7 @@ contains
 
     finish = omp_get_wtime()
 
-    print '("Time = ",f6.2," seconds.")', finish - start
+    print '("Time = ",E20.3," seconds.")', finish - start
 
     ok = dump_all(filename, c_loc(qr), c_loc(nr), c_loc(th), c_loc(dzq), c_loc(pres), c_loc(prt_liq), ni, nk, dt, ts)
 
