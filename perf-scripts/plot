@@ -182,9 +182,9 @@ class Plotter(object):
         subtle_grid()
         plt.title(self._title)
         log_base_str = str(int(self._scaling_factor)) if self._scaling_factor.is_integer() else "{:.2f}".format(self._scaling_factor)
-        plt.xlabel(r"$\log_{}$ {}".format(log_base_str, self.get_var_longname(self._scaling_var)))
-        plt.ylabel("Columns per second / $10^3$")
-        plt.legend(loc="best")
+        plt.xlabel(r"$\log_{}$ {}".format(log_base_str, self.get_var_longname(self._scaling_var)), fontsize="large")
+        plt.ylabel("Columns per second / $10^3$", fontsize="large")
+        plt.legend(loc="best", framealpha=0)
         axis_tight_pad()
 
         plt.show()
