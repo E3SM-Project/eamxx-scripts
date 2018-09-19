@@ -10,7 +10,7 @@ check_minimum_python_version(2, 7)
 import matplotlib.pyplot as plt
 
 from collections import OrderedDict
-import argparse, sys, os
+import argparse, sys, os, math
 
 ###############################################################################
 def parse_command_line(args, description):
@@ -30,9 +30,11 @@ OR
 
     parser.add_argument("datafiles", nargs="+", help="Data file to plot")
 
+    parser.add_argument("-d", "--dashed", action="append", help="Specify these tested should have dashed lines")
+
     args = parser.parse_args(args[1:])
 
-    return args.datafiles
+    return args.datafiles, args.dashed
 
 ###############################################################################
 def pad_lim(lim, pad=0.05, mult=False):
@@ -61,28 +63,43 @@ def subtle_grid():
     return plt.gca().set_axisbelow(True)
 
 ###############################################################################
+def get_line_format(testname, color, dashed):
+###############################################################################
+    if dashed and testname in dashed:
+        return "{}--".format(color)
+    else:
+        return "{}-".format(color)
+
+###############################################################################
 class Plotter(object):
 ###############################################################################
 
     def __init__(self, datafiles):
-        self._scaling_var  = None
-        self._consistent   = OrderedDict()
-        self._inconsistent = []
-        self._title        = None
+        self._scaling_var    = None
+        self._scaling_factor = None
+        self._consistent     = OrderedDict()
+        self._inconsistent   = []
+        self._title          = None
+        self._avail_colors   = ["b", "g", "r", "c", "m", "y", "k"]
 
         for datafile in datafiles:
             with open(datafile, "r") as fd:
                 lines = [line.strip() for line in fd.readlines()]
 
-            prov_line = lines[0]
-            test_line = lines[1]
+            prov_line    = lines[0]
+            test_line    = lines[1]
+            result_line1 = lines[2]
+            result_line2 = lines[3]
 
             scaling_var = test_line.split()[1]
+            scaling_factor = float(result_line2.split(", ")[0]) / float(result_line1.split(", ")[0])
             first_file = self._scaling_var is None
             if first_file:
-                self._scaling_var = scaling_var
+                self._scaling_var    = scaling_var
+                self._scaling_factor = scaling_factor
             else:
                 expect(self._scaling_var == scaling_var, "Incompatible files, scaling vars don't match")
+                expect(self._scaling_factor == scaling_factor, "Incompatible files, scaling factors don't match")
 
             for item in prov_line.split()[1:]:
                 key, value = item.split("=")
@@ -101,11 +118,12 @@ class Plotter(object):
 
         self._title = " ".join(title)
 
-    def plotdata(self, datafile):
+    def plotdata(self, datafile, dashed):
         xs, ys = [], []
         testname = None
         line_label = ""
         xlabel = None
+        color = self._avail_colors.pop(0)
         with open(datafile, "r") as fd:
             for line in fd.readlines():
                 line = line.strip()
@@ -117,25 +135,25 @@ class Plotter(object):
 
                 elif "," in line:
                     x, y = [float(item) for item in line.split(", ")]
-                    xs.append(x)
+                    xs.append(math.log(x, self._scaling_factor))
                     ys.append(y)
 
                 elif line != "":
                     if xs:
-                        plt.plot(xs, ys, label="{}{}".format(testname, line_label))
+                        plt.plot(xs, ys, get_line_format(testname, color, dashed), label="{}{}".format(testname, line_label))
                         xs = []
                         ys = []
 
                     testname, xlabel = line.split()
                     expect(xlabel == self._scaling_var, "Bad file {}".format(datafile))
 
-        plt.plot(xs, ys, label="{}{}".format(testname, line_label))
+        plt.plot(xs, ys, get_line_format(testname, color, dashed), label="{}{}".format(testname, line_label))
 
     def finalize(self):
 
         subtle_grid()
         plt.title(self._title)
-        plt.xlabel(self._scaling_var)
+        plt.xlabel("log{:.2f}({})".format(self._scaling_factor, self._scaling_var))
         plt.ylabel("cols/s")
         plt.legend(loc="best")
         axis_tight_pad()
@@ -145,12 +163,12 @@ class Plotter(object):
 ###############################################################################
 def _main_func(description):
 ###############################################################################
-    datafiles = parse_command_line(sys.argv, description)
+    datafiles, dashed = parse_command_line(sys.argv, description)
 
     plotter = Plotter(datafiles)
 
     for datafile in datafiles:
-        plotter.plotdata(datafile)
+        plotter.plotdata(datafile, dashed)
 
     plotter.finalize()
 
