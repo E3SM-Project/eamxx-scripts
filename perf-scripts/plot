@@ -75,12 +75,14 @@ class Plotter(object):
 ###############################################################################
 
     def __init__(self, datafiles):
-        self._scaling_var    = None
-        self._scaling_factor = None
-        self._consistent     = OrderedDict()
-        self._inconsistent   = []
-        self._title          = None
-        self._avail_colors   = ["b", "g", "r", "c", "m", "y", "k"]
+        self._scaling_var      = None
+        self._scaling_factor   = None
+        self._consistent       = OrderedDict()
+        self._inconsistent     = []
+        self._title            = None
+        self._avail_colors     = ["b", "g", "r", "c", "m", "y", "k"]
+        self._var_longname_map = {"ni" : "Number of columns", "nk" : "Column levels", "dt" : "Time step", "ts" : "Number of time steps",
+                                  "threads" : "Threads"}
 
         for datafile in datafiles:
             with open(datafile, "r") as fd:
@@ -114,9 +116,13 @@ class Plotter(object):
 
         title = []
         for key, value in self._consistent.iteritems():
-            title.append("{}={}".format(key, value))
+            if key != "commit":
+                title.append("{}={}".format(self.get_longname(key), value))
 
-        self._title = " ".join(title)
+        self._title = ", ".join(title)
+
+    def get_longname(self, var):
+        return self._var_longname_map[var] if var in self._var_longname_map else var
 
     def plotdata(self, datafile, dashed):
         xs, ys = [], []
@@ -128,33 +134,44 @@ class Plotter(object):
             for line in fd.readlines():
                 line = line.strip()
                 if "Provenance" in line:
-                    for item in line.split()[1:]:
-                        key, value = item.split("=")
-                        if key in self._inconsistent:
-                            line_label += "_{}".format(value)
+                    prov_dict = dict([item.split("=") for item in line.split()[1:] if not item.endswith("=None")])
+                    if "machine" in self._inconsistent:
+                        line_label = "on {}".format(prov_dict["machine"])
+                        del prov_dict["machine"]
+
+                    if prov_dict:
+                        first = True
+                        for key, value in prov_dict.iteritems():
+                            if key in self._inconsistent:
+                                if first:
+                                    line_label += " with"
+                                    first = False
+
+                                line_label += " {} {}".format(value, self.get_longname(key).lower())
 
                 elif "," in line:
                     x, y = [float(item) for item in line.split(", ")]
                     xs.append(math.log(x, self._scaling_factor))
-                    ys.append(y)
+                    ys.append(y / 1000.0)
 
                 elif line != "":
                     if xs:
-                        plt.plot(xs, ys, get_line_format(testname, color, dashed), label="{}{}".format(testname, line_label))
+                        plt.plot(xs, ys, get_line_format(testname, color, dashed), label="{} {}".format(testname, line_label), lw=2)
                         xs = []
                         ys = []
 
                     testname, xlabel = line.split()
                     expect(xlabel == self._scaling_var, "Bad file {}".format(datafile))
 
-        plt.plot(xs, ys, get_line_format(testname, color, dashed), label="{}{}".format(testname, line_label))
+        plt.plot(xs, ys, get_line_format(testname, color, dashed), label="{} {}".format(testname, line_label), lw=2)
 
     def finalize(self):
 
         subtle_grid()
         plt.title(self._title)
-        plt.xlabel("log{:.2f}({})".format(self._scaling_factor, self._scaling_var))
-        plt.ylabel("cols/s")
+        log_base_str = str(int(self._scaling_factor)) if self._scaling_factor.is_integer() else "{:.2f}".format(self._scaling_factor)
+        plt.xlabel(r"$\log_{}$ {}".format(log_base_str, self.get_longname(self._scaling_var)))
+        plt.ylabel("Columns per second / $10^3$")
         plt.legend(loc="best")
         axis_tight_pad()
 
