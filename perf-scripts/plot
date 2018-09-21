@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 """
 Plot results from perf_analysis
@@ -32,9 +32,15 @@ OR
 
     parser.add_argument("-d", "--dashed", action="append", help="Specify these tested should have dashed lines")
 
+    parser.add_argument("-n", "--no-legend", action="store_true", help="Do not produce legend")
+
+    parser.add_argument("-f", "--font", type=int, default=14, help="Set font")
+
+    parser.add_argument("-l", "--log-x", action="store_true", help="Label the X axis with log values")
+
     args = parser.parse_args(args[1:])
 
-    return args.datafiles, args.dashed
+    return args.datafiles, args.dashed, args.no_legend, args.font, args.log_x
 
 ###############################################################################
 def pad_lim(lim, pad=0.05, mult=False):
@@ -74,7 +80,11 @@ def get_line_format(testname, color, dashed):
 class Plotter(object):
 ###############################################################################
 
-    def __init__(self, datafiles):
+    def __init__(self, datafiles, font, log_x):
+        plt.rcParams.update({'font.size': font})
+        # axis_tight_pad()
+        subtle_grid()
+
         self._scaling_var       = None
         self._scaling_factor    = None
         self._consistent        = OrderedDict()
@@ -85,6 +95,9 @@ class Plotter(object):
                                    "threads" : "Threads"}
         self._test_longname_map = {"pack" : "C++/Kokkos"}
         self._mach_longname_map = {"bowman" : "KNL", "blake" : "Skylake", "waterman" : "Nvidia_V100"}
+        self._log_x             = log_x
+        self._min_x             = sys.maxsize
+        self._max_x             = 0
 
         for datafile in datafiles:
             with open(datafile, "r") as fd:
@@ -117,11 +130,11 @@ class Plotter(object):
                         self._inconsistent.append(key)
 
         title = []
-        for key, value in self._consistent.iteritems():
+        for key, value in self._consistent.items():
             if key != "commit":
                 title.append("{}={}".format(self.get_var_longname(key), value))
 
-        self._title = ", ".join(title)
+        self._title = "\n".join(title)
 
     def get_var_longname(self, var):
         return self._var_longname_map[var] if var in self._var_longname_map else var
@@ -153,7 +166,7 @@ class Plotter(object):
 
                     if prov_dict:
                         first = True
-                        for key, value in prov_dict.iteritems():
+                        for key, value in prov_dict.items():
                             if key in self._inconsistent:
                                 if first:
                                     line_label += " with"
@@ -163,6 +176,8 @@ class Plotter(object):
 
                 elif "," in line:
                     x, y = [float(item) for item in line.split(", ")]
+                    self._min_x = min(x, self._min_x)
+                    self._max_x = max(x, self._max_x)
                     xs.append(math.log(x, self._scaling_factor))
                     ys.append(y / 1000.0)
 
@@ -177,29 +192,38 @@ class Plotter(object):
 
         self.plot_line(xs, ys, line_label, testname, dashed, color)
 
-    def finalize(self):
-
+    def finalize(self, no_legend):
         subtle_grid()
         plt.title(self._title)
-        log_base_str = str(int(self._scaling_factor)) if self._scaling_factor.is_integer() else "{:.2f}".format(self._scaling_factor)
-        plt.xlabel(r"$\log_{}$ {}".format(log_base_str, self.get_var_longname(self._scaling_var)), fontsize="large")
-        plt.ylabel("Columns per second / $10^3$", fontsize="large")
-        plt.legend(loc="best", framealpha=0)
-        axis_tight_pad()
+
+        if self._log_x:
+            log_base_str = str(int(self._scaling_factor)) if self._scaling_factor.is_integer() else "{:.2f}".format(self._scaling_factor)
+            plt.xlabel(r"$\log_{}$ {}".format(log_base_str, self.get_var_longname(self._scaling_var)))
+        else:
+            distance = int(round(math.log(self._max_x / self._min_x, self._scaling_factor)))
+            start = int(round(math.log(self._min_x, self._scaling_factor)))
+            plt.xticks(ticks=list(range(start, start+distance+1)),
+                       labels=[str(int(round(pow(self._scaling_factor, item)))) for item in range(start, start+distance+1)],
+                       rotation=45)
+            plt.xlabel(self.get_var_longname(self._scaling_var))
+
+        plt.ylabel("Columns per second / $10^3$")
+        if not no_legend:
+            plt.legend(loc="best", framealpha=0)
 
         plt.show()
 
 ###############################################################################
 def _main_func(description):
 ###############################################################################
-    datafiles, dashed = parse_command_line(sys.argv, description)
+    datafiles, dashed, no_legend, font, log_x = parse_command_line(sys.argv, description)
 
-    plotter = Plotter(datafiles)
+    plotter = Plotter(datafiles, font, log_x)
 
     for datafile in datafiles:
         plotter.plotdata(datafile, dashed)
 
-    plotter.finalize()
+    plotter.finalize(no_legend)
 
 ###############################################################################
 
