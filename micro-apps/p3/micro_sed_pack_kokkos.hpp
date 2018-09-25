@@ -135,7 +135,7 @@ void find_lookupTable_indices_3_kokkos (
       t.dumii[s] = dumii;
     }
   }
-  const auto dum1_gte = qr_gt_small && ~dum1_lt;
+  const auto dum1_gte = qr_gt_small && ! dum1_lt;
   if (dum1_gte.any()) {
     scream_masked_loop(dum1_gte) {
       const auto inv_dum3 = Globals<Real>::THRD*0.1;

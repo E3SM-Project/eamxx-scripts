@@ -59,7 +59,7 @@ scream_mask_gen_bin_op_mm(&&, &&)
 scream_mask_gen_bin_op_mm(||, ||)
 
 template <typename Mask> KOKKOS_INLINE_FUNCTION
-OnlyMask<Mask> operator ~ (const Mask& m) {
+OnlyMask<Mask> operator ! (const Mask& m) {
   Mask nm(false);
   vector_simd for (int i = 0; i < Mask::n; ++i) nm.set(i, ! m[i]);
   return nm;
