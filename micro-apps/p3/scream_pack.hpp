@@ -43,13 +43,6 @@ using OnlyMask = typename std::enable_if<Mask::masktag,Mask>::type;
 template <typename Mask, typename Return>
 using OnlyMaskReturn = typename std::enable_if<Mask::masktag,Return>::type;
 
-template <typename Mask> KOKKOS_FORCEINLINE_FUNCTION
-OnlyMaskReturn<Mask, void>
-loop (const Mask& m, const std::function<void(int)>& f) {
-  vector_simd for (int i = 0; i < Mask::n; ++i)
-    if (m[i]) f(i);
-}
-
 #define scream_masked_loop(mask) \
   vector_simd for (int s = 0; s < mask.n; ++s) if (mask[s])
 
@@ -62,11 +55,11 @@ loop (const Mask& m, const std::function<void(int)>& f) {
     return m;                                                 \
   }
 
-scream_mask_gen_bin_op_mm(&, &&)
-scream_mask_gen_bin_op_mm(|, ||)
+scream_mask_gen_bin_op_mm(&&, &&)
+scream_mask_gen_bin_op_mm(||, ||)
 
 template <typename Mask> KOKKOS_INLINE_FUNCTION
-OnlyMask<Mask> operator ~ (const Mask& m) {
+OnlyMask<Mask> operator ! (const Mask& m) {
   Mask nm(false);
   vector_simd for (int i = 0; i < Mask::n; ++i) nm.set(i, ! m[i]);
   return nm;

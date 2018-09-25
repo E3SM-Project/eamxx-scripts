@@ -120,7 +120,7 @@ void find_lookupTable_indices_3_kokkos (
 {
   // find location in scaled mean size space
   const auto dum1 = (mu_r+1.) / lamr;
-  const auto dum1_lt = qr_gt_small & (dum1 <= 195.e-6);
+  const auto dum1_lt = qr_gt_small && (dum1 <= 195.e-6);
   if (dum1_lt.any()) {
     scream_masked_loop(dum1_lt) {
       const auto inv_dum3 = 0.1;
@@ -135,7 +135,7 @@ void find_lookupTable_indices_3_kokkos (
       t.dumii[s] = dumii;
     }
   }
-  const auto dum1_gte = qr_gt_small & ~dum1_lt;
+  const auto dum1_gte = qr_gt_small && ! dum1_lt;
   if (dum1_gte.any()) {
     scream_masked_loop(dum1_gte) {
       const auto inv_dum3 = Globals<Real>::THRD*0.1;
@@ -205,11 +205,11 @@ void get_rain_dsd2_kokkos (
 
   mu_r = 0;
   {
-    const auto m1 = qr_gt_small & (inv_dum < 282.e-6);
+    const auto m1 = qr_gt_small && (inv_dum < 282.e-6);
     mu_r.set(m1, 8.282);
   }
   {
-    const auto m2 = qr_gt_small & (inv_dum >= 282.e-6) & (inv_dum < 502.e-6);
+    const auto m2 = qr_gt_small && (inv_dum >= 282.e-6) && (inv_dum < 502.e-6);
     if (m2.any()) {
       scream_masked_loop(m2) {
         // interpolate
@@ -237,9 +237,9 @@ void get_rain_dsd2_kokkos (
   // set to small value since breakup is explicitly included (mean size 0.8 mm)
   const auto lammin = (mu_r+1.)*1250.0;
   // apply lambda limiters for rain
-  const auto lt = qr_gt_small & (lamr < lammin);
-  const auto gt = qr_gt_small & (lamr > lammax);
-  const auto either = lt | gt;
+  const auto lt = qr_gt_small && (lamr < lammin);
+  const auto gt = qr_gt_small && (lamr > lammax);
+  const auto either = lt || gt;
   nr.set(qr_gt_small, nr_lim);
   if (either.any()) {
     lamr.set(lt, lammin);
