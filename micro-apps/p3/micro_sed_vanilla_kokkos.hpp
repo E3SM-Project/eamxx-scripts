@@ -115,13 +115,15 @@ void get_rain_dsd2_kokkos(const Real qr, Real& nr, Real& mu_r, Real& rdumii, int
   }
 }
 
-template <typename Real>
+template <typename Real, typename MskKokkos2d_t=kokkos_2d_t<Real> >
 struct MicroSedFuncVanillaKokkos
 {
   int num_horz, num_vert;
 
+  using msk_2d_kokkos_t = MskKokkos2d_t;
+
   // re-usable scratch views
-  kokkos_2d_t<Real> V_qr, V_nr, flux_qx, flux_nx, mu_r, lamr, rhofacr, inv_dzq, rho, inv_rho, t, tmparr1;
+  msk_2d_kokkos_t V_qr, V_nr, flux_qx, flux_nx, mu_r, lamr, rhofacr, inv_dzq, rho, inv_rho, t, tmparr1;
   kokkos_2d_table_t<Real> vn_table, vm_table;
   kokkos_1d_table_t<Real> mu_r_table;
 
@@ -167,6 +169,13 @@ public:
     Kokkos::deep_copy(vm_table, mirror_vm_table);
     Kokkos::deep_copy(mu_r_table, mirror_mu_table);
   }
+
+  static std::string custom_msg()
+  {
+    return "";
+  }
+
+  virtual int get_num_vert() const { return num_vert; }
 };
 
 template <typename Real>
@@ -411,17 +420,13 @@ void populate_kokkos_from_vec(const int num_horz, const int num_vert, vector_2d_
   }
 
   Kokkos::deep_copy(device, mirror);
-
 }
 
 template <typename Real>
 void dump_to_file_k(const char* basename,
                     const kokkos_2d_t<Real>& qr, const kokkos_2d_t<Real>& nr, const kokkos_2d_t<Real>& th, const kokkos_2d_t<Real>& dzq,
-                    const kokkos_2d_t<Real>& pres, const kokkos_1d_t<Real>& prt_liq, const Real dt, const int ts)
+                    const kokkos_2d_t<Real>& pres, const kokkos_1d_t<Real>& prt_liq, const int ni, const int nk, const Real dt, const int ts)
 {
-  const int ni = qr.extent_int(0);
-  const int nk = qr.extent_int(1);
-
   auto qr_m      = Kokkos::create_mirror_view(qr);
   auto nr_m      = Kokkos::create_mirror_view(nr);
   auto th_m      = Kokkos::create_mirror_view(th);
@@ -440,27 +445,26 @@ void dump_to_file_k(const char* basename,
 }
 
 template <typename Real, typename MSK>
-void micro_sed_func_kokkos_wrap(const int ni, const int nk, const Real dt, const int ts, const int kdir)
+void micro_sed_func_kokkos_wrap(const int ni, const int nk, const Real dt, const int ts, const int kdir, const int repeat)
 {
   util::dump_arch();
 
   std::cout << "Running " << MSK::NAME <<  " with ni=" << ni << ", nk=" << nk
-            << ", dt=" << dt << ", ts=" << ts << ", kdir=" << kdir << std::endl;
+            << ", dt=" << dt << ", ts=" << ts << ", kdir=" << kdir << MSK::custom_msg() << std::endl;
 
-  kokkos_2d_t<Real> qr("qr", ni, nk),
-    nr("nr", ni, nk),
-    th("th", ni, nk),
-    dzq("dzq", ni, nk),
-    pres("pres", ni, nk);
+  MSK msk(ni, nk);
+
+  typename MSK::msk_2d_kokkos_t qr("qr", ni, msk.get_num_vert()),
+    nr("nr", ni, msk.get_num_vert()),
+    th("th", ni, msk.get_num_vert()),
+    dzq("dzq", ni, msk.get_num_vert()),
+    pres("pres", ni, msk.get_num_vert());
 
   kokkos_1d_t<Real> prt_liq("prt_liq", ni);
 
   {
-    vector_2d_t<Real> qr_v(ni,    std::vector<Real>(nk)),
-                      nr_v(ni,    std::vector<Real>(nk)),
-                      th_v(ni,    std::vector<Real>(nk)),
-                      dzq_v(ni,   std::vector<Real>(nk)),
-                      pres_v(ni,  std::vector<Real>(nk));
+    std::vector<Real> v(nk);
+    vector_2d_t<Real> qr_v(ni, v), nr_v(ni, v), th_v(ni, v), dzq_v(ni, v), pres_v(ni, v);
 
     populate_input(ni, nk, kdir, qr_v, nr_v, th_v, dzq_v, pres_v);
 
@@ -470,24 +474,21 @@ void micro_sed_func_kokkos_wrap(const int ni, const int nk, const Real dt, const
     }
   }
 
-  MSK msk(ni, nk);
-
   auto start = std::chrono::steady_clock::now();
 
   for (int i = 0; i < ts; ++i) {
     micro_sed_func(msk,
                    kdir == 1 ? 1 : nk, kdir == 1 ? nk : 1,
                    1, ni, dt, qr, nr, th, dzq, pres, prt_liq);
+    Kokkos::fence();
   }
-
-  Kokkos::fence();
 
   auto finish = std::chrono::steady_clock::now();
 
   auto duration = std::chrono::duration_cast<std::chrono::microseconds>(finish - start);
   printf("Time = %1.3e seconds\n", 1e-6*duration.count());
 
-  dump_to_file_k(MSK::NAME, qr, nr, th, dzq, pres, prt_liq, dt, ts);
+  dump_to_file_k(MSK::NAME, qr, nr, th, dzq, pres, prt_liq, ni, nk, dt, ts);
 }
 
 } // namespace p3

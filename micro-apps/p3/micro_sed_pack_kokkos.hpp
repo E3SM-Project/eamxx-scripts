@@ -5,6 +5,7 @@
 #include "initial_conditions.hpp"
 #include "micro_kokkos.hpp"
 #include "micro_sed_vanilla.hpp"
+#include "micro_sed_vanilla_kokkos.hpp"
 #include "scream_pack.hpp"
 
 #include <vector>
@@ -52,61 +53,27 @@ kokkos_2d_t<SmallPack<T> > smallize (const kokkos_2d_t<BigPack<T> >& vp) {
 }
 
 template <typename Real>
-using kokkos_2d_table_t = Kokkos::View<Real[300][10], Layout, MemSpace>;
-
-template <typename Real>
-using kokkos_1d_table_t = Kokkos::View<Real[150], Layout, MemSpace>;
-
-struct MicroSedFuncPackKokkos {
-  int num_horz, num_vert, num_pack;
-
-  // re-usable scratch views
-  kokkos_2d_t<RealPack> V_qr, V_nr, flux_qr, flux_nr, mu_r, lamr, rhofacr, inv_dzq, rho, inv_rho, t;
-  kokkos_2d_table_t<Real> vn_table, vm_table;
-  kokkos_1d_table_t<Real> mu_r_table;
+struct MicroSedFuncPackKokkos : public MicroSedFuncVanillaKokkos<Real, kokkos_2d_t<RealPack> > {
+  int num_pack;
 
   static constexpr const char* NAME = "kokkos_pack";
 
 public:
   MicroSedFuncPackKokkos(int num_horz_, int num_vert_) :
-    num_horz(num_horz_), num_vert(num_vert_),
-    num_pack(scream::pack::npack<RealPack>(num_vert)),
-    V_qr("V_qr", num_horz, num_pack),
-    V_nr("V_nr", num_horz, num_pack),
-    flux_qr("flux_qr", num_horz, num_pack),
-    flux_nr("flux_nr", num_horz, num_pack),
-    mu_r("mu_r", num_horz, num_pack),
-    lamr("lamr", num_horz, num_pack),
-    rhofacr("rhofacr", num_horz, num_pack),
-    inv_dzq("inv_dzq", num_horz, num_pack),
-    rho("rho", num_horz, num_pack),
-    inv_rho("inv_rho", num_horz, num_pack),
-    t("t", num_horz, num_pack),
-    vn_table("VN_TABLE"), vm_table("VM_TABLE"),
-    mu_r_table("MU_R_TABLE")
+    MicroSedFuncVanillaKokkos<Real, kokkos_2d_t<RealPack> >(num_horz_, scream::pack::npack<RealPack>(num_vert_)),
+    num_pack(scream::pack::npack<RealPack>(num_vert_))
   {
-    // initialize on host
-
-    auto mirror_vn_table = Kokkos::create_mirror_view(vn_table);
-    auto mirror_vm_table = Kokkos::create_mirror_view(vm_table);
-    auto mirror_mu_table = Kokkos::create_mirror_view(mu_r_table);
-
-    for (int i = 0; i < 300; ++i) {
-      for (Int k = 0; k < 10; ++k) {
-        mirror_vn_table(i, k) = Globals<Real>::VN_TABLE[i][k];
-        mirror_vm_table(i, k) = Globals<Real>::VM_TABLE[i][k];
-      }
-    }
-
-    for (int i = 0; i < 150; ++i) {
-      mirror_mu_table(i) = Globals<Real>::MU_R_TABLE[i];
-    }
-
-    // deep copy to device
-    Kokkos::deep_copy(vn_table, mirror_vn_table);
-    Kokkos::deep_copy(vm_table, mirror_vm_table);
-    Kokkos::deep_copy(mu_r_table, mirror_mu_table);
+    this->num_vert = num_vert_;
   }
+
+  static std::string custom_msg()
+  {
+    std::ostringstream out;
+    out << " " << SCREAM_PACKN << " " << SCREAM_SMALL_PACK_FACTOR;
+    return out.str();
+  }
+
+  virtual int get_num_vert() const { return num_pack; }
 };
 
 struct Table3 {
@@ -175,7 +142,7 @@ RealSmallPack apply_table (
   const auto t_im1_j = index(table, t.dumii-1, t.dumjj);
   const auto dum2 = (t_im1_j + rdumii_m_dumii * t.inv_dum3 *
                      (index(table, t.dumii, t.dumjj) - t_im1_j));
-  return dum1 + (t.rdumjj - RealSmallPack(t.dumjj)) * (dum2 - dum1);  
+  return dum1 + (t.rdumjj - RealSmallPack(t.dumjj)) * (dum2 - dum1);
 }
 
 // Computes and returns rain size distribution parameters
@@ -254,10 +221,10 @@ void get_rain_dsd2_kokkos (
 
 //TODO Unit test.
 // Calculate the step in the region [k_bot, k_top].
-template <Int kdir, int nfield>
+template <Int kdir, int nfield, typename MSPK>
 KOKKOS_INLINE_FUNCTION
 void calc_first_order_upwind_step (
-  const MicroSedFuncPackKokkos& m, const member_type& team, const int& i,
+  const MSPK& m, const member_type& team, const int& i,
   const Int& nk, const Int& k_bot, const Int& k_top, const Real& dt_sub,
   const Kokkos::Array<const kokkos_2d_t<RealSmallPack>*,nfield>& flux,
   const Kokkos::Array<const kokkos_2d_t<RealSmallPack>*,nfield>& V,
@@ -324,9 +291,9 @@ void calc_first_order_upwind_step (
     });
 }
 
-template <int nfield> KOKKOS_INLINE_FUNCTION
+template <int nfield, typename MSPK> KOKKOS_INLINE_FUNCTION
 void calc_first_order_upwind_step (
-  const MicroSedFuncPackKokkos& m, const member_type& team, const int& i,
+  const MSPK& m, const member_type& team, const int& i,
   const Int& nk, const Int& k_bot, const Int& k_top, const Int& kdir, const Real& dt_sub,
   const Kokkos::Array<const kokkos_2d_t<RealSmallPack>*,nfield>& flux,
   const Kokkos::Array<const kokkos_2d_t<RealSmallPack>*,nfield>& V,
@@ -418,8 +385,9 @@ Int find_top (const member_type& team,
   return k_xtop;
 }
 
+template <typename MSPK>
 void micro_sed_func (
-  MicroSedFuncPackKokkos& m,
+  MSPK& m,
   const Int kts, const Int kte, const int its, const int ite, const Real dt,
   const kokkos_2d_t<RealPack>& qr, const kokkos_2d_t<RealPack>& nr,
   const kokkos_2d_t<RealPack>& th, const kokkos_2d_t<RealPack>& dzq, const kokkos_2d_t<RealPack>& pres,
@@ -430,15 +398,15 @@ void micro_sed_func (
     lrhofacr = smallize(m.rhofacr),
     lV_qr = smallize(m.V_qr),
     lV_nr = smallize(m.V_nr),
-    lflux_qr = smallize(m.flux_qr),
-    lflux_nr = smallize(m.flux_nr),
+    lflux_qx = smallize(m.flux_qx),
+    lflux_nx = smallize(m.flux_nx),
     lqr = smallize(qr),
     lnr = smallize(nr),
     lmu_r = smallize(m.mu_r),
     llamr = smallize(m.lamr);
   const kokkos_2d_t<Real>
     sqr = scalarize(qr),
-    sflux_qr = scalarize(m.flux_qr);
+    sflux_qx = scalarize(m.flux_qx);
 
   // constants
   const Real odt = 1.0 / dt;
@@ -534,11 +502,11 @@ void micro_sed_func (
           calc_first_order_upwind_step<2>(
             m, team, i,
             m.num_vert, k_temp, k_qxtop, kdir, dt_sub,
-            {&lflux_qr, &lflux_nr}, {&lV_qr, &lV_nr}, {&lqr, &lnr});
+            {&lflux_qx, &lflux_nx}, {&lV_qr, &lV_nr}, {&lqr, &lnr});
           team.team_barrier();
 
           // accumulated precip during time step
-          if (k_qxbot == kbot) prt_accum += sflux_qr(i, kbot) * dt_sub;
+          if (k_qxbot == kbot) prt_accum += sflux_qx(i, kbot) * dt_sub;
 
           dt_left -= dt_sub;  // update time remaining for sedimentation
           if (k_qxbot != kbot) k_qxbot -= kdir;
@@ -552,8 +520,9 @@ void micro_sed_func (
     });
 }
 
+template <typename Real>
 void populate_kokkos_from_vec (
-  const int num_horz, const int num_vert, vector_2d_t<Real> const& vec, kokkos_2d_t<RealPack>& device)
+  const int num_horz, const int num_vert, vector_2d_t<Real> const& vec, kokkos_2d_t<BigPack<Real> >& device)
 {
   const auto mirror = Kokkos::create_mirror_view(device);
   const auto smirror = scalarize(mirror);
@@ -567,10 +536,12 @@ void populate_kokkos_from_vec (
   Kokkos::deep_copy(device, mirror);
 }
 
+template <typename Real>
 void dump_to_file_k (
+  const char* basename,
   const kokkos_2d_t<RealPack>& qr, const kokkos_2d_t<RealPack>& nr, const kokkos_2d_t<RealPack>& th,
   const kokkos_2d_t<RealPack>& dzq, const kokkos_2d_t<RealPack>& pres, const kokkos_1d_t<Real>& prt_liq,
-  const int nk, const Real dt, const int ts)
+  const int ni, const int nk, const Real dt, const int ts)
 {
   auto qr_m      = Kokkos::create_mirror_view(qr);
   auto nr_m      = Kokkos::create_mirror_view(nr);
@@ -592,53 +563,11 @@ void dump_to_file_k (
     sth = scalarize(th_m),
     sdzq = scalarize(dzq_m),
     spres = scalarize(pres_m);
-  const int ni = qr.extent_int(0);
   const int ldk = sqr.extent_int(1);
 
   p3::micro_sed::dump_to_file(
-    "kokkos_pack", sqr.data(), snr.data(), sth.data(), sdzq.data(), spres.data(),
+    basename, sqr.data(), snr.data(), sth.data(), sdzq.data(), spres.data(),
     prt_liq_m.data(), ni, nk, dt, ts, ldk);
-}
-
-void micro_sed_func_pack_kokkos_wrap (
-  const int ni, const int nk, const Real dt, const int ts, const Int kdir)
-{
-  std::vector<Real> v(nk);
-  vector_2d_t<Real> qr_v(ni, v), nr_v(ni, v), th_v(ni, v), dzq_v(ni, v), pres_v(ni, v);
-
-  util::dump_arch();
-  std::cout << "Running micro_sed_pack_kokkos with ni=" << ni << ", nk=" << nk
-            << ", dt=" << dt << ", ts=" << ts << ", kdir=" << kdir
-            << " " << SCREAM_PACKN << " " << SCREAM_SMALL_PACK_FACTOR << "\n";
-
-  p3::micro_sed::populate_input(ni, nk, kdir, qr_v, nr_v, th_v, dzq_v, pres_v);
-
-  MicroSedFuncPackKokkos mspk(ni, nk);
-  const int np = mspk.num_pack;
-  
-  kokkos_2d_t<RealPack> qr("qr", ni, np), nr("nr", ni, np), th("th", ni, np), dzq("dzq", ni, np),
-    pres("pres", ni, np);
-  kokkos_1d_t<Real> prt_liq("prt_liq", ni);
-
-  for (auto item : { std::make_pair(&qr_v, &qr), std::make_pair(&nr_v, &nr), std::make_pair(&th_v, &th),
-        std::make_pair(&dzq_v, &dzq), std::make_pair(&pres_v, &pres)}) {
-    populate_kokkos_from_vec(ni, nk, *(item.first), *(item.second));
-  }
-
-  auto start = std::chrono::steady_clock::now();
-
-  for (int i = 0; i < ts; ++i) {
-    micro_sed_func(mspk,
-                   kdir == 1 ? 1 : nk, kdir == 1 ? nk : 1,
-                   1, ni, dt, qr, nr, th, dzq, pres, prt_liq);
-    Kokkos::fence();
-  }
-
-  auto finish = std::chrono::steady_clock::now();
-  auto duration = std::chrono::duration_cast<std::chrono::microseconds>(finish - start);
-  printf("Time = %1.3e seconds\n", 1e-6*duration.count());
-
-  dump_to_file_k(qr, nr, th, dzq, pres, prt_liq, nk, dt, ts);
 }
 
 } // namespace p3

@@ -445,7 +445,7 @@ static Int run_and_cmp (const std::string& bfn, const Real& tol, bool verbose) {
 
       p3::micro_sed::MicroSedFuncWorkspaceKokkos<Scalar> mswk(d_ic.ni, d_ic.nk);
       p3::micro_sed::MicroSedFuncVanillaKokkos<Scalar> msvk(d_ic.ni, d_ic.nk);
-      p3::micro_sed::MicroSedFuncPackKokkos mspk(d_ic.ni, d_ic.nk);
+      p3::micro_sed::MicroSedFuncPackKokkos<Scalar> mspk(d_ic.ni, d_ic.nk);
 
       for (Int step = 0; step < BaselineConsts::nstep; ++step) {
         // Read the baseline.
