@@ -10,7 +10,6 @@
 
 #include <vector>
 #include <cmath>
-#include <chrono>
 #include <iostream>
 #include <iomanip>
 
@@ -522,7 +521,7 @@ void micro_sed_func (
 
 template <typename Real>
 void populate_kokkos_from_vec (
-  const int num_horz, const int num_vert, vector_2d_t<Real> const& vec, kokkos_2d_t<BigPack<Real> >& device)
+  const int num_horz, const int num_vert, vector_2d_t<Real> const& vec, kokkos_2d_t<RealPack>& device)
 {
   const auto mirror = Kokkos::create_mirror_view(device);
   const auto smirror = scalarize(mirror);
@@ -565,7 +564,7 @@ void dump_to_file_k (
     spres = scalarize(pres_m);
   const int ldk = sqr.extent_int(1);
 
-  p3::micro_sed::dump_to_file(
+  util::dump_to_file(
     basename, sqr.data(), snr.data(), sth.data(), sdzq.data(), spres.data(),
     prt_liq_m.data(), ni, nk, dt, ts, ldk);
 }

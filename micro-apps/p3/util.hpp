@@ -212,6 +212,32 @@ struct ExeSpaceUtils<Kokkos::Cuda> {
 };
 #endif
 
+template <typename Real>
+void dump_to_file(const char* filename,
+                  const Real* qr, const Real* nr, const Real* th, const Real* dzq, const Real* pres, const Real* prt_liq,
+                  const int ni, const int nk, const Real dt, const int ts, int ldk = -1)
+{
+  if (ldk < 0) ldk = nk;
+
+  std::string full_fn(filename);
+  full_fn += "_perf_run.dat" + std::to_string(sizeof(Real));
+
+  FILEPtr fid(fopen(full_fn.c_str(), "w"));
+  micro_throw_if( !fid, "dump_to_file can't write " << filename);
+
+  write(&ni, 1, fid);
+  write(&nk, 1, fid);
+  write(&dt, 1, fid);
+  write(&ts, 1, fid);
+  // Account for possible alignment padding.
+  for (int i = 0; i < ni; ++i) util::write(qr + ldk*i, nk, fid);
+  for (int i = 0; i < ni; ++i) util::write(nr + ldk*i, nk, fid);
+  for (int i = 0; i < ni; ++i) util::write(th + ldk*i, nk, fid);
+  for (int i = 0; i < ni; ++i) util::write(dzq + ldk*i, nk, fid);
+  for (int i = 0; i < ni; ++i) util::write(pres + ldk*i, nk, fid);
+  write(prt_liq, ni, fid);
+}
+
 } // namespace util
 
 extern "C" {

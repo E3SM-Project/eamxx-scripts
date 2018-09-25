@@ -1,6 +1,7 @@
 #include "micro_sed_pack_kokkos.hpp"
 #include "types.hpp"
 #include "util.hpp"
+#include "micro_sed_wrap.hpp"
 
 int main(int argc, char** argv)
 {
