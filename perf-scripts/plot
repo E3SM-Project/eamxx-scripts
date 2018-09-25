@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 """
 Plot results from perf_analysis
@@ -10,7 +10,7 @@ check_minimum_python_version(2, 7)
 import matplotlib.pyplot as plt
 
 from collections import OrderedDict
-import argparse, sys, os
+import argparse, sys, os, math
 
 ###############################################################################
 def parse_command_line(args, description):
@@ -30,9 +30,17 @@ OR
 
     parser.add_argument("datafiles", nargs="+", help="Data file to plot")
 
+    parser.add_argument("-d", "--dashed", action="append", help="Specify these tested should have dashed lines")
+
+    parser.add_argument("-n", "--no-legend", action="store_true", help="Do not produce legend")
+
+    parser.add_argument("-f", "--font", type=int, default=14, help="Set font")
+
+    parser.add_argument("-l", "--log-x", action="store_true", help="Label the X axis with log values")
+
     args = parser.parse_args(args[1:])
 
-    return args.datafiles
+    return args.datafiles, args.dashed, args.no_legend, args.font, args.log_x
 
 ###############################################################################
 def pad_lim(lim, pad=0.05, mult=False):
@@ -61,28 +69,54 @@ def subtle_grid():
     return plt.gca().set_axisbelow(True)
 
 ###############################################################################
+def get_line_format(testname, color, dashed):
+###############################################################################
+    if dashed and testname in dashed:
+        return "{}--".format(color)
+    else:
+        return "{}-".format(color)
+
+###############################################################################
 class Plotter(object):
 ###############################################################################
 
-    def __init__(self, datafiles):
-        self._scaling_var  = None
-        self._consistent   = OrderedDict()
-        self._inconsistent = []
-        self._title        = None
+    def __init__(self, datafiles, font, log_x):
+        plt.rcParams.update({'font.size': font})
+        # axis_tight_pad()
+        subtle_grid()
+
+        self._scaling_var       = None
+        self._scaling_factor    = None
+        self._consistent        = OrderedDict()
+        self._inconsistent      = []
+        self._title             = None
+        self._avail_colors      = ["b", "g", "r", "c", "m", "y", "k"]
+        self._var_longname_map  = {"ni" : "Number of columns", "nk" : "Column levels", "dt" : "Time step", "ts" : "Number of time steps",
+                                   "threads" : "Threads"}
+        self._test_longname_map = {"pack" : "C++/Kokkos"}
+        self._mach_longname_map = {"bowman" : "KNL", "blake" : "Skylake", "waterman" : "Nvidia_V100"}
+        self._log_x             = log_x
+        self._min_x             = sys.maxsize
+        self._max_x             = 0
 
         for datafile in datafiles:
             with open(datafile, "r") as fd:
                 lines = [line.strip() for line in fd.readlines()]
 
-            prov_line = lines[0]
-            test_line = lines[1]
+            prov_line    = lines[0]
+            test_line    = lines[1]
+            result_line1 = lines[2]
+            result_line2 = lines[3]
 
             scaling_var = test_line.split()[1]
+            scaling_factor = float(result_line2.split(", ")[0]) / float(result_line1.split(", ")[0])
             first_file = self._scaling_var is None
             if first_file:
-                self._scaling_var = scaling_var
+                self._scaling_var    = scaling_var
+                self._scaling_factor = scaling_factor
             else:
                 expect(self._scaling_var == scaling_var, "Incompatible files, scaling vars don't match")
+                expect(self._scaling_factor == scaling_factor, "Incompatible files, scaling factors don't match")
 
             for item in prov_line.split()[1:]:
                 key, value = item.split("=")
@@ -96,63 +130,100 @@ class Plotter(object):
                         self._inconsistent.append(key)
 
         title = []
-        for key, value in self._consistent.iteritems():
-            title.append("{}={}".format(key, value))
+        for key, value in self._consistent.items():
+            if key != "commit":
+                title.append("{}={}".format(self.get_var_longname(key), value))
 
-        self._title = " ".join(title)
+        self._title = "\n".join(title)
 
-    def plotdata(self, datafile):
+    def get_var_longname(self, var):
+        return self._var_longname_map[var] if var in self._var_longname_map else var
+
+    def get_test_longname(self, test):
+        return self._test_longname_map[test] if test in self._test_longname_map else test.capitalize()
+
+    def get_mach_longname(self, machine):
+        return self._mach_longname_map[machine] if machine in self._mach_longname_map else machine.capitalize()
+
+    def plot_line(self, xs, ys, line_label, testname, dashed, color):
+        plt.plot(xs, ys, get_line_format(testname, color, dashed), lw=2,
+                 label="{} {}".format(self.get_test_longname(testname), line_label))
+
+    def plotdata(self, datafile, dashed):
         xs, ys = [], []
         testname = None
         line_label = ""
         xlabel = None
+        color = self._avail_colors.pop(0)
         with open(datafile, "r") as fd:
             for line in fd.readlines():
                 line = line.strip()
                 if "Provenance" in line:
-                    for item in line.split()[1:]:
-                        key, value = item.split("=")
-                        if key in self._inconsistent:
-                            line_label += "_{}".format(value)
+                    prov_dict = dict([item.split("=") for item in line.split()[1:] if not item.endswith("=None")])
+                    if "machine" in self._inconsistent:
+                        line_label = "on {}".format(self.get_mach_longname(prov_dict["machine"]))
+                        del prov_dict["machine"]
+
+                    if prov_dict:
+                        first = True
+                        for key, value in prov_dict.items():
+                            if key in self._inconsistent:
+                                if first:
+                                    line_label += " with"
+                                    first = False
+
+                                line_label += " {} {}".format(value, self.get_var_longname(key).lower())
 
                 elif "," in line:
                     x, y = [float(item) for item in line.split(", ")]
-                    xs.append(x)
-                    ys.append(y)
+                    self._min_x = min(x, self._min_x)
+                    self._max_x = max(x, self._max_x)
+                    xs.append(math.log(x, self._scaling_factor))
+                    ys.append(y / 1000.0)
 
                 elif line != "":
                     if xs:
-                        plt.plot(xs, ys, label="{}{}".format(testname, line_label))
+                        self.plot_line(xs, ys, line_label, testname, dashed, color)
                         xs = []
                         ys = []
 
                     testname, xlabel = line.split()
                     expect(xlabel == self._scaling_var, "Bad file {}".format(datafile))
 
-        plt.plot(xs, ys, label="{}{}".format(testname, line_label))
+        self.plot_line(xs, ys, line_label, testname, dashed, color)
 
-    def finalize(self):
-
+    def finalize(self, no_legend):
         subtle_grid()
         plt.title(self._title)
-        plt.xlabel(self._scaling_var)
-        plt.ylabel("cols/s")
-        plt.legend(loc="best")
-        axis_tight_pad()
+
+        if self._log_x:
+            log_base_str = str(int(self._scaling_factor)) if self._scaling_factor.is_integer() else "{:.2f}".format(self._scaling_factor)
+            plt.xlabel(r"$\log_{}$ {}".format(log_base_str, self.get_var_longname(self._scaling_var)))
+        else:
+            distance = int(round(math.log(self._max_x / self._min_x, self._scaling_factor)))
+            start = int(round(math.log(self._min_x, self._scaling_factor)))
+            plt.xticks(ticks=list(range(start, start+distance+1)),
+                       labels=[str(int(round(pow(self._scaling_factor, item)))) for item in range(start, start+distance+1)],
+                       rotation=45)
+            plt.xlabel(self.get_var_longname(self._scaling_var))
+
+        plt.ylabel("Columns per second / $10^3$")
+        if not no_legend:
+            plt.legend(loc="best", framealpha=0)
 
         plt.show()
 
 ###############################################################################
 def _main_func(description):
 ###############################################################################
-    datafiles = parse_command_line(sys.argv, description)
+    datafiles, dashed, no_legend, font, log_x = parse_command_line(sys.argv, description)
 
-    plotter = Plotter(datafiles)
+    plotter = Plotter(datafiles, font, log_x)
 
     for datafile in datafiles:
-        plotter.plotdata(datafile)
+        plotter.plotdata(datafile, dashed)
 
-    plotter.finalize()
+    plotter.finalize(no_legend)
 
 ###############################################################################
 

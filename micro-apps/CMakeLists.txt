@@ -77,7 +77,8 @@ endif()
 if ("${KOKKOS_GMAKE_ARCH}" STREQUAL "KNL")
   set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -xMIC-AVX512")
 elseif ("${KOKKOS_GMAKE_ARCH}" STREQUAL "SKX")
-  set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -xCORE-AVX512")
+  # Testing shows Fortran does better on SKX with AVX2 than with AVX512.
+  set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -xCORE-AVX2")
 endif()
 
 STRING(TOLOWER "${CMAKE_BUILD_TYPE}" CMAKE_BUILD_TYPE_ci)
