@@ -7,8 +7,17 @@
 #include <vector>
 #include <chrono>
 
+//include this file after any potential template overrides
+
 namespace p3 {
 namespace micro_sed {
+
+double median(std::vector<double>& times)
+{
+  std::sort(times.begin(), times.end());
+  size_t size = times.size();
+  return (size % 2 == 0) ? (times[size / 2 - 1] + times[size / 2]) / 2 : times[size / 2];
+}
 
 template <typename Real>
 void dump_to_file_k(const char* basename,
@@ -69,11 +78,8 @@ void populate_kokkos_from_vec(const int num_horz, const int num_vert, vector_2d_
 template <typename Real>
 void micro_sed_func_vanilla_wrap(const int ni, const int nk, const Real dt, const int ts, const int kdir, const int repeat)
 {
-  vector_2d_t<Real> qr(ni,    std::vector<Real>(nk)),
-                    nr(ni,    std::vector<Real>(nk)),
-                    th(ni,    std::vector<Real>(nk)),
-                    dzq(ni,   std::vector<Real>(nk)),
-                    pres(ni,  std::vector<Real>(nk));
+  std::vector<Real> v(nk);
+  vector_2d_t<Real> qr(ni, v), nr(ni, v), th(ni, v), dzq(ni, v), pres(ni, v);
 
   std::vector<Real> prt_liq(ni);
 
@@ -108,13 +114,13 @@ void micro_sed_func_kokkos_wrap(const int ni, const int nk, const Real dt, const
 
   MSK msk(ni, nk);
 
-  typename MSK::msk_2d_kokkos_t qr("qr", ni, msk.get_num_vert()),
-    nr("nr", ni, msk.get_num_vert()),
-    th("th", ni, msk.get_num_vert()),
-    dzq("dzq", ni, msk.get_num_vert()),
-    pres("pres", ni, msk.get_num_vert());
+  typename MSK::msk_2d_kokkos_t qr("qr", ni, msk.get_num_vert()), qr_i("qr", ni, msk.get_num_vert()),
+    nr("nr", ni, msk.get_num_vert()), nr_i("nr", ni, msk.get_num_vert()),
+    th("th", ni, msk.get_num_vert()), th_i("th", ni, msk.get_num_vert()),
+    dzq("dzq", ni, msk.get_num_vert()), dzq_i("dzq", ni, msk.get_num_vert()),
+    pres("pres", ni, msk.get_num_vert()), pres_i("pres", ni, msk.get_num_vert());
 
-  kokkos_1d_t<Real> prt_liq("prt_liq", ni);
+  kokkos_1d_t<Real> prt_liq("prt_liq", ni), prt_liq_i("prt_liq", ni);
 
   {
     std::vector<Real> v(nk);
@@ -122,27 +128,42 @@ void micro_sed_func_kokkos_wrap(const int ni, const int nk, const Real dt, const
 
     populate_input(ni, nk, kdir, qr_v, nr_v, th_v, dzq_v, pres_v);
 
-    for (auto item : { std::make_pair(&qr_v, &qr), std::make_pair(&nr_v, &nr), std::make_pair(&th_v, &th),
-          std::make_pair(&dzq_v, &dzq), std::make_pair(&pres_v, &pres)}) {
-      vector_2d_t<Real>& arg1 = *(item.first);
-      typename MSK::msk_2d_kokkos_t& arg2 = *(item.second);
-      populate_kokkos_from_vec(ni, nk, arg1, arg2);
+    for (auto item : { std::make_pair(&qr_v, &qr_i), std::make_pair(&nr_v, &nr_i), std::make_pair(&th_v, &th_i),
+          std::make_pair(&dzq_v, &dzq_i), std::make_pair(&pres_v, &pres_i)}) {
+      populate_kokkos_from_vec(ni, nk, *(item.first), *(item.second));
     }
   }
 
-  auto start = std::chrono::steady_clock::now();
+  std::vector<double> times;
 
-  for (int i = 0; i < ts; ++i) {
-    micro_sed_func(msk,
-                   kdir == 1 ? 1 : nk, kdir == 1 ? nk : 1,
-                   1, ni, dt, qr, nr, th, dzq, pres, prt_liq);
-    Kokkos::fence();
+  for (int r = 0; r < repeat+1; ++r) {
+    Kokkos::deep_copy(qr,   qr_i);
+    Kokkos::deep_copy(nr,   nr_i);
+    Kokkos::deep_copy(th,   th_i);
+    Kokkos::deep_copy(dzq,  dzq_i);
+    Kokkos::deep_copy(pres, pres_i);
+    Kokkos::deep_copy(prt_liq, prt_liq_i);
+
+    auto start = std::chrono::steady_clock::now();
+
+    for (int i = 0; i < ts; ++i) {
+      micro_sed_func(msk,
+                     kdir == 1 ? 1 : nk, kdir == 1 ? nk : 1,
+                     1, ni, dt, qr, nr, th, dzq, pres, prt_liq);
+      Kokkos::fence();
+    }
+
+    auto finish = std::chrono::steady_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(finish - start);
+
+    if (r != 0) {
+      times.push_back(1e-6*duration.count());
+    }
   }
 
-  auto finish = std::chrono::steady_clock::now();
+  const double report_time = median(times);
 
-  auto duration = std::chrono::duration_cast<std::chrono::microseconds>(finish - start);
-  printf("Time = %1.3e seconds\n", 1e-6*duration.count());
+  printf("Time = %1.3e seconds\n", report_time);
 
   dump_to_file_k(MSK::NAME, qr, nr, th, dzq, pres, prt_liq, ni, nk, dt, ts);
 }

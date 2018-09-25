@@ -256,7 +256,7 @@ contains
   end subroutine populate_input
 
   !=============================================================================!
-  subroutine micro_sed_func_wrap(ni, nk, dt, ts, kdir) bind(c)
+  subroutine micro_sed_func_wrap(ni, nk, dt, ts, kdir, repeat) bind(c)
   !=============================================================================!
     use cpp_bridge
     use iso_c_binding
@@ -264,7 +264,7 @@ contains
 
     implicit none
 
-    integer, intent(in) :: ni, nk, ts, kdir
+    integer, intent(in) :: ni, nk, ts, kdir, repeat
     real, intent(in) :: dt
 
     integer, parameter :: chunksize = CHUNKSIZE

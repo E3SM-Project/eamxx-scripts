@@ -68,7 +68,7 @@ public:
   static std::string custom_msg()
   {
     std::ostringstream out;
-    out << " " << SCREAM_PACKN << " " << SCREAM_SMALL_PACK_FACTOR;
+    out << " packn=" << SCREAM_PACKN << " small_pack_factor=" << SCREAM_SMALL_PACK_FACTOR;
     return out.str();
   }
 
