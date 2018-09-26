@@ -20,6 +20,16 @@ double median(std::vector<double>& times)
 }
 
 template <typename Real>
+void vec2d_copy(const vector_2d_t<Real>& from, vector_2d_t<Real>& to)
+{
+  micro_throw_if(from.size() != to.size(), "vectors not same size");
+  for (size_t i = 0; i < from.size(); ++i) {
+    micro_throw_if(from[i].size() != to[i].size(), "vectors not same size");
+    std::copy(from[i].begin(), from[i].end(), to[i].begin());
+  }
+}
+
+template <typename Real>
 void dump_to_file_k(const char* basename,
                     const kokkos_2d_t<Real>& qr, const kokkos_2d_t<Real>& nr, const kokkos_2d_t<Real>& th, const kokkos_2d_t<Real>& dzq,
                     const kokkos_2d_t<Real>& pres, const kokkos_1d_t<Real>& prt_liq, const int ni, const int nk, const Real dt, const int ts)
@@ -79,27 +89,45 @@ template <typename Real>
 void micro_sed_func_vanilla_wrap(const int ni, const int nk, const Real dt, const int ts, const int kdir, const int repeat)
 {
   std::vector<Real> v(nk);
-  vector_2d_t<Real> qr(ni, v), nr(ni, v), th(ni, v), dzq(ni, v), pres(ni, v);
+  vector_2d_t<Real> qr(ni, v), nr(ni, v), th(ni, v), dzq(ni, v), pres(ni, v),
+                    qr_i(ni, v), nr_i(ni, v), th_i(ni, v), dzq_i(ni, v), pres_i(ni, v);
 
-  std::vector<Real> prt_liq(ni);
+  std::vector<Real> prt_liq(ni), prt_liq_i(ni);
 
   util::dump_arch();
   std::cout << "Running micro_sed_vanilla with ni=" << ni << ", nk=" << nk
             << ", dt=" << dt << ", ts=" << ts << ", kdir=" << kdir << std::endl;
 
-  populate_input(ni, nk, kdir, qr, nr, th, dzq, pres);
+  populate_input(ni, nk, kdir, qr_i, nr_i, th_i, dzq_i, pres_i);
 
-  auto start = std::chrono::steady_clock::now();
+  std::vector<double> times;
 
-  for (int i = 0; i < ts; ++i) {
-    micro_sed_func<Real>(kdir == 1 ? 1 : nk, kdir == 1 ? nk : 1,
-                         1, ni, dt, qr, nr, th, dzq, pres, prt_liq);
+  for (int r = 0; r < repeat+1; ++r) {
+    vec2d_copy(qr_i, qr);
+    vec2d_copy(nr_i, nr);
+    vec2d_copy(th_i, th);
+    vec2d_copy(dzq_i, dzq);
+    vec2d_copy(pres_i, pres);
+    std::copy(prt_liq_i.begin(), prt_liq_i.end(), prt_liq.begin());
+
+    auto start = std::chrono::steady_clock::now();
+
+    for (int i = 0; i < ts; ++i) {
+      micro_sed_func<Real>(kdir == 1 ? 1 : nk, kdir == 1 ? nk : 1,
+                           1, ni, dt, qr, nr, th, dzq, pres, prt_liq);
+    }
+
+    auto finish = std::chrono::steady_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(finish - start);
+
+    if (r != 0) {
+      times.push_back(1e-6*duration.count());
+    }
   }
 
-  auto finish = std::chrono::steady_clock::now();
+  const double report_time = median(times);
 
-  auto duration = std::chrono::duration_cast<std::chrono::microseconds>(finish - start);
-  printf("Time = %1.3e seconds\n", 1e-6*duration.count());
+  printf("Time = %1.3e seconds\n", report_time);
 
   dump_to_file_v(qr, nr, th, dzq, pres, prt_liq, dt, ts);
 }
