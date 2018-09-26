@@ -431,9 +431,11 @@ static Int run_and_cmp (const std::string& bfn, const Real& tol, bool verbose) {
       fid = util::FILEPtr(fopen(bfn.c_str(), "r"));
       micro_throw_if( ! fid, "run_and_cmp can't read " << bfn);
 
+#ifndef KOKKOS_ENABLE_CUDA
       // Sanity check.
       micro_throw_if( ! util::is_single_precision<Real>::value && tol != 0,
                       "We want BFB in double precision, at least in DEBUG builds.");
+#endif
     }
 
     virtual void observe (const ic::MicroSedData<Scalar>& d_ic) override {
@@ -469,8 +471,6 @@ static Int run_and_cmp (const std::string& bfn, const Real& tol, bool verbose) {
 
         const Real sptol = 2e-5;
         Real cpp_tol = (util::is_single_precision<Real>::value && tol < sptol) ? sptol : tol;
-        micro_throw_if( ! util::is_single_precision<Real>::value && tol != 0,
-                        "Must remain bfb in double precision.");
 
         // Compare the Fortran code in case we need to change it, as we will
         // for handling the issue of single vs double precision. In this case,
@@ -492,7 +492,7 @@ static Int run_and_cmp (const std::string& bfn, const Real& tol, bool verbose) {
           [&] (ic::MicroSedData<Scalar>& d, KokkosPackBridge<Scalar>& b) {
             micro_sed_func_cpp_kokkos(d, b, mspk);
           },
-          ds[4], d_ref, cpp_tol, "Pack Kokkos C++", step, verbose);        
+          ds[4], d_ref, cpp_tol, "Pack Kokkos C++", step, verbose);
       }
     }
   };
@@ -526,7 +526,12 @@ int main (int argc, char** argv) {
   }
 
   bool generate = false, verbose=false;
-  Real tol = 0;
+#ifdef KOKKOS_ENABLE_CUDA
+  Real tol = 1e-13;
+#else
+  Real tol = 0.0
+#endif
+
   for (Int i = 1; i < argc-1; ++i) {
     if (util::eq(argv[i], "-g", "--generate")) generate = true;
     if (util::eq(argv[i], "-v", "--verbose")) verbose = true;
