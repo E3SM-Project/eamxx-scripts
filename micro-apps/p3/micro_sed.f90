@@ -270,7 +270,7 @@ contains
     integer, parameter :: chunksize = CHUNKSIZE
     real, dimension(:,:), allocatable, target :: qr, nr, th, dzq, pres, qr_i, nr_i, th_i, dzq_i, pres_i
     real, dimension(ni), target :: prt_liq, prt_liq_i
-    real(8) :: start, finish, total
+    real(8) :: start, finish
     integer :: ti, ci, nchunk, i, r, k
     logical :: ok
 
@@ -294,10 +294,11 @@ contains
     print *, 'chunksize',chunksize
 
     prt_liq_i(:) = 0
-    total = 0.0
 
+    !$OMP PARALLEL DEFAULT(SHARED)
     do r = 1, repeat+1
 
+       !$OMP DO
        do i = 1, ni
           do k = 1, nk
              qr(i, k) = qr_i(i, k)
@@ -308,37 +309,39 @@ contains
           end do
           prt_liq(i) = prt_liq_i(i)
        end do
-
-       start = omp_get_wtime()
+       !$OMP END DO
 
 #if CHUNKSIZE > 0
        nchunk = (ni + chunksize - 1) / chunksize
        do ti = 1, ts
-          !$OMP PARALLEL DO DEFAULT(SHARED)
+
+          !$OMP DO
           do ci = 1, nchunk
              call micro_sed_func_chunk(ni, nk, kdir, dt, qr, nr, th, dzq, pres, prt_liq, ci)
           end do
-          !$OMP END PARALLEL DO
+          !$OMP END DO
        end do
 #else
        do ti = 1, ts
-          !$OMP PARALLEL DO DEFAULT(SHARED)
+          !$OMP DO
           do i = 1, ni
              call micro_sed_func(1, nk, kdir, 1, 1, dt, &
                   qr(i,:), nr(i,:), th(i,:), dzq(i,:), pres(i,:), prt_liq(i))
           end do
-          !$OMP END PARALLEL DO
+          !$OMP END DO
        end do
 #endif
 
-       finish = omp_get_wtime()
-       if (r.ne.1) then
-          total = total + (finish - start)
+       if (r.eq.1) then
+          start = omp_get_wtime()
        endif
 
     end do
+    !$OMP END PARALLEL
 
-    print '("Time = ",E20.3," seconds.")', total / repeat
+    finish = omp_get_wtime()
+
+    print '("Time = ",E20.3," seconds.")', (finish - start) / repeat
 
     ok = dump_all(filename, c_loc(qr), c_loc(nr), c_loc(th), c_loc(dzq), c_loc(pres), c_loc(prt_liq), ni, nk, dt, ts)
 

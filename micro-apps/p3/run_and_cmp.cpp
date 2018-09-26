@@ -431,11 +431,11 @@ static Int run_and_cmp (const std::string& bfn, const Real& tol, bool verbose) {
       fid = util::FILEPtr(fopen(bfn.c_str(), "r"));
       micro_throw_if( ! fid, "run_and_cmp can't read " << bfn);
 
-#ifndef KOKKOS_ENABLE_CUDA
-      // Sanity check.
-      micro_throw_if( ! util::is_single_precision<Real>::value && tol != 0,
-                      "We want BFB in double precision, at least in DEBUG builds.");
-#endif
+      if (util::OnGpu<ExecSpace>::value) {
+        // Sanity check.
+        micro_throw_if( ! util::is_single_precision<Real>::value && tol != 0,
+                        "We want BFB in double precision, at least in DEBUG builds.");
+      }
     }
 
     virtual void observe (const ic::MicroSedData<Scalar>& d_ic) override {
@@ -526,11 +526,7 @@ int main (int argc, char** argv) {
   }
 
   bool generate = false, verbose=false;
-#ifdef KOKKOS_ENABLE_CUDA
-  Real tol = 1e-13;
-#else
-  Real tol = 0.0
-#endif
+  Real tol = util::OnGpu<ExecSpace>::value ? 1e-13 : 0.0;
 
   for (Int i = 1; i < argc-1; ++i) {
     if (util::eq(argv[i], "-g", "--generate")) generate = true;

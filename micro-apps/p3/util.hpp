@@ -238,6 +238,12 @@ void dump_to_file(const char* filename,
   write(prt_liq, ni, fid);
 }
 
+template <typename ExeSpace>
+struct OnGpu { enum : bool { value = false }; };
+#ifdef KOKKOS_ENABLE_CUDA
+template <> struct OnGpu<Kokkos::Cuda> { enum : bool { value = true }; };
+#endif
+
 } // namespace util
 
 extern "C" {

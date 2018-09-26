@@ -4,6 +4,8 @@
 #include "util.hpp"
 #include "micro_kokkos.hpp"
 
+#include "omp.h"
+
 #include <vector>
 #include <chrono>
 
@@ -11,23 +13,6 @@
 
 namespace p3 {
 namespace micro_sed {
-
-double median(std::vector<double>& times)
-{
-  std::sort(times.begin(), times.end());
-  size_t size = times.size();
-  return (size % 2 == 0) ? (times[size / 2 - 1] + times[size / 2]) / 2 : times[size / 2];
-}
-
-template <typename Real>
-void vec2d_copy(const vector_2d_t<Real>& from, vector_2d_t<Real>& to)
-{
-  micro_throw_if(from.size() != to.size(), "vectors not same size");
-  for (size_t i = 0; i < from.size(); ++i) {
-    micro_throw_if(from[i].size() != to[i].size(), "vectors not same size");
-    std::copy(from[i].begin(), from[i].end(), to[i].begin());
-  }
-}
 
 template <typename Real>
 void dump_to_file_k(const char* basename,
@@ -100,32 +85,38 @@ void micro_sed_func_vanilla_wrap(const int ni, const int nk, const Real dt, cons
 
   populate_input(ni, nk, kdir, qr_i, nr_i, th_i, dzq_i, pres_i);
 
-  std::vector<double> times;
+  // This time is thrown out, I just wanted to be able to use auto
+  auto start = std::chrono::steady_clock::now();
 
   for (int r = 0; r < repeat+1; ++r) {
-    vec2d_copy(qr_i, qr);
-    vec2d_copy(nr_i, nr);
-    vec2d_copy(th_i, th);
-    vec2d_copy(dzq_i, dzq);
-    vec2d_copy(pres_i, pres);
-    std::copy(prt_liq_i.begin(), prt_liq_i.end(), prt_liq.begin());
 
-    auto start = std::chrono::steady_clock::now();
+#pragma omp parallel
+    {
+#pragma omp for
+      for (int i = 0; i < ni; ++i) {
+        std::copy(qr_i[i].begin(), qr_i[i].end(), qr[i].begin());
+        std::copy(nr_i[i].begin(), nr_i[i].end(), nr[i].begin());
+        std::copy(th_i[i].begin(), th_i[i].end(), th[i].begin());
+        std::copy(dzq_i[i].begin(), dzq_i[i].end(), dzq[i].begin());
+        std::copy(pres_i[i].begin(), pres_i[i].end(), pres[i].begin());
+        prt_liq[i] = prt_liq_i[i];
+      }
+    }
 
     for (int i = 0; i < ts; ++i) {
       micro_sed_func<Real>(kdir == 1 ? 1 : nk, kdir == 1 ? nk : 1,
                            1, ni, dt, qr, nr, th, dzq, pres, prt_liq);
     }
 
-    auto finish = std::chrono::steady_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(finish - start);
-
-    if (r != 0) {
-      times.push_back(1e-6*duration.count());
+    if (r == 0) {
+      start = std::chrono::steady_clock::now();
     }
   }
 
-  const double report_time = median(times);
+  auto finish = std::chrono::steady_clock::now();
+  auto duration = std::chrono::duration_cast<std::chrono::microseconds>(finish - start);
+
+  const double report_time = (1e-6*duration.count()) / repeat;
 
   printf("Time = %1.3e seconds\n", report_time);
 
@@ -162,7 +153,8 @@ void micro_sed_func_kokkos_wrap(const int ni, const int nk, const Real dt, const
     }
   }
 
-  std::vector<double> times;
+  // This time is thrown out, I just wanted to be able to use auto
+  auto start = std::chrono::steady_clock::now();
 
   for (int r = 0; r < repeat+1; ++r) {
     Kokkos::deep_copy(qr,   qr_i);
@@ -172,8 +164,6 @@ void micro_sed_func_kokkos_wrap(const int ni, const int nk, const Real dt, const
     Kokkos::deep_copy(pres, pres_i);
     Kokkos::deep_copy(prt_liq, prt_liq_i);
 
-    auto start = std::chrono::steady_clock::now();
-
     for (int i = 0; i < ts; ++i) {
       micro_sed_func(msk,
                      kdir == 1 ? 1 : nk, kdir == 1 ? nk : 1,
@@ -181,15 +171,15 @@ void micro_sed_func_kokkos_wrap(const int ni, const int nk, const Real dt, const
       Kokkos::fence();
     }
 
-    auto finish = std::chrono::steady_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(finish - start);
-
-    if (r != 0) {
-      times.push_back(1e-6*duration.count());
+    if (r == 0) {
+      start = std::chrono::steady_clock::now();
     }
   }
 
-  const double report_time = median(times);
+  auto finish = std::chrono::steady_clock::now();
+  auto duration = std::chrono::duration_cast<std::chrono::microseconds>(finish - start);
+
+  const double report_time = (1e-6*duration.count()) / repeat;
 
   printf("Time = %1.3e seconds\n", report_time);
 
