@@ -268,12 +268,10 @@ contains
     real, intent(in) :: dt
 
     integer, parameter :: chunksize = CHUNKSIZE
-    real, dimension(chunksize,nk) :: cqr, cnr, cth, cdzq, cpres
-    real, dimension(:,:), allocatable, target :: qr, nr, th, dzq, pres
-    real, dimension(chunksize) :: cprt_liq
-    real, dimension(ni), target :: prt_liq
-    real(8) :: start, finish
-    integer :: ti, ci, nchunk, cni, cnk, ws, i
+    real, dimension(:,:), allocatable, target :: qr, nr, th, dzq, pres, qr_i, nr_i, th_i, dzq_i, pres_i
+    real, dimension(ni), target :: prt_liq, prt_liq_i
+    real(8) :: start, finish, total
+    integer :: ti, ci, nchunk, i, r, k
     logical :: ok
 
     character (kind=c_char, len=*), parameter :: filename = c_char_"fortran"//char(0)
@@ -283,44 +281,68 @@ contains
     allocate(th(ni,nk))
     allocate(dzq(ni,nk))
     allocate(pres(ni,nk))
+    allocate(qr_i(ni,nk))
+    allocate(nr_i(ni,nk))
+    allocate(th_i(ni,nk))
+    allocate(dzq_i(ni,nk))
+    allocate(pres_i(ni,nk))
 
     call dump_arch_f90()
     print '("Running with ni=",I0," nk=",I0," dt=",F6.2," ts=",I0)', ni, nk, dt, ts
 
-    call populate_input(ni, nk, qr, nr, th, dzq, pres, kdir)
+    call populate_input(ni, nk, qr_i, nr_i, th_i, dzq_i, pres_i, kdir)
     print *, 'chunksize',chunksize
 
-    start = omp_get_wtime()
+    prt_liq_i(:) = 0
+    total = 0.0
 
-    prt_liq(:) = 0
+    do r = 1, repeat+1
+
+       do i = 1, ni
+          do k = 1, nk
+             qr(i, k) = qr_i(i, k)
+             nr(i, k) = nr_i(i, k)
+             th(i, k) = th_i(i, k)
+             dzq(i, k) = dzq_i(i, k)
+             pres(i, k) = pres_i(i, k)
+          end do
+          prt_liq(i) = prt_liq_i(i)
+       end do
+
+       start = omp_get_wtime()
 
 #if CHUNKSIZE > 0
-    nchunk = (ni + chunksize - 1) / chunksize
-    do ti = 1, ts
-!$OMP PARALLEL DO DEFAULT(SHARED)
-       do ci = 1, nchunk
-          call micro_sed_func_chunk(ni, nk, kdir, dt, qr, nr, th, dzq, pres, prt_liq, ci)
+       nchunk = (ni + chunksize - 1) / chunksize
+       do ti = 1, ts
+          !$OMP PARALLEL DO DEFAULT(SHARED)
+          do ci = 1, nchunk
+             call micro_sed_func_chunk(ni, nk, kdir, dt, qr, nr, th, dzq, pres, prt_liq, ci)
+          end do
+          !$OMP END PARALLEL DO
        end do
-!$OMP END PARALLEL DO
-    end do
 #else
-    do ti = 1, ts
-!$OMP PARALLEL DO DEFAULT(SHARED)
-       do i = 1, ni
-          call micro_sed_func(1, nk, kdir, 1, 1, dt, &
-               qr(i,:), nr(i,:), th(i,:), dzq(i,:), pres(i,:), prt_liq(i))
+       do ti = 1, ts
+          !$OMP PARALLEL DO DEFAULT(SHARED)
+          do i = 1, ni
+             call micro_sed_func(1, nk, kdir, 1, 1, dt, &
+                  qr(i,:), nr(i,:), th(i,:), dzq(i,:), pres(i,:), prt_liq(i))
+          end do
+          !$OMP END PARALLEL DO
        end do
-!$OMP END PARALLEL DO
-    end do
 #endif
 
-    finish = omp_get_wtime()
+       finish = omp_get_wtime()
+       if (r.ne.1) then
+          total = total + (finish - start)
+       endif
 
-    print '("Time = ",E20.3," seconds.")', finish - start
+    end do
+
+    print '("Time = ",E20.3," seconds.")', total / repeat
 
     ok = dump_all(filename, c_loc(qr), c_loc(nr), c_loc(th), c_loc(dzq), c_loc(pres), c_loc(prt_liq), ni, nk, dt, ts)
 
-    deallocate(qr, nr, th, dzq, pres)
+    deallocate(qr, nr, th, dzq, pres, qr_i, nr_i, th_i, dzq_i, pres_i)
 
   end subroutine micro_sed_func_wrap
 
