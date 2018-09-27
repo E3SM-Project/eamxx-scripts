@@ -49,11 +49,11 @@ struct Unmanaged {
     type;
 };
 
-template <typename T, typename ...Parms> KOKKOS_FORCEINLINE_FUNCTION
+template <typename T, typename ...Parms, int pack_size> KOKKOS_FORCEINLINE_FUNCTION
 typename Unmanaged<Kokkos::View<T**, Parms...> >::type
-scalarize (const Kokkos::View<BigPack<T>**, Parms...>& vp) {
+scalarize (const Kokkos::View<scream::pack::Pack<T, pack_size>**, Parms...>& vp) {
   return typename Unmanaged<Kokkos::View<T**, Parms...> >::type(
-    reinterpret_cast<T*>(vp.data()), vp.extent_int(0), RealPack::n * vp.extent_int(1));
+    reinterpret_cast<T*>(vp.data()), vp.extent_int(0), pack_size * vp.extent_int(1));
 }
 
 template <typename T, typename ...Parms> KOKKOS_FORCEINLINE_FUNCTION
