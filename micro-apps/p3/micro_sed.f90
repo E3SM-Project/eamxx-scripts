@@ -295,7 +295,7 @@ contains
 
     prt_liq_i(:) = 0
 
-    !$OMP PARALLEL DEFAULT(SHARED)
+    !$OMP PARALLEL DEFAULT(SHARED) PRIVATE(i, k, ti, ci)
     do r = 1, repeat+1
 
        !$OMP DO
