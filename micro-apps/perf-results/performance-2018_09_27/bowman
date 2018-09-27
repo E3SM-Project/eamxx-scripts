@@ -1,5 +1,4 @@
-Branch performance-2018_09_27 set up to track remote branch performance-2018_09_27 from origin by rebasing.
-Provenance:  nk=128 dt=300 ts=30 threads=None machine=node01 commit=42994d5
+Provenance:  nk=128 dt=300 ts=30 threads=272 machine=bowman commit=42994d5
 cpp ni
 64, 464.44
 128, 706.60

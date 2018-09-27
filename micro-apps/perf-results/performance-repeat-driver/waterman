@@ -1,6 +1,4 @@
-Branch performance-repeat-driver set up to track remote branch performance-repeat-driver from origin by rebasing.
-Job <29639> is submitted to queue <rhel7W>.
-Provenance:  nk=128 dt=300 ts=30 threads=None machine=waterman4 commit=88c0237
+Provenance:  nk=128 dt=300 ts=30 threads=None machine=waterman commit=88c0237
 cpp ni
 64, 877.49
 128, 1460.60

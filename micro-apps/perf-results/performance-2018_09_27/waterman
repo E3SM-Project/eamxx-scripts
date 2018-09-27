@@ -1,6 +1,4 @@
-Branch performance-2018_09_27 set up to track remote branch performance-2018_09_27 from origin by rebasing.
-Job <29637> is submitted to queue <rhel7W>.
-Provenance:  nk=128 dt=300 ts=30 threads=None machine=waterman2 commit=42994d5
+Provenance:  nk=128 dt=300 ts=30 threads=None machine=waterman commit=42994d5
 cpp ni
 64, 140.61
 128, 268.37
