@@ -88,7 +88,7 @@ def run_on_machine(machine, perf_analysis_args, branch):
 def gather_all_data(perf_analysis_args, branch, machines):
 ###############################################################################
     os.mkdir(os.path.join("perf-results", branch))
-    run_cmd_no_fail("git checkout -b {} && git push -u origin {}".format(branch, branch))
+    run_cmd_no_fail("git checkout -b {} && git push -u origin {}".format(branch, branch), verbose=True)
 
     success = True
 
