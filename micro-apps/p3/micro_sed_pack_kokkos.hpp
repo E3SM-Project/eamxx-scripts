@@ -122,7 +122,7 @@ void find_lookupTable_indices_3_kokkos (
   const auto dum1 = (mu_r+1.) / lamr;
   const auto dum1_lt = qr_gt_small && (dum1 <= 195.e-6);
   if (dum1_lt.any()) {
-    scream_masked_loop(dum1_lt) {
+    scream_masked_loop(dum1_lt, s) {
       const auto inv_dum3 = 0.1;
       auto rdumii = (dum1[s]*1.e6+5.)*inv_dum3;
       rdumii = util::max<Real>(rdumii,  1.);
@@ -137,7 +137,7 @@ void find_lookupTable_indices_3_kokkos (
   }
   const auto dum1_gte = qr_gt_small && ! dum1_lt;
   if (dum1_gte.any()) {
-    scream_masked_loop(dum1_gte) {
+    scream_masked_loop(dum1_gte, s) {
       const auto inv_dum3 = Globals<Real>::THRD*0.1;
       auto rdumii = (dum1[s]*1.e+6-195.)*inv_dum3 + 20.;
       rdumii = util::max<Real>(rdumii, 20.);
@@ -211,7 +211,7 @@ void get_rain_dsd2_kokkos (
   {
     const auto m2 = qr_gt_small && (inv_dum >= 282.e-6) && (inv_dum < 502.e-6);
     if (m2.any()) {
-      scream_masked_loop(m2) {
+      scream_masked_loop(m2, s) {
         // interpolate
         Real rdumiis = (inv_dum[s] - 250.e-6)*0.5e6;
         rdumiis = util::max<Real>(rdumiis, 1.0);
@@ -244,7 +244,7 @@ void get_rain_dsd2_kokkos (
   if (either.any()) {
     lamr.set(lt, lammin);
     lamr.set(gt, lammax);
-    scream_masked_loop(either) {
+    scream_masked_loop(either, s) {
       nr[s] = std::exp(3*std::log(lamr[s]) + std::log(qr[s]) +
                        std::log(std::tgamma(mu_r[s] + 1)) - std::log(std::tgamma(mu_r[s] + 4)))
         / cons1;

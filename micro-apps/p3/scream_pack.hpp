@@ -43,7 +43,7 @@ using OnlyMask = typename std::enable_if<Mask::masktag,Mask>::type;
 template <typename Mask, typename Return>
 using OnlyMaskReturn = typename std::enable_if<Mask::masktag,Return>::type;
 
-#define scream_masked_loop(mask) \
+#define scream_masked_loop(mask, s)                         \
   vector_simd for (int s = 0; s < mask.n; ++s) if (mask[s])
 
 #define scream_mask_gen_bin_op_mm(op, impl)                   \
