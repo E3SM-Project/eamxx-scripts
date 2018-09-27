@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+0;136;0c#!/usr/bin/env python3
 
 """
 Gather all performance data on all platforms of interest and store
@@ -11,10 +11,11 @@ It is expected that your current repo is clean and that your current commit
 is the one you want to test.
 """
 
-from utils import run_cmd_no_fail, run_cmd, expect, check_minimum_python_version, median
-check_minimum_python_version(2, 7)
+from utils import run_cmd_no_fail, expect, check_minimum_python_version
+check_minimum_python_version(3, 5)
 
-import argparse, sys, os, threading, time
+import argparse, sys, os, time
+import concurrent.futures as threading3
 
 # MACHINE -> (modules, repo-loc, kokkos-install-loc, compiler, batch submit prefix)
 MACHINE_METADATA = {
@@ -74,13 +75,13 @@ def formulate_command(machine, perf_analysis_args, branch):
 def run_on_machine(machine, perf_analysis_args, branch):
 ###############################################################################
     cmd = formulate_command(machine, perf_analysis_args, branch)
-    print "Starting performance analysis on {} with cmd: {}\n".format(machine, cmd),
+    print("Starting performance analysis on {} with cmd: {}".format(machine, cmd))
 
-    output = run_cmd_no_fail("ssh {} '{}'".format(machine, cmd))
+    output = run_cmd_no_fail("ssh -o StrictHostKeyChecking=no {} '{}'".format(machine, cmd))
     with open(os.path.join("perf-results", branch, machine), "w") as fd:
         fd.write(output)
 
-    print "Completed performance analysis on {}\n".format(machine),
+    print ("Completed performance analysis on {}".format(machine))
 
 ###############################################################################
 def gather_all_data(perf_analysis_args, branch, machines):
@@ -88,20 +89,24 @@ def gather_all_data(perf_analysis_args, branch, machines):
     os.mkdir(os.path.join("perf-results", branch))
     run_cmd_no_fail("git checkout -b {} && git push -u origin {}".format(branch, branch))
 
-    threads_in_flight = []
-    for machine in machines:
-        new_thread = threading.Thread(target=run_on_machine, args=(machine, perf_analysis_args, branch))
-        new_thread.start()
-        threads_in_flight.append(new_thread)
+    success = True
 
-    for thread_in_flight in threads_in_flight:
-        thread_in_flight.join()
+    with threading3.ThreadPoolExecutor(max_workers=len(machines)) as executor:
+        future_to_machine = {executor.submit(run_on_machine, machine, perf_analysis_args, branch): machine for machine in machines}
+        for future in threading3.as_completed(future_to_machine):
+            machine = future_to_machine[future]
+            try:
+                future.result()
+            except Exception as exc:
+                print('{} failed with exception: {}'.format(machine, exc))
+                success = False
+
+    return success
 
 ###############################################################################
 def _main_func(description):
 ###############################################################################
-    perf_analysis_args, branch, machines
-        parse_command_line(sys.argv, description)
+    perf_analysis_args, branch, machines = parse_command_line(sys.argv, description)
 
     success = gather_all_data(perf_analysis_args, branch, machines)
 
