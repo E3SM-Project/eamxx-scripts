@@ -73,7 +73,7 @@ def run_cmd(cmd, input_str=None, from_dir=None, verbose=None,
     return stat, output, errput
 
 def run_cmd_no_fail(cmd, input_str=None, from_dir=None, verbose=None,
-                    arg_stdout=_hack, arg_stderr=_hack, env=None, combine_output=False):
+                    arg_stdout=_hack, arg_stderr=_hack, env=None, combine_output=False, exc_type=SystemExit):
     """
     Wrapper around subprocess to make it much more convenient to run shell commands.
     Expects command to work. Just returns output string.
@@ -98,7 +98,7 @@ def run_cmd_no_fail(cmd, input_str=None, from_dir=None, verbose=None,
         if errput is None:
             errput = ""
 
-        expect(False, "Command: '{}' failed with error '{}' from dir '{}'".format(cmd, errput.encode('utf-8'), os.getcwd() if from_dir is None else from_dir))
+        expect(False, "Command: '{}' failed with error '{}' from dir '{}'".format(cmd, errput.encode('utf-8'), os.getcwd() if from_dir is None else from_dir), exc_type=exc_type)
 
     return output
 

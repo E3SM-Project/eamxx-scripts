@@ -67,7 +67,7 @@ def formulate_command(machine, perf_analysis_args, branch):
     pargs = perf_analysis_args.replace("$compiler", compiler)
     pargs = pargs.replace("$kokkos_install", kokkos)
 
-    cmd = "cd {} && module load {} && git fetch && git checkout {} && {} ../perf-scripts/perf_analysis {}".format(os.path.join(repo, "micro-apps"), " ".join(modules), branch, batch, pargs)
+    cmd = "cd {} && module load {} && git fetch && git checkout {} && {} ../perf-scripts/perf_analysis {} -p".format(os.path.join(repo, "micro-apps"), " ".join(modules), branch, batch, pargs)
 
     return cmd
 
@@ -77,7 +77,7 @@ def run_on_machine(machine, perf_analysis_args, branch):
     cmd = formulate_command(machine, perf_analysis_args, branch)
     print("Starting performance analysis on {} with cmd: {}".format(machine, cmd))
 
-    output = run_cmd_no_fail("ssh -o StrictHostKeyChecking=no {} '{}'".format(machine, cmd))
+    output = run_cmd_no_fail("ssh -o StrictHostKeyChecking=no {} '{}'".format(machine, cmd), exc_type=RuntimeError)
     with open(os.path.join("perf-results", branch, machine), "w") as fd:
         fd.write(output)
 
