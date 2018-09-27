@@ -43,7 +43,7 @@ class ScalingExp(object):
             if name != self.varname:
                 prov_msg += " {}={}".format(name, data)
 
-        st, out, err = run_cmd("git rev-parse --short HEAD")
+        st, out, _ = run_cmd("git rev-parse --short HEAD")
         git_commit = out if st == 0 else "Unknown"
         print "{} machine={} commit={}".format(prov_msg, socket.gethostname().split(".")[0], git_commit)
 
@@ -58,16 +58,16 @@ class ScalingExp(object):
 def parse_command_line(args, description):
 ###############################################################################
     parser = argparse.ArgumentParser(
-        usage="""\n{0} <NI> <NK> <DT> <TS> <KOKKOS_DIR> [<CXX_COMPILER>] [-n num_runs] [--verbose]
+        usage="""\n{0} <NI> <NK> <DT> <TS> <REP> <KOKKOS_DIR> [<CXX_COMPILER>] [-n num_runs] [--verbose]
 OR
 {0} --help
 
 \033[1mEXAMPLES:\033[0m
-    \033[1;32m# Run with 1 horizontal and 111 vertical columns over 300s with 30s timesteps \033[0m
-    > {0} 1 111 300 30 /home/jgfouca/kokkos-install/install
+    \033[1;32m# Run with 1 horizontal and 111 vertical columns over 300s with 30s timesteps and 10 internal repitions \033[0m
+    > {0} 1 111 300 30 10 /home/jgfouca/kokkos-install/install
 
     \033[1;32m# Run with 1 horizontal and 111 vertical columns over 300s with 30s timesteps with single precision \033[0m
-    > {0} 1 111 300 30 /home/jgfouca/kokkos-install/install -c ' -DDOUBLE_PRECISION=FALSE'
+    > {0} 1 111 300 30 10 /home/jgfouca/kokkos-install/install -c ' -DDOUBLE_PRECISION=FALSE'
     # Note the space before the dash
 """.format(os.path.basename(args[0])),
         description=description,
@@ -81,6 +81,8 @@ OR
     parser.add_argument("dt", type=int, help="Time step length(s). If doing a scaling experiment, this is the starting value.")
 
     parser.add_argument("ts", type=int, help="Number of timesteps. If doing a scaling experiment, this is the starting value.")
+
+    parser.add_argument("repeat", type=int, help="Number of internal repitions (improves timer resolution).")
 
     parser.add_argument("kokkos", help="Kokkos location")
 
@@ -123,7 +125,7 @@ OR
         expect(not (scaling_exp.varname == "threads" and args.force_threads is None),
                "Need to set --force-threads if doing a threading scaling experiment")
 
-    return args.ni, args.nk, args.dt, args.ts, args.force_threads, args.num_runs, args.test, args.cmake_options, args.use_existing, scaling_exp, args.plot_friendly
+    return args.ni, args.nk, args.dt, args.ts, args.repeat, args.force_threads, args.num_runs, args.test, args.cmake_options, args.use_existing, scaling_exp, args.plot_friendly
 
 ###############################################################################
 def build_p3(cmake_options):
@@ -174,12 +176,12 @@ def get_threads(output):
     expect(False, "Failed to find threads in:\n\n{}".format(output))
 
 ###############################################################################
-def run_p3(exename, ni, nk, dt, ts, force_threads, num_runs):
+def run_p3(exename, ni, nk, dt, ts, repeat, force_threads, num_runs):
 ###############################################################################
     machine_specific_init(force_threads)
     test_specific_init(exename, force_threads)
     prefix = "" if "NUMA_PREFIX" not in os.environ else "{} ".format(os.environ["NUMA_PREFIX"])
-    cmd = "{}./{} {} {} {} {} 1".format(prefix, exename, ni, nk, dt, ts)
+    cmd = "{}./{} {} {} {} {} 1 {}".format(prefix, exename, ni, nk, dt, ts, repeat)
     results = []
     with open("{}.perf.log".format(exename), "w") as fd:
         fd.write(cmd + "\n\n")
@@ -194,24 +196,24 @@ def run_p3(exename, ni, nk, dt, ts, force_threads, num_runs):
     return median(results), threads
 
 ###############################################################################
-def run_fortran(ni, nk, dt, ts, force_threads, num_runs):
+def run_fortran(ni, nk, dt, ts, repeat, force_threads, num_runs):
 ###############################################################################
-    return run_p3("micro_sed", ni, nk, dt, ts, force_threads, num_runs)
+    return run_p3("micro_sed", ni, nk, dt, ts, repeat, force_threads, num_runs)
 
 ###############################################################################
-def run_cpp(ni, nk, dt, ts, force_threads, num_runs):
+def run_cpp(ni, nk, dt, ts, repeat, force_threads, num_runs):
 ###############################################################################
-    return run_p3("micro_sed_vanilla", ni, nk, dt, ts, force_threads, num_runs)
+    return run_p3("micro_sed_vanilla", ni, nk, dt, ts, repeat, force_threads, num_runs)
 
 ###############################################################################
-def run_kokkos(ni, nk, dt, ts, force_threads, num_runs):
+def run_kokkos(ni, nk, dt, ts, repeat, force_threads, num_runs):
 ###############################################################################
-    return run_p3("micro_sed_vanilla_kokkos", ni, nk, dt, ts, force_threads, num_runs)
+    return run_p3("micro_sed_vanilla_kokkos", ni, nk, dt, ts, repeat, force_threads, num_runs)
 
 ###############################################################################
-def run_pack(ni, nk, dt, ts, force_threads, num_runs):
+def run_pack(ni, nk, dt, ts, repeat, force_threads, num_runs):
 ###############################################################################
-    return run_p3("micro_sed_pack_kokkos", ni, nk, dt, ts, force_threads, num_runs)
+    return run_p3("micro_sed_pack_kokkos", ni, nk, dt, ts, repeat, force_threads, num_runs)
 
 ###############################################################################
 def user_explain(test, med_time, reference, ni):
@@ -226,7 +228,7 @@ def user_explain(test, med_time, reference, ni):
     print msg
 
 ###############################################################################
-def perf_analysis(ni, nk, dt, ts, force_threads, num_runs, tests, cmake_options, use_existing, scaling_exp, plot_friendly):
+def perf_analysis(ni, nk, dt, ts, repeat, force_threads, num_runs, tests, cmake_options, use_existing, scaling_exp, plot_friendly):
 ###############################################################################
     if use_existing:
         expect(os.path.isdir("p3") and os.path.exists("CMakeCache.txt"),
@@ -253,7 +255,7 @@ def perf_analysis(ni, nk, dt, ts, force_threads, num_runs, tests, cmake_options,
         for test in tests:
             func_name = "run_{}".format(test)
             expect(func_name in globals(), "Unknown test '{}'".format(test))
-            med_time, threads = globals()[func_name](ni, nk, dt, ts, force_threads, num_runs)
+            med_time, threads = globals()[func_name](ni, nk, dt, ts, repeat, force_threads, num_runs)
 
             if plot_friendly:
                 results.setdefault(test, []).append((ni, nk, dt, ts, threads, med_time))
@@ -298,12 +300,12 @@ def machine_specific_init(force_threads):
 ###############################################################################
 def _main_func(description):
 ###############################################################################
-    ni, nk, dt, ts, force_threads, num_runs, tests, cmake_options, use_existing, scaling_exp, plot_friendly = \
+    ni, nk, dt, ts, repeat, force_threads, num_runs, tests, cmake_options, use_existing, scaling_exp, plot_friendly = \
         parse_command_line(sys.argv, description)
 
     machine_specific_init(force_threads)
 
-    success = perf_analysis(ni, nk, dt, ts, force_threads, num_runs, tests, cmake_options, use_existing, scaling_exp, plot_friendly)
+    success = perf_analysis(ni, nk, dt, ts, repeat, force_threads, num_runs, tests, cmake_options, use_existing, scaling_exp, plot_friendly)
 
     sys.exit(0 if success else 1)
 
