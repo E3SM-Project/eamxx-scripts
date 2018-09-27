@@ -6,6 +6,7 @@ them in a git branch.
 
 It is expected that you are able to do a passwordless ssh to all
 machines and that the given repo on the target machines are clean.
+Since testbeds do not allow login via ssh key, you'll need to use kinit.
 
 It is expected that your current repo is clean and that your current commit
 is the one you want to test.
@@ -19,9 +20,9 @@ import concurrent.futures as threading3
 
 # MACHINE -> (modules, repo-loc, kokkos-install-loc, compiler, batch submit prefix)
 MACHINE_METADATA = {
-    "bowman"   : (["intel/compilers/18.2.199", "git/2.8.2",  "cmake/3.5.2"], "~/scream-docs-perf-bowman",    "~/kokkos-install-bowman/install", "$(which icpc)",                    "srun"),
-    "blake"    : (["intel/compilers/18.1.163", "git/2.9.4",  "cmake/3.9.0"], "~/scream-docs-perf-blake",     "~/kokkos-install-blake/install",  "$(which icpc)",                    "srun"),
-    "waterman" : (["gcc/7.2.0", "cuda/9.2.88", "git/2.10.1", "cmake/3.9.6"], "~/scream-docs-perf-waterman",  "~/kokkos-install/install",        "$kokkos_install/bin/nvcc_wrapper", "bsub -I -q rhel7W"),
+    "bowman"   : (["intel/compilers/18.2.199", "git/2.8.2",  "cmake/3.5.2"], "~/scream-docs-perf-bowman",    "$HOME/kokkos-install-bowman/install", "$(which icpc)",                    "srun"),
+    "blake"    : (["intel/compilers/18.1.163", "git/2.9.4",  "cmake/3.9.0"], "~/scream-docs-perf-blake",     "$HOME/kokkos-install-blake/install",  "$(which icpc)",                    "srun"),
+    "waterman" : (["gcc/7.2.0", "cuda/9.2.88", "git/2.10.1", "cmake/3.9.6"], "~/scream-docs-perf-waterman",  "$HOME/kokkos-install/install",        "$kokkos_install/bin/nvcc_wrapper", "bsub -I -q rhel7W"),
 }
 
 ###############################################################################
