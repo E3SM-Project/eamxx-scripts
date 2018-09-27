@@ -179,7 +179,7 @@ def run_p3(exename, ni, nk, dt, ts, force_threads, num_runs):
     machine_specific_init(force_threads)
     test_specific_init(exename, force_threads)
     prefix = "" if "NUMA_PREFIX" not in os.environ else "{} ".format(os.environ["NUMA_PREFIX"])
-    cmd = "{}{} {} {} {} {} 1".format(prefix, exename, ni, nk, dt, ts)
+    cmd = "{}./{} {} {} {} {} 1".format(prefix, exename, ni, nk, dt, ts)
     results = []
     with open("{}.perf.log".format(exename), "w") as fd:
         fd.write(cmd + "\n\n")
