@@ -30,11 +30,28 @@ using IntPack = BigPack<Int>;
 using RealSmallPack = SmallPack<Real>;
 using IntSmallPack = SmallPack<Int>;
 
-template <typename T, typename ...Parms> KOKKOS_FORCEINLINE_FUNCTION
-Kokkos::View<T**, Parms..., Kokkos::MemoryTraits<Kokkos::Unmanaged> >
-scalarize (const Kokkos::View<BigPack<T>**, Parms...>& vp) {
-  return Kokkos::View<T**, Parms..., Kokkos::MemoryTraits<Kokkos::Unmanaged> >(
-    reinterpret_cast<T*>(vp.data()), vp.extent_int(0), RealPack::n * vp.extent_int(1));
+// Make the input View Unmanaged, whether or not it already is.
+template <typename View>
+using Unmanaged = 
+  // Provide a full View type specification, augmented with Unmanaged.
+  Kokkos::View<typename View::traits::scalar_array_type,
+               typename View::traits::array_layout,
+               typename View::traits::device_type,
+               Kokkos::MemoryTraits<
+                 // All the current values...
+                 (View::traits::memory_traits::RandomAccess ? Kokkos::RandomAccess : 0) |
+                 (View::traits::memory_traits::Atomic ? Kokkos::Atomic : 0) |
+                 (View::traits::memory_traits::Restrict ? Kokkos::Restrict : 0) |
+                 (View::traits::memory_traits::Aligned ? Kokkos::Aligned : 0) |
+                 // ... |ed with the one we want, whether or not it's
+                 // already there.
+                 Kokkos::Unmanaged> >;
+
+template <typename T, typename ...Parms, int pack_size> KOKKOS_FORCEINLINE_FUNCTION
+Unmanaged<Kokkos::View<T**, Parms...> >
+scalarize (const Kokkos::View<scream::pack::Pack<T, pack_size>**, Parms...>& vp) {
+  return Unmanaged<Kokkos::View<T**, Parms...> >(
+    reinterpret_cast<T*>(vp.data()), vp.extent_int(0), pack_size * vp.extent_int(1));
 }
 
 template <typename T, typename ...Parms> KOKKOS_FORCEINLINE_FUNCTION
@@ -44,18 +61,24 @@ scalarize (const Kokkos::View<BigPack<T>*, Parms...>& vp) {
     reinterpret_cast<T*>(vp.data()), RealPack::n * vp.extent_int(0));
 }
 
-template <typename T> KOKKOS_FORCEINLINE_FUNCTION
-kokkos_2d_t<SmallPack<T> > smallize (const kokkos_2d_t<T>& vp) {
-  assert(vp.extent_int(1) % RealSmallPack::n == 0);
-  return Kokkos::View<SmallPack<T>**, Layout, MemSpace, Kokkos::MemoryTraits<Kokkos::Unmanaged> >(
-    reinterpret_cast<SmallPack<T>*>(vp.data()), vp.extent_int(0), vp.extent_int(1) / RealSmallPack::n);
+template <int new_pack_size,
+          typename T, typename ...Parms, int old_pack_size>
+KOKKOS_FORCEINLINE_FUNCTION
+Unmanaged<Kokkos::View<scream::pack::Pack<T, new_pack_size>**, Parms...> >
+repack (const Kokkos::View<scream::pack::Pack<T, old_pack_size>**, Parms...>& vp) {
+  static_assert(new_pack_size > 0 &&
+                old_pack_size % new_pack_size == 0,
+                "New pack size must divide old pack size.");
+  return Unmanaged<Kokkos::View<scream::pack::Pack<T, new_pack_size>**, Parms...> >(
+    reinterpret_cast<scream::pack::Pack<T, new_pack_size>*>(vp.data()),
+    vp.extent_int(0),
+    (old_pack_size / new_pack_size) * vp.extent_int(1));
 }
 
-template <typename T> KOKKOS_FORCEINLINE_FUNCTION
-kokkos_2d_t<SmallPack<T> > smallize (const kokkos_2d_t<BigPack<T> >& vp) {
-  return Kokkos::View<SmallPack<T>**, Layout, MemSpace, Kokkos::MemoryTraits<Kokkos::Unmanaged> >(
-    reinterpret_cast<SmallPack<T>*>(vp.data()), vp.extent_int(0),
-    SCREAM_SMALL_PACK_FACTOR * vp.extent_int(1));
+template <typename T, typename ...Parms> KOKKOS_FORCEINLINE_FUNCTION
+Unmanaged<Kokkos::View<SmallPack<T>**, Parms...> >
+smallize (const Kokkos::View<SmallPack<T>**, Parms...>& vp) {
+  return repack<SCREAM_PACKN / SCREAM_SMALL_PACK_FACTOR>(vp);
 }
 
 template <typename Real>
@@ -95,7 +118,7 @@ void find_lookupTable_indices_3_kokkos (
   const auto dum1 = (mu_r+1.) / lamr;
   const auto dum1_lt = qr_gt_small && (dum1 <= 195.e-6);
   if (dum1_lt.any()) {
-    scream_masked_loop(dum1_lt) {
+    scream_masked_loop(dum1_lt, s) {
       const auto inv_dum3 = 0.1;
       auto rdumii = (dum1[s]*1.e6+5.)*inv_dum3;
       rdumii = util::max<Real>(rdumii,  1.);
@@ -110,7 +133,7 @@ void find_lookupTable_indices_3_kokkos (
   }
   const auto dum1_gte = qr_gt_small && ! dum1_lt;
   if (dum1_gte.any()) {
-    scream_masked_loop(dum1_gte) {
+    scream_masked_loop(dum1_gte, s) {
       const auto inv_dum3 = Globals<Real>::THRD*0.1;
       auto rdumii = (dum1[s]*1.e+6-195.)*inv_dum3 + 20.;
       rdumii = util::max<Real>(rdumii, 20.);
@@ -184,7 +207,7 @@ void get_rain_dsd2_kokkos (
   {
     const auto m2 = qr_gt_small && (inv_dum >= 282.e-6) && (inv_dum < 502.e-6);
     if (m2.any()) {
-      scream_masked_loop(m2) {
+      scream_masked_loop(m2, s) {
         // interpolate
         Real rdumiis = (inv_dum[s] - 250.e-6)*0.5e6;
         rdumiis = util::max<Real>(rdumiis, 1.0);
@@ -217,7 +240,7 @@ void get_rain_dsd2_kokkos (
   if (either.any()) {
     lamr.set(lt, lammin);
     lamr.set(gt, lammax);
-    scream_masked_loop(either) {
+    scream_masked_loop(either, s) {
       nr[s] = std::exp(3*std::log(lamr[s]) + std::log(qr[s]) +
                        std::log(std::tgamma(mu_r[s] + 1)) - std::log(std::tgamma(mu_r[s] + 4)))
         / cons1;
