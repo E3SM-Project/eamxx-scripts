@@ -73,7 +73,7 @@ def run_cmd(cmd, input_str=None, from_dir=None, verbose=None,
     return stat, output, errput
 
 def run_cmd_no_fail(cmd, input_str=None, from_dir=None, verbose=None,
-                    arg_stdout=_hack, arg_stderr=_hack, env=None, combine_output=False):
+                    arg_stdout=_hack, arg_stderr=_hack, env=None, combine_output=False, exc_type=SystemExit):
     """
     Wrapper around subprocess to make it much more convenient to run shell commands.
     Expects command to work. Just returns output string.
@@ -98,7 +98,7 @@ def run_cmd_no_fail(cmd, input_str=None, from_dir=None, verbose=None,
         if errput is None:
             errput = ""
 
-        expect(False, "Command: '{}' failed with error '{}' from dir '{}'".format(cmd, errput.encode('utf-8'), os.getcwd() if from_dir is None else from_dir))
+        expect(False, "Command: '{}' failed with error '{}' from dir '{}'".format(cmd, errput.encode('utf-8'), os.getcwd() if from_dir is None else from_dir), exc_type=exc_type)
 
     return output
 
@@ -276,3 +276,17 @@ def median(items):
     else:
         quotient, remainder = divmod(len(items), 2)
         return sorted(items)[quotient] if remainder else sum(sorted(items)[quotient - 1:quotient + 1]) / 2.
+
+def get_current_commit(short=False, repo=None, tag=False):
+    """
+    Return the sha1 of the current HEAD commit
+
+    >>> get_current_commit() is not None
+    True
+    """
+    if tag:
+        rc, output, _ = run_cmd("git describe --tags $(git log -n1 --pretty='%h')", from_dir=repo)
+    else:
+        rc, output, _ = run_cmd("git rev-parse {} HEAD".format("--short" if short else ""), from_dir=repo)
+
+    return output if rc == 0 else None

@@ -37,7 +37,7 @@ target_link_libraries(micro_sed_vanilla microsed)
 add_executable(perf_cmp perf_cmp.cpp)
 target_link_libraries(perf_cmp microsed)
 
-set(kokkos_impls vanilla workspace)
+set(kokkos_impls vanilla workspace pack)
 
 foreach (kokkos_impl ${kokkos_impls})
   add_executable(micro_sed_${kokkos_impl}_kokkos micro_sed_${kokkos_impl}_driver_kokkos.cpp)
@@ -64,7 +64,7 @@ target_include_directories (test_cuda PUBLIC ${SCREAM_MICRO_APPS_INCLUDES})
 target_link_libraries (test_cuda ${SCREAM_MICRO_APPS_LIBRARIES})
 set_target_properties (test_cuda PROPERTIES LINK_FLAGS ${SCREAM_MICRO_APPS_LINK_FLAGS})
 
-set(PERF_ARGS 10 128 300 30 1) # ni nk dt ts kdir
+set(PERF_ARGS 10 128 300 30 1 3) # ni nk dt ts kdir repeat
 add_test(nanoapp nanoapp -nc 4 -ns 100)
 add_test(run_unit_test_f90 unit_test_f90)
 add_test(run_unit_test unit_test)

@@ -34,7 +34,9 @@ static Int compare (const std::string& label, const Scalar* a,
   Real worst = 0;
   for (Int i = 0; i < n; ++i) {
     const auto num = std::abs(a[i] - b[i]);
-    if (num > tol*den) {
+    if (num > tol*den ||
+        std::isnan(a[i]) || std::isinf(a[i]) ||
+        std::isnan(b[i]) || std::isinf(b[i])) {
       ++nerr;
       if (verbose) {
         std::cout << label << " bad idx: " << i << std::fixed << std::setprecision(12)

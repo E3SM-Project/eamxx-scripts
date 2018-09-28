@@ -14,7 +14,9 @@ set(DOUBLE_PRECISION TRUE CACHE LOGICAL "Set to double precision (default True)"
 set(ENABLE_TRACING FALSE CACHE LOGICAL "Enable detailed tracing")
 set(MIMIC_GPU FALSE CACHE LOGICAL "Mimic GPU to correctness test inter-column parallelism on non-GPU platform")
 set(ENABLE_FPE FALSE CACHE LOGICAL "Enable floating point error exception")
-set(CHUNKSIZE 16 CACHE INTEGER "Chunk size for impls that want it")
+set(CHUNKSIZE 0 CACHE INTEGER "Chunk size for impls that want it")
+set(PACKSIZE 16 CACHE INTEGER "Vector pack size")
+set(SMALLPACKFACTOR 1 CACHE INTEGER "A small pack is this factor smaller than a regular pack; e.g., with PACKSIZE 16 and SMALLPACKFACTOR 2, a small pack has size 8.")
 
 if (Kokkos_DIR)
   include (${Kokkos_DIR}/kokkos_generated_settings.cmake)
@@ -43,7 +45,7 @@ set (SCREAM_MICRO_APPS_INCLUDES ${Kokkos_INCLUDE_DIR})
 set (SCREAM_MICRO_APPS_LIBRARIES ${KOKKOS_LIBS})
 
 set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -cpp -fopenmp")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SCREAM_MICRO_APPS_COMPILE_FLAGS} -Wall")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SCREAM_MICRO_APPS_COMPILE_FLAGS} -Wall -fopenmp")
 
 if (${DOUBLE_PRECISION})
   set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -DDOUBLE_PRECISION")
@@ -75,12 +77,15 @@ endif()
 if ("${KOKKOS_GMAKE_ARCH}" STREQUAL "KNL")
   set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -xMIC-AVX512")
 elseif ("${KOKKOS_GMAKE_ARCH}" STREQUAL "SKX")
-  set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -xCORE-AVX512")
+  # Testing shows Fortran does better on SKX with AVX2 than with AVX512.
+  set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -xCORE-AVX2")
 endif()
 
 STRING(TOLOWER "${CMAKE_BUILD_TYPE}" CMAKE_BUILD_TYPE_ci)
 if (CMAKE_BUILD_TYPE_ci STREQUAL "debug")
-  set(ENABLE_FPE TRUE)
+  if (${PACKSIZE} EQUAL 1)
+    set(ENABLE_FPE TRUE)
+  endif ()
   set(MIMIC_GPU TRUE)
   if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel")
     message("Disabling vectorization in this DEBUG build.")
@@ -107,7 +112,14 @@ if (${MIMIC_GPU})
   endif ()
 endif()
 
+if (CUDA_BUILD)
+  set(PACKSIZE 1)
+  set(SMALLPACKFACTOR 1)
+endif()
+
 add_definitions(-DCHUNKSIZE=${CHUNKSIZE})
+add_definitions(-DSCREAM_PACKN=${PACKSIZE})
+add_definitions(-DSCREAM_SMALL_PACK_FACTOR=${SMALLPACKFACTOR})
 
 enable_testing()
 

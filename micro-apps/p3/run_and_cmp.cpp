@@ -3,6 +3,7 @@
 #include "initial_conditions.hpp"
 #include "micro_sed_vanilla_kokkos.hpp"
 #include "micro_sed_workspace_kokkos.hpp"
+#include "micro_sed_pack_kokkos.hpp"
 #include "micro_kokkos.hpp"
 #include "cmp.hpp"
 
@@ -179,6 +180,104 @@ public:
 };
 
 template <typename Scalar>
+class KokkosPackBridge {
+public:
+  using RealPack = p3::micro_sed::RealPack;
+
+  int np;
+  kokkos_2d_t<RealPack> qr, nr, th, dzq, pres;
+  kokkos_1d_t<Real> prt_liq;
+
+  KokkosPackBridge(const ic::MicroSedData<Scalar>& d)
+    : np(scream::pack::npack<RealPack>(d.nk)),
+      qr("qr", d.ni, np),
+      nr("nr", d.ni, np),
+      th("th", d.ni, np),
+      dzq("dzq", d.ni, np),
+      pres("pres", d.ni, np),
+      prt_liq("prt_liq", d.ni)
+  {
+    sync_from(d);
+  }
+
+  void sync_from(const ic::MicroSedData<Scalar>& d)
+  {
+    using p3::micro_sed::scalarize;
+
+    const auto
+      qr_m = Kokkos::create_mirror_view(qr),
+      nr_m = Kokkos::create_mirror_view(nr),
+      th_m = Kokkos::create_mirror_view(th),
+      dzq_m = Kokkos::create_mirror_view(dzq),
+      pres_m = Kokkos::create_mirror_view(pres);
+    const auto prt_liq_m = Kokkos::create_mirror_view(prt_liq);
+
+    const auto
+      sqr = scalarize(qr_m),
+      snr = scalarize(nr_m),
+      sth = scalarize(th_m),
+      sdzq = scalarize(dzq_m),
+      spres = scalarize(pres_m);
+
+    for (int i = 0; i < d.ni; ++i) {
+      for (int k = 0; k < d.nk; ++k) {
+        sqr  (i, k) = d.qr  [i*d.nk + k];
+        snr  (i, k) = d.nr  [i*d.nk + k];
+        sth  (i, k) = d.th  [i*d.nk + k];
+        sdzq (i, k) = d.dzq [i*d.nk + k];
+        spres(i, k) = d.pres[i*d.nk + k];
+      }
+      prt_liq_m(i) = d.prt_liq[i];
+    }
+
+    Kokkos::deep_copy(qr, qr_m);
+    Kokkos::deep_copy(nr, nr_m);
+    Kokkos::deep_copy(th, th_m);
+    Kokkos::deep_copy(dzq, dzq_m);
+    Kokkos::deep_copy(pres, pres_m);
+    Kokkos::deep_copy(prt_liq, prt_liq_m);
+  }
+
+  void sync_to(ic::MicroSedData<Scalar>& d) const
+  {
+    using p3::micro_sed::scalarize;
+
+    const auto
+      qr_m = Kokkos::create_mirror_view(qr),
+      nr_m = Kokkos::create_mirror_view(nr),
+      th_m = Kokkos::create_mirror_view(th),
+      dzq_m = Kokkos::create_mirror_view(dzq),
+      pres_m = Kokkos::create_mirror_view(pres);
+    const auto prt_liq_m = Kokkos::create_mirror_view(prt_liq);
+
+    Kokkos::deep_copy(qr_m, qr);
+    Kokkos::deep_copy(nr_m, nr);
+    Kokkos::deep_copy(th_m, th);
+    Kokkos::deep_copy(dzq_m, dzq);
+    Kokkos::deep_copy(pres_m, pres);
+    Kokkos::deep_copy(prt_liq_m, prt_liq);
+
+    const auto
+      sqr = scalarize(qr_m),
+      snr = scalarize(nr_m),
+      sth = scalarize(th_m),
+      sdzq = scalarize(dzq_m),
+      spres = scalarize(pres_m);
+
+    for (int i = 0; i < d.ni; ++i) {
+      for (int k = 0; k < d.nk; ++k) {
+        d.qr  [i*d.nk + k] = sqr  (i, k);
+        d.nr  [i*d.nk + k] = snr  (i, k);
+        d.th  [i*d.nk + k] = sth  (i, k);
+        d.dzq [i*d.nk + k] = sdzq (i, k);
+        d.pres[i*d.nk + k] = spres(i, k);
+      }
+      d.prt_liq[i] = prt_liq_m(i);
+    }
+  }
+};
+
+template <typename Scalar>
 void micro_sed_func_cpp (ic::MicroSedData<Scalar>& d, VanillaCppBridge<Scalar>& bridge)
 {
   p3::micro_sed::micro_sed_func<Scalar>( d.reverse ? d.nk : 1, d.reverse ? 1 : d.nk,
@@ -188,8 +287,8 @@ void micro_sed_func_cpp (ic::MicroSedData<Scalar>& d, VanillaCppBridge<Scalar>& 
   bridge.sync_to(d);
 }
 
-template <typename Scalar, typename MSK>
-void micro_sed_func_cpp_kokkos (ic::MicroSedData<Scalar>& d, KokkosCppBridge<Scalar>& bridge, MSK& msk)
+template <typename Scalar, typename MSK, typename BridgeType>
+void micro_sed_func_cpp_kokkos (ic::MicroSedData<Scalar>& d, BridgeType& bridge, MSK& msk)
 {
   p3::micro_sed::micro_sed_func( msk, d.reverse ? d.nk : 1, d.reverse ? 1 : d.nk,
                                  1, d.ni, d.dt, bridge.qr, bridge.nr, bridge.th,
@@ -332,20 +431,23 @@ static Int run_and_cmp (const std::string& bfn, const Real& tol, bool verbose) {
       fid = util::FILEPtr(fopen(bfn.c_str(), "r"));
       micro_throw_if( ! fid, "run_and_cmp can't read " << bfn);
 
-      // Sanity check.
-      micro_throw_if( ! util::is_single_precision<Real>::value && tol != 0,
-                      "We want BFB in double precision, at least in DEBUG builds.");
+      if (util::OnGpu<ExecSpace>::value) {
+        // Sanity check.
+        micro_throw_if( ! util::is_single_precision<Real>::value && tol != 0,
+                        "We want BFB in double precision, at least in DEBUG builds.");
+      }
     }
 
     virtual void observe (const ic::MicroSedData<Scalar>& d_ic) override {
       auto d_ic_cp(d_ic);
       d_ic_cp.dt /= BaselineConsts::nstep;
 
-      std::vector<ic::MicroSedData<Scalar> > ds = {ic::MicroSedData<Scalar>(d_ic_cp), ic::MicroSedData<Scalar>(d_ic_cp), ic::MicroSedData<Scalar>(d_ic_cp), ic::MicroSedData<Scalar>(d_ic_cp)};
-
-      p3::micro_sed::MicroSedFuncVanillaKokkos<Scalar> msvk(d_ic.ni, d_ic.nk);
+      std::vector<ic::MicroSedData<Scalar> > ds
+        = {ic::MicroSedData<Scalar>(d_ic_cp), ic::MicroSedData<Scalar>(d_ic_cp), ic::MicroSedData<Scalar>(d_ic_cp), ic::MicroSedData<Scalar>(d_ic_cp), ic::MicroSedData<Scalar>(d_ic_cp)};
 
       p3::micro_sed::MicroSedFuncWorkspaceKokkos<Scalar> mswk(d_ic.ni, d_ic.nk);
+      p3::micro_sed::MicroSedFuncVanillaKokkos<Scalar> msvk(d_ic.ni, d_ic.nk);
+      p3::micro_sed::MicroSedFuncPackKokkos<Scalar> mspk(d_ic.ni, d_ic.nk);
 
       for (Int step = 0; step < BaselineConsts::nstep; ++step) {
         // Read the baseline.
@@ -386,6 +488,11 @@ static Int run_and_cmp (const std::string& bfn, const Real& tol, bool verbose) {
         nerr += do_compare<KokkosCppBridge<Scalar> >([&] (ic::MicroSedData<Scalar>& d, KokkosCppBridge<Scalar>& b) { micro_sed_func_cpp_kokkos(d, b, mswk); },
                                                      ds[3], d_ref, cpp_tol, "Workspace Kokkos C++", step, verbose);
 
+        nerr += do_compare<KokkosPackBridge<Scalar> >(
+          [&] (ic::MicroSedData<Scalar>& d, KokkosPackBridge<Scalar>& b) {
+            micro_sed_func_cpp_kokkos(d, b, mspk);
+          },
+          ds[4], d_ref, cpp_tol, "Pack Kokkos C++", step, verbose);
       }
     }
   };
@@ -419,7 +526,8 @@ int main (int argc, char** argv) {
   }
 
   bool generate = false, verbose=false;
-  Real tol = 0;
+  Real tol = util::OnGpu<ExecSpace>::value ? 1e-13 : 0.0;
+
   for (Int i = 1; i < argc-1; ++i) {
     if (util::eq(argv[i], "-g", "--generate")) generate = true;
     if (util::eq(argv[i], "-v", "--verbose")) verbose = true;

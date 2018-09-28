@@ -105,8 +105,8 @@ void get_rain_dsd2_kokkos(const Real qr, Real& nr, Real& mu_r, Real& rdumii, int
       nr   = std::exp(3.*std::log(lamr) + std::log(qr) + std::log(std::tgamma(mu_r+1.)) - log(std::tgamma(mu_r+4.)))/(Globals<Real>::CONS1);
     }
 
-    cdistr  = nr/std::tgamma(mu_r+1.);
-    logn0r  = std::log10(nr) + (mu_r+1.)*std::log10(lamr) - std::log10(std::tgamma(mu_r+1)); // note: logn0r is calculated as log10(n0r);
+    cdistr  = 0; //nr/std::tgamma(mu_r+1.);
+    logn0r  = 0; //std::log10(nr) + (mu_r+1.)*std::log10(lamr) - std::log10(std::tgamma(mu_r+1)); // note: logn0r is calculated as log10(n0r);
   }
   else {
     lamr   = 0.0;
@@ -115,13 +115,16 @@ void get_rain_dsd2_kokkos(const Real qr, Real& nr, Real& mu_r, Real& rdumii, int
   }
 }
 
-template <typename Real>
+template <typename Real, typename PackType=Real>
 struct MicroSedFuncVanillaKokkos
 {
   int num_horz, num_vert;
 
+  using pack_t = PackType;
+
   // re-usable scratch views
-  kokkos_2d_t<Real> V_qr, V_nr, flux_qx, flux_nx, mu_r, lamr, rhofacr, inv_dzq, rho, inv_rho, t, tmparr1;
+  kokkos_2d_t<PackType> V_qr, V_nr, flux_qx, flux_nx, mu_r, lamr, rhofacr, inv_dzq, rho, inv_rho, t, tmparr1;
+
   kokkos_2d_table_t<Real> vn_table, vm_table;
   kokkos_1d_table_t<Real> mu_r_table;
 
@@ -167,6 +170,13 @@ public:
     Kokkos::deep_copy(vm_table, mirror_vm_table);
     Kokkos::deep_copy(mu_r_table, mirror_mu_table);
   }
+
+  static std::string custom_msg()
+  {
+    return "";
+  }
+
+  virtual int get_num_vert() const { return num_vert; }
 };
 
 template <typename Real>
@@ -397,96 +407,6 @@ void micro_sed_func(MicroSedFuncVanillaKokkos<Real>& msvk,
   });
 
   reset(msvk);
-}
-
-template <typename Real>
-void populate_kokkos_from_vec(const int num_horz, const int num_vert, vector_2d_t<Real> const& vec, kokkos_2d_t<Real>& device)
-{
-  typename kokkos_2d_t<Real>::HostMirror mirror = Kokkos::create_mirror_view(device);
-
-  for (int i = 0; i < num_horz; ++i) {
-    for (int k = 0; k < num_vert; ++k) {
-      mirror(i, k) = vec[i][k];
-    }
-  }
-
-  Kokkos::deep_copy(device, mirror);
-
-}
-
-template <typename Real>
-void dump_to_file_k(const char* basename,
-                    const kokkos_2d_t<Real>& qr, const kokkos_2d_t<Real>& nr, const kokkos_2d_t<Real>& th, const kokkos_2d_t<Real>& dzq,
-                    const kokkos_2d_t<Real>& pres, const kokkos_1d_t<Real>& prt_liq, const Real dt, const int ts)
-{
-  const int ni = qr.extent_int(0);
-  const int nk = qr.extent_int(1);
-
-  auto qr_m      = Kokkos::create_mirror_view(qr);
-  auto nr_m      = Kokkos::create_mirror_view(nr);
-  auto th_m      = Kokkos::create_mirror_view(th);
-  auto dzq_m     = Kokkos::create_mirror_view(dzq);
-  auto pres_m    = Kokkos::create_mirror_view(pres);
-  auto prt_liq_m = Kokkos::create_mirror_view(prt_liq);
-
-  Kokkos::deep_copy(qr_m,      qr);
-  Kokkos::deep_copy(nr_m,      nr);
-  Kokkos::deep_copy(th_m,      th);
-  Kokkos::deep_copy(dzq_m,     dzq);
-  Kokkos::deep_copy(pres_m,    pres);
-  Kokkos::deep_copy(prt_liq_m, prt_liq);
-
-  dump_to_file(basename, qr_m.data(), nr_m.data(), th_m.data(), dzq_m.data(), pres_m.data(), prt_liq_m.data(), ni, nk, dt, ts);
-}
-
-template <typename Real, typename MSK>
-void micro_sed_func_kokkos_wrap(const int ni, const int nk, const Real dt, const int ts, const int kdir)
-{
-  util::dump_arch();
-
-  std::cout << "Running " << MSK::NAME <<  " with ni=" << ni << ", nk=" << nk
-            << ", dt=" << dt << ", ts=" << ts << ", kdir=" << kdir << std::endl;
-
-  kokkos_2d_t<Real> qr("qr", ni, nk),
-    nr("nr", ni, nk),
-    th("th", ni, nk),
-    dzq("dzq", ni, nk),
-    pres("pres", ni, nk);
-
-  kokkos_1d_t<Real> prt_liq("prt_liq", ni);
-
-  {
-    vector_2d_t<Real> qr_v(ni,    std::vector<Real>(nk)),
-                      nr_v(ni,    std::vector<Real>(nk)),
-                      th_v(ni,    std::vector<Real>(nk)),
-                      dzq_v(ni,   std::vector<Real>(nk)),
-                      pres_v(ni,  std::vector<Real>(nk));
-
-    populate_input(ni, nk, kdir, qr_v, nr_v, th_v, dzq_v, pres_v);
-
-    for (auto item : { std::make_pair(&qr_v, &qr), std::make_pair(&nr_v, &nr), std::make_pair(&th_v, &th),
-          std::make_pair(&dzq_v, &dzq), std::make_pair(&pres_v, &pres)}) {
-      populate_kokkos_from_vec(ni, nk, *(item.first), *(item.second));
-    }
-  }
-
-  MSK msk(ni, nk);
-
-  auto start = std::chrono::steady_clock::now();
-
-  for (int i = 0; i < ts; ++i) {
-    micro_sed_func(msk,
-                   kdir == 1 ? 1 : nk, kdir == 1 ? nk : 1,
-                   1, ni, dt, qr, nr, th, dzq, pres, prt_liq);
-    Kokkos::fence();
-  }
-
-  auto finish = std::chrono::steady_clock::now();
-
-  auto duration = std::chrono::duration_cast<std::chrono::microseconds>(finish - start);
-  printf("Time = %1.3e seconds\n", 1e-6*duration.count());
-
-  dump_to_file_k(MSK::NAME, qr, nr, th, dzq, pres, prt_liq, dt, ts);
 }
 
 } // namespace p3

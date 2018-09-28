@@ -18,66 +18,23 @@ namespace p3 {
 namespace micro_sed {
 
 template <typename Real>
-struct MicroSedFuncWorkspaceKokkos
-{
+struct MicroSedFuncWorkspaceKokkos : public MicroSedFuncVanillaKokkos<Real> {
+
+  int concurrency;
   team_policy policy;
   util::TeamUtils<> team_utils;
 
-  int num_horz, num_vert, concurrency;
-
-  //
-  // re-usable scratch views
-  //
-  kokkos_2d_t<Real> V_qr, V_nr, flux_qx, flux_nx; // 2d to prevent race conditions
-  kokkos_2d_t<Real> mu_r, lamr, rhofacr, inv_dzq, rho, inv_rho, t, tmparr1;
-
-  kokkos_2d_table_t<Real> vn_table, vm_table;
-  kokkos_1d_table_t<Real> mu_r_table;
 
   static constexpr const char* NAME = "kokkos_workspace";
 
 public:
   MicroSedFuncWorkspaceKokkos(int num_horz_, int num_vert_) :
+    MicroSedFuncVanillaKokkos<Real>(util::ExeSpaceUtils<>::get_num_concurrent_teams(util::ExeSpaceUtils<>::get_default_team_policy(num_horz_, num_vert_)), num_vert_),
     policy(util::ExeSpaceUtils<>::get_default_team_policy(num_horz_, num_vert_)),
     team_utils(policy),
-    num_horz(num_horz_), num_vert(num_vert_),
     concurrency(util::ExeSpaceUtils<>::get_num_concurrent_teams(policy)),
-    V_qr("V_qr", concurrency, num_vert),
-    V_nr("V_nr", concurrency, num_vert),
-    flux_qx("flux_qx", concurrency, num_vert),
-    flux_nx("flux_nx", concurrency, num_vert),
-    mu_r("mu_r", concurrency, num_vert),
-    lamr("lamr", concurrency, num_vert),
-    rhofacr("rhofacr", concurrency, num_vert),
-    inv_dzq("inv_dzq", concurrency, num_vert),
-    rho("rho", concurrency, num_vert),
-    inv_rho("inv_rho", concurrency, num_vert),
-    t("t", concurrency, num_vert),
-    tmparr1("tmparr1", concurrency, num_vert),
-    vn_table("VN_TABLE"), vm_table("VM_TABLE"),
-    mu_r_table("MU_R_TABLE")
   {
-    // initialize on host
-
-    auto mirror_vn_table = Kokkos::create_mirror_view(vn_table);
-    auto mirror_vm_table = Kokkos::create_mirror_view(vm_table);
-    auto mirror_mu_table = Kokkos::create_mirror_view(mu_r_table);
-
-    for (int i = 0; i < 300; ++i) {
-      for (int k = 0; k < 10; ++k) {
-        mirror_vn_table(i, k) = Globals<Real>::VN_TABLE[i][k];
-        mirror_vm_table(i, k) = Globals<Real>::VM_TABLE[i][k];
-      }
-    }
-
-    for (int i = 0; i < 150; ++i) {
-      mirror_mu_table(i) = Globals<Real>::MU_R_TABLE[i];
-    }
-
-    // deep copy to device
-    Kokkos::deep_copy(vn_table, mirror_vn_table);
-    Kokkos::deep_copy(vm_table, mirror_vm_table);
-    Kokkos::deep_copy(mu_r_table, mirror_mu_table);
+    this->num_horz = num_horz_;
   }
 };
 

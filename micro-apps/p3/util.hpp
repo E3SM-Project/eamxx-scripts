@@ -54,12 +54,28 @@
       Kokkos::abort(#condition " led to the exception\n" message);  \
   } while (0)
 
+#if defined __INTEL_COMPILER
+# define vector_ivdep _Pragma("ivdep")
+# ifdef _OPENMP
+#  define vector_simd _Pragma("omp simd")
+# else
+#  define vector_simd _Pragma("simd")
+# endif
+#elif defined __GNUG__
+# define vector_ivdep _Pragma("GCC ivdep")
+# define vector_simd _Pragma("GCC ivdep")
+# define restrict __restrict__
+#else
+# define vector_ivdep
+# define vector_simd
+# define restrict
+#endif
 
-#define common_main(exename)                                                                \
-  util::initialize();                                                                       \
-  micro_throw_if(argc != 6, "Usage: " #exename "ni nk time_step_len num_steps kdir");       \
-  int ni(atoi(argv[1])), nk(atoi(argv[2])), ts(atoi(argv[4])), kdir(atoi(argv[5]));         \
-  Real dt(atof(argv[3]));                                                                   \
+#define common_main(exename)                                                                               \
+  util::initialize();                                                                                      \
+  micro_throw_if(argc != 7, "Usage: " #exename " ni nk time_step_len num_steps kdir repeat");              \
+  int ni(atoi(argv[1])), nk(atoi(argv[2])), ts(atoi(argv[4])), kdir(atoi(argv[5])), repeat(atoi(argv[6])); \
+  Real dt(atof(argv[3]));                                                                                  \
   micro_throw_if(kdir != -1 && kdir != 1, "kdir must be -1 or 1"); \
   p3::micro_sed::p3_init_cpp<Real>()
 
@@ -119,6 +135,13 @@ void set_min_max (const Integer& lim0, const Integer& lim1,
                   Integer& min, Integer& max) {
   min = util::min(lim0, lim1);
   max = util::max(lim0, lim1);
+}
+
+template <typename Integer, typename Integer1> KOKKOS_INLINE_FUNCTION
+void set_min_max (const Integer& lim0, const Integer& lim1,
+                  Integer& min, Integer& max, const Integer1& vector_size) {
+  min = util::min(lim0, lim1) / vector_size;
+  max = util::max(lim0, lim1) / vector_size;
 }
 
 inline
@@ -243,6 +266,38 @@ struct TeamUtils<Kokkos::Cuda>
   KOKKOS_INLINE_FUNCTION
   int get_workspace_idx(const MemberType& team_member) const { return team_member.league_rank(); }
 };
+#endif
+
+template <typename Real>
+void dump_to_file(const char* filename,
+                  const Real* qr, const Real* nr, const Real* th, const Real* dzq, const Real* pres, const Real* prt_liq,
+                  const int ni, const int nk, const Real dt, const int ts, int ldk = -1)
+{
+  if (ldk < 0) ldk = nk;
+
+  std::string full_fn(filename);
+  full_fn += "_perf_run.dat" + std::to_string(sizeof(Real));
+
+  FILEPtr fid(fopen(full_fn.c_str(), "w"));
+  micro_throw_if( !fid, "dump_to_file can't write " << filename);
+
+  write(&ni, 1, fid);
+  write(&nk, 1, fid);
+  write(&dt, 1, fid);
+  write(&ts, 1, fid);
+  // Account for possible alignment padding.
+  for (int i = 0; i < ni; ++i) util::write(qr + ldk*i, nk, fid);
+  for (int i = 0; i < ni; ++i) util::write(nr + ldk*i, nk, fid);
+  for (int i = 0; i < ni; ++i) util::write(th + ldk*i, nk, fid);
+  for (int i = 0; i < ni; ++i) util::write(dzq + ldk*i, nk, fid);
+  for (int i = 0; i < ni; ++i) util::write(pres + ldk*i, nk, fid);
+  write(prt_liq, ni, fid);
+}
+
+template <typename ExeSpace>
+struct OnGpu { enum : bool { value = false }; };
+#ifdef KOKKOS_ENABLE_CUDA
+template <> struct OnGpu<Kokkos::Cuda> { enum : bool { value = true }; };
 #endif
 
 } // namespace util
