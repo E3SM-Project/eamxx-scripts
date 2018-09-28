@@ -431,7 +431,7 @@ static Int run_and_cmp (const std::string& bfn, const Real& tol, bool verbose) {
       fid = util::FILEPtr(fopen(bfn.c_str(), "r"));
       micro_throw_if( ! fid, "run_and_cmp can't read " << bfn);
 
-      if (util::OnGpu<ExecSpace>::value) {
+      if (!util::OnGpu<ExecSpace>::value) {
         // Sanity check.
         micro_throw_if( ! util::is_single_precision<Real>::value && tol != 0,
                         "We want BFB in double precision, at least in DEBUG builds.");
