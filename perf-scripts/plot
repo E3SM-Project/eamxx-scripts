@@ -30,7 +30,7 @@ OR
 
     parser.add_argument("datafiles", nargs="+", help="Data file to plot")
 
-    parser.add_argument("-d", "--dashed", action="append", help="Specify these tested should have dashed lines")
+    parser.add_argument("-d", "--dashed", action="append", help="Specify items associated with this value should be dashed")
 
     parser.add_argument("-n", "--no-legend", action="store_true", help="Do not produce legend")
 
@@ -69,12 +69,14 @@ def subtle_grid():
     return plt.gca().set_axisbelow(True)
 
 ###############################################################################
-def get_line_format(testname, color, dashed):
+def get_line_format(line_label, color, dashed):
 ###############################################################################
-    if dashed and testname in dashed:
-        return "{}--".format(color)
-    else:
-        return "{}-".format(color)
+    if dashed:
+        for dash_item in dashed:
+            if dash_item in line_label:
+                return "{}--".format(color)
+
+    return "{}-".format(color)
 
 ###############################################################################
 class Plotter(object):
@@ -93,7 +95,7 @@ class Plotter(object):
         self._avail_colors      = ["b", "g", "r", "c", "m", "y", "k"]
         self._var_longname_map  = {"ni" : "Number of columns", "nk" : "Column levels", "dt" : "Time step", "ts" : "Number of time steps",
                                    "threads" : "Threads"}
-        self._test_longname_map = {"pack" : "C++/Kokkos"}
+        self._test_longname_map = {} #{"pack" : "C++/Kokkos"}
         self._mach_longname_map = {"bowman" : "KNL", "blake" : "Skylake", "waterman" : "Nvidia_V100"}
         self._log_x             = log_x
         self._min_x             = sys.maxsize
@@ -146,15 +148,20 @@ class Plotter(object):
         return self._mach_longname_map[machine] if machine in self._mach_longname_map else machine.capitalize()
 
     def plot_line(self, xs, ys, line_label, testname, dashed, color):
-        plt.plot(xs, ys, get_line_format(testname, color, dashed), lw=2,
-                 label="{} {}".format(self.get_test_longname(testname), line_label))
+        line_label = "{} {}".format(self.get_test_longname(testname), line_label)
+        plt.plot(xs, ys, get_line_format(line_label, color, dashed), lw=2, label=line_label)
 
     def plotdata(self, datafile, dashed):
         xs, ys = [], []
         testname = None
         line_label = ""
         xlabel = None
-        color = self._avail_colors.pop(0)
+
+        if "machine" in self._inconsistent:
+            color = self._avail_colors.pop(0)
+        else:
+            avail_colors = list(self._avail_colors)
+
         with open(datafile, "r") as fd:
             for line in fd.readlines():
                 line = line.strip()
@@ -183,6 +190,8 @@ class Plotter(object):
 
                 elif line != "":
                     if xs:
+                        if "machine" in self._consistent:
+                            color = avail_colors.pop()
                         self.plot_line(xs, ys, line_label, testname, dashed, color)
                         xs = []
                         ys = []
@@ -190,6 +199,8 @@ class Plotter(object):
                     testname, xlabel = line.split()
                     expect(xlabel == self._scaling_var, "Bad file {}".format(datafile))
 
+        if "machine" in self._consistent:
+            color = avail_colors.pop()
         self.plot_line(xs, ys, line_label, testname, dashed, color)
 
     def finalize(self, no_legend):
