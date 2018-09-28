@@ -33,11 +33,11 @@ module cpp_bridge
        logical(kind=c_bool) :: ok
      end function dump_all
 
-     subroutine fully_populate_input_data(ni, nk, kdir, qr, nr, th, dzq, pres) bind(c)
+     subroutine populate_input_from_fortran(nk, kdir, qr, nr, th, dzq, pres) bind(c)
        use iso_c_binding
        type(c_ptr), intent(in) :: qr, nr, th, dzq, pres
-       integer(kind=c_int), intent(in), value :: ni, nk, kdir
-     end subroutine fully_populate_input_data
+       integer(kind=c_int), intent(in), value :: nk, kdir
+     end subroutine populate_input_from_fortran
 
      subroutine dump_arch_f90() bind(c)
        use iso_c_binding

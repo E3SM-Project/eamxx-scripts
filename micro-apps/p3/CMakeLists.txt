@@ -64,7 +64,7 @@ target_include_directories (test_cuda PUBLIC ${SCREAM_MICRO_APPS_INCLUDES})
 target_link_libraries (test_cuda ${SCREAM_MICRO_APPS_LIBRARIES})
 set_target_properties (test_cuda PROPERTIES LINK_FLAGS ${SCREAM_MICRO_APPS_LINK_FLAGS})
 
-set(PERF_ARGS 10 128 300 30 1) # ni nk dt ts kdir
+set(PERF_ARGS 10 128 300 30 1 3) # ni nk dt ts kdir repeat
 add_test(nanoapp nanoapp -nc 4 -ns 100)
 add_test(run_unit_test_f90 unit_test_f90)
 add_test(run_unit_test unit_test)

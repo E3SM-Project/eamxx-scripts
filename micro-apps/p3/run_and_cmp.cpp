@@ -431,9 +431,11 @@ static Int run_and_cmp (const std::string& bfn, const Real& tol, bool verbose) {
       fid = util::FILEPtr(fopen(bfn.c_str(), "r"));
       micro_throw_if( ! fid, "run_and_cmp can't read " << bfn);
 
-      // Sanity check.
-      micro_throw_if( ! util::is_single_precision<Real>::value && tol != 0,
-                      "We want BFB in double precision, at least in DEBUG builds.");
+      if (util::OnGpu<ExecSpace>::value) {
+        // Sanity check.
+        micro_throw_if( ! util::is_single_precision<Real>::value && tol != 0,
+                        "We want BFB in double precision, at least in DEBUG builds.");
+      }
     }
 
     virtual void observe (const ic::MicroSedData<Scalar>& d_ic) override {
@@ -445,7 +447,7 @@ static Int run_and_cmp (const std::string& bfn, const Real& tol, bool verbose) {
 
       p3::micro_sed::MicroSedFuncWorkspaceKokkos<Scalar> mswk(d_ic.ni, d_ic.nk);
       p3::micro_sed::MicroSedFuncVanillaKokkos<Scalar> msvk(d_ic.ni, d_ic.nk);
-      p3::micro_sed::MicroSedFuncPackKokkos mspk(d_ic.ni, d_ic.nk);
+      p3::micro_sed::MicroSedFuncPackKokkos<Scalar> mspk(d_ic.ni, d_ic.nk);
 
       for (Int step = 0; step < BaselineConsts::nstep; ++step) {
         // Read the baseline.
@@ -469,8 +471,6 @@ static Int run_and_cmp (const std::string& bfn, const Real& tol, bool verbose) {
 
         const Real sptol = 2e-5;
         Real cpp_tol = (util::is_single_precision<Real>::value && tol < sptol) ? sptol : tol;
-        micro_throw_if( ! util::is_single_precision<Real>::value && tol != 0,
-                        "Must remain bfb in double precision.");
 
         // Compare the Fortran code in case we need to change it, as we will
         // for handling the issue of single vs double precision. In this case,
@@ -492,7 +492,7 @@ static Int run_and_cmp (const std::string& bfn, const Real& tol, bool verbose) {
           [&] (ic::MicroSedData<Scalar>& d, KokkosPackBridge<Scalar>& b) {
             micro_sed_func_cpp_kokkos(d, b, mspk);
           },
-          ds[4], d_ref, cpp_tol, "Pack Kokkos C++", step, verbose);        
+          ds[4], d_ref, cpp_tol, "Pack Kokkos C++", step, verbose);
       }
     }
   };
@@ -526,7 +526,8 @@ int main (int argc, char** argv) {
   }
 
   bool generate = false, verbose=false;
-  Real tol = 0;
+  Real tol = util::OnGpu<ExecSpace>::value ? 1e-13 : 0.0;
+
   for (Int i = 1; i < argc-1; ++i) {
     if (util::eq(argv[i], "-g", "--generate")) generate = true;
     if (util::eq(argv[i], "-v", "--verbose")) verbose = true;

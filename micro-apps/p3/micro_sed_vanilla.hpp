@@ -8,7 +8,6 @@
 
 #include <vector>
 #include <cmath>
-#include <chrono>
 #include <iostream>
 #include <iomanip>
 
@@ -76,23 +75,18 @@ template <typename Real>
 constexpr Real Globals<Real>::NSMALL;
 
 template <typename Real>
-void populate_input(const int ni, const int nk, const int kdir,
-                    vector_2d_t<Real> & qr, vector_2d_t<Real> & nr, vector_2d_t<Real> & th, vector_2d_t<Real> & dzq, vector_2d_t<Real> & pres, const ic::MicroSedData<Real>* data = nullptr)
+void populate_input(const int nk, const int kdir,
+                    std::vector<Real> & qr, std::vector<Real> & nr, std::vector<Real> & th, std::vector<Real> & dzq, std::vector<Real> & pres)
 {
-  ic::MicroSedData<Real> default_data(ni, nk);
-  if (data == nullptr) {
-    populate(default_data, kdir);
-    data = &default_data;
-  }
+  ic::MicroSedData<Real> data(1, nk);
+  populate(data, kdir);
 
-  for (int i = 0; i < ni; ++i) {
-    for (int k = 0; k < nk; ++k) {
-      qr[i][k]   = data->qr[i*nk + k];
-      nr[i][k]   = data->nr[i*nk + k];
-      th[i][k]   = data->th[i*nk + k];
-      dzq[i][k]  = data->dzq[i*nk + k];
-      pres[i][k] = data->pres[i*nk + k];
-    }
+  for (int k = 0; k < nk; ++k) {
+    qr[k]   = data.qr[k];
+    nr[k]   = data.nr[k];
+    th[k]   = data.th[k];
+    dzq[k]  = data.dzq[k];
+    pres[k] = data.pres[k];
   }
 }
 
@@ -429,84 +423,6 @@ void micro_sed_func(const int kts, const int kte, const int its, const int ite, 
       }
     }
   }
-}
-
-template <typename Real>
-void dump_to_file(const char* filename,
-                  const Real* qr, const Real* nr, const Real* th, const Real* dzq, const Real* pres, const Real* prt_liq,
-                  const int ni, const int nk, const Real dt, const int ts, int ldk = -1)
-{
-  if (ldk < 0) ldk = nk;
-
-  std::string full_fn(filename);
-  full_fn += "_perf_run.dat" + std::to_string(sizeof(Real));
-
-  util::FILEPtr fid(fopen(full_fn.c_str(), "w"));
-  micro_throw_if( !fid, "dump_to_file can't write " << filename);
-
-  util::write(&ni, 1, fid);
-  util::write(&nk, 1, fid);
-  util::write(&dt, 1, fid);
-  util::write(&ts, 1, fid);
-  // Account for possible alignment padding.
-  for (int i = 0; i < ni; ++i) util::write(qr + ldk*i, nk, fid);
-  for (int i = 0; i < ni; ++i) util::write(nr + ldk*i, nk, fid);
-  for (int i = 0; i < ni; ++i) util::write(th + ldk*i, nk, fid);
-  for (int i = 0; i < ni; ++i) util::write(dzq + ldk*i, nk, fid);
-  for (int i = 0; i < ni; ++i) util::write(pres + ldk*i, nk, fid);
-  util::write(prt_liq, ni, fid);
-}
-
-template <typename Real>
-void dump_to_file_v(const vector_2d_t<Real>& qr, const vector_2d_t<Real>& nr, const vector_2d_t<Real>& th, const vector_2d_t<Real>& dzq,
-                    const vector_2d_t<Real>& pres, const std::vector<Real>& prt_liq, const Real dt, const int ts)
-{
-  const int ni = qr.size();
-  const int nk = qr[0].size();
-
-  std::vector<Real> qr_1d(ni*nk), nr_1d(ni*nk), th_1d(ni*nk), dzq_1d(ni*nk), pres_1d(ni*nk);
-
-  for (int i = 0; i < ni; ++i) {
-    for (auto item : { std::make_pair(&qr, &qr_1d), std::make_pair(&nr, &nr_1d), std::make_pair(&th, &th_1d),
-          std::make_pair(&dzq, &dzq_1d), std::make_pair(&pres, &pres_1d) }) {
-      const Real* data = (*item.first)[i].data();
-      std::copy( data, data + nk, item.second->data() + i*nk);
-    }
-  }
-
-  dump_to_file("vanilla", qr_1d.data(), nr_1d.data(), th_1d.data(), dzq_1d.data(), pres_1d.data(), prt_liq.data(), ni, nk, dt, ts);
-}
-
-template <typename Real>
-void micro_sed_func_vanilla_wrap(const int ni, const int nk, const Real dt, const int ts, const int kdir)
-{
-  vector_2d_t<Real> qr(ni,    std::vector<Real>(nk)),
-                    nr(ni,    std::vector<Real>(nk)),
-                    th(ni,    std::vector<Real>(nk)),
-                    dzq(ni,   std::vector<Real>(nk)),
-                    pres(ni,  std::vector<Real>(nk));
-
-  std::vector<Real> prt_liq(ni);
-
-  util::dump_arch();
-  std::cout << "Running micro_sed_vanilla with ni=" << ni << ", nk=" << nk
-            << ", dt=" << dt << ", ts=" << ts << ", kdir=" << kdir << std::endl;
-
-  populate_input(ni, nk, kdir, qr, nr, th, dzq, pres);
-
-  auto start = std::chrono::steady_clock::now();
-
-  for (int i = 0; i < ts; ++i) {
-    micro_sed_func<Real>(kdir == 1 ? 1 : nk, kdir == 1 ? nk : 1,
-                         1, ni, dt, qr, nr, th, dzq, pres, prt_liq);
-  }
-
-  auto finish = std::chrono::steady_clock::now();
-
-  auto duration = std::chrono::duration_cast<std::chrono::microseconds>(finish - start);
-  printf("Time = %1.3e seconds\n", 1e-6*duration.count());
-
-  dump_to_file_v(qr, nr, th, dzq, pres, prt_liq, dt, ts);
 }
 
 } // namespace p3

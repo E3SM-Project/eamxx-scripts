@@ -240,23 +240,23 @@ contains
   end subroutine p3_init
 
   !=============================================================================!
-  subroutine populate_input(ni, nk, qr, nr, th, dzq, pres, kdir)
+  subroutine populate_input(nk, qr, nr, th, dzq, pres, kdir)
   !=============================================================================!
     use cpp_bridge
     use iso_c_binding
 
     implicit none
 
-    integer, intent(in) :: ni, nk, kdir
+    integer, intent(in) :: nk, kdir
 
-    real, dimension(1:ni,1:nk), intent(inout), target :: qr, nr, th, dzq, pres
+    real, dimension(1:nk), intent(inout), target :: qr, nr, th, dzq, pres
 
-    call fully_populate_input_data(ni, nk, kdir, c_loc(qr), c_loc(nr), c_loc(th), c_loc(dzq), c_loc(pres))
+    call populate_input_from_fortran(nk, kdir, c_loc(qr), c_loc(nr), c_loc(th), c_loc(dzq), c_loc(pres))
 
   end subroutine populate_input
 
   !=============================================================================!
-  subroutine micro_sed_func_wrap(ni, nk, dt, ts, kdir) bind(c)
+  subroutine micro_sed_func_wrap(ni, nk, dt, ts, kdir, repeat) bind(c)
   !=============================================================================!
     use cpp_bridge
     use iso_c_binding
@@ -264,16 +264,15 @@ contains
 
     implicit none
 
-    integer, intent(in) :: ni, nk, ts, kdir
+    integer, intent(in) :: ni, nk, ts, kdir, repeat
     real, intent(in) :: dt
 
     integer, parameter :: chunksize = CHUNKSIZE
-    real, dimension(chunksize,nk) :: cqr, cnr, cth, cdzq, cpres
     real, dimension(:,:), allocatable, target :: qr, nr, th, dzq, pres
-    real, dimension(chunksize) :: cprt_liq
-    real, dimension(ni), target :: prt_liq
+    real, dimension(ni), target :: prt_liq, prt_liq_i
+    real, dimension(nk), target :: qr_i, nr_i, th_i, dzq_i, pres_i
     real(8) :: start, finish
-    integer :: ti, ci, nchunk, cni, cnk, ws, i
+    integer :: ti, ci, nchunk, i, r, k
     logical :: ok
 
     character (kind=c_char, len=*), parameter :: filename = c_char_"fortran"//char(0)
@@ -287,36 +286,58 @@ contains
     call dump_arch_f90()
     print '("Running with ni=",I0," nk=",I0," dt=",F6.2," ts=",I0)', ni, nk, dt, ts
 
-    call populate_input(ni, nk, qr, nr, th, dzq, pres, kdir)
+    call populate_input(nk, qr_i, nr_i, th_i, dzq_i, pres_i, kdir)
     print *, 'chunksize',chunksize
 
-    start = omp_get_wtime()
+    prt_liq_i(:) = 0
 
-    prt_liq(:) = 0
+    !$OMP PARALLEL DEFAULT(SHARED) PRIVATE(i, k, ti, ci)
+    do r = 1, repeat+1
+
+       !$OMP DO
+       do i = 1, ni
+          do k = 1, nk
+             qr(i, k) = qr_i(k)
+             nr(i, k) = nr_i(k)
+             th(i, k) = th_i(k)
+             dzq(i, k) = dzq_i(k)
+             pres(i, k) = pres_i(k)
+          end do
+          prt_liq(i) = prt_liq_i(i)
+       end do
+       !$OMP END DO
 
 #if CHUNKSIZE > 0
-    nchunk = (ni + chunksize - 1) / chunksize
-    do ti = 1, ts
-!$OMP PARALLEL DO DEFAULT(SHARED)
-       do ci = 1, nchunk
-          call micro_sed_func_chunk(ni, nk, kdir, dt, qr, nr, th, dzq, pres, prt_liq, ci)
+       nchunk = (ni + chunksize - 1) / chunksize
+       do ti = 1, ts
+
+          !$OMP DO
+          do ci = 1, nchunk
+             call micro_sed_func_chunk(ni, nk, kdir, dt, qr, nr, th, dzq, pres, prt_liq, ci)
+          end do
+          !$OMP END DO
        end do
-!$OMP END PARALLEL DO
-    end do
 #else
-    do ti = 1, ts
-!$OMP PARALLEL DO DEFAULT(SHARED)
-       do i = 1, ni
-          call micro_sed_func(1, nk, kdir, 1, 1, dt, &
-               qr(i,:), nr(i,:), th(i,:), dzq(i,:), pres(i,:), prt_liq(i))
+       do ti = 1, ts
+          !$OMP DO
+          do i = 1, ni
+             call micro_sed_func(1, nk, kdir, 1, 1, dt, &
+                  qr(i,:), nr(i,:), th(i,:), dzq(i,:), pres(i,:), prt_liq(i))
+          end do
+          !$OMP END DO
        end do
-!$OMP END PARALLEL DO
-    end do
 #endif
+
+       if (r.eq.1) then
+          start = omp_get_wtime()
+       endif
+
+    end do
+    !$OMP END PARALLEL
 
     finish = omp_get_wtime()
 
-    print '("Time = ",E20.3," seconds.")', finish - start
+    print '("Time = ",E20.3," seconds.")', (finish - start) / repeat
 
     ok = dump_all(filename, c_loc(qr), c_loc(nr), c_loc(th), c_loc(dzq), c_loc(pres), c_loc(prt_liq), ni, nk, dt, ts)
 

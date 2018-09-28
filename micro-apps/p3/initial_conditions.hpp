@@ -176,7 +176,7 @@ static MicroSedData<Scalar> reverse_k (const MicroSedData<Scalar>& msd) {
 
 extern "C" {
 
-void fully_populate_input_data(Int ni, Int nk, Int kdir, Real** qr, Real** nr, Real** th, Real** dzq, Real** pres);
+void populate_input_from_fortran(Int nk, Int kdir, Real** qr, Real** nr, Real** th, Real** dzq, Real** pres);
 
 }
 
