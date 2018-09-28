@@ -216,7 +216,7 @@ def run_pack(ni, nk, dt, ts, repeat, force_threads, num_runs):
     return run_p3("micro_sed_pack_kokkos", ni, nk, dt, ts, repeat, force_threads, num_runs)
 
 ###############################################################################
-def run_kokkos_workspace(ni, nk, dt, ts, num_runs):
+def run_workspace(ni, nk, dt, ts, num_runs):
 ###############################################################################
     return run_p3("micro_sed_workspace_kokkos", ni, nk, dt, ts, num_runs)
 
