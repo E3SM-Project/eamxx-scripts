@@ -20,10 +20,9 @@ namespace micro_sed {
 template <typename Real>
 struct MicroSedFuncWorkspaceKokkos : public MicroSedFuncVanillaKokkos<Real> {
 
-  int concurrency;
   team_policy policy;
   util::TeamUtils<> team_utils;
-
+  int concurrency;
 
   static constexpr const char* NAME = "kokkos_workspace";
 
@@ -32,7 +31,7 @@ public:
     MicroSedFuncVanillaKokkos<Real>(util::ExeSpaceUtils<>::get_num_concurrent_teams(util::ExeSpaceUtils<>::get_default_team_policy(num_horz_, num_vert_)), num_vert_),
     policy(util::ExeSpaceUtils<>::get_default_team_policy(num_horz_, num_vert_)),
     team_utils(policy),
-    concurrency(util::ExeSpaceUtils<>::get_num_concurrent_teams(policy)),
+    concurrency(util::ExeSpaceUtils<>::get_num_concurrent_teams(policy))
   {
     this->num_horz = num_horz_;
   }
