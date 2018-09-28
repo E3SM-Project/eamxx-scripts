@@ -240,18 +240,18 @@ contains
   end subroutine p3_init
 
   !=============================================================================!
-  subroutine populate_input(ni, nk, qr, nr, th, dzq, pres, kdir)
+  subroutine populate_input(nk, qr, nr, th, dzq, pres, kdir)
   !=============================================================================!
     use cpp_bridge
     use iso_c_binding
 
     implicit none
 
-    integer, intent(in) :: ni, nk, kdir
+    integer, intent(in) :: nk, kdir
 
-    real, dimension(1:ni,1:nk), intent(inout), target :: qr, nr, th, dzq, pres
+    real, dimension(1:nk), intent(inout), target :: qr, nr, th, dzq, pres
 
-    call fully_populate_input_data(ni, nk, kdir, c_loc(qr), c_loc(nr), c_loc(th), c_loc(dzq), c_loc(pres))
+    call populate_input_from_fortran(nk, kdir, c_loc(qr), c_loc(nr), c_loc(th), c_loc(dzq), c_loc(pres))
 
   end subroutine populate_input
 
@@ -268,8 +268,9 @@ contains
     real, intent(in) :: dt
 
     integer, parameter :: chunksize = CHUNKSIZE
-    real, dimension(:,:), allocatable, target :: qr, nr, th, dzq, pres, qr_i, nr_i, th_i, dzq_i, pres_i
+    real, dimension(:,:), allocatable, target :: qr, nr, th, dzq, pres
     real, dimension(ni), target :: prt_liq, prt_liq_i
+    real, dimension(nk), target :: qr_i, nr_i, th_i, dzq_i, pres_i
     real(8) :: start, finish
     integer :: ti, ci, nchunk, i, r, k
     logical :: ok
@@ -281,16 +282,11 @@ contains
     allocate(th(ni,nk))
     allocate(dzq(ni,nk))
     allocate(pres(ni,nk))
-    allocate(qr_i(ni,nk))
-    allocate(nr_i(ni,nk))
-    allocate(th_i(ni,nk))
-    allocate(dzq_i(ni,nk))
-    allocate(pres_i(ni,nk))
 
     call dump_arch_f90()
     print '("Running with ni=",I0," nk=",I0," dt=",F6.2," ts=",I0)', ni, nk, dt, ts
 
-    call populate_input(ni, nk, qr_i, nr_i, th_i, dzq_i, pres_i, kdir)
+    call populate_input(nk, qr_i, nr_i, th_i, dzq_i, pres_i, kdir)
     print *, 'chunksize',chunksize
 
     prt_liq_i(:) = 0
@@ -301,11 +297,11 @@ contains
        !$OMP DO
        do i = 1, ni
           do k = 1, nk
-             qr(i, k) = qr_i(i, k)
-             nr(i, k) = nr_i(i, k)
-             th(i, k) = th_i(i, k)
-             dzq(i, k) = dzq_i(i, k)
-             pres(i, k) = pres_i(i, k)
+             qr(i, k) = qr_i(k)
+             nr(i, k) = nr_i(k)
+             th(i, k) = th_i(k)
+             dzq(i, k) = dzq_i(k)
+             pres(i, k) = pres_i(k)
           end do
           prt_liq(i) = prt_liq_i(i)
        end do
@@ -345,7 +341,7 @@ contains
 
     ok = dump_all(filename, c_loc(qr), c_loc(nr), c_loc(th), c_loc(dzq), c_loc(pres), c_loc(prt_liq), ni, nk, dt, ts)
 
-    deallocate(qr, nr, th, dzq, pres, qr_i, nr_i, th_i, dzq_i, pres_i)
+    deallocate(qr, nr, th, dzq, pres)
 
   end subroutine micro_sed_func_wrap
 

@@ -57,14 +57,12 @@ void dump_to_file_v(const vector_2d_t<Real>& qr, const vector_2d_t<Real>& nr, co
 }
 
 template <typename Real>
-void populate_kokkos_from_vec(const int num_horz, const int num_vert, vector_2d_t<Real> const& vec, kokkos_2d_t<Real>& device)
+void populate_kokkos_from_vec(const int num_vert, std::vector<Real> const& vec, kokkos_1d_t<Real>& device)
 {
-  typename kokkos_2d_t<Real>::HostMirror mirror = Kokkos::create_mirror_view(device);
+  typename kokkos_1d_t<Real>::HostMirror mirror = Kokkos::create_mirror_view(device);
 
-  for (int i = 0; i < num_horz; ++i) {
-    for (int k = 0; k < num_vert; ++k) {
-      mirror(i, k) = vec[i][k];
-    }
+  for (int k = 0; k < num_vert; ++k) {
+    mirror(k) = vec[k];
   }
 
   Kokkos::deep_copy(device, mirror);
@@ -73,17 +71,14 @@ void populate_kokkos_from_vec(const int num_horz, const int num_vert, vector_2d_
 template <typename Real>
 void micro_sed_func_vanilla_wrap(const int ni, const int nk, const Real dt, const int ts, const int kdir, const int repeat)
 {
-  std::vector<Real> v(nk);
-  vector_2d_t<Real> qr(ni, v), nr(ni, v), th(ni, v), dzq(ni, v), pres(ni, v),
-                    qr_i(ni, v), nr_i(ni, v), th_i(ni, v), dzq_i(ni, v), pres_i(ni, v);
-
-  std::vector<Real> prt_liq(ni), prt_liq_i(ni);
+  std::vector<Real> qr_i(nk), nr_i(nk), th_i(nk), dzq_i(nk), pres_i(nk), prt_liq(ni), prt_liq_i(ni);
+  vector_2d_t<Real> qr(ni, qr_i), nr(ni, qr_i), th(ni, qr_i), dzq(ni, qr_i), pres(ni, qr_i);
 
   util::dump_arch();
   std::cout << "Running micro_sed_vanilla with ni=" << ni << ", nk=" << nk
             << ", dt=" << dt << ", ts=" << ts << ", kdir=" << kdir << std::endl;
 
-  populate_input(ni, nk, kdir, qr_i, nr_i, th_i, dzq_i, pres_i);
+  populate_input(nk, kdir, qr_i, nr_i, th_i, dzq_i, pres_i);
 
   // This time is thrown out, I just wanted to be able to use auto
   auto start = std::chrono::steady_clock::now();
@@ -94,11 +89,11 @@ void micro_sed_func_vanilla_wrap(const int ni, const int nk, const Real dt, cons
     {
 #pragma omp for
       for (int i = 0; i < ni; ++i) {
-        std::copy(qr_i[i].begin(), qr_i[i].end(), qr[i].begin());
-        std::copy(nr_i[i].begin(), nr_i[i].end(), nr[i].begin());
-        std::copy(th_i[i].begin(), th_i[i].end(), th[i].begin());
-        std::copy(dzq_i[i].begin(), dzq_i[i].end(), dzq[i].begin());
-        std::copy(pres_i[i].begin(), pres_i[i].end(), pres[i].begin());
+        std::copy(qr_i.begin(), qr_i.end(), qr[i].begin());
+        std::copy(nr_i.begin(), nr_i.end(), nr[i].begin());
+        std::copy(th_i.begin(), th_i.end(), th[i].begin());
+        std::copy(dzq_i.begin(), dzq_i.end(), dzq[i].begin());
+        std::copy(pres_i.begin(), pres_i.end(), pres[i].begin());
         prt_liq[i] = prt_liq_i[i];
       }
     }
@@ -133,23 +128,29 @@ void micro_sed_func_kokkos_wrap(const int ni, const int nk, const Real dt, const
 
   MSK msk(ni, nk);
 
-  typename MSK::msk_2d_kokkos_t qr("qr", ni, msk.get_num_vert()), qr_i("qr", ni, msk.get_num_vert()),
-    nr("nr", ni, msk.get_num_vert()), nr_i("nr", ni, msk.get_num_vert()),
-    th("th", ni, msk.get_num_vert()), th_i("th", ni, msk.get_num_vert()),
-    dzq("dzq", ni, msk.get_num_vert()), dzq_i("dzq", ni, msk.get_num_vert()),
-    pres("pres", ni, msk.get_num_vert()), pres_i("pres", ni, msk.get_num_vert());
+  const int num_vert = msk.get_num_vert();
+  kokkos_2d_t<typename MSK::pack_t> qr("qr", ni, num_vert),
+    nr("nr", ni, num_vert),
+    th("th", ni, num_vert),
+    dzq("dzq", ni, num_vert),
+    pres("pres", ni, num_vert);
+
+  kokkos_1d_t<typename MSK::pack_t> qr_i("qr_i", num_vert),
+    nr_i("nr_i", num_vert),
+    th_i("th_i", num_vert),
+    dzq_i("dzq_i", num_vert),
+    pres_i("pres_i", num_vert);
 
   kokkos_1d_t<Real> prt_liq("prt_liq", ni), prt_liq_i("prt_liq", ni);
 
   {
-    std::vector<Real> v(nk);
-    vector_2d_t<Real> qr_v(ni, v), nr_v(ni, v), th_v(ni, v), dzq_v(ni, v), pres_v(ni, v);
+    std::vector<Real> qr_v(nk), nr_v(nk), th_v(nk), dzq_v(nk), pres_v(nk);
 
-    populate_input(ni, nk, kdir, qr_v, nr_v, th_v, dzq_v, pres_v);
+    populate_input(nk, kdir, qr_v, nr_v, th_v, dzq_v, pres_v);
 
     for (auto item : { std::make_pair(&qr_v, &qr_i), std::make_pair(&nr_v, &nr_i), std::make_pair(&th_v, &th_i),
           std::make_pair(&dzq_v, &dzq_i), std::make_pair(&pres_v, &pres_i)}) {
-      populate_kokkos_from_vec(ni, nk, *(item.first), *(item.second));
+      populate_kokkos_from_vec(nk, *(item.first), *(item.second));
     }
   }
 
@@ -157,12 +158,19 @@ void micro_sed_func_kokkos_wrap(const int ni, const int nk, const Real dt, const
   auto start = std::chrono::steady_clock::now();
 
   for (int r = 0; r < repeat+1; ++r) {
-    Kokkos::deep_copy(qr,   qr_i);
-    Kokkos::deep_copy(nr,   nr_i);
-    Kokkos::deep_copy(th,   th_i);
-    Kokkos::deep_copy(dzq,  dzq_i);
-    Kokkos::deep_copy(pres, pres_i);
-    Kokkos::deep_copy(prt_liq, prt_liq_i);
+    Kokkos::parallel_for("Re-init",
+                         util::ExeSpaceUtils<>::get_default_team_policy(ni, num_vert),
+                         KOKKOS_LAMBDA(member_type team_member) {
+      const int i = team_member.league_rank();
+      Kokkos::parallel_for(Kokkos::TeamThreadRange(team_member, num_vert), [=] (int k) {
+        qr(i, k)   = qr_i(k);
+        nr(i, k)   = nr_i(k);
+        th(i, k)   = th_i(k);
+        dzq(i, k)  = dzq_i(k);
+        pres(i, k) = pres_i(k);
+      });
+      prt_liq(i) = prt_liq_i(i);
+    });
 
     for (int i = 0; i < ts; ++i) {
       micro_sed_func(msk,

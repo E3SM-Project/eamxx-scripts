@@ -75,23 +75,18 @@ template <typename Real>
 constexpr Real Globals<Real>::NSMALL;
 
 template <typename Real>
-void populate_input(const int ni, const int nk, const int kdir,
-                    vector_2d_t<Real> & qr, vector_2d_t<Real> & nr, vector_2d_t<Real> & th, vector_2d_t<Real> & dzq, vector_2d_t<Real> & pres, const ic::MicroSedData<Real>* data = nullptr)
+void populate_input(const int nk, const int kdir,
+                    std::vector<Real> & qr, std::vector<Real> & nr, std::vector<Real> & th, std::vector<Real> & dzq, std::vector<Real> & pres)
 {
-  ic::MicroSedData<Real> default_data(ni, nk);
-  if (data == nullptr) {
-    populate(default_data, kdir);
-    data = &default_data;
-  }
+  ic::MicroSedData<Real> data(1, nk);
+  populate(data, kdir);
 
-  for (int i = 0; i < ni; ++i) {
-    for (int k = 0; k < nk; ++k) {
-      qr[i][k]   = data->qr[i*nk + k];
-      nr[i][k]   = data->nr[i*nk + k];
-      th[i][k]   = data->th[i*nk + k];
-      dzq[i][k]  = data->dzq[i*nk + k];
-      pres[i][k] = data->pres[i*nk + k];
-    }
+  for (int k = 0; k < nk; ++k) {
+    qr[k]   = data.qr[k];
+    nr[k]   = data.nr[k];
+    th[k]   = data.th[k];
+    dzq[k]  = data.dzq[k];
+    pres[k] = data.pres[k];
   }
 }
 

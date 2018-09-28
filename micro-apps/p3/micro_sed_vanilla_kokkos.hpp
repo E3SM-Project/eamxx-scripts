@@ -115,15 +115,16 @@ void get_rain_dsd2_kokkos(const Real qr, Real& nr, Real& mu_r, Real& rdumii, int
   }
 }
 
-template <typename Real, typename MskKokkos2d_t=kokkos_2d_t<Real> >
+template <typename Real, typename PackType=Real>
 struct MicroSedFuncVanillaKokkos
 {
   int num_horz, num_vert;
 
-  using msk_2d_kokkos_t = MskKokkos2d_t;
+  using pack_t = PackType;
 
   // re-usable scratch views
-  msk_2d_kokkos_t V_qr, V_nr, flux_qx, flux_nx, mu_r, lamr, rhofacr, inv_dzq, rho, inv_rho, t, tmparr1;
+  kokkos_2d_t<PackType> V_qr, V_nr, flux_qx, flux_nx, mu_r, lamr, rhofacr, inv_dzq, rho, inv_rho, t, tmparr1;
+
   kokkos_2d_table_t<Real> vn_table, vm_table;
   kokkos_1d_table_t<Real> mu_r_table;
 

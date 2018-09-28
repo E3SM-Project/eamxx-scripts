@@ -37,6 +37,13 @@ scalarize (const Kokkos::View<BigPack<T>**, Parms...>& vp) {
     reinterpret_cast<T*>(vp.data()), vp.extent_int(0), RealPack::n * vp.extent_int(1));
 }
 
+template <typename T, typename ...Parms> KOKKOS_FORCEINLINE_FUNCTION
+Kokkos::View<T*, Parms..., Kokkos::MemoryTraits<Kokkos::Unmanaged> >
+scalarize (const Kokkos::View<BigPack<T>*, Parms...>& vp) {
+  return Kokkos::View<T*, Parms..., Kokkos::MemoryTraits<Kokkos::Unmanaged> >(
+    reinterpret_cast<T*>(vp.data()), RealPack::n * vp.extent_int(0));
+}
+
 template <typename T> KOKKOS_FORCEINLINE_FUNCTION
 kokkos_2d_t<SmallPack<T> > smallize (const kokkos_2d_t<T>& vp) {
   assert(vp.extent_int(1) % RealSmallPack::n == 0);
@@ -52,14 +59,14 @@ kokkos_2d_t<SmallPack<T> > smallize (const kokkos_2d_t<BigPack<T> >& vp) {
 }
 
 template <typename Real>
-struct MicroSedFuncPackKokkos : public MicroSedFuncVanillaKokkos<Real, kokkos_2d_t<RealPack> > {
+struct MicroSedFuncPackKokkos : public MicroSedFuncVanillaKokkos<Real, RealPack> {
   int num_pack;
 
   static constexpr const char* NAME = "kokkos_pack";
 
 public:
   MicroSedFuncPackKokkos(int num_horz_, int num_vert_) :
-    MicroSedFuncVanillaKokkos<Real, kokkos_2d_t<RealPack> >(num_horz_, scream::pack::npack<RealPack>(num_vert_)),
+    MicroSedFuncVanillaKokkos<Real, RealPack>(num_horz_, scream::pack::npack<RealPack>(num_vert_)),
     num_pack(scream::pack::npack<RealPack>(num_vert_))
   {
     this->num_vert = num_vert_;
@@ -520,16 +527,13 @@ void micro_sed_func (
 }
 
 template <typename Real>
-void populate_kokkos_from_vec (
-  const int num_horz, const int num_vert, vector_2d_t<Real> const& vec, kokkos_2d_t<RealPack>& device)
+void populate_kokkos_from_vec (const int num_vert, std::vector<Real> const& vec, kokkos_1d_t<RealPack>& device)
 {
   const auto mirror = Kokkos::create_mirror_view(device);
   const auto smirror = scalarize(mirror);
 
-  for (int i = 0; i < num_horz; ++i) {
-    for (Int k = 0; k < num_vert; ++k) {
-      smirror(i, k) = vec[i][k];
-    }
+  for (Int k = 0; k < num_vert; ++k) {
+    smirror(k) = vec[k];
   }
 
   Kokkos::deep_copy(device, mirror);
