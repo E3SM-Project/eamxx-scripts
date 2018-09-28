@@ -31,6 +31,7 @@ static Int unittest_team_policy () {
   return nerr;
 }
 
+#if 0
 static int unittest_team_utils()
 {
   int nerr = 0;
@@ -75,6 +76,7 @@ static int unittest_team_utils()
 
   return nerr;
 }
+#endif
 
 int main (int argc, char** argv) {
   util::initialize();
@@ -82,7 +84,9 @@ int main (int argc, char** argv) {
   Int out = 0;
   Kokkos::initialize(argc, argv); {
     out =  unittest_team_policy();
+#if 0
     out += unittest_team_utils();
+#endif
   } Kokkos::finalize();
 
   return out;
