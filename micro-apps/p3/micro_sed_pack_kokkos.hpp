@@ -32,34 +32,32 @@ using IntSmallPack = SmallPack<Int>;
 
 // Make the input View Unmanaged, whether or not it already is.
 template <typename View>
-struct Unmanaged {
+using Unmanaged = 
   // Provide a full View type specification, augmented with Unmanaged.
-  typedef Kokkos::View<typename View::traits::scalar_array_type,
-                       typename View::traits::array_layout,
-                       typename View::traits::device_type,
-                       Kokkos::MemoryTraits<
-                         // All the current values...
-                         View::traits::memory_traits::RandomAccess |
-                         View::traits::memory_traits::Atomic |
-                         View::traits::memory_traits::Restrict |
-                         View::traits::memory_traits::Aligned |
-                         // ... |ed with the one we want, whether or not it's
-                         // already there.
-                         Kokkos::Unmanaged> >
-    type;
-};
+  Kokkos::View<typename View::traits::scalar_array_type,
+               typename View::traits::array_layout,
+               typename View::traits::device_type,
+               Kokkos::MemoryTraits<
+                 // All the current values...
+                 (View::traits::memory_traits::RandomAccess ? Kokkos::RandomAccess : 0) |
+                 (View::traits::memory_traits::Atomic ? Kokkos::Atomic : 0) |
+                 (View::traits::memory_traits::Restrict ? Kokkos::Restrict : 0) |
+                 (View::traits::memory_traits::Aligned ? Kokkos::Aligned : 0) |
+                 // ... |ed with the one we want, whether or not it's
+                 // already there.
+                 Kokkos::Unmanaged> >;
 
 template <typename T, typename ...Parms, int pack_size> KOKKOS_FORCEINLINE_FUNCTION
-typename Unmanaged<Kokkos::View<T**, Parms...> >::type
+Unmanaged<Kokkos::View<T**, Parms...> >
 scalarize (const Kokkos::View<scream::pack::Pack<T, pack_size>**, Parms...>& vp) {
-  return typename Unmanaged<Kokkos::View<T**, Parms...> >::type(
+  return Unmanaged<Kokkos::View<T**, Parms...> >(
     reinterpret_cast<T*>(vp.data()), vp.extent_int(0), pack_size * vp.extent_int(1));
 }
 
 template <typename T, typename ...Parms> KOKKOS_FORCEINLINE_FUNCTION
-typename Unmanaged<Kokkos::View<SmallPack<T>**, Parms...> >::type
+Unmanaged<Kokkos::View<SmallPack<T>**, Parms...> >
 smallize (const Kokkos::View<SmallPack<T>**, Parms...>& vp) {
-  return typename Unmanaged<Kokkos::View<SmallPack<T>**, Parms...> >::type(
+  return Unmanaged<Kokkos::View<SmallPack<T>**, Parms...> >(
     reinterpret_cast<SmallPack<T>*>(vp.data()), vp.extent_int(0),
     SCREAM_SMALL_PACK_FACTOR * vp.extent_int(1));
 }
