@@ -38,9 +38,11 @@ OR
 
     parser.add_argument("-l", "--log-x", action="store_true", help="Label the X axis with log values")
 
+    parser.add_argument("-t", "--tests", action="append", help="Only plot these tests")
+
     args = parser.parse_args(args[1:])
 
-    return args.datafiles, args.dashed, args.no_legend, args.font, args.log_x
+    return args.datafiles, args.dashed, args.no_legend, args.font, args.log_x, args.tests
 
 ###############################################################################
 def pad_lim(lim, pad=0.05, mult=False):
@@ -82,7 +84,7 @@ def get_line_format(line_label, color, dashed):
 class Plotter(object):
 ###############################################################################
 
-    def __init__(self, datafiles, font, log_x):
+    def __init__(self, datafiles, font, log_x, tests):
         plt.rcParams.update({'font.size': font})
         # axis_tight_pad()
         subtle_grid()
@@ -100,6 +102,7 @@ class Plotter(object):
         self._log_x             = log_x
         self._min_x             = sys.maxsize
         self._max_x             = 0
+        self._tests             = tests
 
         for datafile in datafiles:
             with open(datafile, "r") as fd:
@@ -148,8 +151,9 @@ class Plotter(object):
         return self._mach_longname_map[machine] if machine in self._mach_longname_map else machine.capitalize()
 
     def plot_line(self, xs, ys, line_label, testname, dashed, color):
-        line_label = "{} {}".format(self.get_test_longname(testname), line_label)
-        plt.plot(xs, ys, get_line_format(line_label, color, dashed), lw=2, label=line_label)
+        if not (self._tests and testname not in self._tests):
+            line_label = "{} {}".format(self.get_test_longname(testname), line_label)
+            plt.plot(xs, ys, get_line_format(line_label, color, dashed), lw=2, label=line_label)
 
     def plotdata(self, datafile, dashed):
         xs, ys = [], []
@@ -227,9 +231,9 @@ class Plotter(object):
 ###############################################################################
 def _main_func(description):
 ###############################################################################
-    datafiles, dashed, no_legend, font, log_x = parse_command_line(sys.argv, description)
+    datafiles, dashed, no_legend, font, log_x, tests = parse_command_line(sys.argv, description)
 
-    plotter = Plotter(datafiles, font, log_x)
+    plotter = Plotter(datafiles, font, log_x, tests)
 
     for datafile in datafiles:
         plotter.plotdata(datafile, dashed)
