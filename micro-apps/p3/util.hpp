@@ -197,18 +197,74 @@ template <typename ExeSpace = Kokkos::DefaultExecutionSpace>
 struct ExeSpaceUtils {
   static team_policy get_default_team_policy (Int ni, Int nk) {
 #ifdef MIMIC_GPU
-    return team_policy(ni, 7);
+    const int max_threads = omp_get_max_threads();
+    const int team_size = max_threads < 7 ? max_threads : 7;
+    return team_policy(ni, team_size);
 #else
     return team_policy(ni, 1);
 #endif
   }
+
+  static team_policy get_team_policy_force_team_size (Int ni, Int team_size) {
+    return team_policy(ni, team_size);
+  }
+
+  template <typename TeamPolicy>
+  static int get_num_concurrent_teams(const TeamPolicy& policy)
+  {
+    const int team_size = policy.team_size();
+    const int concurrency = ExeSpace::concurrency();
+    return (concurrency + team_size - 1) / team_size;
+  }
 };
+
 #ifdef KOKKOS_ENABLE_CUDA
 template <>
 struct ExeSpaceUtils<Kokkos::Cuda> {
   static team_policy get_default_team_policy (Int ni, Int nk) {
     return team_policy(ni, std::min(128, 32*((nk + 31)/32)));
   }
+
+  template <typename TeamPolicy>
+  static int get_num_concurrent_teams(const TeamPolicy& policy)
+  {
+    return policy.league_size();
+  }
+};
+#endif
+
+template <typename ExeSpace = Kokkos::DefaultExecutionSpace>
+struct TeamUtils
+{
+  int _team_size;
+
+  template <typename TeamPolicy>
+  TeamUtils(const TeamPolicy& policy) : _team_size(0)
+  {
+    const int max_threads = omp_get_max_threads();
+    const int team_size = policy.team_size();
+    const int num_teams = max_threads / team_size;
+    _team_size = max_threads / num_teams;
+  }
+
+  template <typename MemberType>
+  KOKKOS_INLINE_FUNCTION
+  int get_workspace_idx(const MemberType& team_member) const
+  {
+    return omp_get_thread_num() / _team_size;
+  }
+};
+
+#ifdef KOKKOS_ENABLE_CUDA
+template <>
+struct TeamUtils<Kokkos::Cuda>
+{
+  template <typename TeamPolicy>
+  TeamUtils(const TeamPolicy& policy) {}
+
+  template <typename MemberType>
+  KOKKOS_INLINE_FUNCTION
+  int get_workspace_idx(const MemberType& team_member) const { return team_member.league_rank(); }
 };
 #endif
 
