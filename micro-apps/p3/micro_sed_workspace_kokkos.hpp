@@ -17,8 +17,8 @@
 namespace p3 {
 namespace micro_sed {
 
-template <typename Real>
-struct MicroSedFuncWorkspaceKokkos : public MicroSedFuncVanillaKokkos<Real> {
+template <typename Real, typename PackType=Real>
+struct MicroSedFuncWorkspaceKokkos : public MicroSedFuncVanillaKokkos<Real, PackType> {
 
   team_policy policy;
   util::TeamUtils<> team_utils;
@@ -28,7 +28,7 @@ struct MicroSedFuncWorkspaceKokkos : public MicroSedFuncVanillaKokkos<Real> {
 
 public:
   MicroSedFuncWorkspaceKokkos(int num_horz_, int num_vert_) :
-    MicroSedFuncVanillaKokkos<Real>(util::ExeSpaceUtils<>::get_num_concurrent_teams(util::ExeSpaceUtils<>::get_default_team_policy(num_horz_, num_vert_)), num_vert_),
+    MicroSedFuncVanillaKokkos<Real, PackType>(util::ExeSpaceUtils<>::get_num_concurrent_teams(util::ExeSpaceUtils<>::get_default_team_policy(num_horz_, num_vert_)), num_vert_),
     policy(util::ExeSpaceUtils<>::get_default_team_policy(num_horz_, num_vert_)),
     team_utils(policy),
     concurrency(util::ExeSpaceUtils<>::get_num_concurrent_teams(policy))

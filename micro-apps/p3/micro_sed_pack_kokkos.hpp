@@ -6,6 +6,7 @@
 #include "micro_kokkos.hpp"
 #include "micro_sed_vanilla.hpp"
 #include "micro_sed_vanilla_kokkos.hpp"
+#include "micro_sed_workspace_kokkos.hpp"
 #include "scream_pack.hpp"
 
 #include <vector>
@@ -32,7 +33,7 @@ using IntSmallPack = SmallPack<Int>;
 
 // Make the input View Unmanaged, whether or not it already is.
 template <typename View>
-using Unmanaged = 
+using Unmanaged =
   // Provide a full View type specification, augmented with Unmanaged.
   Kokkos::View<typename View::traits::scalar_array_type,
                typename View::traits::array_layout,
@@ -82,14 +83,14 @@ smallize (const Kokkos::View<SmallPack<T>**, Parms...>& vp) {
 }
 
 template <typename Real>
-struct MicroSedFuncPackKokkos : public MicroSedFuncVanillaKokkos<Real, RealPack> {
+struct MicroSedFuncPackKokkos : public MicroSedFuncWorkspaceKokkos<Real, RealPack> {
   int num_pack;
 
   static constexpr const char* NAME = "kokkos_pack";
 
 public:
   MicroSedFuncPackKokkos(int num_horz_, int num_vert_) :
-    MicroSedFuncVanillaKokkos<Real, RealPack>(num_horz_, scream::pack::npack<RealPack>(num_vert_)),
+    MicroSedFuncWorkspaceKokkos<Real, RealPack>(num_horz_, scream::pack::npack<RealPack>(num_vert_)),
     num_pack(scream::pack::npack<RealPack>(num_vert_))
   {
     this->num_vert = num_vert_;
@@ -253,7 +254,7 @@ void get_rain_dsd2_kokkos (
 template <Int kdir, int nfield, typename MSPK>
 KOKKOS_INLINE_FUNCTION
 void calc_first_order_upwind_step (
-  const MSPK& m, const member_type& team, const int& i,
+  const MSPK& m, const member_type& team, const int& i, const int& i_team,
   const Int& nk, const Int& k_bot, const Int& k_top, const Real& dt_sub,
   const Kokkos::Array<const kokkos_2d_t<RealSmallPack>*,nfield>& flux,
   const Kokkos::Array<const kokkos_2d_t<RealSmallPack>*,nfield>& V,
@@ -276,7 +277,7 @@ void calc_first_order_upwind_step (
     Kokkos::TeamThreadRange(team, kmax - kmin), [&] (Int k_) {
       const Int k = kmin + k_;
       for (int f = 0; f < nfield; ++f)
-        (*flux[f])(i, k) = (*V[f])(i, k) * (*r[f])(i, k) * rho(i, k);
+        (*flux[f])(i_team, k) = (*V[f])(i_team, k) * (*r[f])(i, k) * rho(i_team, k);
     });
   team.team_barrier();
 
@@ -287,16 +288,16 @@ void calc_first_order_upwind_step (
         const auto mask =
           scream::pack::range<IntSmallPack>(k_top_pack*RealSmallPack::n) >= nk;
         for (int f = 0; f < nfield; ++f)
-          (*flux[f])(i, k_top_pack).set(mask, 0);
+          (*flux[f])(i_team, k_top_pack).set(mask, 0);
       }
       for (int f = 0; f < nfield; ++f) {
         // compute flux divergence
         const auto flux_pkdir = (kdir == -1) ?
-          shift_right(0, (*flux[f])(i, k)) :
-          shift_left (0, (*flux[f])(i, k));
-        const auto fluxdiv = (flux_pkdir - (*flux[f])(i, k)) * inv_dzq(i, k);
+          shift_right(0, (*flux[f])(i_team, k)) :
+          shift_left (0, (*flux[f])(i_team, k));
+        const auto fluxdiv = (flux_pkdir - (*flux[f])(i_team, k)) * inv_dzq(i_team, k);
         // update prognostic variables
-        (*r[f])(i, k) += fluxdiv * dt_sub * inv_rho(i, k);
+        (*r[f])(i, k) += fluxdiv * dt_sub * inv_rho(i_team, k);
       }
     });
 
@@ -311,18 +312,18 @@ void calc_first_order_upwind_step (
       for (int f = 0; f < nfield; ++f) {
         // compute flux divergence
         const auto flux_pkdir = (kdir == -1) ?
-          shift_right((*flux[f])(i, k+kdir), (*flux[f])(i, k)) :
-          shift_left ((*flux[f])(i, k+kdir), (*flux[f])(i, k));
-        const auto fluxdiv = (flux_pkdir - (*flux[f])(i, k)) * inv_dzq(i, k);
+          shift_right((*flux[f])(i_team, k+kdir), (*flux[f])(i_team, k)) :
+          shift_left ((*flux[f])(i_team, k+kdir), (*flux[f])(i_team, k));
+        const auto fluxdiv = (flux_pkdir - (*flux[f])(i_team, k)) * inv_dzq(i_team, k);
         // update prognostic variables
-        (*r[f])(i, k) += fluxdiv * dt_sub * inv_rho(i, k);
+        (*r[f])(i, k) += fluxdiv * dt_sub * inv_rho(i_team, k);
       }
     });
 }
 
 template <int nfield, typename MSPK> KOKKOS_INLINE_FUNCTION
 void calc_first_order_upwind_step (
-  const MSPK& m, const member_type& team, const int& i,
+  const MSPK& m, const member_type& team, const int& i, const int& i_team,
   const Int& nk, const Int& k_bot, const Int& k_top, const Int& kdir, const Real& dt_sub,
   const Kokkos::Array<const kokkos_2d_t<RealSmallPack>*,nfield>& flux,
   const Kokkos::Array<const kokkos_2d_t<RealSmallPack>*,nfield>& V,
@@ -330,10 +331,10 @@ void calc_first_order_upwind_step (
 {
   if (kdir == 1)
     calc_first_order_upwind_step< 1, nfield>(
-      m, team, i, nk, k_bot, k_top, dt_sub, flux, V, r);
+      m, team, i, i_team, nk, k_bot, k_top, dt_sub, flux, V, r);
   else
     calc_first_order_upwind_step<-1, nfield>(
-      m, team, i, nk, k_bot, k_top, dt_sub, flux, V, r);
+      m, team, i, i_team, nk, k_bot, k_top, dt_sub, flux, V, r);
 }
 
 //TODO Unit test.
@@ -456,14 +457,15 @@ void micro_sed_func (
     util::ExeSpaceUtils<>::get_default_team_policy(m.num_horz, m.num_pack),
     KOKKOS_LAMBDA(const member_type& team) {
       const int i = team.league_rank();
+      const int i_team = m.team_utils.get_workspace_idx(team);
 
       Kokkos::parallel_for(
         Kokkos::TeamThreadRange(team, m.num_pack), [&] (Int k) {
-          m.inv_dzq(i, k) = 1.0 / dzq(i, k);
-          m.t(i, k) = pow(pres(i, k) * 1.e-5, rd_inv_cp) * th(i, k);
-          m.rho(i, k) = pres(i, k) / (rd * m.t(i, k));
-          m.inv_rho(i, k) = 1.0 / m.rho(i, k);
-          m.rhofacr(i, k) = pow(rhosur * m.inv_rho(i, k), 0.54);
+          m.inv_dzq(i_team, k) = 1.0 / dzq(i, k);
+          m.t(i_team, k) = pow(pres(i, k) * 1.e-5, rd_inv_cp) * th(i, k);
+          m.rho(i_team, k) = pres(i, k) / (rd * m.t(i_team, k));
+          m.inv_rho(i_team, k) = 1.0 / m.rho(i_team, k);
+          m.rhofacr(i_team, k) = pow(rhosur * m.inv_rho(i_team, k), 0.54);
         });
       team.team_barrier();
 
@@ -484,8 +486,8 @@ void micro_sed_func (
 
           Kokkos::parallel_for(
             Kokkos::TeamThreadRange(team, m.num_pack), [&] (Int k) {
-              m.V_qr(i, k) = 0;
-              m.V_nr(i, k) = 0;
+              m.V_qr(i_team, k) = 0;
+              m.V_nr(i_team, k) = 0;
             });
           team.team_barrier();
 
@@ -499,18 +501,18 @@ void micro_sed_func (
                 lnr(i, pk).set(qr_gt_small, max(lnr(i, pk), nsmall));
                 Table3 t;
                 RealSmallPack tmp1, tmp2;
-                get_rain_dsd2_kokkos(qr_gt_small, lqr(i, pk), lnr(i, pk), lmu_r(i, pk),
-                                     t.rdumii, t.dumii, llamr(i, pk),
+                get_rain_dsd2_kokkos(qr_gt_small, lqr(i, pk), lnr(i, pk), lmu_r(i_team, pk),
+                                     t.rdumii, t.dumii, llamr(i_team, pk),
                                      m.mu_r_table, tmp1, tmp2);
-                find_lookupTable_indices_3_kokkos(qr_gt_small, t, lmu_r(i, pk), llamr(i, pk));
+                find_lookupTable_indices_3_kokkos(qr_gt_small, t, lmu_r(i_team, pk), llamr(i_team, pk));
                 // mass-weighted fall speed:
-                lV_qr(i, pk).set(qr_gt_small,
-                                 apply_table(qr_gt_small, m.vm_table, t) * lrhofacr(i, pk));
+                lV_qr(i_team, pk).set(qr_gt_small,
+                                      apply_table(qr_gt_small, m.vm_table, t) * lrhofacr(i_team, pk));
                 // number-weighted fall speed:
-                lV_nr(i, pk).set(qr_gt_small,
-                                 apply_table(qr_gt_small, m.vn_table, t) * lrhofacr(i, pk));
+                lV_nr(i_team, pk).set(qr_gt_small,
+                                      apply_table(qr_gt_small, m.vn_table, t) * lrhofacr(i_team, pk));
                 const auto Co_max_local = max(qr_gt_small, -1,
-                                              lV_qr(i, pk) * dt_left * linv_dzq(i, pk));
+                                              lV_qr(i_team, pk) * dt_left * linv_dzq(i_team, pk));
                 if (Co_max_local > lmax)
                   lmax = Co_max_local;
               }
@@ -529,13 +531,13 @@ void micro_sed_func (
           const Int k_temp = (k_qxbot == kbot) ? k_qxbot : k_qxbot - kdir;
 
           calc_first_order_upwind_step<2>(
-            m, team, i,
+            m, team, i, i_team,
             m.num_vert, k_temp, k_qxtop, kdir, dt_sub,
             {&lflux_qx, &lflux_nx}, {&lV_qr, &lV_nr}, {&lqr, &lnr});
           team.team_barrier();
 
           // accumulated precip during time step
-          if (k_qxbot == kbot) prt_accum += sflux_qx(i, kbot) * dt_sub;
+          if (k_qxbot == kbot) prt_accum += sflux_qx(i_team, kbot) * dt_sub;
 
           dt_left -= dt_sub;  // update time remaining for sedimentation
           if (k_qxbot != kbot) k_qxbot -= kdir;
