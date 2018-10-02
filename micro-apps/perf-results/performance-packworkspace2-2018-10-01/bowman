@@ -1,4 +1,4 @@
-Provenance:  nk=128 dt=300 ts=30 threads=None machine=node02 commit=fc0b52f
+Provenance:  nk=128 dt=300 ts=30 threads=272 machine=bowman commit=fc0b52f
 pack ni
 64, 8273.01
 128, 16090.51
