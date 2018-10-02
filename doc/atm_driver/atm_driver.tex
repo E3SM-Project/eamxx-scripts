@@ -1,0 +1,24 @@
+\documentclass[10pt]{article}
+
+
+\begin{document}
+
+\section{Introduction}
+% Briefly tell what this doc is about: AD + PBUF
+
+\section{Atm processes}
+% Describe what atm processes are, and how the AD interacts with them
+% Advantages of abstract interface: flexibility in terms of seq vs parallel,
+% as well as reordering of processes; ease to add new parametrizations.
+% What does one need to do to add his/her/their new parametrization?
+
+\section{Fields and field repository}
+% Describe (without committing too much to the details) the
+% data structure we use for fields (header + view), what is in the
+% header (name, layout, dims). The field repo will replace the
+% current pbuf. Processes will have (at least at setup/init time)
+% access to the whole pbuf. Describe ways that we are thinking
+% to implement to limit access to pbuf (const-correctness, fields'
+% timestamps checks,...).
+
+\end{document}
