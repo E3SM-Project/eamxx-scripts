@@ -457,7 +457,7 @@ void micro_sed_func (
     util::ExeSpaceUtils<>::get_default_team_policy(m.num_horz, m.num_pack),
     KOKKOS_LAMBDA(const member_type& team) {
       const int i = team.league_rank();
-      const int i_team = m.team_utils.get_workspace_idx(team);
+      const int i_team = m.team_utils.get_workspace_idx(team) * 16;
 
       Kokkos::parallel_for(
         Kokkos::TeamThreadRange(team, m.num_pack), [&] (Int k) {
