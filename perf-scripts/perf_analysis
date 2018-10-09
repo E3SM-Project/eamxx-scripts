@@ -90,7 +90,7 @@ OR
 
     parser.add_argument("-n", "--num-runs", type=int, default=1, help="Number of times to repeat run")
 
-    parser.add_argument("-t", "--test", action="append", choices=("fortran", "cpp", "kokkos", "pack", "workspace"),
+    parser.add_argument("-t", "--test", action="append", choices=("fortran", "cpp", "kokkos", "pack", "packnoi", "workspace"),
                         help="Select which tests to run, default is all. First one will be used as reference point")
 
     parser.add_argument("-c", "--cmake-options", default="",
@@ -110,7 +110,7 @@ OR
     args = parser.parse_args(args[1:])
 
     if not args.test:
-        args.test = ["fortran", "cpp", "kokkos", "workspace", "pack"]
+        args.test = ["fortran", "cpp", "kokkos", "workspace", "pack", "packnoi"]
 
     args.cmake_options += " -DCMAKE_BUILD_TYPE=Release -DKokkos_DIR={}".format(args.kokkos)
     if args.cxx:
@@ -214,6 +214,11 @@ def run_kokkos(ni, nk, dt, ts, repeat, force_threads, num_runs):
 def run_pack(ni, nk, dt, ts, repeat, force_threads, num_runs):
 ###############################################################################
     return run_p3("micro_sed_pack_kokkos", ni, nk, dt, ts, repeat, force_threads, num_runs)
+
+###############################################################################
+def run_packnoi(ni, nk, dt, ts, repeat, force_threads, num_runs):
+###############################################################################
+    return run_p3("micro_sed_packnoi_kokkos", ni, nk, dt, ts, repeat, force_threads, num_runs)
 
 ###############################################################################
 def run_workspace(ni, nk, dt, ts, repeat, force_threads, num_runs):
