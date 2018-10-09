@@ -4,6 +4,7 @@
 #include "micro_sed_vanilla_kokkos.hpp"
 #include "micro_sed_workspace_kokkos.hpp"
 #include "micro_sed_pack_kokkos.hpp"
+#include "micro_sed_packnoi_kokkos.hpp"
 #include "micro_kokkos.hpp"
 #include "cmp.hpp"
 
@@ -443,11 +444,12 @@ static Int run_and_cmp (const std::string& bfn, const Real& tol, bool verbose) {
       d_ic_cp.dt /= BaselineConsts::nstep;
 
       std::vector<ic::MicroSedData<Scalar> > ds
-        = {ic::MicroSedData<Scalar>(d_ic_cp), ic::MicroSedData<Scalar>(d_ic_cp), ic::MicroSedData<Scalar>(d_ic_cp), ic::MicroSedData<Scalar>(d_ic_cp), ic::MicroSedData<Scalar>(d_ic_cp)};
+        = {d_ic_cp, d_ic_cp, d_ic_cp, d_ic_cp, d_ic_cp, d_ic_cp};
 
       p3::micro_sed::MicroSedFuncWorkspaceKokkos<Scalar> mswk(d_ic.ni, d_ic.nk);
       p3::micro_sed::MicroSedFuncVanillaKokkos<Scalar> msvk(d_ic.ni, d_ic.nk);
       p3::micro_sed::MicroSedFuncPackKokkos<Scalar> mspk(d_ic.ni, d_ic.nk);
+      p3::micro_sed::MicroSedFuncPackNoiKokkos<Scalar> mspnk(d_ic.ni, d_ic.nk);
 
       for (Int step = 0; step < BaselineConsts::nstep; ++step) {
         // Read the baseline.
@@ -476,23 +478,29 @@ static Int run_and_cmp (const std::string& bfn, const Real& tol, bool verbose) {
         // for handling the issue of single vs double precision. In this case,
         // we expect the baseline file to be generated from the master-branch
         // version, and we're comparing a modified version in a branch.
-        nerr += do_compare<FortranBridge<Scalar> >([] (ic::MicroSedData<Scalar>& d, FortranBridge<Scalar>& b) { micro_sed_func(d, b); },
-                                                   ds[0], d_ref, tol, "Original Fortran", step, verbose);
+        nerr += do_compare<FortranBridge<Scalar> >(
+          [] (ic::MicroSedData<Scalar>& d, FortranBridge<Scalar>& b) { micro_sed_func(d, b); },
+          ds[0], d_ref, tol, "Original Fortran", step, verbose);
 
-        nerr += do_compare<VanillaCppBridge<Scalar> >([] (ic::MicroSedData<Scalar>& d, VanillaCppBridge<Scalar>& b) { micro_sed_func_cpp(d, b); },
-                                                      ds[1], d_ref, cpp_tol, "Super-vanilla C++", step, verbose);
+        nerr += do_compare<VanillaCppBridge<Scalar> >(
+          [] (ic::MicroSedData<Scalar>& d, VanillaCppBridge<Scalar>& b) { micro_sed_func_cpp(d, b); },
+          ds[1], d_ref, cpp_tol, "Super-vanilla C++", step, verbose);
 
-        nerr += do_compare<KokkosCppBridge<Scalar> >([&] (ic::MicroSedData<Scalar>& d, KokkosCppBridge<Scalar>& b) { micro_sed_func_cpp_kokkos(d, b, msvk); },
-                                                     ds[2], d_ref, cpp_tol, "Vanilla Kokkos C++", step, verbose);
+        nerr += do_compare<KokkosCppBridge<Scalar> >(
+          [&] (ic::MicroSedData<Scalar>& d, KokkosCppBridge<Scalar>& b) { micro_sed_func_cpp_kokkos(d, b, msvk); },
+          ds[2], d_ref, cpp_tol, "Vanilla Kokkos C++", step, verbose);
 
-        nerr += do_compare<KokkosCppBridge<Scalar> >([&] (ic::MicroSedData<Scalar>& d, KokkosCppBridge<Scalar>& b) { micro_sed_func_cpp_kokkos(d, b, mswk); },
-                                                     ds[3], d_ref, cpp_tol, "Workspace Kokkos C++", step, verbose);
+        nerr += do_compare<KokkosCppBridge<Scalar> >(
+          [&] (ic::MicroSedData<Scalar>& d, KokkosCppBridge<Scalar>& b) { micro_sed_func_cpp_kokkos(d, b, mswk); },
+          ds[3], d_ref, cpp_tol, "Workspace Kokkos C++", step, verbose);
 
         nerr += do_compare<KokkosPackBridge<Scalar> >(
-          [&] (ic::MicroSedData<Scalar>& d, KokkosPackBridge<Scalar>& b) {
-            micro_sed_func_cpp_kokkos(d, b, mspk);
-          },
+          [&] (ic::MicroSedData<Scalar>& d, KokkosPackBridge<Scalar>& b) { micro_sed_func_cpp_kokkos(d, b, mspk); },
           ds[4], d_ref, cpp_tol, "Pack Kokkos C++", step, verbose);
+
+        nerr += do_compare<KokkosPackBridge<Scalar> >(
+          [&] (ic::MicroSedData<Scalar>& d, KokkosPackBridge<Scalar>& b) { micro_sed_func_cpp_kokkos(d, b, mspnk); },
+          ds[5], d_ref, cpp_tol, "Pack No-i Kokkos C++", step, verbose);
       }
     }
   };

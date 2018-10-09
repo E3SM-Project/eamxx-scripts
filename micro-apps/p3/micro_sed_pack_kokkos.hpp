@@ -414,9 +414,8 @@ Int find_top (const member_type& team,
   return k_xtop;
 }
 
-template <typename MSPK>
 void micro_sed_func (
-  MSPK& m,
+  MicroSedFuncPackKokkos<Real>& m,
   const Int kts, const Int kte, const int its, const int ite, const Real dt,
   const kokkos_2d_t<RealPack>& qr, const kokkos_2d_t<RealPack>& nr,
   const kokkos_2d_t<RealPack>& th, const kokkos_2d_t<RealPack>& dzq, const kokkos_2d_t<RealPack>& pres,

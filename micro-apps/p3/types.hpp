@@ -28,6 +28,19 @@ using kokkos_2d_t = Kokkos::View<Real**, Layout, MemSpace>;
 template <typename Real>
 using kokkos_1d_t = Kokkos::View<Real*, Layout, MemSpace>;
 
+// Short name for views
+template <typename DataType, typename... Properties>
+using ViewType = Kokkos::View<DataType, Layout, Properties...>;
+
+using MemoryManaged   = Kokkos::MemoryTraits<Kokkos::Restrict>;
+using MemoryUnmanaged = Kokkos::MemoryTraits<Kokkos::Unmanaged | Kokkos::Restrict>;
+
+// Managed/Unmanaged view
+template <typename DataType, typename... Properties>
+using ViewManaged = ViewType<DataType, Properties..., MemoryManaged>;
+template <typename DataType, typename... Properties>
+using ViewUnmanaged = ViewType<DataType, Properties..., MemoryUnmanaged>;
+
 template <typename Real>
 using vector_2d_t = std::vector<std::vector<Real> >;
 
