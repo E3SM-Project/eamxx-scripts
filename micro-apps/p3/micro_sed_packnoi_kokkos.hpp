@@ -35,14 +35,14 @@ public:
 template <Int kdir, int nfield>
 KOKKOS_INLINE_FUNCTION
 void calc_first_order_upwind_step (
-  const kokkos_1d_t<RealSmallPack>& rho,
-  const kokkos_1d_t<RealSmallPack>& inv_rho,
-  const kokkos_1d_t<RealSmallPack>& inv_dzq,
+  const Unmanaged<kokkos_1d_t<const RealSmallPack> >& rho,
+  const Unmanaged<kokkos_1d_t<const RealSmallPack> >& inv_rho,
+  const Unmanaged<kokkos_1d_t<const RealSmallPack> >& inv_dzq,
   const member_type& team,
   const Int& nk, const Int& k_bot, const Int& k_top, const Real& dt_sub,
-  const Kokkos::Array<const kokkos_1d_t<RealSmallPack>*,nfield>& flux,
-  const Kokkos::Array<const kokkos_1d_t<RealSmallPack>*,nfield>& V,
-  const Kokkos::Array<const kokkos_1d_t<RealSmallPack>*,nfield>& r)
+  const Kokkos::Array<const Unmanaged<kokkos_1d_t<RealSmallPack> >*,nfield>& flux,
+  const Kokkos::Array<const Unmanaged<kokkos_1d_t<RealSmallPack> >*,nfield>& V,
+  const Kokkos::Array<const Unmanaged<kokkos_1d_t<RealSmallPack> >*,nfield>& r)
 {
   Int
     kmin = ( kdir == 1 ? k_bot : k_top)                     / RealSmallPack::n,
@@ -102,14 +102,14 @@ void calc_first_order_upwind_step (
 
 template <int nfield> KOKKOS_INLINE_FUNCTION
 void calc_first_order_upwind_step (
-  const kokkos_1d_t<RealSmallPack>& rho,
-  const kokkos_1d_t<RealSmallPack>& inv_rho,
-  const kokkos_1d_t<RealSmallPack>& inv_dzq,
+  const Unmanaged<kokkos_1d_t<const RealSmallPack> >& rho,
+  const Unmanaged<kokkos_1d_t<const RealSmallPack> >& inv_rho,
+  const Unmanaged<kokkos_1d_t<const RealSmallPack> >& inv_dzq,
   const member_type& team,
   const Int& nk, const Int& k_bot, const Int& k_top, const Int& kdir, const Real& dt_sub,
-  const Kokkos::Array<const kokkos_1d_t<RealSmallPack>*,nfield>& flux,
-  const Kokkos::Array<const kokkos_1d_t<RealSmallPack>*,nfield>& V,
-  const Kokkos::Array<const kokkos_1d_t<RealSmallPack>*,nfield>& r)
+  const Kokkos::Array<const Unmanaged<kokkos_1d_t<RealSmallPack> >*,nfield>& flux,
+  const Kokkos::Array<const Unmanaged<kokkos_1d_t<RealSmallPack> >*,nfield>& V,
+  const Kokkos::Array<const Unmanaged<kokkos_1d_t<RealSmallPack> >*,nfield>& r)
 {
   if (kdir == 1)
     calc_first_order_upwind_step< 1, nfield>(
@@ -163,7 +163,7 @@ void micro_sed_func (
     KOKKOS_LAMBDA(const member_type& team) {
       const int i = team.league_rank();
 
-      const kokkos_1d_t<RealSmallPack>
+      const Unmanaged<kokkos_1d_t<RealSmallPack> >
         olinv_dzq = util::subview(linv_dzq, i),
         olrho = util::subview(lrho, i),
         olinv_rho = util::subview(linv_rho, i),
@@ -177,11 +177,11 @@ void micro_sed_func (
         olmu_r = util::subview(lmu_r, i),
         ollamr = util::subview(llamr, i);
 
-      const kokkos_1d_t<Real>
+      const Unmanaged<kokkos_1d_t<Real> >
         osqr = util::subview(sqr, i),
         osflux_qx = util::subview(sflux_qx, i);
 
-      const kokkos_1d_t<RealPack>
+      const Unmanaged<kokkos_1d_t<RealPack> >
         oinv_dzq = util::subview(m.inv_dzq, i),
         ot       = util::subview(m.t, i),
         orho     = util::subview(m.rho, i),
