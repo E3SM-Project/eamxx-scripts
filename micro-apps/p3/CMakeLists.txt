@@ -37,7 +37,7 @@ target_link_libraries(micro_sed_vanilla microsed)
 add_executable(perf_cmp perf_cmp.cpp)
 target_link_libraries(perf_cmp microsed)
 
-set(kokkos_impls vanilla workspace pack packnoi)
+set(kokkos_impls vanilla workspace pack packnoi packnoiws)
 
 foreach (kokkos_impl ${kokkos_impls})
   add_executable(micro_sed_${kokkos_impl}_kokkos micro_sed_${kokkos_impl}_driver_kokkos.cpp)
