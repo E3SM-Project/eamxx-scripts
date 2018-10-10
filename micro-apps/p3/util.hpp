@@ -300,6 +300,16 @@ struct OnGpu { enum : bool { value = false }; };
 template <> struct OnGpu<Kokkos::Cuda> { enum : bool { value = true }; };
 #endif
 
+template <typename T, typename ...Parms> KOKKOS_FORCEINLINE_FUNCTION
+Unmanaged<Kokkos::View<T*, Parms...> >
+subview (const Kokkos::View<T**, Parms...>& v_in, const int i) {
+  micro_kernel_assert(v_in.data() != nullptr);
+  micro_kernel_assert(i < v_in.extent_int(0));
+  micro_kernel_assert(i >= 0);
+  return Unmanaged<Kokkos::View<T*, Parms...> >(
+    &v_in.impl_map().reference(i, 0), v_in.extent(1));
+}
+
 } // namespace util
 
 extern "C" {

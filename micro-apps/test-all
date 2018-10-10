@@ -42,3 +42,5 @@ make -j8
 ./p3/micro_sed_vanilla 10000 128 300 30 1 1
 ./p3/micro_sed_vanilla_kokkos 10000 128 300 30 1 1
 ./p3/micro_sed_workspace_kokkos 10000 128 300 30 1 1
+./p3/micro_sed_pack_kokkos 10000 128 300 30 1 1
+./p3/micro_sed_packnoi_kokkos 10000 128 300 30 1 1
