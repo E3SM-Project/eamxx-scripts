@@ -30,23 +30,6 @@ using IntPack = BigPack<Int>;
 using RealSmallPack = SmallPack<Real>;
 using IntSmallPack = SmallPack<Int>;
 
-// Make the input View Unmanaged, whether or not it already is.
-template <typename View>
-using Unmanaged = 
-  // Provide a full View type specification, augmented with Unmanaged.
-  Kokkos::View<typename View::traits::scalar_array_type,
-               typename View::traits::array_layout,
-               typename View::traits::device_type,
-               Kokkos::MemoryTraits<
-                 // All the current values...
-                 (View::traits::memory_traits::RandomAccess ? Kokkos::RandomAccess : 0) |
-                 (View::traits::memory_traits::Atomic ? Kokkos::Atomic : 0) |
-                 (View::traits::memory_traits::Restrict ? Kokkos::Restrict : 0) |
-                 (View::traits::memory_traits::Aligned ? Kokkos::Aligned : 0) |
-                 // ... |ed with the one we want, whether or not it's
-                 // already there.
-                 Kokkos::Unmanaged> >;
-
 template <typename T, typename ...Parms, int pack_size> KOKKOS_FORCEINLINE_FUNCTION
 Unmanaged<Kokkos::View<T**, Parms...> >
 scalarize (const Kokkos::View<scream::pack::Pack<T, pack_size>**, Parms...>& vp) {

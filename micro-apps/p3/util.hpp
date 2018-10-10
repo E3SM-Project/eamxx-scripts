@@ -300,15 +300,14 @@ struct OnGpu { enum : bool { value = false }; };
 template <> struct OnGpu<Kokkos::Cuda> { enum : bool { value = true }; };
 #endif
 
-template <typename ScalarType, typename MemSpace, typename... Properties>
-KOKKOS_INLINE_FUNCTION
-ViewUnmanaged<ScalarType*, MemSpace>
-subview(ViewType<ScalarType**, MemSpace, Properties...> v_in, int ie) {
+template <typename T, typename ...Parms> KOKKOS_FORCEINLINE_FUNCTION
+Unmanaged<Kokkos::View<T*, Parms...> >
+subview (const Kokkos::View<T**, Parms...>& v_in, const int i) {
   micro_kernel_assert(v_in.data() != nullptr);
-  micro_kernel_assert(ie < v_in.extent_int(0));
-  micro_kernel_assert(ie >= 0);
-  return ViewUnmanaged<ScalarType*, MemSpace>(
-      &v_in.implementation_map().reference(ie, 0));
+  micro_kernel_assert(i < v_in.extent_int(0));
+  micro_kernel_assert(i >= 0);
+  return Unmanaged<Kokkos::View<T*, Parms...> >(
+    &v_in.implementation_map().reference(i, 0));
 }
 
 } // namespace util
