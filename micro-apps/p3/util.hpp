@@ -327,8 +327,8 @@ class WorkSpace
     auto host_mirror = Kokkos::create_mirror_view(m_data);
     int* data = reinterpret_cast<int*>(host_mirror.data());
     for (int i = 0; i < m_max_used; ++i) {
-      data[ (m_ints_per_ws * (i+1)) - 2 ] = i;
-      data[ (m_ints_per_ws * (i+1)) - 1 ] = i + 1;
+      data[ (m_ints_per_ws * (i+1)) - 2 ] = i; // idx
+      data[ (m_ints_per_ws * (i+1)) - 1 ] = i + 1; // next
     }
 
     Kokkos::deep_copy(m_data, host_mirror);
@@ -341,13 +341,10 @@ class WorkSpace
     micro_kernel_assert(m_num_used < m_max_used);
     ++m_num_used;
 
-    int curr_slot = m_next_slot;
-    m_next_slot = reinterpret_cast<int*>(m_data.data())[ (m_ints_per_ws * (curr_slot+1)) - 1 ];
+    auto space = get_space_in_slot<T>(m_next_slot);
+    m_next_slot = get_next<T>(space);
 
-    return Unmanaged<kokkos_1d_t<T> >(
-      reinterpret_cast<T*>(m_data.data() + m_size*curr_slot),
-      (m_size - RESERVE) / sizeof(T)
-                                      );
+    return space;
   }
 
   template <typename T>
@@ -357,11 +354,47 @@ class WorkSpace
     micro_kernel_assert(m_num_used > 0);
     --m_num_used;
 
-    m_next_slot = reinterpret_cast<int*>(space.data())[ m_ints_per_ws - 2 ];
+    set_next<T>(space, m_next_slot);
+    m_next_slot = get_index<T>(space);
+  }
+
+  //
+  // The following are only public for testing
+  //
+
+  template <typename T>
+  KOKKOS_INLINE_FUNCTION
+  int get_index(const Unmanaged<kokkos_1d_t<T> >& space) const
+  {
+    return reinterpret_cast<int*>(space.data())[ m_ints_per_ws - 2 ];
+  }
+
+  template <typename T>
+  KOKKOS_INLINE_FUNCTION
+  int get_next(const Unmanaged<kokkos_1d_t<T> >& space) const
+  {
+    return reinterpret_cast<int*>(space.data())[ m_ints_per_ws - 1 ];
+  }
+
+  template <typename T>
+  KOKKOS_INLINE_FUNCTION
+  void set_next(const Unmanaged<kokkos_1d_t<T> >& space, int next) const
+  {
+    reinterpret_cast<int*>(space.data())[ m_ints_per_ws - 1 ] = next;
+  }
+
+  template <typename T>
+  KOKKOS_INLINE_FUNCTION
+  Unmanaged<kokkos_1d_t<T> > get_space_in_slot(const int slot) const
+  {
+    return Unmanaged<kokkos_1d_t<T> >(
+      reinterpret_cast<T*>(m_data.data() + m_size*slot),
+      (m_size - RESERVE) / sizeof(T)
+                                      );
   }
 
  private:
-      int m_size, m_num_used, m_max_used, m_next_slot, m_ints_per_ws;
+  int m_size, m_num_used, m_max_used, m_next_slot, m_ints_per_ws;
   kokkos_1d_t<char> m_data;
 };
 

@@ -3,6 +3,7 @@
 #include "micro_kokkos.hpp"
 
 #include <thread>
+#include <array>
 
 static Int unittest_team_policy () {
   Int nerr = 0;
@@ -27,6 +28,60 @@ static Int unittest_team_policy () {
     if (omp_get_num_threads() > 1 && p.team_size() == 1) ++nerr;
 #endif
   }
+
+  return nerr;
+}
+
+static int unittest_workspace_1thrd()
+{
+  int nerr = 0;
+  int N = omp_get_max_threads();
+  static constexpr const int ints_per_ws = 37;
+  static constexpr const int num_ws = 4;
+
+  omp_set_num_threads(1);
+
+  util::WorkSpace ws(sizeof(int) * ints_per_ws, num_ws);
+
+  // Dummy loop just for making a parallel region
+  //Kokkos::parallel_for(1, KOKKOS_LAMBDA (const int ignore) {
+    std::array<Unmanaged<kokkos_1d_t<int> >, num_ws > wss;
+
+    for (int r = 0; r < 2; ++r) {
+      for (int w = 0; w < num_ws; ++w) {
+        std::ostringstream oss;
+        oss << "ws" << w;
+        wss[w] = ws.take<int>(oss.str().c_str());
+      }
+
+      for (int w = 0; w < num_ws; ++w) {
+        for (int i = 0; i < ints_per_ws; ++i) {
+          wss[w](i) = i * w;
+        }
+
+        // These spaces aren't free, but their metadata should be the same as it
+        // was when they were initialized
+        if (ws.get_index<int>(wss[w]) != w) ++nerr;
+        if (ws.get_next<int>(wss[w]) != w+1) ++nerr;
+      }
+
+      for (int w = num_ws - 1; w >= 0; --w) {
+        ws.release<int>(wss[w]);
+      }
+    }
+
+    wss[0] = ws.take<int>("first");
+    wss[1] = ws.take<int>("second");
+    wss[2] = ws.take<int>("third");
+
+    ws.release<int>(wss[1]);
+    if (ws.get_next<int>(wss[1]) != 3) ++nerr;
+
+    wss[1] = ws.take<int>("second part2");
+    if (ws.get_index<int>(wss[1]) != 1) ++nerr;
+    //});
+
+  omp_set_num_threads(N);
 
   return nerr;
 }
@@ -74,6 +129,8 @@ static int unittest_team_utils()
     }
   }
 
+  omp_set_num_threads(N);
+
   return nerr;
 }
 #endif
@@ -84,6 +141,7 @@ int main (int argc, char** argv) {
   Int out = 0;
   Kokkos::initialize(argc, argv); {
     out =  unittest_team_policy();
+    out += unittest_workspace_1thrd();
 #if 0
     out += unittest_team_utils();
 #endif
