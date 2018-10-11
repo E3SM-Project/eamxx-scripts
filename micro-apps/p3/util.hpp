@@ -315,47 +315,59 @@ class WorkSpace
  public:
   static constexpr int RESERVE = 64;
 
-  WorkSpace(int size, int max_used) :
+  WorkSpace(int size, int max_used, team_policy policy) :
     m_size(size + RESERVE),
-    m_num_used(0),
-    m_max_used(max_used),
-    m_next_slot(0),
+    m_concurrent_teams(ExeSpaceUtils<>::get_num_concurrent_teams(policy)),
     m_ints_per_ws(m_size / sizeof(int)),
-    m_data("Workspace.m_data", m_size * max_used)
+#ifndef NDEBUG
+    m_max_used(max_used),
+    m_num_used("Workspace.m_num_used", m_concurrent_teams),
+#endif
+    m_next_slot("Workspace.m_next_slot", m_concurrent_teams),
+    m_data("Workspace.m_data", m_concurrent_teams, m_size * max_used)
   {
     // initialize on host
     auto host_mirror = Kokkos::create_mirror_view(m_data);
     int* data = reinterpret_cast<int*>(host_mirror.data());
-    for (int i = 0; i < m_max_used; ++i) {
-      data[ (m_ints_per_ws * (i+1)) - 2 ] = i; // idx
-      data[ (m_ints_per_ws * (i+1)) - 1 ] = i + 1; // next
+    for (int t = 0; t < m_concurrent_teams; ++t) {
+      for (int i = 0; i < m_max_used; ++i) {
+        data[ (m_ints_per_ws * (i+1)) - 2 ] = i; // idx
+        data[ (m_ints_per_ws * (i+1)) - 1 ] = i + 1; // next
+      }
+      data += m_ints_per_ws * m_max_used;
     }
 
     Kokkos::deep_copy(m_data, host_mirror);
   }
 
+  int get_concurrency() const { return m_concurrent_teams; }
+
   template <typename T>
   KOKKOS_INLINE_FUNCTION
-  Unmanaged<kokkos_1d_t<T> > take(const char* name)
+  Unmanaged<kokkos_1d_t<T> > take(const char* name, const int team_idx) const
   {
-    micro_kernel_assert(m_num_used < m_max_used);
-    ++m_num_used;
+#ifndef NDEBUG
+    micro_kernel_assert(m_num_used(team_idx) < m_max_used);
+    m_num_used(team_idx) += 1;
+#endif
 
-    auto space = get_space_in_slot<T>(m_next_slot);
-    m_next_slot = get_next<T>(space);
+    auto space = get_space_in_slot<T>(m_next_slot(team_idx));
+    m_next_slot(team_idx) = get_next<T>(space);
 
     return space;
   }
 
   template <typename T>
   KOKKOS_INLINE_FUNCTION
-  void release(const Unmanaged<kokkos_1d_t<T> >& space)
+  void release(const Unmanaged<kokkos_1d_t<T> >& space, const int team_idx) const
   {
-    micro_kernel_assert(m_num_used > 0);
-    --m_num_used;
+#ifndef NDEBUG
+    micro_kernel_assert(m_num_used(team_idx) > 0);
+    m_num_used(team_idx) -= 1;
+#endif
 
-    set_next<T>(space, m_next_slot);
-    m_next_slot = get_index<T>(space);
+    set_next<T>(space, m_next_slot(team_idx));
+    m_next_slot(team_idx) = get_index<T>(space);
   }
 
   //
@@ -394,8 +406,13 @@ class WorkSpace
   }
 
  private:
-  int m_size, m_num_used, m_max_used, m_next_slot, m_ints_per_ws;
-  kokkos_1d_t<char> m_data;
+  int m_size, m_concurrent_teams, m_ints_per_ws;
+#ifndef NDEBUG
+  int m_max_used;
+  kokkos_1d_t<int> m_num_used;
+#endif
+  kokkos_1d_t<int> m_next_slot;
+  kokkos_2d_t<char> m_data;
 };
 
 } // namespace util

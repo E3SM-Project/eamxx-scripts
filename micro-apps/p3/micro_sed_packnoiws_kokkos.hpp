@@ -29,6 +29,7 @@ struct MicroSedFuncPackNoiWsKokkos {
   kokkos_2d_table_t<Real> vn_table, vm_table;
   kokkos_1d_table_t<Real> mu_r_table;
 
+  team_policy policy;
   util::WorkSpace workspace;
 
   using pack_t = RealPack;
@@ -39,7 +40,8 @@ public:
     num_pack(scream::pack::npack<RealPack>(num_vert_)),
     vn_table("VN_TABLE"), vm_table("VM_TABLE"),
     mu_r_table("MU_R_TABLE"),
-    workspace(num_vert_ * sizeof(Real), num_horz_)
+    policy(util::ExeSpaceUtils<>::get_default_team_policy(num_horz, num_pack)),
+    workspace(num_vert_ * sizeof(Real), num_horz_, policy)
   {
     // initialize on host
 
@@ -205,7 +207,7 @@ void micro_sed_func (
   // Rain sedimentation:  (adaptive substepping)
   Kokkos::parallel_for(
     "main rain sed loop",
-    util::ExeSpaceUtils<>::get_default_team_policy(m.num_horz, m.num_pack),
+    m.policy,
     KOKKOS_LAMBDA(const member_type& team) {
       const int i = team.league_rank();
 
