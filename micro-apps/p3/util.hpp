@@ -310,6 +310,61 @@ subview (const Kokkos::View<T**, Parms...>& v_in, const int i) {
     &v_in.impl_map().reference(i, 0), v_in.extent(1));
 }
 
+class WorkSpace
+{
+ public:
+  static constexpr int RESERVE = 64;
+
+  WorkSpace(int size, int max_used) :
+    m_size(size + RESERVE),
+    m_num_used(0),
+    m_max_used(max_used),
+    m_next_slot(0),
+    m_ints_per_ws(m_size / sizeof(int)),
+    m_data("Workspace.m_data", m_size * max_used)
+  {
+    // initialize on host
+    auto host_mirror = Kokkos::create_mirror_view(m_data);
+    int* data = reinterpret_cast<int*>(host_mirror.data());
+    for (int i = 0; i < m_max_used; ++i) {
+      data[ (m_ints_per_ws * (i+1)) - 2 ] = i;
+      data[ (m_ints_per_ws * (i+1)) - 1 ] = i + 1;
+    }
+
+    Kokkos::deep_copy(m_data, host_mirror);
+  }
+
+  template <typename T>
+  KOKKOS_INLINE_FUNCTION
+  Unmanaged<kokkos_1d_t<T> > take(const char* name)
+  {
+    micro_kernel_assert(m_num_used < m_max_used);
+    ++m_num_used;
+
+    int curr_slot = m_next_slot;
+    m_next_slot = reinterpret_cast<int*>(m_data.data())[ (m_ints_per_ws * (curr_slot+1)) - 1 ];
+
+    return Unmanaged<kokkos_1d_t<T> >(
+      reinterpret_cast<T*>(m_data.data() + m_size*curr_slot),
+      (m_size - RESERVE) / sizeof(T)
+                                      );
+  }
+
+  template <typename T>
+  KOKKOS_INLINE_FUNCTION
+  void release(const Unmanaged<kokkos_1d_t<T> >& space)
+  {
+    micro_kernel_assert(m_num_used > 0);
+    --m_num_used;
+
+    m_next_slot = reinterpret_cast<int*>(space.data())[ m_ints_per_ws - 2 ];
+  }
+
+ private:
+      int m_size, m_num_used, m_max_used, m_next_slot, m_ints_per_ws;
+  kokkos_1d_t<char> m_data;
+};
+
 } // namespace util
 
 extern "C" {

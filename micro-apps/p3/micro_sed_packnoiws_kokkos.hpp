@@ -20,14 +20,58 @@ namespace micro_sed {
 using micro_sed::Globals;
 
 template <typename Real>
-struct MicroSedFuncPackNoiWsKokkos : public MicroSedFuncPackNoiKokkos<Real> {
+struct MicroSedFuncPackNoiWsKokkos {
 
   static constexpr const char* NAME = "kokkos_packnoiws";
 
+  int num_horz, num_vert, num_pack;
+
+  kokkos_2d_table_t<Real> vn_table, vm_table;
+  kokkos_1d_table_t<Real> mu_r_table;
+
+  util::WorkSpace workspace;
+
+  using pack_t = RealPack;
+
 public:
   MicroSedFuncPackNoiWsKokkos(int num_horz_, int num_vert_) :
-    MicroSedFuncPackNoiKokkos<Real>(num_horz_, num_vert_)
-  {  }
+    num_horz(num_horz_), num_vert(num_vert_),
+    num_pack(scream::pack::npack<RealPack>(num_vert_)),
+    vn_table("VN_TABLE"), vm_table("VM_TABLE"),
+    mu_r_table("MU_R_TABLE"),
+    workspace(num_vert_ * sizeof(Real), num_horz_)
+  {
+    // initialize on host
+
+    auto mirror_vn_table = Kokkos::create_mirror_view(vn_table);
+    auto mirror_vm_table = Kokkos::create_mirror_view(vm_table);
+    auto mirror_mu_table = Kokkos::create_mirror_view(mu_r_table);
+
+    for (int i = 0; i < 300; ++i) {
+      for (int k = 0; k < 10; ++k) {
+        mirror_vn_table(i, k) = Globals<Real>::VN_TABLE[i][k];
+        mirror_vm_table(i, k) = Globals<Real>::VM_TABLE[i][k];
+      }
+    }
+
+    for (int i = 0; i < 150; ++i) {
+      mirror_mu_table(i) = Globals<Real>::MU_R_TABLE[i];
+    }
+
+    // deep copy to device
+    Kokkos::deep_copy(vn_table, mirror_vn_table);
+    Kokkos::deep_copy(vm_table, mirror_vm_table);
+    Kokkos::deep_copy(mu_r_table, mirror_mu_table);
+  }
+
+  int get_num_vert() const { return num_vert; }
+
+  static std::string custom_msg()
+  {
+    std::ostringstream out;
+    out << " packn=" << SCREAM_PACKN << " small_pack_factor=" << SCREAM_SMALL_PACK_FACTOR;
+    return out.str();
+  }
 };
 
 #if 0
@@ -129,21 +173,21 @@ void micro_sed_func (
   const kokkos_1d_t<Real>& prt_liq)
 {
   const kokkos_2d_t<RealSmallPack>
-    linv_dzq = smallize(m.inv_dzq),
-    lrho = smallize(m.rho),
-    linv_rho = smallize(m.inv_rho),
-    lrhofacr = smallize(m.rhofacr),
-    lV_qr = smallize(m.V_qr),
-    lV_nr = smallize(m.V_nr),
-    lflux_qx = smallize(m.flux_qx),
-    lflux_nx = smallize(m.flux_nx),
+    linv_dzq, //= smallize(m.inv_dzq),
+    lrho, //= smallize(m.rho),
+    linv_rho, //= smallize(m.inv_rho),
+    lrhofacr, //= smallize(m.rhofacr),
+    lV_qr, //= smallize(m.V_qr),
+    lV_nr, //= smallize(m.V_nr),
+    lflux_qx, //= smallize(m.flux_qx),
+    lflux_nx, //= smallize(m.flux_nx),
     lqr = smallize(qr),
     lnr = smallize(nr),
-    lmu_r = smallize(m.mu_r),
-    llamr = smallize(m.lamr);
+    lmu_r, //= smallize(m.mu_r),
+    llamr; // = smallize(m.lamr);
   const kokkos_2d_t<Real>
     sqr = scalarize(qr),
-    sflux_qx = scalarize(m.flux_qx);
+    sflux_qx; // = scalarize(m.flux_qx);
 
   // constants
   const Real odt = 1.0 / dt;
@@ -184,13 +228,13 @@ void micro_sed_func (
         osflux_qx = util::subview(sflux_qx, i);
 
       const Unmanaged<kokkos_1d_t<RealPack> >
-        oinv_dzq = util::subview(m.inv_dzq, i),
-        ot       = util::subview(m.t, i),
-        orho     = util::subview(m.rho, i),
-        oinv_rho = util::subview(m.inv_rho, i),
-        orhofacr = util::subview(m.rhofacr, i),
-        oV_qr    = util::subview(m.V_qr, i),
-        oV_nr    = util::subview(m.V_nr, i),
+        oinv_dzq,// = util::subview(m.inv_dzq, i),
+        ot,     //  = util::subview(m.t, i),
+        orho,   //  = util::subview(m.rho, i),
+        oinv_rho, //= util::subview(m.inv_rho, i),
+        orhofacr, //= util::subview(m.rhofacr, i),
+        oV_qr, //   = util::subview(m.V_qr, i),
+        oV_nr, //   = util::subview(m.V_nr, i),
         odzq     = util::subview(dzq, i),
         oth      = util::subview(th, i),
         opres    = util::subview(pres, i);
