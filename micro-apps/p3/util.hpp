@@ -351,7 +351,7 @@ class WorkSpace
     m_num_used(team_idx) += 1;
 #endif
 
-    auto space = get_space_in_slot<T>(m_next_slot(team_idx));
+    auto space = get_space_in_slot<T>(team_idx, m_next_slot(team_idx));
     m_next_slot(team_idx) = get_next<T>(space);
 
     return space;
@@ -397,10 +397,10 @@ class WorkSpace
 
   template <typename T>
   KOKKOS_INLINE_FUNCTION
-  Unmanaged<kokkos_1d_t<T> > get_space_in_slot(const int slot) const
+  Unmanaged<kokkos_1d_t<T> > get_space_in_slot(const int team_idx, const int slot) const
   {
     return Unmanaged<kokkos_1d_t<T> >(
-      reinterpret_cast<T*>(m_data.data() + m_size*slot),
+      reinterpret_cast<T*>(&m_data(team_idx, 0) + m_size*slot),
       (m_size - RESERVE) / sizeof(T)
                                       );
   }
