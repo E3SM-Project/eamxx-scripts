@@ -323,7 +323,6 @@ class WorkspaceManager
                int(std::ceil( (float(sizeof(int))/float(sizeof(T))) * 2 )) ),
     m_size(size + m_reserve),
     m_concurrent_teams(ExeSpaceUtils<>::get_num_concurrent_teams(policy)),
-    m_ints_per_ws( (sizeof(T)*m_size) / sizeof(int) ),
     m_tu(policy),
 #ifndef NDEBUG
     m_max_used(max_used),
@@ -334,13 +333,14 @@ class WorkspaceManager
   {
     // initialize on host
     auto host_mirror = Kokkos::create_mirror_view(m_data);
-    int* data = reinterpret_cast<int*>(host_mirror.data());
+    T* data = host_mirror.data();
     for (int t = 0; t < m_concurrent_teams; ++t) {
       for (int i = 0; i < m_max_used; ++i) {
-        data[ (m_ints_per_ws * (i+1)) - 2 ] = i; // idx
-        data[ (m_ints_per_ws * (i+1)) - 1 ] = i + 1; // next
+        int* end_of_ws = reinterpret_cast<int*>(data + m_size*(i+1));
+        end_of_ws[-2] = i; // idx
+        end_of_ws[-1] = i + 1; // next
       }
-      data += m_ints_per_ws * m_max_used;
+      data += m_size * m_max_used;
     }
 
     Kokkos::deep_copy(m_data, host_mirror);
@@ -406,21 +406,21 @@ class WorkspaceManager
   KOKKOS_INLINE_FUNCTION
   int get_index(const Unmanaged<kokkos_1d_t<S> >& space) const
   {
-    return reinterpret_cast<int*>(space.data())[ m_ints_per_ws - 2 ];
+    return reinterpret_cast<int*>(space.data() + m_size)[-2];
   }
 
   template <typename S=T>
   KOKKOS_INLINE_FUNCTION
   int get_next(const Unmanaged<kokkos_1d_t<S> >& space) const
   {
-    return reinterpret_cast<int*>(space.data())[ m_ints_per_ws - 1 ];
+    return reinterpret_cast<int*>(space.data() + m_size)[-1];
   }
 
   template <typename S=T>
   KOKKOS_INLINE_FUNCTION
   void set_next(const Unmanaged<kokkos_1d_t<S> >& space, int next) const
   {
-    reinterpret_cast<int*>(space.data())[ m_ints_per_ws - 1 ] = next;
+    reinterpret_cast<int*>(space.data() + m_size)[-1] = next;
   }
 
   template <typename S=T>
@@ -448,7 +448,7 @@ class WorkspaceManager
   // data
   //
 
-  int m_reserve, m_size, m_concurrent_teams, m_ints_per_ws;
+  int m_reserve, m_size, m_concurrent_teams;
   util::TeamUtils<> m_tu;
 #ifndef NDEBUG
   int m_max_used;
