@@ -30,7 +30,7 @@ struct MicroSedFuncPackNoiWsKokkos {
   kokkos_1d_table_t<Real> mu_r_table;
 
   team_policy policy;
-  util::WorkSpace workspace;
+  util::WorkspaceManager workspace_mgr;
 
   using pack_t = RealPack;
 
@@ -41,7 +41,7 @@ public:
     vn_table("VN_TABLE"), vm_table("VM_TABLE"),
     mu_r_table("MU_R_TABLE"),
     policy(util::ExeSpaceUtils<>::get_default_team_policy(num_horz, num_pack)),
-    workspace(num_vert_ * sizeof(Real), num_horz_, policy)
+    workspace_mgr(num_vert_ * sizeof(Real), num_horz_, policy)
   {
     // initialize on host
 

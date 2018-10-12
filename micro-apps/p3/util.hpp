@@ -79,6 +79,10 @@
   micro_throw_if(kdir != -1 && kdir != 1, "kdir must be -1 or 1"); \
   p3::micro_sed::p3_init_cpp<Real>()
 
+namespace unit_test {
+struct UnitTest;
+}
+
 namespace util {
 
 struct FILECloser { void operator() (FILE* fh) { fclose(fh); } };
@@ -310,15 +314,16 @@ subview (const Kokkos::View<T**, Parms...>& v_in, const int i) {
     &v_in.impl_map().reference(i, 0), v_in.extent(1));
 }
 
-class WorkSpace
+class WorkspaceManager
 {
  public:
   static constexpr int RESERVE = 64;
 
-  WorkSpace(int size, int max_used, team_policy policy) :
+  WorkspaceManager(int size, int max_used, team_policy policy) :
     m_size(size + RESERVE),
     m_concurrent_teams(ExeSpaceUtils<>::get_num_concurrent_teams(policy)),
     m_ints_per_ws(m_size / sizeof(int)),
+    m_tu(policy),
 #ifndef NDEBUG
     m_max_used(max_used),
     m_num_used("Workspace.m_num_used", m_concurrent_teams),
@@ -341,6 +346,32 @@ class WorkSpace
   }
 
   int get_concurrency() const { return m_concurrent_teams; }
+
+  class Workspace {
+   public:
+    Workspace(const WorkspaceManager* parent, int ws_idx) : m_parent(parent), m_ws_idx(ws_idx) {}
+
+    template <typename T>
+    KOKKOS_INLINE_FUNCTION
+    Unmanaged<kokkos_1d_t<T> > take(const char* name) const
+    { return m_parent->take<T>(name, m_ws_idx); }
+
+    template <typename T>
+    KOKKOS_INLINE_FUNCTION
+    void release(const Unmanaged<kokkos_1d_t<T> >& space) const
+    { return m_parent->release<T>(space, m_ws_idx); }
+
+    int index() const { return m_ws_idx; }
+
+   private:
+    const WorkspaceManager* m_parent;
+    int m_ws_idx;
+  };
+
+  Workspace get_workspace(const member_type& team) const
+  { return Workspace(this, m_tu.get_workspace_idx(team)); }
+
+ private: // client should be using Workspace
 
   template <typename T>
   KOKKOS_INLINE_FUNCTION
@@ -369,10 +400,6 @@ class WorkSpace
     set_next<T>(space, m_next_slot(team_idx));
     m_next_slot(team_idx) = get_index<T>(space);
   }
-
-  //
-  // The following are only public for testing
-  //
 
   template <typename T>
   KOKKOS_INLINE_FUNCTION
@@ -405,8 +432,14 @@ class WorkSpace
                                       );
   }
 
- private:
+  friend struct unit_test::UnitTest;
+
+  //
+  // data
+  //
+
   int m_size, m_concurrent_teams, m_ints_per_ws;
+  util::TeamUtils<> m_tu;
 #ifndef NDEBUG
   int m_max_used;
   kokkos_1d_t<int> m_num_used;

@@ -32,26 +32,26 @@ static Int unittest_team_policy () {
   return nerr;
 }
 
+namespace unit_test {
+struct UnitTest {
 static int unittest_workspace_1thrd()
 {
   int nerr = 0;
-  const int N = omp_get_max_threads();
   static constexpr const int ints_per_ws = 37;
   static constexpr const int num_ws = 4;
   const int ni = 128;
   const int nk = 128;
 
   team_policy policy(util::ExeSpaceUtils<>::get_default_team_policy(ni, nk));
-  util::WorkSpace ws(sizeof(int) * ints_per_ws, num_ws, policy);
-  kokkos_2d_t<Unmanaged<kokkos_1d_t<int> > > wss("wss", num_ws, ws.get_concurrency());
-  util::TeamUtils<> tu(policy);
+  util::WorkspaceManager wsm(sizeof(int)*ints_per_ws, num_ws, policy);
+  kokkos_2d_t<Unmanaged<kokkos_1d_t<int> > > wss("wss", wsm.get_concurrency(), num_ws);
 
   Kokkos::parallel_reduce("unittest_workspace", policy, KOKKOS_LAMBDA(const member_type& team, int& total_errs) {
 
-    const int t = team.league_rank();
-    const int tr = team.team_rank();
-    const int ti = tu.get_workspace_idx(team);
     int nerrs_local = 0;
+    auto ws = wsm.get_workspace(team);
+    const int ws_idx = ws.index();
+    Unmanaged<kokkos_1d_t<Unmanaged<kokkos_1d_t<int> > > > wssub = util::subview(wss, ws_idx);
 
     for (int r = 0; r < 2; ++r) {
 
@@ -59,7 +59,7 @@ static int unittest_workspace_1thrd()
         for (int w = 0; w < num_ws; ++w) {
           std::ostringstream oss;
           oss << "ws" << w;
-          wss(w, ti) = ws.take<int>(oss.str().c_str(), ti);
+          wssub(w) = ws.take<int>(oss.str().c_str());
         }
       });
       team.team_barrier();
@@ -67,39 +67,46 @@ static int unittest_workspace_1thrd()
       for (int w = 0; w < num_ws; ++w) {
 
         Kokkos::parallel_for(Kokkos::TeamThreadRange(team, ints_per_ws), [&] (Int i) {
-          wss(w, ti)(i) = i * w;
+          wssub(w)(i) = i * w;
         });
 
         // These spaces aren't free, but their metadata should be the same as it
         // was when they were initialized
         team.team_barrier();
         Kokkos::single(Kokkos::PerTeam(team), [&] () {
-          if (ws.get_index<int>(wss(w, ti)) != w) ++nerrs_local;
-          if (ws.get_next<int>(wss(w, ti)) != w+1) ++nerrs_local;
+          if (wsm.get_index<int>(wssub(w)) != w) ++nerrs_local;
+          if (wsm.get_next<int>(wssub(w)) != w+1) ++nerrs_local;
         });
+
+        Kokkos::single(Kokkos::PerTeam(team), [&] () {
+          for (int i = 0; i < ints_per_ws; ++i) {
+            if (wssub(w)(i) != i*w) ++nerrs_local;
+          }
+        });
+        team.team_barrier();
       }
 
       Kokkos::single(Kokkos::PerTeam(team), [&] () {
         for (int w = num_ws - 1; w >= 0; --w) {
-          ws.release<int>(wss(w, ti), ti);
+          ws.release<int>(wssub(w));
         }
       });
       team.team_barrier();
     }
 
     Kokkos::single(Kokkos::PerTeam(team), [&] () {
-      wss(0, ti) = ws.take<int>("first", ti);
-      wss(1, ti) = ws.take<int>("second", ti);
-      wss(2, ti) = ws.take<int>("third", ti);
+      wssub(0) = ws.take<int>("first");
+      wssub(1) = ws.take<int>("second");
+      wssub(2) = ws.take<int>("third");
 
-      ws.release<int>(wss(1, ti), ti);
-      if (ws.get_next<int>(wss(1, ti)) != 3) ++nerrs_local;
+      ws.release<int>(wssub(1));
+      if (wsm.get_next<int>(wssub(1)) != 3) ++nerrs_local;
 
-      wss(1, ti) = ws.take<int>("second part2", ti);
-      if (ws.get_index<int>(wss(1, ti)) != 1) ++nerrs_local;
+      wssub(1) = ws.take<int>("second part2");
+      if (wsm.get_index<int>(wssub(1)) != 1) ++nerrs_local;
 
       for (int w = num_ws - 2; w >= 0; --w) {
-        ws.release<int>(wss(w, ti), ti);
+        ws.release<int>(wssub(w));
       }
 
       total_errs += nerrs_local;
@@ -108,6 +115,8 @@ static int unittest_workspace_1thrd()
   }, nerr);
 
   return nerr;
+}
+};
 }
 
 #if 0
@@ -168,11 +177,13 @@ int main (int argc, char** argv) {
   Int out = 0;
   Kokkos::initialize(argc, argv); {
     out =  unittest_team_policy();
-    out += unittest_workspace_1thrd();
+    out += unit_test::UnitTest::unittest_workspace_1thrd();
 #if 0
     out += unittest_team_utils();
 #endif
   } Kokkos::finalize();
+
+  if (out != 0) std::cout << "Some tests failed" << std::endl;
 
   return out;
 }
