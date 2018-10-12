@@ -314,15 +314,16 @@ subview (const Kokkos::View<T**, Parms...>& v_in, const int i) {
     &v_in.impl_map().reference(i, 0), v_in.extent(1));
 }
 
+template <typename T>
 class WorkspaceManager
 {
  public:
-  static constexpr int RESERVE = 64;
-
   WorkspaceManager(int size, int max_used, team_policy policy) :
-    m_size(size + RESERVE),
+    m_reserve( (sizeof(T) > 2*sizeof(int)) ? 1 :
+               int(std::ceil( (float(sizeof(int))/float(sizeof(T))) * 2 )) ),
+    m_size(size + m_reserve),
     m_concurrent_teams(ExeSpaceUtils<>::get_num_concurrent_teams(policy)),
-    m_ints_per_ws(m_size / sizeof(int)),
+    m_ints_per_ws( (sizeof(T)*m_size) / sizeof(int) ),
     m_tu(policy),
 #ifndef NDEBUG
     m_max_used(max_used),
@@ -351,15 +352,15 @@ class WorkspaceManager
    public:
     Workspace(const WorkspaceManager* parent, int ws_idx) : m_parent(parent), m_ws_idx(ws_idx) {}
 
-    template <typename T>
+    template <typename S=T>
     KOKKOS_INLINE_FUNCTION
-    Unmanaged<kokkos_1d_t<T> > take(const char* name) const
-    { return m_parent->take<T>(name, m_ws_idx); }
+    Unmanaged<kokkos_1d_t<S> > take(const char* name) const
+    { return m_parent->take<S>(name, m_ws_idx); }
 
-    template <typename T>
+    template <typename S=T>
     KOKKOS_INLINE_FUNCTION
-    void release(const Unmanaged<kokkos_1d_t<T> >& space) const
-    { return m_parent->release<T>(space, m_ws_idx); }
+    void release(const Unmanaged<kokkos_1d_t<S> >& space) const
+    { return m_parent->release<S>(space, m_ws_idx); }
 
     int index() const { return m_ws_idx; }
 
@@ -373,63 +374,72 @@ class WorkspaceManager
 
  private: // client should be using Workspace
 
-  template <typename T>
+  template <typename S=T>
   KOKKOS_INLINE_FUNCTION
-  Unmanaged<kokkos_1d_t<T> > take(const char* name, const int team_idx) const
+  Unmanaged<kokkos_1d_t<S> > take(const char* name, const int team_idx) const
   {
 #ifndef NDEBUG
     micro_kernel_assert(m_num_used(team_idx) < m_max_used);
     m_num_used(team_idx) += 1;
 #endif
 
-    auto space = get_space_in_slot<T>(team_idx, m_next_slot(team_idx));
-    m_next_slot(team_idx) = get_next<T>(space);
+    auto space = get_space_in_slot<S>(team_idx, m_next_slot(team_idx));
+    m_next_slot(team_idx) = get_next<S>(space);
 
     return space;
   }
 
-  template <typename T>
+  template <typename S=T>
   KOKKOS_INLINE_FUNCTION
-  void release(const Unmanaged<kokkos_1d_t<T> >& space, const int team_idx) const
+  void release(const Unmanaged<kokkos_1d_t<S> >& space, const int team_idx) const
   {
 #ifndef NDEBUG
     micro_kernel_assert(m_num_used(team_idx) > 0);
     m_num_used(team_idx) -= 1;
 #endif
 
-    set_next<T>(space, m_next_slot(team_idx));
-    m_next_slot(team_idx) = get_index<T>(space);
+    set_next<S>(space, m_next_slot(team_idx));
+    m_next_slot(team_idx) = get_index<S>(space);
   }
 
-  template <typename T>
+  template <typename S=T>
   KOKKOS_INLINE_FUNCTION
-  int get_index(const Unmanaged<kokkos_1d_t<T> >& space) const
+  int get_index(const Unmanaged<kokkos_1d_t<S> >& space) const
   {
     return reinterpret_cast<int*>(space.data())[ m_ints_per_ws - 2 ];
   }
 
-  template <typename T>
+  template <typename S=T>
   KOKKOS_INLINE_FUNCTION
-  int get_next(const Unmanaged<kokkos_1d_t<T> >& space) const
+  int get_next(const Unmanaged<kokkos_1d_t<S> >& space) const
   {
     return reinterpret_cast<int*>(space.data())[ m_ints_per_ws - 1 ];
   }
 
-  template <typename T>
+  template <typename S=T>
   KOKKOS_INLINE_FUNCTION
-  void set_next(const Unmanaged<kokkos_1d_t<T> >& space, int next) const
+  void set_next(const Unmanaged<kokkos_1d_t<S> >& space, int next) const
   {
     reinterpret_cast<int*>(space.data())[ m_ints_per_ws - 1 ] = next;
   }
 
-  template <typename T>
+  template <typename S=T>
   KOKKOS_INLINE_FUNCTION
-  Unmanaged<kokkos_1d_t<T> > get_space_in_slot(const int team_idx, const int slot) const
+  Unmanaged<kokkos_1d_t<S> > get_space_in_slot(const int team_idx, const int slot) const
   {
-    return Unmanaged<kokkos_1d_t<T> >(
-      reinterpret_cast<T*>(&m_data(team_idx, 0) + m_size*slot),
-      (m_size - RESERVE) / sizeof(T)
-                                      );
+#ifndef NDEBUG
+    micro_kernel_assert(true);
+    //int(std::floor(float(m_size - m_reserve) * sizeof(S)/sizeof(T)))
+#endif
+    if (sizeof(S) == sizeof(T)) {
+      return Unmanaged<kokkos_1d_t<T> >( &m_data(team_idx, 0) + m_size*slot, m_size - m_reserve );
+    }
+    else {
+      return Unmanaged<kokkos_1d_t<S> >(
+        reinterpret_cast<S*>(&m_data(team_idx, 0) + m_size*slot),
+        int((m_size - m_reserve) * float(sizeof(S))/float(sizeof(T)))
+                                        );
+    }
   }
 
   friend struct unit_test::UnitTest;
@@ -438,14 +448,14 @@ class WorkspaceManager
   // data
   //
 
-  int m_size, m_concurrent_teams, m_ints_per_ws;
+  int m_reserve, m_size, m_concurrent_teams, m_ints_per_ws;
   util::TeamUtils<> m_tu;
 #ifndef NDEBUG
   int m_max_used;
   kokkos_1d_t<int> m_num_used;
 #endif
   kokkos_1d_t<int> m_next_slot;
-  kokkos_2d_t<char> m_data;
+  kokkos_2d_t<T> m_data;
 };
 
 } // namespace util

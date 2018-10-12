@@ -43,8 +43,23 @@ static int unittest_workspace_1thrd()
   const int nk = 128;
 
   team_policy policy(util::ExeSpaceUtils<>::get_default_team_policy(ni, nk));
-  util::WorkspaceManager wsm(sizeof(int)*ints_per_ws, num_ws, policy);
+  util::WorkspaceManager<int> wsm(ints_per_ws, num_ws, policy);
   kokkos_2d_t<Unmanaged<kokkos_1d_t<int> > > wss("wss", wsm.get_concurrency(), num_ws);
+
+  micro_assert(wsm.m_reserve == 2);
+  micro_assert(wsm.m_ints_per_ws == ints_per_ws + 2);
+
+  {
+    util::WorkspaceManager<double> wsmd(17, num_ws, policy);
+    micro_assert(wsmd.m_reserve == 1);
+    micro_assert(wsmd.m_ints_per_ws == 36);
+  }
+
+  {
+    util::WorkspaceManager<char> wsmc(16, num_ws, policy);
+    micro_assert(wsmc.m_reserve == 8);
+    //micro_assert(wsmc.m_ints_per_ws == );
+  }
 
   Kokkos::parallel_reduce("unittest_workspace", policy, KOKKOS_LAMBDA(const member_type& team, int& total_errs) {
 
@@ -59,7 +74,7 @@ static int unittest_workspace_1thrd()
         for (int w = 0; w < num_ws; ++w) {
           std::ostringstream oss;
           oss << "ws" << w;
-          wssub(w) = ws.take<int>(oss.str().c_str());
+          wssub(w) = ws.take(oss.str().c_str());
         }
       });
       team.team_barrier();
@@ -88,25 +103,25 @@ static int unittest_workspace_1thrd()
 
       Kokkos::single(Kokkos::PerTeam(team), [&] () {
         for (int w = num_ws - 1; w >= 0; --w) {
-          ws.release<int>(wssub(w));
+          ws.release(wssub(w));
         }
       });
       team.team_barrier();
     }
 
     Kokkos::single(Kokkos::PerTeam(team), [&] () {
-      wssub(0) = ws.take<int>("first");
-      wssub(1) = ws.take<int>("second");
-      wssub(2) = ws.take<int>("third");
+      wssub(0) = ws.take("first");
+      wssub(1) = ws.take("second");
+      wssub(2) = ws.take("third");
 
-      ws.release<int>(wssub(1));
+      ws.release(wssub(1));
       if (wsm.get_next<int>(wssub(1)) != 3) ++nerrs_local;
 
-      wssub(1) = ws.take<int>("second part2");
+      wssub(1) = ws.take("second part2");
       if (wsm.get_index<int>(wssub(1)) != 1) ++nerrs_local;
 
       for (int w = num_ws - 2; w >= 0; --w) {
-        ws.release<int>(wssub(w));
+        ws.release(wssub(w));
       }
 
       total_errs += nerrs_local;

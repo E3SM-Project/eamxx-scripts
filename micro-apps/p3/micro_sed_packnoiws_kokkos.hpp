@@ -22,6 +22,8 @@ using micro_sed::Globals;
 template <typename Real>
 struct MicroSedFuncPackNoiWsKokkos {
 
+  using pack_t = RealPack;
+
   static constexpr const char* NAME = "kokkos_packnoiws";
 
   int num_horz, num_vert, num_pack;
@@ -30,9 +32,7 @@ struct MicroSedFuncPackNoiWsKokkos {
   kokkos_1d_table_t<Real> mu_r_table;
 
   team_policy policy;
-  util::WorkspaceManager workspace_mgr;
-
-  using pack_t = RealPack;
+  util::WorkspaceManager<RealPack> workspace_mgr;
 
 public:
   MicroSedFuncPackNoiWsKokkos(int num_horz_, int num_vert_) :
