@@ -44,100 +44,102 @@ static int unittest_workspace()
 
   team_policy policy(util::ExeSpaceUtils<>::get_default_team_policy(ni, nk));
   util::WorkspaceManager<int> wsm(ints_per_ws, num_ws, policy);
-  kokkos_2d_t<Unmanaged<kokkos_1d_t<int> > > wss("wss", wsm.get_concurrency(), num_ws);
 
   micro_assert(wsm.m_reserve == 2);
-  micro_assert(wsm.m_size == ints_per_ws + 2);
+  micro_assert(wsm.m_size == ints_per_ws);
 
   {
     util::WorkspaceManager<double> wsmd(17, num_ws, policy);
     micro_assert(wsmd.m_reserve == 1);
-    micro_assert(wsmd.m_size == 18);
+    micro_assert(wsmd.m_size == 17);
   }
-
   {
     util::WorkspaceManager<char> wsmc(16, num_ws, policy);
     micro_assert(wsmc.m_reserve == 8);
-    micro_assert(wsmc.m_size == 24);
+    micro_assert(wsmc.m_size == 16);
+  }
+  {
+    util::WorkspaceManager<short> wsmc(16, num_ws, policy);
+    micro_assert(wsmc.m_reserve == 4);
+    micro_assert(wsmc.m_size == 16);
   }
 
   Kokkos::parallel_reduce("unittest_workspace", policy, KOKKOS_LAMBDA(const member_type& team, int& total_errs) {
 
     int nerrs_local = 0;
     auto ws = wsm.get_workspace(team);
-    const int ws_idx = ws.index();
-    Unmanaged<kokkos_1d_t<Unmanaged<kokkos_1d_t<int> > > > wssub = util::subview(wss, ws_idx);
 
     // Test getting workspaces of different type
-    Kokkos::single(Kokkos::PerTeam(team), [&] () {
-      auto ws_int = ws.take("ints");
+    {
+      const auto ws_int = ws.take("ints");
+      // These nerrs_local increments are write race conditions among threads in
+      // a team, but that's OK: nerrs_local doesn't have to be accurate. A 0
+      // result will be a true 0 result.
       if (ws_int.extent(0) != ints_per_ws) ++nerrs_local;
       ws.release(ws_int);
 
       auto ws_dlb = ws.take<double>("doubles");
       if (ws_dlb.extent(0) != 18) ++nerrs_local;
-      ws.release<double>(ws_dlb); // TODO: why can't <double> be inferred?
-    });
+      ws.release(ws_dlb);
+    }
     team.team_barrier();
 
-    for (int r = 0; r < 2; ++r) {
+    Kokkos::Array<Unmanaged<kokkos_1d_t<int> >, num_ws> wssub;
 
-      Kokkos::single(Kokkos::PerTeam(team), [&] () {
+    for (int r = 0; r < 2; ++r) {
+      {
         for (int w = 0; w < num_ws; ++w) {
-          std::ostringstream oss;
+          std::ostringstream oss; //TODO Can't use stringstream on the GPU.
           oss << "ws" << w;
-          wssub(w) = ws.take(oss.str().c_str());
+          wssub[w] = ws.take(oss.str().c_str());
         }
-      });
-      team.team_barrier();
+      }
 
       for (int w = 0; w < num_ws; ++w) {
 
         Kokkos::parallel_for(Kokkos::TeamThreadRange(team, ints_per_ws), [&] (Int i) {
-          wssub(w)(i) = i * w;
+          wssub[w](i) = i * w;
         });
 
         // These spaces aren't free, but their metadata should be the same as it
         // was when they were initialized
         team.team_barrier();
         Kokkos::single(Kokkos::PerTeam(team), [&] () {
-          if (wsm.get_index<int>(wssub(w)) != w) ++nerrs_local;
-          if (wsm.get_next<int>(wssub(w)) != w+1) ++nerrs_local;
-        });
+          if (wsm.get_index<int>(wssub[w]) != w) ++nerrs_local;
+          if (wsm.get_next<int>(wssub[w]) != w+1) ++nerrs_local;
 
-        Kokkos::single(Kokkos::PerTeam(team), [&] () {
           for (int i = 0; i < ints_per_ws; ++i) {
-            if (wssub(w)(i) != i*w) ++nerrs_local;
+            if (wssub[w](i) != i*w) ++nerrs_local;
           }
         });
         team.team_barrier();
       }
 
-      Kokkos::single(Kokkos::PerTeam(team), [&] () {
+      {
         for (int w = num_ws - 1; w >= 0; --w) {
-          ws.release(wssub(w));
+          ws.release(wssub[w]);
         }
-      });
+      }
       team.team_barrier();
     }
 
-    Kokkos::single(Kokkos::PerTeam(team), [&] () {
-      wssub(0) = ws.take("first");
-      wssub(1) = ws.take("second");
-      wssub(2) = ws.take("third");
+    {
+      wssub[0] = ws.take("first");
+      wssub[1] = ws.take("second");
+      wssub[2] = ws.take("third");
 
-      ws.release(wssub(1));
-      if (wsm.get_next<int>(wssub(1)) != 3) ++nerrs_local;
+      ws.release(wssub[1]);
+      if (wsm.get_next<int>(wssub[1]) != 3) ++nerrs_local;
 
-      wssub(1) = ws.take("second part2");
-      if (wsm.get_index<int>(wssub(1)) != 1) ++nerrs_local;
+      wssub[1] = ws.take("second part2");
+      if (wsm.get_index<int>(wssub[1]) != 1) ++nerrs_local;
 
       for (int w = num_ws - 2; w >= 0; --w) {
-        ws.release(wssub(w));
+        ws.release(wssub[w]);
       }
 
       total_errs += nerrs_local;
-    });
+    }
     team.team_barrier();
   }, nerr);
 

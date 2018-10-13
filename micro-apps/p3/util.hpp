@@ -321,7 +321,8 @@ class WorkspaceManager
   WorkspaceManager(int size, int max_used, team_policy policy) :
     m_reserve( (sizeof(T) > 2*sizeof(int)) ? 1 :
                (2*sizeof(int) + sizeof(T) - 1)/sizeof(T) ),
-    m_size(size + m_reserve),
+    m_size(size),
+    m_total(m_size + m_reserve),
     m_concurrent_teams(ExeSpaceUtils<>::get_num_concurrent_teams(policy)),
     m_tu(policy),
 #ifndef NDEBUG
@@ -329,18 +330,16 @@ class WorkspaceManager
     m_num_used("Workspace.m_num_used", m_concurrent_teams),
 #endif
     m_next_slot("Workspace.m_next_slot", m_concurrent_teams),
-    m_data("Workspace.m_data", m_concurrent_teams, m_size * max_used)
+    m_data("Workspace.m_data", m_concurrent_teams, m_total * max_used)
   {
     // initialize on host
     auto host_mirror = Kokkos::create_mirror_view(m_data);
-    T* data = host_mirror.data();
     for (int t = 0; t < m_concurrent_teams; ++t) {
       for (int i = 0; i < m_max_used; ++i) {
-        int* end_of_ws = reinterpret_cast<int*>(data + m_size*(i+1));
-        end_of_ws[-2] = i; // idx
-        end_of_ws[-1] = i + 1; // next
+        int* metadata = reinterpret_cast<int*>(&m_data(t, i*m_total) + m_size);
+        metadata[0] = i;     // idx
+        metadata[1] = i + 1; // next
       }
-      data += m_size * m_max_used;
     }
 
     Kokkos::deep_copy(m_data, host_mirror);
@@ -356,12 +355,35 @@ class WorkspaceManager
     template <typename S=T>
     KOKKOS_INLINE_FUNCTION
     Unmanaged<kokkos_1d_t<S> > take(const char* name) const
-    { return m_parent.take<S>(name, m_ws_idx); }
+    {
+#ifndef NDEBUG
+      Kokkos::single(Kokkos::PerTeam(m_team), [&] () {
+        micro_kernel_assert(m_parent.m_num_used(m_ws_idx) < m_parent.m_max_used);
+        m_parent.m_num_used(m_ws_idx) += 1;
+      });
+#endif
 
-    template <typename S=T>
-    KOKKOS_INLINE_FUNCTION
-    void release(const Unmanaged<kokkos_1d_t<S> >& space) const
-    { return m_parent.release<S>(space, m_ws_idx); }
+      auto space = m_parent.get_space_in_slot<S>(m_ws_idx, m_parent.m_next_slot(m_ws_idx));
+      // We need a barrier here so get_space_in_slot returns consistent results
+      // w/in the team.
+      m_team.team_barrier();
+      Kokkos::single(Kokkos::PerTeam(m_team), [&] () {
+        m_parent.m_next_slot(m_ws_idx) = m_parent.get_next<S>(space);
+      });
+      // We need a barrier here so that a subsequent call to take or release
+      // starts with the metadata in the correct state.
+      m_team.team_barrier();
+
+      return space;
+    }
+
+    // Wrapper so caller doesn't have to specify scalar type.
+    template <typename View>
+    KOKKOS_FORCEINLINE_FUNCTION
+    void release(const View& space, std::enable_if<View::rank == 1>* = 0) const
+    {
+      release_impl<typename View::value_type>(space);
+    }
 
     int index() const { return m_ws_idx; }
 
@@ -369,8 +391,29 @@ class WorkspaceManager
     const WorkspaceManager& m_parent;
     const member_type& m_team;
     int m_ws_idx;
+
+    template <typename S>
+    KOKKOS_INLINE_FUNCTION
+    void release_impl(const Unmanaged<kokkos_1d_t<S> >& space) const
+    {
+#ifndef NDEBUG
+      Kokkos::single(Kokkos::PerTeam(m_team), [&] () {
+        micro_kernel_assert(m_parent.m_num_used(m_ws_idx) > 0);
+        m_parent.m_num_used(m_ws_idx) -= 1;
+      });
+#endif
+
+      // We don't need a barrier before this block b/c it's OK for metadata to
+      // change while some threads in the team are still using the bulk data.
+      Kokkos::single(Kokkos::PerTeam(m_team), [&] () {
+        m_parent.set_next<S>(space, m_parent.m_next_slot(m_ws_idx));
+        m_parent.m_next_slot(m_ws_idx) = m_parent.get_index<S>(space);
+      });
+      m_team.team_barrier();
+    }
   };
 
+  KOKKOS_INLINE_FUNCTION
   Workspace get_workspace(const member_type& team) const
   { return Workspace(*this, m_tu.get_workspace_idx(team), team); }
 
@@ -378,67 +421,33 @@ class WorkspaceManager
 
   template <typename S=T>
   KOKKOS_INLINE_FUNCTION
-  Unmanaged<kokkos_1d_t<S> > take(const char* name, const int team_idx) const
-  {
-#ifndef NDEBUG
-    micro_kernel_assert(m_num_used(team_idx) < m_max_used);
-    m_num_used(team_idx) += 1;
-#endif
-
-    auto space = get_space_in_slot<S>(team_idx, m_next_slot(team_idx));
-    m_next_slot(team_idx) = get_next<S>(space);
-
-    return space;
-  }
-
-  template <typename S=T>
-  KOKKOS_INLINE_FUNCTION
-  void release(const Unmanaged<kokkos_1d_t<S> >& space, const int team_idx) const
-  {
-#ifndef NDEBUG
-    micro_kernel_assert(m_num_used(team_idx) > 0);
-    m_num_used(team_idx) -= 1;
-#endif
-
-    set_next<S>(space, m_next_slot(team_idx));
-    m_next_slot(team_idx) = get_index<S>(space);
-  }
-
-  template <typename S=T>
-  KOKKOS_INLINE_FUNCTION
   int get_index(const Unmanaged<kokkos_1d_t<S> >& space) const
   {
-    return reinterpret_cast<int*>(reinterpret_cast<T*>(space.data()) + m_size)[-2];
+    return reinterpret_cast<const int*>(reinterpret_cast<const T*>(space.data()) + m_size)[0];
   }
 
   template <typename S=T>
   KOKKOS_INLINE_FUNCTION
   int get_next(const Unmanaged<kokkos_1d_t<S> >& space) const
   {
-    return reinterpret_cast<int*>(reinterpret_cast<T*>(space.data()) + m_size)[-1];
+    return reinterpret_cast<const int*>(reinterpret_cast<const T*>(space.data()) + m_size)[1];
   }
 
   template <typename S=T>
   KOKKOS_INLINE_FUNCTION
   void set_next(const Unmanaged<kokkos_1d_t<S> >& space, int next) const
   {
-    reinterpret_cast<int*>(reinterpret_cast<T*>(space.data()) + m_size)[-1] = next;
+    reinterpret_cast<int*>(reinterpret_cast<T*>(space.data()) + m_size)[1] = next;
   }
 
   template <typename S=T>
   KOKKOS_INLINE_FUNCTION
   Unmanaged<kokkos_1d_t<S> > get_space_in_slot(const int team_idx, const int slot) const
   {
-    if (sizeof(S) == sizeof(T)) {
-      return Unmanaged<kokkos_1d_t<S> >( reinterpret_cast<S*>(&m_data(team_idx, 0) + m_size*slot),
-                                         m_size - m_reserve );
-    }
-    else {
-      return Unmanaged<kokkos_1d_t<S> >(
-        reinterpret_cast<S*>(&m_data(team_idx, 0) + m_size*slot),
-        int( (m_size - m_reserve) * (sizeof(T)/float(sizeof(S))))
-                                        );
-    }
+    return Unmanaged<kokkos_1d_t<S> >( reinterpret_cast<S*>(&m_data(team_idx, slot*m_total)),
+                                       sizeof(T) == sizeof(S) ?
+                                       m_size :
+                                       (m_size*sizeof(T))/sizeof(S));
   }
 
   friend struct unit_test::UnitTest;
@@ -447,7 +456,7 @@ class WorkspaceManager
   // data
   //
 
-  int m_reserve, m_size, m_concurrent_teams;
+  int m_reserve, m_size, m_total, m_concurrent_teams;
   util::TeamUtils<> m_tu;
 #ifndef NDEBUG
   int m_max_used;
