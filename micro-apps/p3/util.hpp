@@ -320,7 +320,7 @@ class WorkspaceManager
  public:
   WorkspaceManager(int size, int max_used, team_policy policy) :
     m_reserve( (sizeof(T) > 2*sizeof(int)) ? 1 :
-               int(std::ceil( (sizeof(int)/float(sizeof(T))) * 2 )) ),
+               (2*sizeof(int) + sizeof(T) - 1)/sizeof(T) ),
     m_size(size + m_reserve),
     m_concurrent_teams(ExeSpaceUtils<>::get_num_concurrent_teams(policy)),
     m_tu(policy),
@@ -351,7 +351,7 @@ class WorkspaceManager
   class Workspace {
    public:
     Workspace(const WorkspaceManager& parent, int ws_idx, const member_type& team) :
-      m_parent(parent), m_ws_idx(ws_idx), m_team(team) {}
+      m_parent(parent), m_team(team), m_ws_idx(ws_idx) {}
 
     template <typename S=T>
     KOKKOS_INLINE_FUNCTION
