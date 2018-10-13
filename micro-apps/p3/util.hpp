@@ -320,7 +320,7 @@ class WorkspaceManager
  public:
   WorkspaceManager(int size, int max_used, team_policy policy) :
     m_reserve( (sizeof(T) > 2*sizeof(int)) ? 1 :
-               int(std::ceil( (float(sizeof(int))/float(sizeof(T))) * 2 )) ),
+               int(std::ceil( (sizeof(int)/float(sizeof(T))) * 2 )) ),
     m_size(size + m_reserve),
     m_concurrent_teams(ExeSpaceUtils<>::get_num_concurrent_teams(policy)),
     m_tu(policy),
@@ -350,27 +350,29 @@ class WorkspaceManager
 
   class Workspace {
    public:
-    Workspace(const WorkspaceManager* parent, int ws_idx) : m_parent(parent), m_ws_idx(ws_idx) {}
+    Workspace(const WorkspaceManager& parent, int ws_idx, const member_type& team) :
+      m_parent(parent), m_ws_idx(ws_idx), m_team(team) {}
 
     template <typename S=T>
     KOKKOS_INLINE_FUNCTION
     Unmanaged<kokkos_1d_t<S> > take(const char* name) const
-    { return m_parent->take<S>(name, m_ws_idx); }
+    { return m_parent.take<S>(name, m_ws_idx); }
 
     template <typename S=T>
     KOKKOS_INLINE_FUNCTION
     void release(const Unmanaged<kokkos_1d_t<S> >& space) const
-    { return m_parent->release<S>(space, m_ws_idx); }
+    { return m_parent.release<S>(space, m_ws_idx); }
 
     int index() const { return m_ws_idx; }
 
    private:
-    const WorkspaceManager* m_parent;
+    const WorkspaceManager& m_parent;
+    const member_type& m_team;
     int m_ws_idx;
   };
 
   Workspace get_workspace(const member_type& team) const
-  { return Workspace(this, m_tu.get_workspace_idx(team)); }
+  { return Workspace(*this, m_tu.get_workspace_idx(team), team); }
 
  private: // client should be using Workspace
 
@@ -406,38 +408,35 @@ class WorkspaceManager
   KOKKOS_INLINE_FUNCTION
   int get_index(const Unmanaged<kokkos_1d_t<S> >& space) const
   {
-    return reinterpret_cast<int*>(space.data() + m_size)[-2];
+    return reinterpret_cast<int*>(reinterpret_cast<T*>(space.data()) + m_size)[-2];
   }
 
   template <typename S=T>
   KOKKOS_INLINE_FUNCTION
   int get_next(const Unmanaged<kokkos_1d_t<S> >& space) const
   {
-    return reinterpret_cast<int*>(space.data() + m_size)[-1];
+    return reinterpret_cast<int*>(reinterpret_cast<T*>(space.data()) + m_size)[-1];
   }
 
   template <typename S=T>
   KOKKOS_INLINE_FUNCTION
   void set_next(const Unmanaged<kokkos_1d_t<S> >& space, int next) const
   {
-    reinterpret_cast<int*>(space.data() + m_size)[-1] = next;
+    reinterpret_cast<int*>(reinterpret_cast<T*>(space.data()) + m_size)[-1] = next;
   }
 
   template <typename S=T>
   KOKKOS_INLINE_FUNCTION
   Unmanaged<kokkos_1d_t<S> > get_space_in_slot(const int team_idx, const int slot) const
   {
-#ifndef NDEBUG
-    micro_kernel_assert(true);
-    //int(std::floor(float(m_size - m_reserve) * sizeof(S)/sizeof(T)))
-#endif
     if (sizeof(S) == sizeof(T)) {
-      return Unmanaged<kokkos_1d_t<T> >( &m_data(team_idx, 0) + m_size*slot, m_size - m_reserve );
+      return Unmanaged<kokkos_1d_t<S> >( reinterpret_cast<S*>(&m_data(team_idx, 0) + m_size*slot),
+                                         m_size - m_reserve );
     }
     else {
       return Unmanaged<kokkos_1d_t<S> >(
         reinterpret_cast<S*>(&m_data(team_idx, 0) + m_size*slot),
-        int((m_size - m_reserve) * float(sizeof(S))/float(sizeof(T)))
+        int( (m_size - m_reserve) * (sizeof(T)/float(sizeof(S))))
                                         );
     }
   }

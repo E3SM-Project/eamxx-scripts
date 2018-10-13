@@ -34,7 +34,7 @@ static Int unittest_team_policy () {
 
 namespace unit_test {
 struct UnitTest {
-static int unittest_workspace_1thrd()
+static int unittest_workspace()
 {
   int nerr = 0;
   static constexpr const int ints_per_ws = 37;
@@ -47,18 +47,18 @@ static int unittest_workspace_1thrd()
   kokkos_2d_t<Unmanaged<kokkos_1d_t<int> > > wss("wss", wsm.get_concurrency(), num_ws);
 
   micro_assert(wsm.m_reserve == 2);
-  //micro_assert(wsm.m_ints_per_ws == ints_per_ws + 2);
+  micro_assert(wsm.m_size == ints_per_ws + 2);
 
   {
     util::WorkspaceManager<double> wsmd(17, num_ws, policy);
     micro_assert(wsmd.m_reserve == 1);
-    //micro_assert(wsmd.m_ints_per_ws == 36);
+    micro_assert(wsmd.m_size == 18);
   }
 
   {
     util::WorkspaceManager<char> wsmc(16, num_ws, policy);
     micro_assert(wsmc.m_reserve == 8);
-    //micro_assert(wsmc.m_ints_per_ws == );
+    micro_assert(wsmc.m_size == 24);
   }
 
   Kokkos::parallel_reduce("unittest_workspace", policy, KOKKOS_LAMBDA(const member_type& team, int& total_errs) {
@@ -67,6 +67,18 @@ static int unittest_workspace_1thrd()
     auto ws = wsm.get_workspace(team);
     const int ws_idx = ws.index();
     Unmanaged<kokkos_1d_t<Unmanaged<kokkos_1d_t<int> > > > wssub = util::subview(wss, ws_idx);
+
+    // Test getting workspaces of different type
+    Kokkos::single(Kokkos::PerTeam(team), [&] () {
+      auto ws_int = ws.take("ints");
+      if (ws_int.extent(0) != ints_per_ws) ++nerrs_local;
+      ws.release(ws_int);
+
+      auto ws_dlb = ws.take<double>("doubles");
+      if (ws_dlb.extent(0) != 18) ++nerrs_local;
+      ws.release<double>(ws_dlb); // TODO: why can't <double> be inferred?
+    });
+    team.team_barrier();
 
     for (int r = 0; r < 2; ++r) {
 
@@ -192,7 +204,7 @@ int main (int argc, char** argv) {
   Int out = 0;
   Kokkos::initialize(argc, argv); {
     out =  unittest_team_policy();
-    out += unit_test::UnitTest::unittest_workspace_1thrd();
+    out += unit_test::UnitTest::unittest_workspace();
 #if 0
     out += unittest_team_utils();
 #endif
