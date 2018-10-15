@@ -175,21 +175,10 @@ void micro_sed_func (
   const kokkos_1d_t<Real>& prt_liq)
 {
   const kokkos_2d_t<RealSmallPack>
-    linv_dzq, //= smallize(m.inv_dzq),
-    lrho, //= smallize(m.rho),
-    linv_rho, //= smallize(m.inv_rho),
-    lrhofacr, //= smallize(m.rhofacr),
-    lV_qr, //= smallize(m.V_qr),
-    lV_nr, //= smallize(m.V_nr),
-    lflux_qx, //= smallize(m.flux_qx),
-    lflux_nx, //= smallize(m.flux_nx),
     lqr = smallize(qr),
-    lnr = smallize(nr),
-    lmu_r, //= smallize(m.mu_r),
-    llamr; // = smallize(m.lamr);
+    lnr = smallize(nr);
   const kokkos_2d_t<Real>
-    sqr = scalarize(qr),
-    sflux_qx; // = scalarize(m.flux_qx);
+    sqr = scalarize(qr);
 
   // constants
   const Real odt = 1.0 / dt;
@@ -211,45 +200,42 @@ void micro_sed_func (
     KOKKOS_LAMBDA(const member_type& team) {
       const int i = team.league_rank();
 
+      auto workspace = m.workspace_mgr.get_workspace(team);
+
       const Unmanaged<kokkos_1d_t<RealSmallPack> >
-        olinv_dzq = util::subview(linv_dzq, i),
-        olrho = util::subview(lrho, i),
-        olinv_rho = util::subview(linv_rho, i),
-        olrhofacr = util::subview(lrhofacr, i),
-        olV_qr = util::subview(lV_qr, i),
-        olV_nr = util::subview(lV_nr, i),
-        olflux_qx = util::subview(lflux_qx, i),
-        olflux_nx = util::subview(lflux_nx, i),
         olqr = util::subview(lqr, i),
-        olnr = util::subview(lnr, i),
-        olmu_r = util::subview(lmu_r, i),
-        ollamr = util::subview(llamr, i);
+        olnr = util::subview(lnr, i);
 
       const Unmanaged<kokkos_1d_t<Real> >
-        osqr = util::subview(sqr, i),
-        osflux_qx = util::subview(sflux_qx, i);
+        osqr = util::subview(sqr, i);
 
       const Unmanaged<kokkos_1d_t<RealPack> >
-        oinv_dzq,// = util::subview(m.inv_dzq, i),
-        ot,     //  = util::subview(m.t, i),
-        orho,   //  = util::subview(m.rho, i),
-        oinv_rho, //= util::subview(m.inv_rho, i),
-        orhofacr, //= util::subview(m.rhofacr, i),
-        oV_qr, //   = util::subview(m.V_qr, i),
-        oV_nr, //   = util::subview(m.V_nr, i),
         odzq     = util::subview(dzq, i),
         oth      = util::subview(th, i),
         opres    = util::subview(pres, i);
 
+      auto inv_dzq = workspace.take<RealPack>("inv_dzq");
+      auto linv_dzq = smallize(inv_dzq);
+      auto rho = workspace.take<RealPack>("rho");
+      auto lrho = smallize(rho);
+      auto inv_rho = workspace.take<RealPack>("inv_rho");
+      auto linv_rho = smallize(inv_rho);
+      auto rhofacr = workspace.take<RealPack>("rhofacr");
+      auto lrhofacr = smallize(rhofacr);
+      auto t = workspace.take<RealPack>("t");
+
       Kokkos::parallel_for(
         Kokkos::TeamThreadRange(team, m.num_pack), [&] (Int k) {
-          oinv_dzq(k) = 1.0 / odzq(k);
-          ot(k) = pow(opres(k) * 1.e-5, rd_inv_cp) * oth(k);
-          orho(k) = opres(k) / (rd * ot(k));
-          oinv_rho(k) = 1.0 / orho(k);
-          orhofacr(k) = pow(rhosur * oinv_rho(k), 0.54);
+          inv_dzq(k) = 1.0 / odzq(k);
+          t(k) = pow(opres(k) * 1.e-5, rd_inv_cp) * oth(k);
+          rho(k) = opres(k) / (rd * t(k));
+          inv_rho(k) = 1.0 / rho(k);
+          rhofacr(k) = pow(rhosur * inv_rho(k), 0.54);
         });
       team.team_barrier();
+
+      // t could be a scalar, but that's not realistic in the context of p3
+      workspace.release(t);
 
       bool log_qxpresent;
       const Int k_qxtop = find_top(team, osqr, qsmall, kbot, ktop, kdir, log_qxpresent);
@@ -264,14 +250,23 @@ void micro_sed_func (
           Real Co_max = 0.0;
           Int kmin, kmax;
 
+          auto V_qr = workspace.take<RealPack>("V_qr");
+          auto lV_qr = smallize(V_qr);
+          auto V_nr = workspace.take<RealPack>("V_nr");
+          auto lV_nr = smallize(V_nr);
+
           Kokkos::parallel_for(
             Kokkos::TeamThreadRange(team, m.num_pack), [&] (Int k) {
-              oV_qr(k) = 0;
-              oV_nr(k) = 0;
+              V_qr(k) = 0;
+              V_nr(k) = 0;
             });
           team.team_barrier();
 
           util::set_min_max(k_qxbot, k_qxtop, kmin, kmax, RealSmallPack::n);
+
+          auto lmu_r = workspace.take<RealSmallPack>("mu_r");
+          auto llamr = workspace.take<RealSmallPack>("lamr");
+
           Kokkos::parallel_reduce(
             Kokkos::TeamThreadRange(team, kmax-kmin+1), [&] (int pk_, Real& lmax) {
               const int pk = kmin + pk_;
@@ -279,25 +274,29 @@ void micro_sed_func (
               if (qr_gt_small.any()) {
                 // Compute Vq, Vn:
                 olnr(pk).set(qr_gt_small, max(olnr(pk), nsmall));
-                Table3 t;
+                Table3 table;
                 RealSmallPack tmp1, tmp2;
-                get_rain_dsd2_kokkos(qr_gt_small, olqr(pk), olnr(pk), olmu_r(pk),
-                                     t.rdumii, t.dumii, ollamr(pk),
+                get_rain_dsd2_kokkos(qr_gt_small, olqr(pk), olnr(pk), lmu_r(pk),
+                                     table.rdumii, table.dumii, llamr(pk),
                                      m.mu_r_table, tmp1, tmp2);
-                find_lookupTable_indices_3_kokkos(qr_gt_small, t, olmu_r(pk), ollamr(pk));
+                find_lookupTable_indices_3_kokkos(qr_gt_small, table, lmu_r(pk), llamr(pk));
                 // mass-weighted fall speed:
-                olV_qr(pk).set(qr_gt_small,
-                               apply_table(qr_gt_small, m.vm_table, t) * olrhofacr(pk));
+                lV_qr(pk).set(qr_gt_small,
+                              apply_table(qr_gt_small, m.vm_table, table) * lrhofacr(pk));
                 // number-weighted fall speed:
-                olV_nr(pk).set(qr_gt_small,
-                               apply_table(qr_gt_small, m.vn_table, t) * olrhofacr(pk));
+                lV_nr(pk).set(qr_gt_small,
+                              apply_table(qr_gt_small, m.vn_table, table) * lrhofacr(pk));
                 const auto Co_max_local = max(qr_gt_small, -1,
-                                              olV_qr(pk) * dt_left * olinv_dzq(pk));
+                                              lV_qr(pk) * dt_left * linv_dzq(pk));
                 if (Co_max_local > lmax)
                   lmax = Co_max_local;
               }
             }, Kokkos::Max<Real>(Co_max));
           team.team_barrier();
+
+          workspace.release(lmu_r);
+          workspace.release(llamr);
+
           if (Co_max < 0) {
             // qr is everywhere too small. Exit dt_left loop.
             break;
@@ -310,18 +309,33 @@ void micro_sed_func (
           // Move bottom cell down by 1 if not at ground already.
           const Int k_temp = (k_qxbot == kbot) ? k_qxbot : k_qxbot - kdir;
 
+          auto lflux_qx = workspace.take<RealSmallPack>("flux_qx");
+          auto lflux_nx = workspace.take<RealSmallPack>("flux_nx");
+          auto sflux_qx = scalarize(lflux_qx);
+
           calc_first_order_upwind_step<2>(
-            olrho, olinv_rho, olinv_dzq, team,
+            lrho, linv_rho, linv_dzq, team,
             m.num_vert, k_temp, k_qxtop, kdir, dt_sub,
-            {&olflux_qx, &olflux_nx}, {&olV_qr, &olV_nr}, {&olqr, &olnr});
+            {&lflux_qx, &lflux_nx}, {&lV_qr, &lV_nr}, {&olqr, &olnr});
           team.team_barrier();
 
+          workspace.release(V_qr);
+          workspace.release(V_nr);
+          workspace.release(lflux_nx);
+
           // accumulated precip during time step
-          if (k_qxbot == kbot) prt_accum += osflux_qx(kbot) * dt_sub;
+          if (k_qxbot == kbot) prt_accum += sflux_qx(kbot) * dt_sub;
+
+          workspace.release(lflux_qx);
 
           dt_left -= dt_sub;  // update time remaining for sedimentation
           if (k_qxbot != kbot) k_qxbot -= kdir;
         }
+
+        workspace.release(inv_dzq);
+        workspace.release(rho);
+        workspace.release(inv_rho);
+        workspace.release(rhofacr);
 
         Kokkos::single(
           Kokkos::PerTeam(team), [&] () {
@@ -329,6 +343,8 @@ void micro_sed_func (
           });
       }
     });
+
+  m.workspace_mgr.report();
 }
 
 } // namespace p3

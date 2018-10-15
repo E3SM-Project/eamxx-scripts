@@ -347,6 +347,10 @@ class WorkspaceManager
 
   int get_concurrency() const { return m_concurrent_teams; }
 
+  void report() const
+  {
+  }
+
   class Workspace {
    public:
     KOKKOS_INLINE_FUNCTION
