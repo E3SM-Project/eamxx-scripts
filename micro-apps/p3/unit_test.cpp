@@ -37,7 +37,7 @@ struct UnitTest {
 static int unittest_workspace()
 {
   int nerr = 0;
-  static constexpr const int ints_per_ws = 37;
+  const int ints_per_ws = 37;
   static constexpr const int num_ws = 4;
   const int ni = 128;
   const int nk = 128;

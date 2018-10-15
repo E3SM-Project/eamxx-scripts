@@ -336,7 +336,7 @@ class WorkspaceManager
     auto host_mirror = Kokkos::create_mirror_view(m_data);
     for (int t = 0; t < m_concurrent_teams; ++t) {
       for (int i = 0; i < m_max_used; ++i) {
-        int* metadata = reinterpret_cast<int*>(&m_data(t, i*m_total) + m_size);
+        int* metadata = reinterpret_cast<int*>(&host_mirror(t, i*m_total) + m_size);
         metadata[0] = i;     // idx
         metadata[1] = i + 1; // next
       }
@@ -349,6 +349,7 @@ class WorkspaceManager
 
   class Workspace {
    public:
+    KOKKOS_INLINE_FUNCTION
     Workspace(const WorkspaceManager& parent, int ws_idx, const member_type& team) :
       m_parent(parent), m_team(team), m_ws_idx(ws_idx) {}
 
