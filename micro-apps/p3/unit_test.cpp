@@ -89,8 +89,8 @@ static int unittest_workspace()
     for (int r = 0; r < 2; ++r) {
       {
         for (int w = 0; w < num_ws; ++w) {
-          char buf[16];
-          sprintf(buf, "ws%d", w);
+          char buf[8] = "ws";
+          buf[2] = 48 + w; // 48 is offset to integers in ascii
           wssub[w] = ws.take(buf);
         }
       }
