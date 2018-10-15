@@ -97,6 +97,12 @@ static int unittest_workspace()
 
       for (int w = 0; w < num_ws; ++w) {
 
+        char buf[8] = "ws";
+        buf[2] = 48 + w; // 48 is offset to integers in ascii
+#ifndef NDEBUG
+        if (strcmp(ws.get_name(wssub[w]), buf) != 0) ++nerrs_local;
+#endif
+
         Kokkos::parallel_for(Kokkos::TeamThreadRange(team, ints_per_ws), [&] (Int i) {
           wssub[w](i) = i * w;
         });
@@ -142,6 +148,8 @@ static int unittest_workspace()
     }
     team.team_barrier();
   }, nerr);
+
+  wsm.report();
 
   return nerr;
 }

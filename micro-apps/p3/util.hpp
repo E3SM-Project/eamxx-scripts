@@ -11,6 +11,8 @@
 #ifndef KOKKOS_ENABLE_CUDA
  #include <cmath>
  #include <algorithm>
+ #include <map>
+ #include <vector>
 #endif
 
 #ifdef _OPENMP
@@ -314,8 +316,10 @@ subview (const Kokkos::View<T**, Parms...>& v_in, const int i) {
     &v_in.impl_map().reference(i, 0), v_in.extent(1));
 }
 
+///////////////////////////////////////////////////////////////////////////////
 template <typename T>
 class WorkspaceManager
+///////////////////////////////////////////////////////////////////////////////
 {
  public:
   WorkspaceManager(int size, int max_used, team_policy policy) :
@@ -328,6 +332,11 @@ class WorkspaceManager
 #ifndef NDEBUG
     m_max_used(max_used),
     m_num_used("Workspace.m_num_used", m_concurrent_teams),
+    m_high_water("Workspace.m_high_water", m_concurrent_teams),
+    m_names("Workspace.m_names", m_concurrent_teams, max_used, 128), // 128 is max name len
+ #ifndef KOKKOS_ENABLE_CUDA
+    m_counts(policy.league_size()),
+ #endif
 #endif
     m_next_slot("Workspace.m_next_slot", m_concurrent_teams),
     m_data("Workspace.m_data", m_concurrent_teams, m_total * max_used)
@@ -349,6 +358,27 @@ class WorkspaceManager
 
   void report() const
   {
+#ifndef NDEBUG
+    auto host_num_used   = Kokkos::create_mirror_view(m_num_used);
+    auto host_high_water = Kokkos::create_mirror_view(m_high_water);
+
+    std::cout << "\nWS usage (capped at " << m_max_used << "): " << std::endl;
+    for (int t = 0; t < m_concurrent_teams; ++t) {
+      std::cout << "WS " << t << " currently using " << host_num_used(t) << std::endl;
+      std::cout << "WS " << t << " high-water " << host_high_water(t) << std::endl;
+    }
+
+ #ifndef KOKKOS_ENABLE_CUDA
+    std::cout << "\nWS deep analysis" << std::endl;
+    for (size_t t = 0; t < m_counts.size(); ++t) {
+      std::cout << "  For team " << t << " " << m_counts[t].size() << std::endl;
+      for (auto& kv : m_counts[t]) {
+        std::cout << "    workspace '" << kv.first << "' was taken " << kv.second.first
+                  << " times and released " << kv.second.second << " times" << std::endl;
+      }
+    }
+ #endif
+#endif
   }
 
   class Workspace {
@@ -365,15 +395,33 @@ class WorkspaceManager
       Kokkos::single(Kokkos::PerTeam(m_team), [&] () {
         micro_kernel_assert(m_parent.m_num_used(m_ws_idx) < m_parent.m_max_used);
         m_parent.m_num_used(m_ws_idx) += 1;
+        if (m_parent.m_num_used(m_ws_idx) > m_parent.m_high_water(m_ws_idx)) {
+          m_parent.m_high_water(m_ws_idx) = m_parent.m_num_used(m_ws_idx);
+        }
       });
 #endif
 
-      auto space = m_parent.get_space_in_slot<S>(m_ws_idx, m_parent.m_next_slot(m_ws_idx));
+      const int slot = m_parent.m_next_slot(m_ws_idx);
+      auto space = m_parent.get_space_in_slot<S>(m_ws_idx, slot);
+
       // We need a barrier here so get_space_in_slot returns consistent results
       // w/in the team.
       m_team.team_barrier();
       Kokkos::single(Kokkos::PerTeam(m_team), [&] () {
         m_parent.m_next_slot(m_ws_idx) = m_parent.get_next<S>(space);
+#ifndef NDEBUG
+        set_name<S>(space, name);
+ #ifndef KOKKOS_ENABLE_CUDA
+        std::map<std::string, std::pair<int, int> >& my_name_map = m_parent.m_counts[m_team.team_rank()];
+        std::string sname(name);
+        if (my_name_map.find(sname) == my_name_map.end()) {
+          my_name_map.insert({sname, {1, 0}});
+        }
+        else {
+          my_name_map[sname].first += 1;
+        }
+ #endif
+#endif
       });
       // We need a barrier here so that a subsequent call to take or release
       // starts with the metadata in the correct state.
@@ -386,9 +434,14 @@ class WorkspaceManager
     template <typename View>
     KOKKOS_FORCEINLINE_FUNCTION
     void release(const View& space, std::enable_if<View::rank == 1>* = 0) const
-    {
-      release_impl<typename View::value_type>(space);
-    }
+    { release_impl<typename View::value_type>(space); }
+
+#ifndef NDEBUG
+    template <typename View>
+    KOKKOS_INLINE_FUNCTION
+    const char* get_name(const View& space, std::enable_if<View::rank == 1>* = 0) const
+    { return get_name_impl<typename View::value_type>(space); }
+#endif
 
     int index() const { return m_ws_idx; }
 
@@ -396,6 +449,26 @@ class WorkspaceManager
     const WorkspaceManager& m_parent;
     const member_type& m_team;
     int m_ws_idx;
+
+#ifndef NDEBUG
+    template <typename S>
+    KOKKOS_INLINE_FUNCTION
+    const char* get_name_impl(const Unmanaged<kokkos_1d_t<S> >& space) const
+    {
+      const int slot = m_parent.get_index<S>(space);
+      return &(m_parent.m_names(m_ws_idx, slot, 0));
+    }
+
+    template <typename S>
+    KOKKOS_INLINE_FUNCTION
+    void set_name(const Unmanaged<kokkos_1d_t<S> >& space, const char* name) const
+    {
+      micro_kernel_assert(strlen(name) < 128); // leave one char for null terminator
+      const int slot = m_parent.get_index<S>(space);
+      char* val = &(m_parent.m_names(m_ws_idx, slot, 0));
+      strcpy(val, name);
+    }
+#endif
 
     template <typename S>
     KOKKOS_INLINE_FUNCTION
@@ -405,6 +478,10 @@ class WorkspaceManager
       Kokkos::single(Kokkos::PerTeam(m_team), [&] () {
         micro_kernel_assert(m_parent.m_num_used(m_ws_idx) > 0);
         m_parent.m_num_used(m_ws_idx) -= 1;
+ #ifndef KOKKOS_ENABLE_CUDA
+        std::string name = get_name(space);
+        m_parent.m_counts[m_team.team_rank()][name].second += 1;
+ #endif
       });
 #endif
 
@@ -449,10 +526,11 @@ class WorkspaceManager
   KOKKOS_INLINE_FUNCTION
   Unmanaged<kokkos_1d_t<S> > get_space_in_slot(const int team_idx, const int slot) const
   {
-    return Unmanaged<kokkos_1d_t<S> >( reinterpret_cast<S*>(&m_data(team_idx, slot*m_total)),
-                                       sizeof(T) == sizeof(S) ?
-                                       m_size :
-                                       (m_size*sizeof(T))/sizeof(S));
+    return Unmanaged<kokkos_1d_t<S> >(
+      reinterpret_cast<S*>(&m_data(team_idx, slot*m_total)),
+      sizeof(T) == sizeof(S) ?
+      m_size :
+      (m_size*sizeof(T))/sizeof(S));
   }
 
   friend struct unit_test::UnitTest;
@@ -466,6 +544,11 @@ class WorkspaceManager
 #ifndef NDEBUG
   int m_max_used;
   kokkos_1d_t<int> m_num_used;
+  kokkos_1d_t<int> m_high_water;
+  kokkos_3d_t<char> m_names;
+ #ifndef KOKKOS_ENABLE_CUDA
+  mutable std::vector<std::map<std::string, std::pair<int, int> > > m_counts;
+ #endif
 #endif
   kokkos_1d_t<int> m_next_slot;
   kokkos_2d_t<T> m_data;

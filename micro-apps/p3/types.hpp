@@ -22,11 +22,14 @@ using MemSpace = Kokkos::HostSpace;
 
 using ExecSpace = Kokkos::DefaultExecutionSpace;
 
-template <typename Real>
-using kokkos_2d_t = Kokkos::View<Real**, Layout, MemSpace>;
+template <typename Scalar>
+using kokkos_3d_t = Kokkos::View<Scalar***, Layout, MemSpace>;
 
-template <typename Real>
-using kokkos_1d_t = Kokkos::View<Real*, Layout, MemSpace>;
+template <typename Scalar>
+using kokkos_2d_t = Kokkos::View<Scalar**, Layout, MemSpace>;
+
+template <typename Scalar>
+using kokkos_1d_t = Kokkos::View<Scalar*, Layout, MemSpace>;
 
 // Turn a View's MemoryTraits (traits::memory_traits) into the equivalent
 // unsigned int mask.
