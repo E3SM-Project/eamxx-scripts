@@ -89,9 +89,9 @@ static int unittest_workspace()
     for (int r = 0; r < 2; ++r) {
       {
         for (int w = 0; w < num_ws; ++w) {
-          std::ostringstream oss; //TODO Can't use stringstream on the GPU.
-          oss << "ws" << w;
-          wssub[w] = ws.take(oss.str().c_str());
+          char buf[16];
+          sprintf(buf, "ws%d", w);
+          wssub[w] = ws.take(buf);
         }
       }
 
