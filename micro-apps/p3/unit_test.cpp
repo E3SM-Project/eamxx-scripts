@@ -57,6 +57,15 @@ static int unittest_workspace()
     util::WorkspaceManager<char> wsmc(16, num_ws, policy);
     micro_assert(wsmc.m_reserve == 8);
     micro_assert(wsmc.m_size == 16);
+    Kokkos::parallel_for(
+      "unittest_workspace char", policy,
+      KOKKOS_LAMBDA(const member_type& team) {
+        auto ws = wsm.get_workspace(team);
+        const auto t1 = ws.take("t1");
+        const auto t2 = ws.take("t1");
+        ws.release(t1);
+        ws.release(t2);
+      });
   }
   {
     util::WorkspaceManager<short> wsmc(16, num_ws, policy);
@@ -215,7 +224,7 @@ static int unittest_team_utils()
 int main (int argc, char** argv) {
   util::initialize();
 
-  Int out = 0;
+  int out = 0;
   Kokkos::initialize(argc, argv); {
     out =  unittest_team_policy();
     out += unit_test::UnitTest::unittest_workspace();
@@ -226,5 +235,5 @@ int main (int argc, char** argv) {
 
   if (out != 0) std::cout << "Some tests failed" << std::endl;
 
-  return out;
+  return out != 0 ? -1 : 0;
 }

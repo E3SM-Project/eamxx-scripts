@@ -572,21 +572,21 @@ class WorkspaceManager
   KOKKOS_FORCEINLINE_FUNCTION
   int get_index(const Unmanaged<kokkos_1d_t<S> >& space) const
   {
-    return reinterpret_cast<const int*>(reinterpret_cast<const T*>(space.data()) - 1)[0];
+    return reinterpret_cast<const int*>(reinterpret_cast<const T*>(space.data()) - m_reserve)[0];
   }
 
   template <typename S=T>
   KOKKOS_FORCEINLINE_FUNCTION
   int get_next(const Unmanaged<kokkos_1d_t<S> >& space) const
   {
-    return reinterpret_cast<const int*>(reinterpret_cast<const T*>(space.data()) - 1)[1];
+    return reinterpret_cast<const int*>(reinterpret_cast<const T*>(space.data()) - m_reserve)[1];
   }
 
   template <typename S=T>
   KOKKOS_FORCEINLINE_FUNCTION
   int set_next_and_get_index(const Unmanaged<kokkos_1d_t<S> >& space, int next) const
   {
-    const auto metadata = reinterpret_cast<int*>(reinterpret_cast<T*>(space.data()) - 1);
+    const auto metadata = reinterpret_cast<int*>(reinterpret_cast<T*>(space.data()) - m_reserve);
     metadata[1] = next;
     return metadata[0];
   }
@@ -596,7 +596,7 @@ class WorkspaceManager
   Unmanaged<kokkos_1d_t<S> > get_space_in_slot(const int team_idx, const int slot) const
   {
     return Unmanaged<kokkos_1d_t<S> >(
-      reinterpret_cast<S*>(&m_data(team_idx, slot*m_total) + 1),
+      reinterpret_cast<S*>(&m_data(team_idx, slot*m_total) + m_reserve),
       sizeof(T) == sizeof(S) ?
       m_size :
       (m_size*sizeof(T))/sizeof(S));
