@@ -339,19 +339,21 @@ class WorkspaceManager
  #endif
 #endif
     m_next_slot("Workspace.m_next_slot", m_pad_factor*m_concurrent_teams),
-    m_data("Workspace.m_data", m_concurrent_teams, m_total * m_max_used)
+    m_data(Kokkos::ViewAllocateWithoutInitializing("Workspace.m_data"),
+           m_concurrent_teams, m_total * m_max_used)
   {
-    // initialize on host
-    auto host_mirror = Kokkos::create_mirror_view(m_data);
-    for (int t = 0; t < m_concurrent_teams; ++t) {
-      for (int i = 0; i < m_max_used; ++i) {
-        int* metadata = reinterpret_cast<int*>(&host_mirror(t, i*m_total));
-        metadata[0] = i;     // idx
-        metadata[1] = i + 1; // next
-      }
-    }
-
-    Kokkos::deep_copy(m_data, host_mirror);
+    Kokkos::parallel_for(
+      "WorkspaceManager ctor",
+      util::ExeSpaceUtils<>::get_default_team_policy(m_concurrent_teams, m_max_used),
+      KOKKOS_LAMBDA(const member_type& team) {
+        const int t = team.league_rank();
+        Kokkos::parallel_for(
+          Kokkos::TeamThreadRange(team, m_max_used), [&] (int i) {
+            int* metadata = reinterpret_cast<int*>(&m_data(t, i*m_total));
+            metadata[0] = i;     // idx
+            metadata[1] = i + 1; // next
+          });
+      });
   }
 
   int get_concurrency() const { return m_concurrent_teams; }
