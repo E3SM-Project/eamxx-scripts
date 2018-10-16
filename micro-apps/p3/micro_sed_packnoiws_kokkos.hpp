@@ -41,7 +41,7 @@ public:
     vn_table("VN_TABLE"), vm_table("VM_TABLE"),
     mu_r_table("MU_R_TABLE"),
     policy(util::ExeSpaceUtils<>::get_default_team_policy(num_horz, num_pack)),
-    workspace_mgr(num_pack, 8, policy) // rain sed's high-water is 8 workspace for any team
+    workspace_mgr(num_pack, 10, policy) // rain sed's high-water is 8 workspace for any team
   {
     // initialize on host
 
@@ -250,6 +250,11 @@ void micro_sed_func (
         auto lV_qr = smallize(V_qr);
         auto V_nr = workspace.take<RealPack>("V_nr");
         auto lV_nr = smallize(V_nr);
+        auto lflux_qx = workspace.take<RealSmallPack>("flux_qx");
+        auto lflux_nx = workspace.take<RealSmallPack>("flux_nx");
+        auto sflux_qx = scalarize(lflux_qx);
+        auto lmu_r = workspace.take<RealSmallPack>("mu_r");
+        auto llamr = workspace.take<RealSmallPack>("lamr");
 
         while (dt_left > 1.e-4) {
           Real Co_max = 0.0;
@@ -263,9 +268,6 @@ void micro_sed_func (
           team.team_barrier();
 
           util::set_min_max(k_qxbot, k_qxtop, kmin, kmax, RealSmallPack::n);
-
-          auto lmu_r = workspace.take<RealSmallPack>("mu_r");
-          auto llamr = workspace.take<RealSmallPack>("lamr");
 
           Kokkos::parallel_reduce(
             Kokkos::TeamThreadRange(team, kmax-kmin+1), [&] (int pk_, Real& lmax) {
@@ -294,9 +296,6 @@ void micro_sed_func (
             }, Kokkos::Max<Real>(Co_max));
           team.team_barrier();
 
-          workspace.release(lmu_r);
-          workspace.release(llamr);
-
           if (Co_max < 0) {
             // qr is everywhere too small. Exit dt_left loop.
             break;
@@ -309,22 +308,14 @@ void micro_sed_func (
           // Move bottom cell down by 1 if not at ground already.
           const Int k_temp = (k_qxbot == kbot) ? k_qxbot : k_qxbot - kdir;
 
-          auto lflux_qx = workspace.take<RealSmallPack>("flux_qx");
-          auto lflux_nx = workspace.take<RealSmallPack>("flux_nx");
-          auto sflux_qx = scalarize(lflux_qx);
-
           calc_first_order_upwind_step<2>(
             lrho, linv_rho, linv_dzq, team,
             m.num_vert, k_temp, k_qxtop, kdir, dt_sub,
             {&lflux_qx, &lflux_nx}, {&lV_qr, &lV_nr}, {&olqr, &olnr});
           team.team_barrier();
 
-          workspace.release(lflux_nx);
-
           // accumulated precip during time step
           if (k_qxbot == kbot) prt_accum += sflux_qx(kbot) * dt_sub;
-
-          workspace.release(lflux_qx);
 
           dt_left -= dt_sub;  // update time remaining for sedimentation
           if (k_qxbot != kbot) k_qxbot -= kdir;
@@ -335,6 +326,10 @@ void micro_sed_func (
             prt_liq(i) += prt_accum * Globals<Real>::INV_RHOW * odt;
           });
 
+        workspace.release(lmu_r);
+        workspace.release(llamr);
+        workspace.release(lflux_nx);
+        workspace.release(lflux_qx);
         workspace.release(V_qr);
         workspace.release(V_nr);
       }
