@@ -100,7 +100,9 @@ static int unittest_workspace()
         char buf[8] = "ws";
         buf[2] = 48 + w; // 48 is offset to integers in ascii
 #ifndef NDEBUG
+ #ifndef KOKKOS_ENABLE_CUDA
         if (strcmp(ws.get_name(wssub[w]), buf) != 0) ++nerrs_local;
+ #endif
 #endif
 
         Kokkos::parallel_for(Kokkos::TeamThreadRange(team, ints_per_ws), [&] (Int i) {
@@ -145,7 +147,9 @@ static int unittest_workspace()
       }
 
       total_errs += nerrs_local;
+
     }
+
     team.team_barrier();
   }, nerr);
 
