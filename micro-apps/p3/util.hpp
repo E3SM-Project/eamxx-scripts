@@ -558,21 +558,21 @@ class WorkspaceManager
  private: // client should be using Workspace
 
   template <typename S=T>
-  KOKKOS_INLINE_FUNCTION
+  KOKKOS_FORCEINLINE_FUNCTION
   int get_index(const Unmanaged<kokkos_1d_t<S> >& space) const
   {
     return reinterpret_cast<const int*>(reinterpret_cast<const T*>(space.data()) + m_size)[0];
   }
 
   template <typename S=T>
-  KOKKOS_INLINE_FUNCTION
+  KOKKOS_FORCEINLINE_FUNCTION
   int get_next(const Unmanaged<kokkos_1d_t<S> >& space) const
   {
     return reinterpret_cast<const int*>(reinterpret_cast<const T*>(space.data()) + m_size)[1];
   }
 
   template <typename S=T>
-  KOKKOS_INLINE_FUNCTION
+  KOKKOS_FORCEINLINE_FUNCTION
   int set_next_and_get_index(const Unmanaged<kokkos_1d_t<S> >& space, int next) const
   {
     const auto metadata = reinterpret_cast<int*>(reinterpret_cast<T*>(space.data()) + m_size);
@@ -581,7 +581,7 @@ class WorkspaceManager
   }
 
   template <typename S=T>
-  KOKKOS_INLINE_FUNCTION
+  KOKKOS_FORCEINLINE_FUNCTION
   Unmanaged<kokkos_1d_t<S> > get_space_in_slot(const int team_idx, const int slot) const
   {
     return Unmanaged<kokkos_1d_t<S> >(
