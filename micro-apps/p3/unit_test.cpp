@@ -149,7 +149,7 @@ static int unittest_workspace()
     team.team_barrier();
   }, nerr);
 
-  wsm.report();
+  // wsm.report(); // uncomment to debug
 
   return nerr;
 }

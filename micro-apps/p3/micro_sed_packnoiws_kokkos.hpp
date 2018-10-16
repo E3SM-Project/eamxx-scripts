@@ -344,7 +344,7 @@ void micro_sed_func (
       }
     });
 
-  // m.workspace_mgr.report(); uncomment for detailed debug info
+  // m.workspace_mgr.report(); // uncomment for detailed debug info
 }
 
 } // namespace p3
