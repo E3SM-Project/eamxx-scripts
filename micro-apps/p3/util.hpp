@@ -327,31 +327,22 @@ class WorkspaceManager
     m_size(size),
     m_total(m_size + m_reserve),
     m_concurrent_teams(ExeSpaceUtils<>::get_num_concurrent_teams(policy)),
-    m_max_used(max_used),
+    m_max_used(max_used + 4), // a little padding between threads' data
     m_tu(policy),
 #ifndef NDEBUG
     m_num_used("Workspace.m_num_used", m_concurrent_teams),
     m_high_water("Workspace.m_high_water", m_concurrent_teams),
  #ifndef KOKKOS_ENABLE_CUDA
-    m_curr_names("Workspace.m_curr_names", m_concurrent_teams, max_used, 128), // 128 is max name len
+    m_curr_names("Workspace.m_curr_names", m_concurrent_teams, m_max_used, 128), // 128 is max name len
     m_all_names("Workspace.m_all_names", policy.league_size(), 1000, 128), // up to 1000 unique names
     m_counts("Workspace.m_counts", policy.league_size(), 1000),
  #endif
 #endif
     m_next_slot("Workspace.m_next_slot", m_pad_factor*m_concurrent_teams),
-    m_data("Workspace.m_data", m_concurrent_teams, m_total * max_used)
+    m_data(Kokkos::ViewAllocateWithoutInitializing("Workspace.m_data"),
+           m_concurrent_teams, m_total * m_max_used)
   {
-    // initialize on host
-    auto host_mirror = Kokkos::create_mirror_view(m_data);
-    for (int t = 0; t < m_concurrent_teams; ++t) {
-      for (int i = 0; i < m_max_used; ++i) {
-        int* metadata = reinterpret_cast<int*>(&host_mirror(t, i*m_total) + m_size);
-        metadata[0] = i;     // idx
-        metadata[1] = i + 1; // next
-      }
-    }
-
-    Kokkos::deep_copy(m_data, host_mirror);
+    init(m_data, m_concurrent_teams, m_max_used, m_total);
   }
 
   int get_concurrency() const { return m_concurrent_teams; }
@@ -545,8 +536,7 @@ class WorkspaceManager
       // We don't need a barrier before this block b/c it's OK for metadata to
       // change while some threads in the team are still using the bulk data.
       Kokkos::single(Kokkos::PerTeam(m_team), [&] () {
-        m_parent.set_next<S>(space, m_next_slot);
-        m_next_slot = m_parent.get_index<S>(space);
+        m_next_slot = m_parent.set_next_and_get_index<S>(space, m_next_slot);
       });
       m_team.team_barrier();
     }
@@ -556,35 +546,57 @@ class WorkspaceManager
   Workspace get_workspace(const member_type& team) const
   { return Workspace(*this, m_tu.get_workspace_idx(team), team); }
 
+
+ public: // for Cuda
+
+  static void init (const kokkos_2d_t<T>& data, const int concurrent_teams,
+                    const int max_used, const int total)
+  {
+    Kokkos::parallel_for(
+      "WorkspaceManager ctor",
+      util::ExeSpaceUtils<>::get_default_team_policy(concurrent_teams, max_used),
+      KOKKOS_LAMBDA(const member_type& team) {
+        const int t = team.league_rank();
+        Kokkos::parallel_for(
+          Kokkos::TeamThreadRange(team, max_used), [&] (int i) {
+            int* const metadata = reinterpret_cast<int*>(&data(t, i*total));
+            metadata[0] = i;     // idx
+            metadata[1] = i + 1; // next
+          });
+      });
+  }
+
  private: // client should be using Workspace
 
   template <typename S=T>
-  KOKKOS_INLINE_FUNCTION
+  KOKKOS_FORCEINLINE_FUNCTION
   int get_index(const Unmanaged<kokkos_1d_t<S> >& space) const
   {
-    return reinterpret_cast<const int*>(reinterpret_cast<const T*>(space.data()) + m_size)[0];
+    return reinterpret_cast<const int*>(reinterpret_cast<const T*>(space.data()) - m_reserve)[0];
   }
 
   template <typename S=T>
-  KOKKOS_INLINE_FUNCTION
+  KOKKOS_FORCEINLINE_FUNCTION
   int get_next(const Unmanaged<kokkos_1d_t<S> >& space) const
   {
-    return reinterpret_cast<const int*>(reinterpret_cast<const T*>(space.data()) + m_size)[1];
+    return reinterpret_cast<const int*>(reinterpret_cast<const T*>(space.data()) - m_reserve)[1];
   }
 
   template <typename S=T>
-  KOKKOS_INLINE_FUNCTION
-  void set_next(const Unmanaged<kokkos_1d_t<S> >& space, int next) const
+  KOKKOS_FORCEINLINE_FUNCTION
+  int set_next_and_get_index(const Unmanaged<kokkos_1d_t<S> >& space, int next) const
   {
-    reinterpret_cast<int*>(reinterpret_cast<T*>(space.data()) + m_size)[1] = next;
+    const auto metadata = reinterpret_cast<int*>(reinterpret_cast<T*>(space.data()) - m_reserve);
+    metadata[1] = next;
+    return metadata[0];
   }
 
   template <typename S=T>
-  KOKKOS_INLINE_FUNCTION
+  KOKKOS_FORCEINLINE_FUNCTION
   Unmanaged<kokkos_1d_t<S> > get_space_in_slot(const int team_idx, const int slot) const
   {
     return Unmanaged<kokkos_1d_t<S> >(
-      reinterpret_cast<S*>(&m_data(team_idx, slot*m_total)),
+      reinterpret_cast<S*>(&m_data(team_idx, slot*m_total) + m_reserve),
       sizeof(T) == sizeof(S) ?
       m_size :
       (m_size*sizeof(T))/sizeof(S));
