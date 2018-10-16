@@ -345,7 +345,7 @@ class WorkspaceManager
     auto host_mirror = Kokkos::create_mirror_view(m_data);
     for (int t = 0; t < m_concurrent_teams; ++t) {
       for (int i = 0; i < m_max_used; ++i) {
-        int* metadata = reinterpret_cast<int*>(&host_mirror(t, i*m_total) + m_size);
+        int* metadata = reinterpret_cast<int*>(&host_mirror(t, i*m_total));
         metadata[0] = i;     // idx
         metadata[1] = i + 1; // next
       }
@@ -561,21 +561,21 @@ class WorkspaceManager
   KOKKOS_FORCEINLINE_FUNCTION
   int get_index(const Unmanaged<kokkos_1d_t<S> >& space) const
   {
-    return reinterpret_cast<const int*>(reinterpret_cast<const T*>(space.data()) + m_size)[0];
+    return reinterpret_cast<const int*>(reinterpret_cast<const T*>(space.data()) - 1)[0];
   }
 
   template <typename S=T>
   KOKKOS_FORCEINLINE_FUNCTION
   int get_next(const Unmanaged<kokkos_1d_t<S> >& space) const
   {
-    return reinterpret_cast<const int*>(reinterpret_cast<const T*>(space.data()) + m_size)[1];
+    return reinterpret_cast<const int*>(reinterpret_cast<const T*>(space.data()) - 1)[1];
   }
 
   template <typename S=T>
   KOKKOS_FORCEINLINE_FUNCTION
   int set_next_and_get_index(const Unmanaged<kokkos_1d_t<S> >& space, int next) const
   {
-    const auto metadata = reinterpret_cast<int*>(reinterpret_cast<T*>(space.data()) + m_size);
+    const auto metadata = reinterpret_cast<int*>(reinterpret_cast<T*>(space.data()) - 1);
     metadata[1] = next;
     return metadata[0];
   }
@@ -585,7 +585,7 @@ class WorkspaceManager
   Unmanaged<kokkos_1d_t<S> > get_space_in_slot(const int team_idx, const int slot) const
   {
     return Unmanaged<kokkos_1d_t<S> >(
-      reinterpret_cast<S*>(&m_data(team_idx, slot*m_total)),
+      reinterpret_cast<S*>(&m_data(team_idx, slot*m_total) + 1),
       sizeof(T) == sizeof(S) ?
       m_size :
       (m_size*sizeof(T))/sizeof(S));
