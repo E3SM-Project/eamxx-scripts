@@ -338,7 +338,7 @@ class WorkspaceManager
     m_counts("Workspace.m_counts", policy.league_size(), 1000),
  #endif
 #endif
-    m_next_slot("Workspace.m_next_slot", m_concurrent_teams),
+    m_next_slot("Workspace.m_next_slot", m_pad_factor*m_concurrent_teams),
     m_data("Workspace.m_data", m_concurrent_teams, m_total * max_used)
   {
     // initialize on host
@@ -418,7 +418,9 @@ class WorkspaceManager
    public:
     KOKKOS_INLINE_FUNCTION
     Workspace(const WorkspaceManager& parent, int ws_idx, const member_type& team) :
-      m_parent(parent), m_team(team), m_ws_idx(ws_idx) {}
+      m_parent(parent), m_team(team), m_ws_idx(ws_idx),
+      m_next_slot(parent.m_next_slot(m_pad_factor*ws_idx))
+    {}
 
     template <typename S=T>
     KOKKOS_INLINE_FUNCTION
@@ -434,14 +436,13 @@ class WorkspaceManager
       });
 #endif
 
-      const int slot = m_parent.m_next_slot(m_ws_idx);
-      auto space = m_parent.get_space_in_slot<S>(m_ws_idx, slot);
+      const auto space = m_parent.get_space_in_slot<S>(m_ws_idx, m_next_slot);
 
       // We need a barrier here so get_space_in_slot returns consistent results
       // w/in the team.
       m_team.team_barrier();
       Kokkos::single(Kokkos::PerTeam(m_team), [&] () {
-        m_parent.m_next_slot(m_ws_idx) = m_parent.get_next<S>(space);
+        m_next_slot = m_parent.get_next<S>(space);
 #ifndef NDEBUG
  #ifndef KOKKOS_ENABLE_CUDA
         set_name<S>(space, name);
@@ -491,7 +492,8 @@ class WorkspaceManager
    private:
     const WorkspaceManager& m_parent;
     const member_type& m_team;
-    int m_ws_idx;
+    const int m_ws_idx;
+    int& m_next_slot;
 
 #ifndef NDEBUG
  #ifndef KOKKOS_ENABLE_CUDA
@@ -543,8 +545,8 @@ class WorkspaceManager
       // We don't need a barrier before this block b/c it's OK for metadata to
       // change while some threads in the team are still using the bulk data.
       Kokkos::single(Kokkos::PerTeam(m_team), [&] () {
-        m_parent.set_next<S>(space, m_parent.m_next_slot(m_ws_idx));
-        m_parent.m_next_slot(m_ws_idx) = m_parent.get_index<S>(space);
+        m_parent.set_next<S>(space, m_next_slot);
+        m_next_slot = m_parent.get_index<S>(space);
       });
       m_team.team_barrier();
     }
@@ -594,13 +596,21 @@ class WorkspaceManager
   // data
   //
 
+  enum { m_pad_factor =
+#ifdef KOKKOS_ENABLE_CUDA  // TODO: Replace with OnGpu<ES>::value
+         1
+#else
+         32
+#endif
+  };
+
   int m_reserve, m_size, m_total, m_concurrent_teams, m_max_used;
   util::TeamUtils<> m_tu;
 #ifndef NDEBUG
   kokkos_1d_t<int> m_num_used;
   kokkos_1d_t<int> m_high_water;
  #ifndef KOKKOS_ENABLE_CUDA
-  kokkos_3d_t<char> m_curr_names;
+  kokkos_3d_t<char> m_curr_names; // TODO None of this runs on GPU, so just use std::vector<std::string> type stuff.
   kokkos_3d_t<char> m_all_names;
   kokkos_2d_t<std::pair<int, int> > m_counts;
  #endif
