@@ -333,10 +333,9 @@ class WorkspaceManager
     m_max_used(max_used),
     m_num_used("Workspace.m_num_used", m_concurrent_teams),
     m_high_water("Workspace.m_high_water", m_concurrent_teams),
-    m_names("Workspace.m_names", m_concurrent_teams, max_used, 128), // 128 is max name len
- #ifndef KOKKOS_ENABLE_CUDA
-    m_counts(policy.league_size()),
- #endif
+    m_curr_names("Workspace.m_curr_names", m_concurrent_teams, max_used, 128), // 128 is max name len
+    m_all_names("Workspace.m_all_names", policy.league_size(), 1000, 128), // up to 1000 unique names
+    m_counts("Workspace.m_counts", policy.league_size(), 1000),
 #endif
     m_next_slot("Workspace.m_next_slot", m_concurrent_teams),
     m_data("Workspace.m_data", m_concurrent_teams, m_total * max_used)
@@ -361,6 +360,8 @@ class WorkspaceManager
 #ifndef NDEBUG
     auto host_num_used   = Kokkos::create_mirror_view(m_num_used);
     auto host_high_water = Kokkos::create_mirror_view(m_high_water);
+    auto host_all_names  = Kokkos::create_mirror_view(m_all_names);
+    auto host_counts     = Kokkos::create_mirror_view(m_counts);
 
     std::cout << "\nWS usage (capped at " << m_max_used << "): " << std::endl;
     for (int t = 0; t < m_concurrent_teams; ++t) {
@@ -368,16 +369,43 @@ class WorkspaceManager
       std::cout << "WS " << t << " high-water " << host_high_water(t) << std::endl;
     }
 
- #ifndef KOKKOS_ENABLE_CUDA
     std::cout << "\nWS deep analysis" << std::endl;
-    for (size_t t = 0; t < m_counts.size(); ++t) {
-      std::cout << "  For team " << t << " " << m_counts[t].size() << std::endl;
-      for (auto& kv : m_counts[t]) {
-        std::cout << "    workspace '" << kv.first << "' was taken " << kv.second.first
-                  << " times and released " << kv.second.second << " times" << std::endl;
+    std::map<std::string, std::tuple<int, int, int> > ws_usage_map;
+    const int league_size = m_all_names.extent(0);
+    for (int t = 0; t < league_size; ++t) {
+      std::cout << "  For team " << t << std::endl;
+      for (int n = 0; n < 1000; ++n) {
+        const char* name = &(host_all_names(t, n, 0));
+        if (strcmp(name, "") == 0) {
+          break;
+        }
+        else {
+          const int takes    = host_counts(t, n).first;
+          const int releases = host_counts(t, n).second;
+          std::cout << "    workspace '" << name << "' was taken " << takes
+                    << " times and released " << releases << " times" << std::endl;
+          if (takes != releases) {
+            std::cout << "      POSSIBLE LEAK" << std::endl;
+          }
+          std::string sname(name);
+          if (ws_usage_map.find(sname) == ws_usage_map.end()) {
+            ws_usage_map[sname] = std::make_tuple(1, takes, releases);
+          }
+          else {
+            std::get<0>(ws_usage_map[sname]) += 1;
+            std::get<1>(ws_usage_map[sname]) += takes;
+            std::get<2>(ws_usage_map[sname]) += releases;
+          }
+        }
       }
     }
- #endif
+
+    std::cout << "\nWS workspace summary" << std::endl;
+    for (auto& kv : ws_usage_map) {
+      auto data = kv.second;
+      std::cout << "Workspace '" << kv.first << "' was used by " << std::get<0>(data) << " teams with "
+                << std::get<1>(data) << " takes and " << std::get<2>(data) << " releases." << std::endl;
+    }
 #endif
   }
 
@@ -411,16 +439,22 @@ class WorkspaceManager
         m_parent.m_next_slot(m_ws_idx) = m_parent.get_next<S>(space);
 #ifndef NDEBUG
         set_name<S>(space, name);
- #ifndef KOKKOS_ENABLE_CUDA
-        std::map<std::string, std::pair<int, int> >& my_name_map = m_parent.m_counts[m_team.team_rank()];
-        std::string sname(name);
-        if (my_name_map.find(sname) == my_name_map.end()) {
-          my_name_map.insert({sname, {1, 0}});
+        const int team_rank = m_team.league_rank();
+        int name_idx = -1;
+        for (int n = 0; n < 1000; ++n) {
+          char* old_name = &(m_parent.m_all_names(team_rank, n, 0));
+          if (strcmp(old_name, name) == 0) {
+            name_idx = n;
+            break;
+          }
+          else if (strcmp(old_name, "") == 0) {
+            strcpy(old_name, name);
+            name_idx = n;
+            break;
+          }
         }
-        else {
-          my_name_map[sname].first += 1;
-        }
- #endif
+        micro_assert(name_idx != -1);
+        m_parent.m_counts(team_rank, name_idx).first += 1;
 #endif
       });
       // We need a barrier here so that a subsequent call to take or release
@@ -456,7 +490,7 @@ class WorkspaceManager
     const char* get_name_impl(const Unmanaged<kokkos_1d_t<S> >& space) const
     {
       const int slot = m_parent.get_index<S>(space);
-      return &(m_parent.m_names(m_ws_idx, slot, 0));
+      return &(m_parent.m_curr_names(m_ws_idx, slot, 0));
     }
 
     template <typename S>
@@ -465,7 +499,7 @@ class WorkspaceManager
     {
       micro_kernel_assert(strlen(name) < 128); // leave one char for null terminator
       const int slot = m_parent.get_index<S>(space);
-      char* val = &(m_parent.m_names(m_ws_idx, slot, 0));
+      char* val = &(m_parent.m_curr_names(m_ws_idx, slot, 0));
       strcpy(val, name);
     }
 #endif
@@ -478,10 +512,18 @@ class WorkspaceManager
       Kokkos::single(Kokkos::PerTeam(m_team), [&] () {
         micro_kernel_assert(m_parent.m_num_used(m_ws_idx) > 0);
         m_parent.m_num_used(m_ws_idx) -= 1;
- #ifndef KOKKOS_ENABLE_CUDA
-        std::string name = get_name(space);
-        m_parent.m_counts[m_team.team_rank()][name].second += 1;
- #endif
+        const char* name = get_name(space);
+        int name_idx = -1;
+        const int team_rank = m_team.league_rank();
+        for (int n = 0; n < 1000; ++n) {
+          const char* old_name = &(m_parent.m_all_names(team_rank, n, 0));
+          if (strcmp(old_name, name) == 0) {
+            name_idx = n;
+            break;
+          }
+        }
+        micro_assert(name_idx != -1);
+        m_parent.m_counts(team_rank, name_idx).second += 1;
       });
 #endif
 
@@ -545,10 +587,9 @@ class WorkspaceManager
   int m_max_used;
   kokkos_1d_t<int> m_num_used;
   kokkos_1d_t<int> m_high_water;
-  kokkos_3d_t<char> m_names;
- #ifndef KOKKOS_ENABLE_CUDA
-  mutable std::vector<std::map<std::string, std::pair<int, int> > > m_counts;
- #endif
+  kokkos_3d_t<char> m_curr_names;
+  kokkos_3d_t<char> m_all_names;
+  kokkos_2d_t<std::pair<int, int> > m_counts;
 #endif
   kokkos_1d_t<int> m_next_slot;
   kokkos_2d_t<T> m_data;
