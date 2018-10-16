@@ -328,9 +328,9 @@ class WorkspaceManager
     m_size(size),
     m_total(m_size + m_reserve),
     m_concurrent_teams(ExeSpaceUtils<>::get_num_concurrent_teams(policy)),
+    m_max_used(max_used),
     m_tu(policy),
 #ifndef NDEBUG
-    m_max_used(max_used),
     m_num_used("Workspace.m_num_used", m_concurrent_teams),
     m_high_water("Workspace.m_high_water", m_concurrent_teams),
     m_curr_names("Workspace.m_curr_names", m_concurrent_teams, max_used, 128), // 128 is max name len
@@ -581,10 +581,9 @@ class WorkspaceManager
   // data
   //
 
-  int m_reserve, m_size, m_total, m_concurrent_teams;
+  int m_reserve, m_size, m_total, m_concurrent_teams, m_max_used;
   util::TeamUtils<> m_tu;
 #ifndef NDEBUG
-  int m_max_used;
   kokkos_1d_t<int> m_num_used;
   kokkos_1d_t<int> m_high_water;
   kokkos_3d_t<char> m_curr_names;
