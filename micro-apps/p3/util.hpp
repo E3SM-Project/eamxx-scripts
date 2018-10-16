@@ -342,18 +342,7 @@ class WorkspaceManager
     m_data(Kokkos::ViewAllocateWithoutInitializing("Workspace.m_data"),
            m_concurrent_teams, m_total * m_max_used)
   {
-    Kokkos::parallel_for(
-      "WorkspaceManager ctor",
-      util::ExeSpaceUtils<>::get_default_team_policy(m_concurrent_teams, m_max_used),
-      KOKKOS_LAMBDA(const member_type& team) {
-        const int t = team.league_rank();
-        Kokkos::parallel_for(
-          Kokkos::TeamThreadRange(team, m_max_used), [&] (int i) {
-            int* metadata = reinterpret_cast<int*>(&m_data(t, i*m_total));
-            metadata[0] = i;     // idx
-            metadata[1] = i + 1; // next
-          });
-      });
+    init(m_data, m_concurrent_teams, m_max_used, m_total);
   }
 
   int get_concurrency() const { return m_concurrent_teams; }
@@ -556,6 +545,26 @@ class WorkspaceManager
   KOKKOS_INLINE_FUNCTION
   Workspace get_workspace(const member_type& team) const
   { return Workspace(*this, m_tu.get_workspace_idx(team), team); }
+
+
+ public: // for Cuda
+
+  static void init (const kokkos_2d_t<T>& data, const int concurrent_teams,
+                    const int max_used, const int total)
+  {
+    Kokkos::parallel_for(
+      "WorkspaceManager ctor",
+      util::ExeSpaceUtils<>::get_default_team_policy(concurrent_teams, max_used),
+      KOKKOS_LAMBDA(const member_type& team) {
+        const int t = team.league_rank();
+        Kokkos::parallel_for(
+          Kokkos::TeamThreadRange(team, max_used), [&] (int i) {
+            int* const metadata = reinterpret_cast<int*>(&data(t, i*total));
+            metadata[0] = i;     // idx
+            metadata[1] = i + 1; // next
+          });
+      });
+  }
 
  private: // client should be using Workspace
 
