@@ -327,19 +327,19 @@ class WorkspaceManager
     m_size(size),
     m_total(m_size + m_reserve),
     m_concurrent_teams(ExeSpaceUtils<>::get_num_concurrent_teams(policy)),
-    m_max_used(max_used),
+    m_max_used(max_used + 4), // a little padding between threads' data
     m_tu(policy),
 #ifndef NDEBUG
     m_num_used("Workspace.m_num_used", m_concurrent_teams),
     m_high_water("Workspace.m_high_water", m_concurrent_teams),
  #ifndef KOKKOS_ENABLE_CUDA
-    m_curr_names("Workspace.m_curr_names", m_concurrent_teams, max_used, 128), // 128 is max name len
+    m_curr_names("Workspace.m_curr_names", m_concurrent_teams, m_max_used, 128), // 128 is max name len
     m_all_names("Workspace.m_all_names", policy.league_size(), 1000, 128), // up to 1000 unique names
     m_counts("Workspace.m_counts", policy.league_size(), 1000),
  #endif
 #endif
     m_next_slot("Workspace.m_next_slot", m_pad_factor*m_concurrent_teams),
-    m_data("Workspace.m_data", m_concurrent_teams, m_total * max_used)
+    m_data("Workspace.m_data", m_concurrent_teams, m_total * m_max_used)
   {
     // initialize on host
     auto host_mirror = Kokkos::create_mirror_view(m_data);
