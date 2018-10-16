@@ -246,14 +246,14 @@ void micro_sed_func (
 
         Int k_qxbot = find_bottom(team, osqr, qsmall, kbot, k_qxtop, kdir, log_qxpresent);
 
+        auto V_qr = workspace.take<RealPack>("V_qr");
+        auto lV_qr = smallize(V_qr);
+        auto V_nr = workspace.take<RealPack>("V_nr");
+        auto lV_nr = smallize(V_nr);
+
         while (dt_left > 1.e-4) {
           Real Co_max = 0.0;
           Int kmin, kmax;
-
-          auto V_qr = workspace.take<RealPack>("V_qr");
-          auto lV_qr = smallize(V_qr);
-          auto V_nr = workspace.take<RealPack>("V_nr");
-          auto lV_nr = smallize(V_nr);
 
           Kokkos::parallel_for(
             Kokkos::TeamThreadRange(team, m.num_pack), [&] (Int k) {
@@ -319,8 +319,6 @@ void micro_sed_func (
             {&lflux_qx, &lflux_nx}, {&lV_qr, &lV_nr}, {&olqr, &olnr});
           team.team_barrier();
 
-          workspace.release(V_qr);
-          workspace.release(V_nr);
           workspace.release(lflux_nx);
 
           // accumulated precip during time step
@@ -332,16 +330,19 @@ void micro_sed_func (
           if (k_qxbot != kbot) k_qxbot -= kdir;
         }
 
-        workspace.release(inv_dzq);
-        workspace.release(rho);
-        workspace.release(inv_rho);
-        workspace.release(rhofacr);
-
         Kokkos::single(
           Kokkos::PerTeam(team), [&] () {
             prt_liq(i) += prt_accum * Globals<Real>::INV_RHOW * odt;
           });
+
+        workspace.release(V_qr);
+        workspace.release(V_nr);
       }
+
+      workspace.release(inv_dzq);
+      workspace.release(rho);
+      workspace.release(inv_rho);
+      workspace.release(rhofacr);
     });
 
   // m.workspace_mgr.report(); // uncomment for detailed debug info
