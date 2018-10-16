@@ -545,8 +545,7 @@ class WorkspaceManager
       // We don't need a barrier before this block b/c it's OK for metadata to
       // change while some threads in the team are still using the bulk data.
       Kokkos::single(Kokkos::PerTeam(m_team), [&] () {
-        m_parent.set_next<S>(space, m_next_slot);
-        m_next_slot = m_parent.get_index<S>(space);
+        m_next_slot = m_parent.set_next_and_get_index<S>(space, m_next_slot);
       });
       m_team.team_barrier();
     }
@@ -574,9 +573,11 @@ class WorkspaceManager
 
   template <typename S=T>
   KOKKOS_INLINE_FUNCTION
-  void set_next(const Unmanaged<kokkos_1d_t<S> >& space, int next) const
+  int set_next_and_get_index(const Unmanaged<kokkos_1d_t<S> >& space, int next) const
   {
-    reinterpret_cast<int*>(reinterpret_cast<T*>(space.data()) + m_size)[1] = next;
+    const auto metadata = reinterpret_cast<int*>(reinterpret_cast<T*>(space.data()) + m_size);
+    metadata[1] = next;
+    return metadata[0];
   }
 
   template <typename S=T>
