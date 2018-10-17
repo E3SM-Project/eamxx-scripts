@@ -41,7 +41,7 @@ public:
     vn_table("VN_TABLE"), vm_table("VM_TABLE"),
     mu_r_table("MU_R_TABLE"),
     policy(util::ExeSpaceUtils<>::get_default_team_policy(num_horz, num_pack)),
-    workspace_mgr(num_pack, 10, policy) // rain sed's high-water is 8 workspace for any team
+    workspace_mgr(num_pack, 11, policy) // rain sed's high-water is 11 workspace for any team
   {
     // initialize on host
 
@@ -233,9 +233,6 @@ void micro_sed_func (
           rhofacr(k) = pow(rhosur * inv_rho(k), 0.54);
         });
       team.team_barrier();
-
-      // t could be a scalar, but that's not realistic in the context of p3
-      workspace.release(t);
 
       bool log_qxpresent;
       const Int k_qxtop = find_top(team, osqr, qsmall, kbot, ktop, kdir, log_qxpresent);
