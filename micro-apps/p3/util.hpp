@@ -480,6 +480,20 @@ class WorkspaceManager
 
     int index() const { return m_ws_idx; }
 
+    KOKKOS_INLINE_FUNCTION
+    void reset() const
+    {
+      m_team.team_barrier();
+      m_next_slot = 0;
+      Kokkos::parallel_for(
+        Kokkos::TeamThreadRange(m_team, m_parent.m_max_used), [&] (int i) {
+          int* const metadata = reinterpret_cast<int*>(&m_parent.m_data(m_ws_idx, i*m_parent.m_total));
+          metadata[0] = i;     // idx
+          metadata[1] = i + 1; // next
+        });
+      m_team.team_barrier();
+    }
+
    private:
     const WorkspaceManager& m_parent;
     const member_type& m_team;

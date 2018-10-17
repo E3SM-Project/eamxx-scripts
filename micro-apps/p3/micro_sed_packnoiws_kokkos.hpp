@@ -325,19 +325,10 @@ void micro_sed_func (
           Kokkos::PerTeam(team), [&] () {
             prt_liq(i) += prt_accum * Globals<Real>::INV_RHOW * odt;
           });
-
-        workspace.release(lmu_r);
-        workspace.release(llamr);
-        workspace.release(lflux_nx);
-        workspace.release(lflux_qx);
-        workspace.release(V_qr);
-        workspace.release(V_nr);
       }
-
-      workspace.release(inv_dzq);
-      workspace.release(rho);
-      workspace.release(inv_rho);
-      workspace.release(rhofacr);
+      // Since we're at the end of the kernel, call reset instead of
+      // individual releases.
+      workspace.reset();
     });
 
   // m.workspace_mgr.report(); // uncomment for detailed debug info
