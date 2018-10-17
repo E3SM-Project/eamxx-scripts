@@ -255,6 +255,7 @@ class TeamUtils<Kokkos::Cuda>
 {
   int _num_teams;
 
+public:
   template <typename TeamPolicy>
   TeamUtils(const TeamPolicy& policy) { _num_teams = policy.league_size(); }
 
