@@ -484,6 +484,9 @@ class WorkspaceManager
     void reset() const
     {
       m_team.team_barrier();
+#ifndef NDEBUG
+      m_parent.m_num_used(m_ws_idx) = 0;
+#endif
       m_next_slot = 0;
       Kokkos::parallel_for(
         Kokkos::TeamThreadRange(m_team, m_parent.m_max_used), [&] (int i) {
