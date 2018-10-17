@@ -213,14 +213,6 @@ struct ExeSpaceUtils {
   static team_policy get_team_policy_force_team_size (Int ni, Int team_size) {
     return team_policy(ni, team_size);
   }
-
-  template <typename TeamPolicy>
-  static int get_num_concurrent_teams(const TeamPolicy& policy)
-  {
-    const int team_size = policy.team_size();
-    const int concurrency = ExeSpace::concurrency();
-    return (concurrency + team_size - 1) / team_size;
-  }
 };
 
 #ifdef KOKKOS_ENABLE_CUDA
@@ -229,28 +221,25 @@ struct ExeSpaceUtils<Kokkos::Cuda> {
   static team_policy get_default_team_policy (Int ni, Int nk) {
     return team_policy(ni, std::min(128, 32*((nk + 31)/32)));
   }
-
-  template <typename TeamPolicy>
-  static int get_num_concurrent_teams(const TeamPolicy& policy)
-  {
-    return policy.league_size();
-  }
 };
 #endif
 
 template <typename ExeSpace = Kokkos::DefaultExecutionSpace>
-struct TeamUtils
+class TeamUtils
 {
-  int _team_size;
+  int _team_size, _num_teams;
 
+public:
   template <typename TeamPolicy>
   TeamUtils(const TeamPolicy& policy) : _team_size(0)
   {
     const int max_threads = omp_get_max_threads();
     const int team_size = policy.team_size();
-    const int num_teams = max_threads / team_size;
-    _team_size = max_threads / num_teams;
+    _num_teams = max_threads / team_size;
+    _team_size = max_threads / _num_teams;
   }
+
+  int get_num_concurrent_teams() const { return _num_teams; }
 
   template <typename MemberType>
   KOKKOS_INLINE_FUNCTION
@@ -262,10 +251,15 @@ struct TeamUtils
 
 #ifdef KOKKOS_ENABLE_CUDA
 template <>
-struct TeamUtils<Kokkos::Cuda>
+class TeamUtils<Kokkos::Cuda>
 {
+  int _num_teams;
+
+public:
   template <typename TeamPolicy>
-  TeamUtils(const TeamPolicy& policy) {}
+  TeamUtils(const TeamPolicy& policy) { _num_teams = policy.league_size(); }
+
+  int get_num_concurrent_teams() const { return _num_teams; }
 
   template <typename MemberType>
   KOKKOS_INLINE_FUNCTION
@@ -322,13 +316,13 @@ class WorkspaceManager
 {
  public:
   WorkspaceManager(int size, int max_used, team_policy policy) :
+    m_tu(policy),
+    m_concurrent_teams(m_tu.get_num_concurrent_teams()),
     m_reserve( (sizeof(T) > 2*sizeof(int)) ? 1 :
                (2*sizeof(int) + sizeof(T) - 1)/sizeof(T) ),
     m_size(size),
     m_total(m_size + m_reserve),
-    m_concurrent_teams(ExeSpaceUtils<>::get_num_concurrent_teams(policy)),
     m_max_used(max_used + 4), // a little padding between threads' data
-    m_tu(policy),
 #ifndef NDEBUG
     m_num_used("Workspace.m_num_used", m_concurrent_teams),
     m_high_water("Workspace.m_high_water", m_concurrent_teams),
@@ -342,7 +336,7 @@ class WorkspaceManager
     m_data(Kokkos::ViewAllocateWithoutInitializing("Workspace.m_data"),
            m_concurrent_teams, m_total * m_max_used)
   {
-    init(m_data, m_concurrent_teams, m_max_used, m_total);
+    init(*this, m_data, m_concurrent_teams, m_max_used, m_total);
   }
 
   int get_concurrency() const { return m_concurrent_teams; }
@@ -480,6 +474,44 @@ class WorkspaceManager
 
     int index() const { return m_ws_idx; }
 
+    KOKKOS_INLINE_FUNCTION
+    void reset() const
+    {
+      m_team.team_barrier();
+#ifndef NDEBUG
+      m_parent.m_num_used(m_ws_idx) = 0;
+#endif
+      m_next_slot = 0;
+      Kokkos::parallel_for(
+        Kokkos::TeamThreadRange(m_team, m_parent.m_max_used), [&] (int i) {
+          int* const metadata = reinterpret_cast<int*>(
+            &m_parent.m_data(m_ws_idx, i*m_parent.m_total));
+          metadata[0] = i;     // idx
+          metadata[1] = i + 1; // next
+        });
+      m_team.team_barrier();
+    }
+
+    // Print the linked list. Obviously not a device function.
+    void print () {
+      m_team.team_barrier();
+      Kokkos::single(
+        Kokkos::PerTeam(m_team), [&] () {
+          std::stringstream ss;
+          ss << m_ws_idx << ":";
+          auto space = m_parent.get_space_in_slot<T>(m_ws_idx, m_next_slot);
+          for (int cnt = 0, nmax = m_parent.m_max_used;
+               cnt < nmax;
+               ++cnt) {
+            ss << " (" << m_parent.get_index<T>(space) << ", "
+               << m_parent.get_next<T>(space) << ")";
+            space = m_parent.get_space_in_slot<T>(m_ws_idx, m_parent.get_next<T>(space));
+          }
+          ss << "\n";
+          std::cout << ss.str();
+        });
+    }
+
    private:
     const WorkspaceManager& m_parent;
     const member_type& m_team;
@@ -549,20 +581,14 @@ class WorkspaceManager
 
  public: // for Cuda
 
-  static void init (const kokkos_2d_t<T>& data, const int concurrent_teams,
-                    const int max_used, const int total)
+  static void init(const WorkspaceManager& wm, const kokkos_2d_t<T>& data,
+                   const int concurrent_teams, const int max_used, const int total)
   {
     Kokkos::parallel_for(
       "WorkspaceManager ctor",
       util::ExeSpaceUtils<>::get_default_team_policy(concurrent_teams, max_used),
       KOKKOS_LAMBDA(const member_type& team) {
-        const int t = team.league_rank();
-        Kokkos::parallel_for(
-          Kokkos::TeamThreadRange(team, max_used), [&] (int i) {
-            int* const metadata = reinterpret_cast<int*>(&data(t, i*total));
-            metadata[0] = i;     // idx
-            metadata[1] = i + 1; // next
-          });
+        wm.get_workspace(team).reset();
       });
   }
 
@@ -616,8 +642,8 @@ class WorkspaceManager
 #endif
   };
 
-  int m_reserve, m_size, m_total, m_concurrent_teams, m_max_used;
   util::TeamUtils<> m_tu;
+  int m_concurrent_teams, m_reserve, m_size, m_total, m_max_used;
 #ifndef NDEBUG
   kokkos_1d_t<int> m_num_used;
   kokkos_1d_t<int> m_high_water;

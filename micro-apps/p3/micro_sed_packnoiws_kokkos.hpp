@@ -41,7 +41,7 @@ public:
     vn_table("VN_TABLE"), vm_table("VM_TABLE"),
     mu_r_table("MU_R_TABLE"),
     policy(util::ExeSpaceUtils<>::get_default_team_policy(num_horz, num_pack)),
-    workspace_mgr(num_pack, 10, policy) // rain sed's high-water is 8 workspace for any team
+    workspace_mgr(num_pack, 11, policy) // rain sed's high-water is 11 workspace for any team
   {
     // initialize on host
 
@@ -234,9 +234,6 @@ void micro_sed_func (
         });
       team.team_barrier();
 
-      // t could be a scalar, but that's not realistic in the context of p3
-      workspace.release(t);
-
       bool log_qxpresent;
       const Int k_qxtop = find_top(team, osqr, qsmall, kbot, ktop, kdir, log_qxpresent);
 
@@ -325,19 +322,10 @@ void micro_sed_func (
           Kokkos::PerTeam(team), [&] () {
             prt_liq(i) += prt_accum * Globals<Real>::INV_RHOW * odt;
           });
-
-        workspace.release(lmu_r);
-        workspace.release(llamr);
-        workspace.release(lflux_nx);
-        workspace.release(lflux_qx);
-        workspace.release(V_qr);
-        workspace.release(V_nr);
       }
-
-      workspace.release(inv_dzq);
-      workspace.release(rho);
-      workspace.release(inv_rho);
-      workspace.release(rhofacr);
+      // Since we're at the end of the kernel, call reset instead of
+      // individual releases.
+      workspace.reset();
     });
 
   // m.workspace_mgr.report(); // uncomment for detailed debug info

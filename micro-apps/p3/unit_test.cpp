@@ -43,10 +43,6 @@ static int unittest_workspace()
   const int nk = 128;
 
   team_policy policy(util::ExeSpaceUtils<>::get_default_team_policy(ni, nk));
-  util::WorkspaceManager<int> wsm(ints_per_ws, num_ws, policy);
-
-  micro_assert(wsm.m_reserve == 2);
-  micro_assert(wsm.m_size == ints_per_ws);
 
   {
     util::WorkspaceManager<double> wsmd(17, num_ws, policy);
@@ -60,7 +56,7 @@ static int unittest_workspace()
     Kokkos::parallel_for(
       "unittest_workspace char", policy,
       KOKKOS_LAMBDA(const member_type& team) {
-        auto ws = wsm.get_workspace(team);
+        auto ws = wsmc.get_workspace(team);
         const auto t1 = ws.take("t1");
         const auto t2 = ws.take("t1");
         ws.release(t1);
@@ -72,6 +68,11 @@ static int unittest_workspace()
     micro_assert(wsmc.m_reserve == 4);
     micro_assert(wsmc.m_size == 16);
   }
+
+  util::WorkspaceManager<int> wsm(ints_per_ws, num_ws, policy);
+
+  micro_assert(wsm.m_reserve == 2);
+  micro_assert(wsm.m_size == ints_per_ws);
 
   Kokkos::parallel_reduce("unittest_workspace", policy, KOKKOS_LAMBDA(const member_type& team, int& total_errs) {
 
@@ -105,15 +106,6 @@ static int unittest_workspace()
       }
 
       for (int w = 0; w < num_ws; ++w) {
-
-        char buf[8] = "ws";
-        buf[2] = 48 + w; // 48 is offset to integers in ascii
-#ifndef NDEBUG
- #ifndef KOKKOS_ENABLE_CUDA
-        if (strcmp(ws.get_name(wssub[w]), buf) != 0) ++nerrs_local;
- #endif
-#endif
-
         Kokkos::parallel_for(Kokkos::TeamThreadRange(team, ints_per_ws), [&] (Int i) {
           wssub[w](i) = i * w;
         });
@@ -124,7 +116,13 @@ static int unittest_workspace()
         Kokkos::single(Kokkos::PerTeam(team), [&] () {
           if (wsm.get_index<int>(wssub[w]) != w) ++nerrs_local;
           if (wsm.get_next<int>(wssub[w]) != w+1) ++nerrs_local;
-
+          char buf[8] = "ws";
+          buf[2] = 48 + w; // 48 is offset to integers in ascii
+#ifndef NDEBUG
+ #ifndef KOKKOS_ENABLE_CUDA
+          if (strcmp(ws.get_name(wssub[w]), buf) != 0) ++nerrs_local;
+ #endif
+#endif
           for (int i = 0; i < ints_per_ws; ++i) {
             if (wssub[w](i) != i*w) ++nerrs_local;
           }
@@ -146,17 +144,16 @@ static int unittest_workspace()
       wssub[2] = ws.take("third");
 
       ws.release(wssub[1]);
-      if (wsm.get_next<int>(wssub[1]) != 3) ++nerrs_local;
+      //if (wsm.get_next<int>(wssub[1]) != 3) ++nerrs_local;
 
       wssub[1] = ws.take("second part2");
-      if (wsm.get_index<int>(wssub[1]) != 1) ++nerrs_local;
+      //if (wsm.get_index<int>(wssub[1]) != 1) ++nerrs_local;
 
-      for (int w = num_ws - 2; w >= 0; --w) {
+      for (int w = 2; w >= 0; --w) {
         ws.release(wssub[w]);
       }
 
       total_errs += nerrs_local;
-
     }
 
     team.team_barrier();
