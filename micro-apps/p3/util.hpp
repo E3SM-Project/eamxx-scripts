@@ -18,10 +18,6 @@
 # include <omp.h>
 #endif
 
-#ifdef FPE
-# include <xmmintrin.h>
-#endif
-
 #ifndef NDEBUG
 #define micro_assert(condition) do {                                    \
     if ( ! (condition)) {                                               \
@@ -101,11 +97,7 @@ void read (T* v, size_t sz, const FILEPtr& fid) {
   micro_throw_if(nread != sz, "read: nread = " << nread << " sz = " << sz);
 }
 
-inline bool
-eq (const std::string& a, const char* const b1, const char* const b2 = 0) {
-  return (a == std::string(b1) || (b2 && a == std::string(b2)) ||
-          a == std::string("-") + std::string(b1));
-}
+bool eq(const std::string& a, const char* const b1, const char* const b2 = 0);
 
 template <typename Real> struct is_single_precision {};
 template <> struct is_single_precision<float> { enum : bool { value = true }; };
@@ -149,60 +141,17 @@ void set_min_max (const Integer& lim0, const Integer& lim1,
   max = util::max(lim0, lim1) / vector_size;
 }
 
-inline
-std::string active_avx_string () {
-  std::string s;
-#if defined __AVX512F__
-  s += "-AVX512F";
-#endif
-#if defined __AVX2__
-  s += "-AVX2";
-#endif
-#if defined __AVX__
-  s += "-AVX";
-#endif
-  return s;
-}
+std::string active_avx_string();
 
-inline
-void dump_arch()
-{
-  printf("ARCH: dp %d avx %s FPE %d nthread %d\n",
-#ifdef DOUBLE_PRECISION
-         1,
-#else
-         0,
-#endif
-         util::active_avx_string().c_str(),
-#ifdef FPE
-         1,
-#else
-         0,
-#endif
-#ifdef _OPENMP
-         omp_get_max_threads()
-#else
-         1
-#endif
-         );
-}
+void dump_arch();
 
-inline
-void initialize()
-{
-#ifdef FPE
-  _MM_SET_EXCEPTION_MASK(_MM_GET_EXCEPTION_MASK() &
-                         ~( _MM_MASK_INVALID |
-                            _MM_MASK_DIV_ZERO |
-                            _MM_MASK_OVERFLOW ));
-#endif
-}
+void initialize();
 
 template <typename ExeSpace = Kokkos::DefaultExecutionSpace>
 struct ExeSpaceUtils {
   static team_policy get_default_team_policy (Int ni, Int nk) {
 #ifdef MIMIC_GPU
-    const int max_threads = omp_get_max_threads();
+    const int max_threads = ExeSpace::concurrency();
     const int team_size = max_threads < 7 ? max_threads : 7;
     return team_policy(ni, team_size);
 #else
@@ -233,7 +182,7 @@ public:
   template <typename TeamPolicy>
   TeamUtils(const TeamPolicy& policy) : _team_size(0)
   {
-    const int max_threads = omp_get_max_threads();
+    const int max_threads = ExeSpace::concurrency();
     const int team_size = policy.team_size();
     _num_teams = max_threads / team_size;
     _team_size = max_threads / _num_teams;
@@ -322,7 +271,7 @@ class WorkspaceManager
                (2*sizeof(int) + sizeof(T) - 1)/sizeof(T) ),
     m_size(size),
     m_total(m_size + m_reserve),
-    m_max_used(max_used + 4), // a little padding between threads' data
+    m_max_used(max_used),
 #ifndef NDEBUG
     m_num_used("Workspace.m_num_used", m_concurrent_teams),
     m_high_water("Workspace.m_high_water", m_concurrent_teams),
@@ -484,10 +433,7 @@ class WorkspaceManager
       m_next_slot = 0;
       Kokkos::parallel_for(
         Kokkos::TeamThreadRange(m_team, m_parent.m_max_used), [&] (int i) {
-          int* const metadata = reinterpret_cast<int*>(
-            &m_parent.m_data(m_ws_idx, i*m_parent.m_total));
-          metadata[0] = i;     // idx
-          metadata[1] = i + 1; // next
+          m_parent.init_metadata(m_ws_idx, i);
         });
       m_team.team_barrier();
     }
@@ -588,7 +534,10 @@ class WorkspaceManager
       "WorkspaceManager ctor",
       util::ExeSpaceUtils<>::get_default_team_policy(concurrent_teams, max_used),
       KOKKOS_LAMBDA(const member_type& team) {
-        wm.get_workspace(team).reset();
+        Kokkos::parallel_for(
+          Kokkos::TeamThreadRange(team, max_used), [&] (int i) {
+            wm.init_metadata(team.league_rank(), i);
+          });
       });
   }
 
@@ -626,6 +575,14 @@ class WorkspaceManager
       sizeof(T) == sizeof(S) ?
       m_size :
       (m_size*sizeof(T))/sizeof(S));
+  }
+
+  KOKKOS_INLINE_FUNCTION
+  void init_metadata(const int ws_idx, const int slot) const
+  {
+    int* const metadata = reinterpret_cast<int*>(&m_data(ws_idx, slot*m_total));
+    metadata[0] = slot;     // idx
+    metadata[1] = slot + 1; // next
   }
 
   friend struct unit_test::UnitTest;

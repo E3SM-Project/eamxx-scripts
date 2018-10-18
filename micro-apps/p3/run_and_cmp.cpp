@@ -506,7 +506,7 @@ static Int run_and_cmp (const std::string& bfn, const Real& tol, bool verbose) {
 
         nerr += do_compare<KokkosPackBridge<Scalar> >(
           [&] (ic::MicroSedData<Scalar>& d, KokkosPackBridge<Scalar>& b) { micro_sed_func_cpp_kokkos(d, b, mspnwk); },
-          ds[6], d_ref, cpp_tol, "Pack No-i Kokkos C++", step, verbose);
+          ds[6], d_ref, cpp_tol, "Pack No-i WS Kokkos C++", step, verbose);
       }
     }
   };
