@@ -126,10 +126,9 @@ size_t strlen(const char* str)
 {
   micro_kernel_assert(str != NULL);
   const char *char_ptr;
-  for (char_ptr = str; ++char_ptr)  {
+  for (char_ptr = str; ; ++char_ptr)  {
     if (*char_ptr == '\0') return char_ptr - str;
   }
-  return 0;
 }
 KOKKOS_INLINE_FUNCTION
 void strcpy(char* dst, const char* src)
@@ -418,7 +417,7 @@ class WorkspaceManager
             break;
           }
         }
-        micro_assert(name_idx != -1);
+        micro_kernel_assert(name_idx != -1);
         m_parent.m_counts(team_rank, name_idx).first += 1;
 #endif
       });
@@ -523,7 +522,7 @@ class WorkspaceManager
             break;
           }
         }
-        micro_assert(name_idx != -1);
+        micro_kernel_assert(name_idx != -1);
         m_parent.m_counts(team_rank, name_idx).second += 1;
       });
 #endif
