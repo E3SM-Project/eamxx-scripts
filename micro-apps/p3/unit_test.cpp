@@ -119,7 +119,7 @@ static int unittest_workspace()
           char buf[8] = "ws";
           buf[2] = 48 + w; // 48 is offset to integers in ascii
 #ifndef NDEBUG
-          if (strcmp(ws.get_name(wssub[w]), buf) != 0) ++nerrs_local;
+          if (util::strcmp(ws.get_name(wssub[w]), buf) != 0) ++nerrs_local;
 #endif
           for (int i = 0; i < ints_per_ws; ++i) {
             if (wssub[w](i) != i*w) ++nerrs_local;

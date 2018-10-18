@@ -307,7 +307,7 @@ class WorkspaceManager
     m_curr_names("Workspace.m_curr_names", m_concurrent_teams, m_max_used, m_max_name_len),
     m_all_names("Workspace.m_all_names", policy.league_size(), m_max_names, m_max_name_len),
     // A name's index in m_all_names is used to index into m_counts
-    m_counts("Workspace.m_counts", policy.league_size(), m_max_names),
+    m_counts("Workspace.m_counts", policy.league_size(), m_max_names, 2),
 #endif
     m_next_slot("Workspace.m_next_slot", m_pad_factor*m_concurrent_teams),
     m_data(Kokkos::ViewAllocateWithoutInitializing("Workspace.m_data"),
@@ -343,8 +343,8 @@ class WorkspaceManager
           break;
         }
         else {
-          const int takes    = host_counts(t, n).first;
-          const int releases = host_counts(t, n).second;
+          const int takes    = host_counts(t, n, 0);
+          const int releases = host_counts(t, n, 1);
           std::cout << "    workspace '" << name << "' was taken " << takes
                     << " times and released " << releases << " times" << std::endl;
           if (takes != releases) {
@@ -418,7 +418,7 @@ class WorkspaceManager
           }
         }
         micro_kernel_assert(name_idx != -1);
-        m_parent.m_counts(team_rank, name_idx).first += 1;
+        m_parent.m_counts(team_rank, name_idx, 0) += 1;
 #endif
       });
       // We need a barrier here so that a subsequent call to take or release
@@ -523,7 +523,7 @@ class WorkspaceManager
           }
         }
         micro_kernel_assert(name_idx != -1);
-        m_parent.m_counts(team_rank, name_idx).second += 1;
+        m_parent.m_counts(team_rank, name_idx, 1) += 1;
       });
 #endif
 
@@ -539,7 +539,6 @@ class WorkspaceManager
   KOKKOS_INLINE_FUNCTION
   Workspace get_workspace(const member_type& team) const
   { return Workspace(*this, m_tu.get_workspace_idx(team), team); }
-
 
  public: // for Cuda
 
@@ -614,7 +613,7 @@ class WorkspaceManager
          32,
 #endif
          m_max_name_len = 128,
-         m_max_names = 1024
+         m_max_names = 256
   };
 
   util::TeamUtils<> m_tu;
@@ -624,7 +623,7 @@ class WorkspaceManager
   kokkos_1d_t<int> m_high_water;
   kokkos_3d_t<char> m_curr_names;
   kokkos_3d_t<char> m_all_names;
-  kokkos_2d_t<std::pair<int, int> > m_counts;
+  kokkos_3d_t<int> m_counts;
 #endif
   kokkos_1d_t<int> m_next_slot;
   kokkos_2d_t<T> m_data;
