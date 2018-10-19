@@ -105,22 +105,13 @@ void micro_sed_func (
 
       auto workspace = m.workspace_mgr.get_workspace(team);
 
-      //Unmanaged<kokkos_1d_t<RealSmallPack> linv_dzq, lrho, linv_rho, lrhofacr, lt;
-      // Unmanaged<kokkos_1d_t<RealPack> > inv_dzq, rho, inv_rho, rhofacr, t;
-      // {
-      //   //Kokkos::Array<Unmanaged<kokkos_1d_t<RealSmallPack> >*, 5> ptrs = {&linv_dzq, &lrho, &linv_rho, &lrhofacr, &lt};
-      //   Kokkos::Array<Unmanaged<kokkos_1d_t<RealPack> >*, 5> ptrs = {&inv_dzq, &rho, &inv_rho, &rhofacr, &t};
-      //   Kokkos::Array<const char*, 5> names = {"inv_dzq", "rho", "inv_rho", "rhofacr", "t"};
+      Unmanaged<kokkos_1d_t<RealSmallPack> > linv_dzq, lrho, linv_rho, lrhofacr, lt;
+      {
+        Kokkos::Array<Unmanaged<kokkos_1d_t<RealSmallPack> >*, 5> ptrs = { {&linv_dzq, &lrho, &linv_rho, &lrhofacr, &lt} };
+        Kokkos::Array<const char*, 5> names = { {"inv_dzq", "rho", "inv_rho", "rhofacr", "t"} };
 
-      //   workspace.take_many(names, ptrs);
-      // }
-
-      auto linv_dzq = workspace.take<RealSmallPack>("inv_dzq");
-      auto lrho     = workspace.take<RealSmallPack>("rho");
-      auto linv_rho = workspace.take<RealSmallPack>("inv_rho");
-      auto lrhofacr = workspace.take<RealSmallPack>("rhofacr");
-
-      auto t = workspace.take<RealPack>("t");
+        workspace.take_many(names, ptrs);
+      }
 
       {
         const Unmanaged<kokkos_1d_t<RealPack> >
@@ -132,6 +123,7 @@ void micro_sed_func (
         auto rho     = biggize(lrho);
         auto inv_rho = biggize(linv_rho);
         auto rhofacr = biggize(lrhofacr);
+        auto t       = biggize(lt);
 
         Kokkos::parallel_for(
           Kokkos::TeamThreadRange(team, m.num_pack), [&] (Int k) {
@@ -156,12 +148,20 @@ void micro_sed_func (
 
         Int k_qxbot = find_bottom(team, osqr, qsmall, kbot, k_qxtop, kdir, log_qxpresent);
 
-        auto lV_qr    = workspace.take<RealSmallPack>("V_qr");
-        auto lV_nr    = workspace.take<RealSmallPack>("V_nr");
-        auto lflux_qx = workspace.take<RealSmallPack>("flux_qx");
-        auto lflux_nx = workspace.take<RealSmallPack>("flux_nx");
-        auto lmu_r    = workspace.take<RealSmallPack>("mu_r");
-        auto llamr    = workspace.take<RealSmallPack>("lamr");
+        Unmanaged<kokkos_1d_t<RealSmallPack> > lV_qr, lV_nr, lflux_qx, lflux_nx, lmu_r, llamr;
+        {
+          Kokkos::Array<Unmanaged<kokkos_1d_t<RealSmallPack> >*, 6> ptrs = { {&lV_qr, &lV_nr, &lflux_qx, &lflux_nx, &lmu_r, &llamr} };
+          Kokkos::Array<const char*, 6> names = { {"V_qr", "V_nr", "flux_qx", "flux_nx", "mu_r", "lamr"} };
+
+          workspace.take_many(names, ptrs);
+        }
+
+        // auto lV_qr    = workspace.take<RealSmallPack>("V_qr");
+        // auto lV_nr    = workspace.take<RealSmallPack>("V_nr");
+        // auto lflux_qx = workspace.take<RealSmallPack>("flux_qx");
+        // auto lflux_nx = workspace.take<RealSmallPack>("flux_nx");
+        // auto lmu_r    = workspace.take<RealSmallPack>("mu_r");
+        // auto llamr    = workspace.take<RealSmallPack>("lamr");
 
         while (dt_left > 1.e-4) {
           Real Co_max = 0.0;
