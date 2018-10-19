@@ -435,25 +435,31 @@ class WorkspaceManager
                    Kokkos::Array<Unmanaged<kokkos_1d_t<S> >*, N>& ptrs) const
     {
 #ifndef NDEBUG
-      // Kokkos::single(Kokkos::PerTeam(m_team), [&] () {
-      //   micro_kernel_assert(m_parent.m_num_used(m_ws_idx)+N <= m_parent.m_max_used);
-      //   m_parent.m_num_used(m_ws_idx) += N;
-      //   if (m_parent.m_num_used(m_ws_idx) > m_parent.m_high_water(m_ws_idx)) {
-      //     m_parent.m_high_water(m_ws_idx) = m_parent.m_num_used(m_ws_idx);
-      //   }
-      // });
+      Kokkos::single(Kokkos::PerTeam(m_team), [&] () {
+        micro_kernel_assert(m_parent.m_num_used(m_ws_idx)+N <= m_parent.m_max_used);
+        m_parent.m_num_used(m_ws_idx) += N;
+        if (m_parent.m_num_used(m_ws_idx) > m_parent.m_high_water(m_ws_idx)) {
+          m_parent.m_high_water(m_ws_idx) = m_parent.m_num_used(m_ws_idx);
+        }
+
+        // Verify contiguous
+        for (int n = 0; n < N; ++n) {
+          const auto space = m_parent.get_space_in_slot<S>(m_ws_idx, m_next_slot + n);
+          micro_kernel_assert(m_parent.get_next<S>(space) == m_next_slot + n + 1);
+        }
+      });
 #endif
 
-      // We need a barrier here so get_space_in_slot returns consistent results
-      // w/in the team.
       for (int n = 0; n < N; ++n) {
         const auto space = m_parent.get_space_in_slot<S>(m_ws_idx, m_next_slot+n);
         *ptrs[n] = space;
       }
 
+      // We need a barrier here so get_space_in_slot above returns consistent results
+      // w/in the team.
       m_team.team_barrier();
       Kokkos::single(Kokkos::PerTeam(m_team), [&] () {
-          m_next_slot += N;//m_parent.get_next<S>(space);
+          m_next_slot += N;
 #ifndef NDEBUG
           // set_name<S>(space, names[n]);
           // const int team_rank = m_team.league_rank();
