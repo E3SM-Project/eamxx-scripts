@@ -293,6 +293,7 @@ class WorkspaceManager
 ///////////////////////////////////////////////////////////////////////////////
 {
  public:
+
   WorkspaceManager(int size, int max_used, team_policy policy) :
     m_tu(policy),
     m_concurrent_teams(m_tu.get_num_concurrent_teams()),
@@ -426,6 +427,56 @@ class WorkspaceManager
       m_team.team_barrier();
 
       return space;
+    }
+
+    template <typename S=T, size_t N>
+    KOKKOS_INLINE_FUNCTION
+    Unmanaged<kokkos_1d_t<S> > take_many(const Kokkos::Array<const char*, N>& names,
+                                         Kokkos::Array<Unmanaged<kokkos_1d_t<S> >*, N>& ptrs) const
+    {
+#ifndef NDEBUG
+      // Kokkos::single(Kokkos::PerTeam(m_team), [&] () {
+      //   micro_kernel_assert(m_parent.m_num_used(m_ws_idx)+N <= m_parent.m_max_used);
+      //   m_parent.m_num_used(m_ws_idx) += N;
+      //   if (m_parent.m_num_used(m_ws_idx) > m_parent.m_high_water(m_ws_idx)) {
+      //     m_parent.m_high_water(m_ws_idx) = m_parent.m_num_used(m_ws_idx);
+      //   }
+      // });
+#endif
+
+      // We need a barrier here so get_space_in_slot returns consistent results
+      // w/in the team.
+      m_team.team_barrier();
+      for (int n = 0; n < N; ++n) {
+        const auto space = m_parent.get_space_in_slot<S>(m_ws_idx, m_next_slot);
+        *ptrs[n] = space;
+
+        Kokkos::single(Kokkos::PerTeam(m_team), [&] () {
+          m_next_slot = m_parent.get_next<S>(space);
+#ifndef NDEBUG
+          // set_name<S>(space, names[n]);
+          // const int team_rank = m_team.league_rank();
+          // int name_idx = -1;
+          // for (int n = 0; n < m_max_names; ++n) {
+          //   char* old_name = &(m_parent.m_all_names(team_rank, n, 0));
+          //   if (util::strcmp(old_name, names[n]) == 0) {
+          //     name_idx = n;
+          //     break;
+          //   }
+          //   else if (util::strcmp(old_name, "") == 0) {
+          //     util::strcpy(old_name, names[n]);
+          //     name_idx = n;
+          //     break;
+          //   }
+          // }
+          // micro_kernel_assert(name_idx != -1);
+          // m_parent.m_counts(team_rank, name_idx, 0) += 1;
+#endif
+        });
+      }
+      // We need a barrier here so that a subsequent call to take or release
+      // starts with the metadata in the correct state.
+      m_team.team_barrier();
     }
 
     // Wrapper so caller doesn't have to specify scalar type.

@@ -71,16 +71,35 @@ repack (const Kokkos::View<scream::pack::Pack<T, old_pack_size>*, Parms...>& vp)
     (old_pack_size / new_pack_size) * vp.extent_int(0));
 }
 
+template <int new_pack_size,
+          typename T, typename ...Parms, int old_pack_size>
+KOKKOS_FORCEINLINE_FUNCTION
+Unmanaged<Kokkos::View<scream::pack::Pack<T, new_pack_size>*, Parms...> >
+repack_grow (const Kokkos::View<scream::pack::Pack<T, old_pack_size>*, Parms...>& vp) {
+  static_assert(new_pack_size > 0 &&
+                new_pack_size % old_pack_size == 0,
+                "Old pack size must divide new pack size.");
+  return Unmanaged<Kokkos::View<scream::pack::Pack<T, new_pack_size>*, Parms...> >(
+    reinterpret_cast<scream::pack::Pack<T, new_pack_size>*>(vp.data()),
+    (new_pack_size / old_pack_size) * vp.extent_int(0));
+}
+
 template <typename T, typename ...Parms> KOKKOS_FORCEINLINE_FUNCTION
 Unmanaged<Kokkos::View<SmallPack<T>**, Parms...> >
-smallize (const Kokkos::View<SmallPack<T>**, Parms...>& vp) {
+smallize (const Kokkos::View<BigPack<T>**, Parms...>& vp) {
   return repack<SCREAM_PACKN / SCREAM_SMALL_PACK_FACTOR>(vp);
 }
 
 template <typename T, typename ...Parms> KOKKOS_FORCEINLINE_FUNCTION
 Unmanaged<Kokkos::View<SmallPack<T>*, Parms...> >
-smallize (const Kokkos::View<SmallPack<T>*, Parms...>& vp) {
+smallize (const Kokkos::View<BigPack<T>*, Parms...>& vp) {
   return repack<SCREAM_PACKN / SCREAM_SMALL_PACK_FACTOR>(vp);
+}
+
+template <typename T, typename ...Parms> KOKKOS_FORCEINLINE_FUNCTION
+Unmanaged<Kokkos::View<BigPack<T>*, Parms...> >
+biggize (const Kokkos::View<SmallPack<T>*, Parms...>& vp) {
+  return repack_grow<SCREAM_PACKN>(vp);
 }
 
 template <typename Real>
