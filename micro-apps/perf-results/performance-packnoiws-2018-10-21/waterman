@@ -1,5 +1,4 @@
-Job <35795> is submitted to queue <rhel7W>.
-Provenance:  nk=128 dt=300 ts=30 threads=None machine=waterman2 commit=13a2bb9
+Provenance:  nk=128 dt=300 ts=30 threads=None machine=waterman commit=13a2bb9
 packnoi ni
 64, 17785.19
 128, 33190.72
