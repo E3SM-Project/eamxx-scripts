@@ -94,6 +94,40 @@ static int unittest_workspace()
     }
     team.team_barrier();
 
+    // Test take_many/reset
+    {
+      for (int r = 0; r < 2; ++r) {
+        Unmanaged<kokkos_1d_t<int> > ws1, ws2, ws3, ws4;
+        Kokkos::Array<Unmanaged<kokkos_1d_t<int> >*, num_ws> ptrs = { {&ws1, &ws2, &ws3, &ws4} };
+        Kokkos::Array<const char*, num_ws> names = { {"tm0", "tm1", "tm2", "tm3"} };
+
+        ws.take_many(names, ptrs);
+
+        for (int w = 0; w < num_ws; ++w) {
+          Kokkos::parallel_for(Kokkos::TeamThreadRange(team, ints_per_ws), [&] (Int i) {
+            (*ptrs[w])(i) = i * w;
+          });
+        }
+
+        team.team_barrier();
+        for (int w = 0; w < num_ws; ++w) {
+          Kokkos::single(Kokkos::PerTeam(team), [&] () {
+            char buf[8] = "tm";
+            buf[2] = 48 + w; // 48 is offset to integers in ascii
+#ifndef NDEBUG
+            if (util::strcmp(ws.get_name(*ptrs[w]), buf) != 0) ++nerrs_local;
+#endif
+            for (int i = 0; i < ints_per_ws; ++i) {
+              if ((*ptrs[w])(i) != i*w) ++nerrs_local;
+            }
+          });
+        }
+        team.team_barrier();
+
+        ws.reset();
+      }
+    }
+
     Kokkos::Array<Unmanaged<kokkos_1d_t<int> >, num_ws> wssub;
 
     for (int r = 0; r < 2; ++r) {
