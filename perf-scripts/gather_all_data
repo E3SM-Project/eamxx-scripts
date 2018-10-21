@@ -68,7 +68,7 @@ def formulate_command(machine, perf_analysis_args, commit, test_all):
 ###############################################################################
     modules, repo, kokkos, compiler, batch = MACHINE_METADATA[machine]
 
-    local_cmd = "./test-all {} {}".format(compiler, kokkos) if test_all else "../perf-scripts/perf_analysis {} -p".format(pargs)
+    local_cmd = "./test-all {} {}".format(compiler, kokkos) if test_all else "../perf-scripts/perf_analysis {} -p".format(perf_analysis_args)
     local_cmd = local_cmd.replace("$compiler", compiler).replace("$kokkos_install", kokkos)
 
     cmd = "cd {} && module load {} && git fetch && git checkout {} && {} {}".format(os.path.join(repo, "micro-apps"), " ".join(modules), commit, batch, local_cmd)
