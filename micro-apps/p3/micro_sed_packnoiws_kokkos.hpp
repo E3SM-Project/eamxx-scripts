@@ -156,13 +156,6 @@ void micro_sed_func (
           workspace.take_many(names, ptrs);
         }
 
-        // auto lV_qr    = workspace.take<RealSmallPack>("V_qr");
-        // auto lV_nr    = workspace.take<RealSmallPack>("V_nr");
-        // auto lflux_qx = workspace.take<RealSmallPack>("flux_qx");
-        // auto lflux_nx = workspace.take<RealSmallPack>("flux_nx");
-        // auto lmu_r    = workspace.take<RealSmallPack>("mu_r");
-        // auto llamr    = workspace.take<RealSmallPack>("lamr");
-
         while (dt_left > 1.e-4) {
           Real Co_max = 0.0;
           Int kmin, kmax;
