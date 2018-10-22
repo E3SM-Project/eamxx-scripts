@@ -1,6 +1,7 @@
 #include "types.hpp"
 #include "util.hpp"
 #include "micro_kokkos.hpp"
+#include "scream_pack.hpp"
 
 #include <thread>
 #include <array>
@@ -28,6 +29,43 @@ static Int unittest_team_policy () {
     if (omp_get_num_threads() > 1 && p.team_size() == 1) ++nerr;
 #endif
   }
+
+  return nerr;
+}
+
+static Int unittest_pack () {
+  int nerr = 0;
+  const int num_bigs = 17;
+
+  using TestBigPack   = scream::pack::Pack<Real, 16>;
+  using TestSmallPack = scream::pack::Pack<Real, 4>;
+
+  kokkos_1d_t<TestBigPack> test_k_array("test_k_array", num_bigs);
+  Kokkos::parallel_reduce("unittest_pack",
+                          util::ExeSpaceUtils<>::get_default_team_policy(128, 128),
+                          KOKKOS_LAMBDA(const member_type& team, int& total_errs) {
+
+    int nerrs_local = 0;
+
+    Kokkos::parallel_for(Kokkos::TeamThreadRange(team, num_bigs), [&] (int i) {
+      test_k_array(i) = i;
+    });
+
+    auto small = scream::pack::repack<4>(test_k_array);
+    if (small.extent(0) != 4 * num_bigs) ++nerrs_local;
+
+    team.team_barrier();
+    Kokkos::parallel_for(Kokkos::TeamThreadRange(team, num_bigs*4), [&] (int i) {
+      for (int p = 0; p < 4; ++p) {
+        if (small(i)[p] != i / 4) ++nerrs_local;
+      }
+    });
+
+    auto big = scream::pack::repack<16>(small);
+    if (big.extent(0) != num_bigs) ++nerrs_local;
+
+    total_errs += nerrs_local;
+  }, nerr);
 
   return nerr;
 }
@@ -93,6 +131,40 @@ static int unittest_workspace()
       ws.release(ws_dlb);
     }
     team.team_barrier();
+
+    // Test take_many/reset
+    {
+      for (int r = 0; r < 2; ++r) {
+        Unmanaged<kokkos_1d_t<int> > ws1, ws2, ws3, ws4;
+        Kokkos::Array<Unmanaged<kokkos_1d_t<int> >*, num_ws> ptrs = { {&ws1, &ws2, &ws3, &ws4} };
+        Kokkos::Array<const char*, num_ws> names = { {"tm0", "tm1", "tm2", "tm3"} };
+
+        ws.take_many(names, ptrs);
+
+        for (int w = 0; w < num_ws; ++w) {
+          Kokkos::parallel_for(Kokkos::TeamThreadRange(team, ints_per_ws), [&] (Int i) {
+            (*ptrs[w])(i) = i * w;
+          });
+        }
+
+        team.team_barrier();
+        for (int w = 0; w < num_ws; ++w) {
+          Kokkos::single(Kokkos::PerTeam(team), [&] () {
+            char buf[8] = "tm";
+            buf[2] = 48 + w; // 48 is offset to integers in ascii
+#ifndef NDEBUG
+            if (util::strcmp(ws.get_name(*ptrs[w]), buf) != 0) ++nerrs_local;
+#endif
+            for (int i = 0; i < ints_per_ws; ++i) {
+              if ((*ptrs[w])(i) != i*w) ++nerrs_local;
+            }
+          });
+        }
+        team.team_barrier();
+
+        ws.reset();
+      }
+    }
 
     Kokkos::Array<Unmanaged<kokkos_1d_t<int> >, num_ws> wssub;
 
@@ -222,6 +294,7 @@ int main (int argc, char** argv) {
   int out = 0;
   Kokkos::initialize(argc, argv); {
     out =  unittest_team_policy();
+    out += unittest_pack();
     out += unit_test::UnitTest::unittest_workspace();
 #if 0
     out += unittest_team_utils();
