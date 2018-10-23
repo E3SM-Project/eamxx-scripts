@@ -96,6 +96,9 @@ void micro_sed_func (
   const Int ktop = (kts < kte) ? m.num_vert-1 : 0;
   const Int kdir = (kts < kte) ? 1 : -1;
 
+  const auto lqr = smallize(qr), lnr = smallize(nr);
+  const auto sqr = scalarize(qr);
+
   // Rain sedimentation:  (adaptive substepping)
   Kokkos::parallel_for(
     "main rain sed loop",
@@ -105,39 +108,29 @@ void micro_sed_func (
 
       auto workspace = m.workspace_mgr.get_workspace(team);
 
-      Unmanaged<kokkos_1d_t<RealSmallPack> > linv_dzq, lrho, linv_rho, lrhofacr, lt;
-      {
-        Kokkos::Array<Unmanaged<kokkos_1d_t<RealSmallPack> >*, 5> ptrs = { {&linv_dzq, &lrho, &linv_rho, &lrhofacr, &lt} };
-        Kokkos::Array<const char*, 5> names = { {"inv_dzq", "rho", "inv_rho", "rhofacr", "t"} };
+      Unmanaged<kokkos_1d_t<RealPack> > inv_dzq, rho, inv_rho, rhofacr, t, V_qr, V_nr, flux_qx, flux_nx, mu_r, lamr;
+      workspace.take_many_and_reset<RealPack,11>(
+        {"inv_dzq", "rho", "inv_rho", "rhofacr", "t", "V_qr", "V_nr", "flux_qx", "flux_nx", "mu_r", "lamr"},
+        {&inv_dzq, &rho, &inv_rho, &rhofacr, &t, &V_qr, &V_nr, &flux_qx, &flux_nx, &mu_r, &lamr});
 
-        workspace.take_many(names, ptrs);
-      }
+      const auto olqr = util::subview(lqr, i), olnr = util::subview(lnr, i);
+      const auto osqr = util::subview(sqr, i);
+      const auto odzq = util::subview(dzq, i), oth = util::subview(th, i), opres = util::subview(pres, i);
+      const auto
+        lflux_qx = smallize(flux_qx), lflux_nx = smallize(flux_nx),
+        lmu_r = smallize(mu_r), llamr = smallize(lamr),
+        lrho = smallize(rho), linv_rho = smallize(inv_rho), lrhofacr = smallize(rhofacr),
+        linv_dzq = smallize(inv_dzq);
 
-      {
-        const Unmanaged<kokkos_1d_t<RealPack> >
-          odzq     = util::subview(dzq, i),
-          oth      = util::subview(th, i),
-          opres    = util::subview(pres, i);
-
-        auto inv_dzq = biggize(linv_dzq);
-        auto rho     = biggize(lrho);
-        auto inv_rho = biggize(linv_rho);
-        auto rhofacr = biggize(lrhofacr);
-        auto t       = biggize(lt);
-
-        Kokkos::parallel_for(
-          Kokkos::TeamThreadRange(team, m.num_pack), [&] (Int k) {
-            inv_dzq(k) = 1.0 / odzq(k);
-            t(k) = pow(opres(k) * 1.e-5, rd_inv_cp) * oth(k);
-            rho(k) = opres(k) / (rd * t(k));
-            inv_rho(k) = 1.0 / rho(k);
-            rhofacr(k) = pow(rhosur * inv_rho(k), 0.54);
-          });
-        team.team_barrier();
-      }
-
-      const Unmanaged<kokkos_1d_t<Real> >
-        osqr = util::subview(scalarize(qr), i);
+      Kokkos::parallel_for(
+        Kokkos::TeamThreadRange(team, m.num_pack), [&] (Int k) {
+          inv_dzq(k) = 1.0 / odzq(k);
+          t(k) = pow(opres(k) * 1.e-5, rd_inv_cp) * oth(k);
+          rho(k) = opres(k) / (rd * t(k));
+          inv_rho(k) = 1.0 / rho(k);
+          rhofacr(k) = pow(rhosur * inv_rho(k), 0.54);
+        });
+      team.team_barrier();
 
       bool log_qxpresent;
       const Int k_qxtop = find_top(team, osqr, qsmall, kbot, ktop, kdir, log_qxpresent);
@@ -148,32 +141,19 @@ void micro_sed_func (
 
         Int k_qxbot = find_bottom(team, osqr, qsmall, kbot, k_qxtop, kdir, log_qxpresent);
 
-        Unmanaged<kokkos_1d_t<RealSmallPack> > lV_qr, lV_nr, lflux_qx, lflux_nx, lmu_r, llamr;
-        {
-          Kokkos::Array<Unmanaged<kokkos_1d_t<RealSmallPack> >*, 6> ptrs = { {&lV_qr, &lV_nr, &lflux_qx, &lflux_nx, &lmu_r, &llamr} };
-          Kokkos::Array<const char*, 6> names = { {"V_qr", "V_nr", "flux_qx", "flux_nx", "mu_r", "lamr"} };
-
-          workspace.take_many(names, ptrs);
-        }
+        const auto lV_qr = smallize(V_qr), lV_nr = smallize(V_nr);
+        const auto sflux_qx = scalarize(lflux_qx);
 
         while (dt_left > 1.e-4) {
           Real Co_max = 0.0;
           Int kmin, kmax;
 
-          const Unmanaged<kokkos_1d_t<RealSmallPack> >
-            olqr = util::subview(smallize(qr), i),
-            olnr = util::subview(smallize(nr), i);
-
-          {
-            auto V_qr = biggize(lV_qr);
-            auto V_nr = biggize(lV_nr);
-            Kokkos::parallel_for(
-              Kokkos::TeamThreadRange(team, m.num_pack), [&] (Int k) {
-                V_qr(k) = 0;
-                V_nr(k) = 0;
-              });
-            team.team_barrier();
-          }
+          Kokkos::parallel_for(
+            Kokkos::TeamThreadRange(team, m.num_pack), [&] (Int k) {
+              V_qr(k) = 0;
+              V_nr(k) = 0;
+            });
+          team.team_barrier();
 
           util::set_min_max(k_qxbot, k_qxtop, kmin, kmax, RealSmallPack::n);
 
@@ -237,9 +217,6 @@ void micro_sed_func (
             prt_liq(i) += prt_accum * Globals<Real>::INV_RHOW * odt;
           });
       }
-      // Since we're at the end of the kernel, call reset instead of
-      // individual releases.
-      workspace.reset();
     });
 
   // m.workspace_mgr.report(); // uncomment for detailed debug info

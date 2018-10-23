@@ -488,6 +488,62 @@ class WorkspaceManager
       m_team.team_barrier();
     }
 
+    template <typename S=T, size_t N>
+    KOKKOS_INLINE_FUNCTION
+    void take_many_and_reset(const Kokkos::Array<const char*, N>& names,
+                             const Kokkos::Array<Unmanaged<kokkos_1d_t<S> >*, N>& ptrs) const
+    {
+#ifndef NDEBUG
+      Kokkos::single(Kokkos::PerTeam(m_team), [&] () {
+          micro_kernel_assert(N <= m_parent.m_max_used);
+          m_parent.m_num_used(m_ws_idx) = N;
+          if (m_parent.m_num_used(m_ws_idx) > m_parent.m_high_water(m_ws_idx)) {
+            m_parent.m_high_water(m_ws_idx) = m_parent.m_num_used(m_ws_idx);
+          }
+        });
+#endif
+
+      for (int n = 0; n < static_cast<int>(N); ++n) {
+        const auto space = m_parent.get_space_in_slot<S>(m_ws_idx, n);
+        *ptrs[n] = space;
+      }
+
+      // We only need to reset the metadata for spaces that are being left free
+      Kokkos::parallel_for(
+        Kokkos::TeamThreadRange(m_team, m_parent.m_max_used - N), [&] (int i) {
+          m_parent.init_metadata(m_ws_idx, i+N);
+        });
+
+      Kokkos::single(Kokkos::PerTeam(m_team), [&] () {
+          m_next_slot = N;
+#ifndef NDEBUG
+          for (int n = 0; n < N; ++n) {
+            auto space = *ptrs[n];
+            set_name<S>(space, names[n]);
+            const int team_rank = m_team.league_rank();
+            int name_idx = -1;
+            for (int n = 0; n < m_max_names; ++n) {
+              char* old_name = &(m_parent.m_all_names(team_rank, n, 0));
+              if (util::strcmp(old_name, names[n]) == 0) {
+                name_idx = n;
+                break;
+              }
+              else if (util::strcmp(old_name, "") == 0) {
+                util::strcpy(old_name, names[n]);
+                name_idx = n;
+                break;
+              }
+            }
+            micro_kernel_assert(name_idx != -1);
+            m_parent.m_counts(team_rank, name_idx, 0) += 1;
+          }
+#endif
+        });
+      // We need a barrier here so that a subsequent call to take or release
+      // starts with the metadata in the correct state.
+      m_team.team_barrier();
+    }
+
     // Wrapper so caller doesn't have to specify scalar type.
     template <typename View>
     KOKKOS_FORCEINLINE_FUNCTION
@@ -594,7 +650,7 @@ class WorkspaceManager
       });
       m_team.team_barrier();
     }
-  };
+  }; // class Workspace
 
   KOKKOS_INLINE_FUNCTION
   Workspace get_workspace(const member_type& team) const
