@@ -1,18 +1,144 @@
 \documentclass[10pt]{article}
 
+%%%%%%%%%%%%%%%%
+%%  Packages  %%
+%%%%%%%%%%%%%%%%
+\usepackage[margin=2cm]{geometry}
 
 \begin{document}
 
-\section{Introduction}
-% Briefly tell what this doc is about: AD + PBUF
+This document describes the design of the Simple Cloud Resolving E3SM Atmosphere Model (SCREAM)
+component of E3SM. The goal is to provide an overview of the data structures and code
+flow, in order to help new user to navigate the code more easily, as well as
+developers to implement new functionalities in a way that is consistent with
+the rest of the library.
 
-\section{Atm processes}
+\textbf{Warning}: information in this document may be outdated and/or incomplete,
+as the design and implementation of SCREAM progresses. For more information on
+the status of the development, contact Peter Caldwell (caldwell19@llnl.gov),
+or Aaron Donahue (donahue5@llnl.gov).
+
+\section{Introduction}
+\label{sec:intro}
+The Simple Cloud Resolving E3SM Atmosphere Model (SCREAM) component of
+E3SM has a framework completely redesigned, which sets it apart from
+the previous driver structure in the Community Atmosphere Model (CAM).
+First, and most obvious, SCREAM is for the most part written in C++,
+with the goal to adopt the Kokkos library for performance portable
+on-node parallelism. The execution flow of a typical atmosphere run is
+mostly similar to that of CAM, but written in a object-oriented fashion,
+with emphasis on modularity, maintainability, and, where needed, performance.
+
+The SCREAM directory is organized in the following fashion:
+
+\begin{itemize}
+\item [-] \verb|cmake/|: in-house cmake scripts
+\item [-] \verb|data/|: data files used by scream
+\item [-] \verb|data/|: external libraries, shipped with SCREAM
+\item [-] \verb|src/|: scream source code
+\begin{itemize}
+\item [-] \verb|src/control/|: atmosphere driver and interface with the component coupler
+\item [-] \verb|src/dynamics/|: interface with atmosphere dynamics dycore (HOMME)
+\item [-] \verb|src/physics/|: physics parametrizations
+\begin{itemize}
+\item [-] \verb|src/physics/X/|: parametrization X
+\item [-] \verb|src/physics/Y/|: parametrization Y
+\item [-] \verb|src/physics/Z/|: parametrization Z
+\item [-] ...
+\end{itemize}
+\item [-] \verb|src/share/|: structures and functions used across SCREAM
+\begin{itemize}
+\item [-] \verb|src/share/util/|: handy utility structures and functions
+\item [-] \verb|src/share/mpi/|: mpi-related structures and functions
+\end{itemize}
+\end{itemize}
+\item [-] \verb|test/|: component-wide testing.
+\end{itemize}
+
+This document focuses on the infrastructure part of the library, which means mostly
+the content of the directories \verb|control| and \verb|share| (and its subdirectories).
+In particular, a developer which wants to implement a new physics parametrization
+will be mostly interested in the data structures and functions defined in the \verb|share| folder;
+on the other hand, a developer that has to work on SCREAM-wide infrastructure (e.g.,
+interface with E3SM's driver, or atmosphere processes scheduling) will be mostly
+interested in the content of the \verb|control| folder.
+
+It is impossible to start describing the data structures and functionalities in SCREAM
+without creating circular references between different concepts. Therefore, we list
+here, right off the bat, the classes that implement the main concepts that make up SCREAM,
+deferring their explanation and details to the following sections:
+
+\begin{itemize}
+\item \verb|Field|: a multidimensional array, to store space (and possibly time) dependent quantities;
+\item \verb|FieldRepository|: a container and manager for \verb|Field|'s;
+\item \verb|AtmosphereProcess|: a class implementing a mathematical model for a particular atmosphere phenomenon;
+\item \verb|AtmosphereDriver|: a class handling a time step of the atmosphere component.
+\end{itemize}
+
+\section{The driver}
+\label{sec:driver}
+As mentioned before, the \verb|control| folder is responsible for two mostly independent
+infrastructure operations:
+
+\begin{itemize}
+\item interfacing SCREAM with the rest of E3SM;
+\item coordinating all the pieces of SCREAM to advance the atmosphere state by a time-step.
+\end{itemize}
+
+The first is what we will refer to as the \emph{coupler interface}, while second is what
+we refer to as the \emph{atmosphere driver}, or simply the \emph{driver}.
+
+The coupler interface is probably the least appealing part of the library,
+given the amount of C-Fortran interface routines needed to connect C++ code (SCREAM)
+to Fortran code (E3SM's component coupler). It consists of several interoperable
+C-Fortran functions, that are called from the coupler, and forward data/requests
+to the atmosphere driver.
+
+The driver, on the other hand, only interacts with C++ parts of the library,
+and uses more object-oriented design, and C++ features to allow for flexibility,
+extensibility, and safety. Its main functionality is to supervise data management
+(i.e., the fields, see \ref{sec:fields}), and to coordinate the scheduling and
+execution of the functions that implements algorithms used to solve equations in
+the atmosphere (i.e., the atmosphere processes, see \ref{sec:processes}).
+
+\section{Atmosphere processes}
+\label{sec:processes}
 % Describe what atm processes are, and how the AD interacts with them
 % Advantages of abstract interface: flexibility in terms of seq vs parallel,
 % as well as reordering of processes; ease to add new parametrizations.
 % What does one need to do to add his/her/their new parametrization?
+To describe the evolution of the atmosphere state, SCREAM uses the concept
+of \emph{atmosphere process} (AP). An atmosphere process is a set
+of equations describing a particular phenomenon. For instance, the evolution
+of thermodynamics quantities (velocity, temperature, pressure) is a process,
+modeled through some variation of the Navier-Stokes eqution. In the rest
+of this document, this process will be simply called \emph{dynamics}.
+SCREAM does not offer directly an implementation for the dynamics process,
+and relies instead on the HOMME dycore (a wrapper for HOMME is implemented in
+the \verb|dynamics| folder). All the physics parametrizations in the \verb|physics| folder are also
+atmosphere processes.
+
+The \verb|AtmosphereProcess| class is a very simple abstract interface.
+Every new atmosphere process (e.g., a new physics parametrization) must
+inherit from this class, and give a concrete implementation of its methods.
+Aside from some common utility ones (e.g., provide a name), there are
+two sets of methods for \verb|AtmosphereProcess|:
+\begin{itemize}
+\item Execution methods: these are the \verb|initialize|, \verb|run|, and \verb|finalize|
+      methods. The first is called at the beginning of the simulation, and sets up the
+      atmosphere process object (e.g., initialize internal buffers, precompute
+      quantities, etc.); the second is called at every atmosphere time step, and is
+      responsible for updating certain fields; the third is called at the end of the
+      simulation, to free resources (e.g., memory).
+\item Data methods: these are used to get information about the data dependencies
+      of the atmosphere process (i.e., the input and output fields), as well as
+      to set handles to the requested input/output fields in the object. The driver
+      will use these methods to selectively grant read/write access to fields
+      in the field repository to each atmosphere process.
+\end{itemize}
 
 \section{Fields and field repository}
+\label{sec:fields}
 % Describe (without committing too much to the details) the
 % data structure we use for fields (header + view), what is in the
 % header (name, layout, dims). The field repo will replace the
