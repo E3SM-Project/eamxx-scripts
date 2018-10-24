@@ -5,6 +5,7 @@
 #include "micro_sed_workspace_kokkos.hpp"
 #include "micro_sed_pack_kokkos.hpp"
 #include "micro_sed_packnoi_kokkos.hpp"
+#include "micro_sed_packnoiws_kokkos.hpp"
 #include "micro_kokkos.hpp"
 #include "cmp.hpp"
 
@@ -444,12 +445,13 @@ static Int run_and_cmp (const std::string& bfn, const Real& tol, bool verbose) {
       d_ic_cp.dt /= BaselineConsts::nstep;
 
       std::vector<ic::MicroSedData<Scalar> > ds
-        = {d_ic_cp, d_ic_cp, d_ic_cp, d_ic_cp, d_ic_cp, d_ic_cp};
+        = {d_ic_cp, d_ic_cp, d_ic_cp, d_ic_cp, d_ic_cp, d_ic_cp, d_ic_cp};
 
       p3::micro_sed::MicroSedFuncWorkspaceKokkos<Scalar> mswk(d_ic.ni, d_ic.nk);
       p3::micro_sed::MicroSedFuncVanillaKokkos<Scalar> msvk(d_ic.ni, d_ic.nk);
       p3::micro_sed::MicroSedFuncPackKokkos<Scalar> mspk(d_ic.ni, d_ic.nk);
       p3::micro_sed::MicroSedFuncPackNoiKokkos<Scalar> mspnk(d_ic.ni, d_ic.nk);
+      p3::micro_sed::MicroSedFuncPackNoiWsKokkos<Scalar> mspnwk(d_ic.ni, d_ic.nk);
 
       for (Int step = 0; step < BaselineConsts::nstep; ++step) {
         // Read the baseline.
@@ -501,6 +503,10 @@ static Int run_and_cmp (const std::string& bfn, const Real& tol, bool verbose) {
         nerr += do_compare<KokkosPackBridge<Scalar> >(
           [&] (ic::MicroSedData<Scalar>& d, KokkosPackBridge<Scalar>& b) { micro_sed_func_cpp_kokkos(d, b, mspnk); },
           ds[5], d_ref, cpp_tol, "Pack No-i Kokkos C++", step, verbose);
+
+        nerr += do_compare<KokkosPackBridge<Scalar> >(
+          [&] (ic::MicroSedData<Scalar>& d, KokkosPackBridge<Scalar>& b) { micro_sed_func_cpp_kokkos(d, b, mspnwk); },
+          ds[6], d_ref, cpp_tol, "Pack No-i WS Kokkos C++", step, verbose);
       }
     }
   };

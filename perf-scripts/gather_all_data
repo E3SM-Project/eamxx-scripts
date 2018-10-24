@@ -52,6 +52,8 @@ OR
     parser.add_argument("-m", "--machine", action="append", choices=MACHINE_METADATA.keys(),
                         help="Select which machines to run on, default is all")
 
+    parser.add_argument("-t", "--test-all", action="store_true", help="Run test-all instead of performance gathering")
+
     expect(os.path.basename(os.getcwd()) == "micro-apps", "Please run from micro-apps directory")
 
     args = parser.parse_args(args[1:])
@@ -59,41 +61,41 @@ OR
     if not args.machine:
         args.machine = MACHINE_METADATA.keys()
 
-    return args.perf_analysis_args, args.commit, args.machine
+    return args.perf_analysis_args, args.commit, args.machine, args.test_all
 
 ###############################################################################
-def formulate_command(machine, perf_analysis_args, commit):
+def formulate_command(machine, perf_analysis_args, commit, test_all):
 ###############################################################################
     modules, repo, kokkos, compiler, batch = MACHINE_METADATA[machine]
 
-    pargs = perf_analysis_args.replace("$compiler", compiler)
-    pargs = pargs.replace("$kokkos_install", kokkos)
+    local_cmd = "./test-all {} {}".format(compiler, kokkos) if test_all else "../perf-scripts/perf_analysis {} -p".format(perf_analysis_args)
+    local_cmd = local_cmd.replace("$compiler", compiler).replace("$kokkos_install", kokkos)
 
-    cmd = "cd {} && module load {} && git fetch && git checkout {} && {} ../perf-scripts/perf_analysis {} -p".format(os.path.join(repo, "micro-apps"), " ".join(modules), commit, batch, pargs)
+    cmd = "cd {} && module load {} && git fetch && git checkout {} && {} {}".format(os.path.join(repo, "micro-apps"), " ".join(modules), commit, batch, local_cmd)
 
     return cmd
 
 ###############################################################################
-def run_on_machine(machine, perf_analysis_args, commit):
+def run_on_machine(machine, perf_analysis_args, commit, test_all):
 ###############################################################################
-    cmd = formulate_command(machine, perf_analysis_args, commit)
-    print("Starting performance analysis on {} with cmd: {}".format(machine, cmd))
+    cmd = formulate_command(machine, perf_analysis_args, commit, test_all)
+    print("Starting {} analysis on {} with cmd: {}".format("test-all" if test_all else "performance", machine, cmd))
 
     output = run_cmd_no_fail("ssh -o StrictHostKeyChecking=no {} '{}'".format(machine, cmd), exc_type=RuntimeError)
-    with open(os.path.join("perf-results", commit, machine), "w") as fd:
+    with open(os.path.join("test-all-results" if test_all else "perf-results", commit, machine), "w") as fd:
         fd.write(output)
 
-    print ("Completed performance analysis on {}".format(machine))
+    print ("Completed {} analysis on {}".format("test-all" if test_all else "performance", machine))
 
 ###############################################################################
-def gather_all_data(perf_analysis_args, commit, machines):
+def gather_all_data(perf_analysis_args, commit, machines, test_all):
 ###############################################################################
-    os.mkdir(os.path.join("perf-results", commit))
+    os.mkdir(os.path.join("test-all-results" if test_all else "perf-results", commit))
 
     success = True
 
     with threading3.ThreadPoolExecutor(max_workers=len(machines)) as executor:
-        future_to_machine = {executor.submit(run_on_machine, machine, perf_analysis_args, commit): machine for machine in machines}
+        future_to_machine = {executor.submit(run_on_machine, machine, perf_analysis_args, commit, test_all): machine for machine in machines}
         for future in threading3.as_completed(future_to_machine):
             machine = future_to_machine[future]
             try:
@@ -107,9 +109,9 @@ def gather_all_data(perf_analysis_args, commit, machines):
 ###############################################################################
 def _main_func(description):
 ###############################################################################
-    perf_analysis_args, commit, machines = parse_command_line(sys.argv, description)
+    perf_analysis_args, commit, machines, test_all = parse_command_line(sys.argv, description)
 
-    success = gather_all_data(perf_analysis_args, commit, machines)
+    success = gather_all_data(perf_analysis_args, commit, machines, test_all)
 
     sys.exit(0 if success else 1)
 

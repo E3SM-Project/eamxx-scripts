@@ -138,7 +138,7 @@ struct Pack {
                   "Pack::n must be the same.");
     vector_simd for (int i = 0; i < n; ++i) if (mask[i]) d[i] = p[i];
   }
-  
+
 private:
   scalar d[n];
 };
@@ -367,6 +367,93 @@ OnlyPack<Pack> range (const typename Pack::scalar& start) {
   pack p;
   vector_simd for (int i = 0; i < Pack::n; ++i) p[i] = start + i;
   return p;
+}
+
+template <typename T>
+using BigPack = Pack<T, SCREAM_PACKN>;
+template <typename T>
+using SmallPack = Pack<T, SCREAM_PACKN / SCREAM_SMALL_PACK_FACTOR>;
+
+using RealPack = BigPack<Real>;
+using IntPack = BigPack<Int>;
+using RealSmallPack = SmallPack<Real>;
+using IntSmallPack = SmallPack<Int>;
+
+template <typename T, typename ...Parms, int pack_size> KOKKOS_FORCEINLINE_FUNCTION
+Unmanaged<Kokkos::View<T**, Parms...> >
+scalarize (const Kokkos::View<Pack<T, pack_size>**, Parms...>& vp) {
+  return Unmanaged<Kokkos::View<T**, Parms...> >(
+    reinterpret_cast<T*>(vp.data()), vp.extent_int(0), pack_size * vp.extent_int(1));
+}
+
+template <typename T, typename ...Parms, int pack_size> KOKKOS_FORCEINLINE_FUNCTION
+Unmanaged<Kokkos::View<T*, Parms...> >
+scalarize (const Kokkos::View<Pack<T, pack_size>*, Parms...>& vp) {
+  return Unmanaged<Kokkos::View<T*, Parms...> >(
+    reinterpret_cast<T*>(vp.data()), pack_size * vp.extent_int(0));
+}
+
+template <int new_pack_size,
+          typename T, typename ...Parms, int old_pack_size>
+KOKKOS_FORCEINLINE_FUNCTION
+Unmanaged<Kokkos::View<Pack<T, new_pack_size>**, Parms...> >
+repack (const Kokkos::View<Pack<T, old_pack_size>**, Parms...>& vp) {
+  static_assert(new_pack_size > 0 &&
+                old_pack_size % new_pack_size == 0,
+                "New pack size must divide old pack size.");
+  return Unmanaged<Kokkos::View<Pack<T, new_pack_size>**, Parms...> >(
+    reinterpret_cast<Pack<T, new_pack_size>*>(vp.data()),
+    vp.extent_int(0),
+    (old_pack_size / new_pack_size) * vp.extent_int(1));
+}
+
+// shrinking
+template <int new_pack_size,
+          typename T, typename ...Parms, int old_pack_size,
+          typename std::enable_if<(old_pack_size >= new_pack_size), int>::type = 0>
+KOKKOS_FORCEINLINE_FUNCTION
+Unmanaged<Kokkos::View<Pack<T, new_pack_size>*, Parms...> >
+repack (const Kokkos::View<Pack<T, old_pack_size>*, Parms...>& vp) {
+  static_assert(new_pack_size > 0 &&
+                old_pack_size % new_pack_size == 0,
+                "New pack size must divide old pack size.");
+  return Unmanaged<Kokkos::View<Pack<T, new_pack_size>*, Parms...> >(
+    reinterpret_cast<Pack<T, new_pack_size>*>(vp.data()),
+    (old_pack_size / new_pack_size) * vp.extent_int(0));
+}
+
+// growing
+template <int new_pack_size,
+          typename T, typename ...Parms, int old_pack_size,
+          typename std::enable_if<(old_pack_size < new_pack_size), int>::type = 0>
+KOKKOS_FORCEINLINE_FUNCTION
+Unmanaged<Kokkos::View<Pack<T, new_pack_size>*, Parms...> >
+repack (const Kokkos::View<Pack<T, old_pack_size>*, Parms...>& vp) {
+  static_assert(new_pack_size > 0 &&
+                new_pack_size % old_pack_size == 0,
+                "Old pack size must divide new pack size.");
+  micro_kernel_assert(vp.extent_int(0) % (new_pack_size / old_pack_size) == 0);
+  return Unmanaged<Kokkos::View<Pack<T, new_pack_size>*, Parms...> >(
+    reinterpret_cast<Pack<T, new_pack_size>*>(vp.data()),
+    vp.extent_int(0) / (new_pack_size / old_pack_size));
+}
+
+template <typename T, typename ...Parms> KOKKOS_FORCEINLINE_FUNCTION
+Unmanaged<Kokkos::View<SmallPack<T>**, Parms...> >
+smallize (const Kokkos::View<BigPack<T>**, Parms...>& vp) {
+  return repack<SCREAM_PACKN / SCREAM_SMALL_PACK_FACTOR>(vp);
+}
+
+template <typename T, typename ...Parms> KOKKOS_FORCEINLINE_FUNCTION
+Unmanaged<Kokkos::View<SmallPack<T>*, Parms...> >
+smallize (const Kokkos::View<BigPack<T>*, Parms...>& vp) {
+  return repack<SCREAM_PACKN / SCREAM_SMALL_PACK_FACTOR>(vp);
+}
+
+template <typename T, typename ...Parms> KOKKOS_FORCEINLINE_FUNCTION
+Unmanaged<Kokkos::View<BigPack<T>*, Parms...> >
+biggize (const Kokkos::View<SmallPack<T>*, Parms...>& vp) {
+  return repack<SCREAM_PACKN>(vp);
 }
 
 } // namespace pack

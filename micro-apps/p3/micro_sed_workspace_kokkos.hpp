@@ -28,10 +28,13 @@ struct MicroSedFuncWorkspaceKokkos : public MicroSedFuncVanillaKokkos<Real> {
 
 public:
   MicroSedFuncWorkspaceKokkos(int num_horz_, int num_vert_) :
-    MicroSedFuncVanillaKokkos<Real>(util::ExeSpaceUtils<>::get_num_concurrent_teams(util::ExeSpaceUtils<>::get_default_team_policy(num_horz_, num_vert_)), num_vert_),
+    MicroSedFuncVanillaKokkos<Real>(
+      util::TeamUtils<>(util::ExeSpaceUtils<>::get_default_team_policy(num_horz_, num_vert_))
+      .get_num_concurrent_teams(),
+      num_vert_),
     policy(util::ExeSpaceUtils<>::get_default_team_policy(num_horz_, num_vert_)),
     team_utils(policy),
-    concurrency(util::ExeSpaceUtils<>::get_num_concurrent_teams(policy))
+    concurrency(team_utils.get_num_concurrent_teams())
   {
     this->num_horz = num_horz_;
   }
