@@ -108,9 +108,9 @@ void find_lookupTable_indices_3_kokkos (
 
 KOKKOS_INLINE_FUNCTION
 RealSmallPack apply_table (
-  const SmallMask& qr_gt_small, const kokkos_2d_table_t<Real>& table, const Table3& t)
+  const SmallMask& qr_gt_small, const kokkos_2d_table_t<const Real>& table, const Table3& t)
 {
-  const auto rdumii_m_dumii = t.rdumii-RealSmallPack(t.dumii);
+  const auto rdumii_m_dumii = t.rdumii - RealSmallPack(t.dumii);
   const auto t_im1_jm1 = index(table, t.dumii-1, t.dumjj-1);
   const auto dum1 = (t_im1_jm1 + rdumii_m_dumii * t.inv_dum3 *
                      (index(table, t.dumii, t.dumjj-1) - t_im1_jm1));
@@ -125,7 +125,7 @@ KOKKOS_INLINE_FUNCTION
 void get_rain_dsd2_kokkos (
   const SmallMask& qr_gt_small, const RealSmallPack& qr, RealSmallPack& nr, RealSmallPack& mu_r,
   RealSmallPack& rdumii, IntSmallPack& dumii, RealSmallPack& lamr,
-  const kokkos_1d_table_t<Real>& mu_r_table, RealSmallPack& cdistr, RealSmallPack& logn0r)
+  const kokkos_1d_table_t<const Real>& mu_r_table, RealSmallPack& cdistr, RealSmallPack& logn0r)
 {
   constexpr auto nsmall = Globals<Real>::NSMALL;
   constexpr auto thrd = Globals<Real>::THRD;
@@ -285,10 +285,9 @@ void calc_first_order_upwind_step (
 //TODO Unit test.
 // Find the bottom and top of the mixing ratio, e.g., qr. It's worth casing
 // these out in two ways: 1 thread/column vs many, and by kdir.
-template <typename Array1>
 KOKKOS_INLINE_FUNCTION
 Int find_bottom (const member_type& team,
-                 const Array1& v, const Real& small,
+                 const Unmanaged<kokkos_1d_t<const Real> >& v, const Real& small,
                  const Int& kbot, const Int& ktop, const Int& kdir,
                  bool& log_present) {
   log_present = false;
@@ -323,10 +322,9 @@ Int find_bottom (const member_type& team,
 }
 
 //TODO Unit test.
-template <typename Array1>
 KOKKOS_INLINE_FUNCTION
 Int find_top (const member_type& team,
-              const Array1& v, const Real& small,
+              const Unmanaged<kokkos_1d_t<const Real> >& v, const Real& small,
               const Int& kbot, const Int& ktop, const Int& kdir,
               bool& log_present) {
   log_present = false;
