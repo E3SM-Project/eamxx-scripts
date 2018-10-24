@@ -203,10 +203,7 @@ void micro_sed_func (
           team.team_barrier();
 
           // accumulated precip during time step
-          {
-            auto sflux_qx = scalarize(lflux_qx);
-            if (k_qxbot == kbot) prt_accum += sflux_qx(kbot) * dt_sub;
-          }
+          if (k_qxbot == kbot) prt_accum += sflux_qx(kbot) * dt_sub;
 
           dt_left -= dt_sub;  // update time remaining for sedimentation
           if (k_qxbot != kbot) k_qxbot -= kdir;

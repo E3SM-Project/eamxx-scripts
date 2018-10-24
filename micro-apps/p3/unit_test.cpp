@@ -38,7 +38,6 @@ static Int unittest_pack () {
   const int num_bigs = 17;
 
   using TestBigPack   = scream::pack::Pack<Real, 16>;
-  using TestSmallPack = scream::pack::Pack<Real, 4>;
 
   kokkos_1d_t<TestBigPack> test_k_array("test_k_array", num_bigs);
   Kokkos::parallel_reduce("unittest_pack",

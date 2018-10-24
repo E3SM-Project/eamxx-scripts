@@ -436,21 +436,22 @@ class WorkspaceManager
     {
 #ifndef NDEBUG
       Kokkos::single(Kokkos::PerTeam(m_team), [&] () {
-        micro_kernel_assert(m_parent.m_num_used(m_ws_idx)+N <= m_parent.m_max_used);
+          micro_kernel_assert(m_parent.m_num_used(m_ws_idx) + static_cast<int>(N) <=
+                              m_parent.m_max_used);
         m_parent.m_num_used(m_ws_idx) += N;
         if (m_parent.m_num_used(m_ws_idx) > m_parent.m_high_water(m_ws_idx)) {
           m_parent.m_high_water(m_ws_idx) = m_parent.m_num_used(m_ws_idx);
         }
 
         // Verify contiguous
-        for (int n = 0; n < N; ++n) {
+        for (int n = 0; n < static_cast<int>(N); ++n) {
           const auto space = m_parent.get_space_in_slot<S>(m_ws_idx, m_next_slot + n);
           micro_kernel_assert(m_parent.get_next<S>(space) == m_next_slot + n + 1);
         }
       });
 #endif
 
-      for (int n = 0; n < N; ++n) {
+      for (int n = 0; n < static_cast<int>(N); ++n) {
         const auto space = m_parent.get_space_in_slot<S>(m_ws_idx, m_next_slot+n);
         *ptrs[n] = space;
       }
@@ -461,7 +462,7 @@ class WorkspaceManager
       Kokkos::single(Kokkos::PerTeam(m_team), [&] () {
         m_next_slot += N;
 #ifndef NDEBUG
-        for (int n = 0; n < N; ++n) {
+        for (int n = 0; n < static_cast<int>(N); ++n) {
           auto space = *ptrs[n];
           set_name<S>(space, names[n]);
           const int team_rank = m_team.league_rank();
@@ -495,7 +496,7 @@ class WorkspaceManager
     {
 #ifndef NDEBUG
       Kokkos::single(Kokkos::PerTeam(m_team), [&] () {
-          micro_kernel_assert(N <= m_parent.m_max_used);
+          micro_kernel_assert(static_cast<int>(N) <= m_parent.m_max_used);
           m_parent.m_num_used(m_ws_idx) = N;
           if (m_parent.m_num_used(m_ws_idx) > m_parent.m_high_water(m_ws_idx)) {
             m_parent.m_high_water(m_ws_idx) = m_parent.m_num_used(m_ws_idx);
@@ -517,7 +518,7 @@ class WorkspaceManager
       Kokkos::single(Kokkos::PerTeam(m_team), [&] () {
           m_next_slot = N;
 #ifndef NDEBUG
-          for (int n = 0; n < N; ++n) {
+          for (int n = 0; n < static_cast<int>(N); ++n) {
             auto space = *ptrs[n];
             set_name<S>(space, names[n]);
             const int team_rank = m_team.league_rank();
