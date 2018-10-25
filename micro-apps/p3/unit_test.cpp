@@ -138,7 +138,12 @@ static int unittest_workspace()
         Kokkos::Array<Unmanaged<kokkos_1d_t<int> >*, num_ws> ptrs = { {&ws1, &ws2, &ws3, &ws4} };
         Kokkos::Array<const char*, num_ws> names = { {"tm0", "tm1", "tm2", "tm3"} };
 
-        ws.take_many(names, ptrs);
+        if (r == 0) {
+          ws.take_many(names, ptrs);
+        }
+        else {
+          ws.take_many_contiguous_unsafe(names, ptrs);
+        }
 
         for (int w = 0; w < num_ws; ++w) {
           Kokkos::parallel_for(Kokkos::TeamThreadRange(team, ints_per_ws), [&] (Int i) {

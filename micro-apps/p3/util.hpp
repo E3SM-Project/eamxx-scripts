@@ -386,13 +386,7 @@ class WorkspaceManager
     Unmanaged<kokkos_1d_t<S> > take(const char* name) const
     {
 #ifndef NDEBUG
-      Kokkos::single(Kokkos::PerTeam(m_team), [&] () {
-        micro_kernel_assert(m_parent.m_num_used(m_ws_idx) < m_parent.m_max_used);
-        m_parent.m_num_used(m_ws_idx) += 1;
-        if (m_parent.m_num_used(m_ws_idx) > m_parent.m_high_water(m_ws_idx)) {
-          m_parent.m_high_water(m_ws_idx) = m_parent.m_num_used(m_ws_idx);
-        }
-      });
+      change_num_used(1);
 #endif
 
       const auto space = m_parent.get_space_in_slot<S>(m_ws_idx, m_next_slot);
@@ -404,22 +398,7 @@ class WorkspaceManager
         m_next_slot = m_parent.get_next<S>(space);
 #ifndef NDEBUG
         set_name<S>(space, name);
-        const int team_rank = m_team.league_rank();
-        int name_idx = -1;
-        for (int n = 0; n < m_max_names; ++n) {
-          char* old_name = &(m_parent.m_all_names(team_rank, n, 0));
-          if (util::strcmp(old_name, name) == 0) {
-            name_idx = n;
-            break;
-          }
-          else if (util::strcmp(old_name, "") == 0) {
-            util::strcpy(old_name, name);
-            name_idx = n;
-            break;
-          }
-        }
-        micro_kernel_assert(name_idx != -1);
-        m_parent.m_counts(team_rank, name_idx, 0) += 1;
+        change_count(name, 1);
 #endif
       });
       // We need a barrier here so that a subsequent call to take or release
@@ -431,24 +410,16 @@ class WorkspaceManager
 
     template <typename S=T, size_t N>
     KOKKOS_INLINE_FUNCTION
-    void take_many_contiguous(const Kokkos::Array<const char*, N>& names,
-                              const Kokkos::Array<Unmanaged<kokkos_1d_t<S> >*, N>& ptrs) const
+    void take_many_contiguous_unsafe(const Kokkos::Array<const char*, N>& names,
+                                     const Kokkos::Array<Unmanaged<kokkos_1d_t<S> >*, N>& ptrs) const
     {
 #ifndef NDEBUG
-      Kokkos::single(Kokkos::PerTeam(m_team), [&] () {
-          micro_kernel_assert(m_parent.m_num_used(m_ws_idx) + static_cast<int>(N) <=
-                              m_parent.m_max_used);
-        m_parent.m_num_used(m_ws_idx) += N;
-        if (m_parent.m_num_used(m_ws_idx) > m_parent.m_high_water(m_ws_idx)) {
-          m_parent.m_high_water(m_ws_idx) = m_parent.m_num_used(m_ws_idx);
-        }
-
-        // Verify contiguous
-        for (int n = 0; n < static_cast<int>(N); ++n) {
-          const auto space = m_parent.get_space_in_slot<S>(m_ws_idx, m_next_slot + n);
-          micro_kernel_assert(m_parent.get_next<S>(space) == m_next_slot + n + 1);
-        }
-      });
+      change_num_used(N);
+      // Verify contiguous
+      for (int n = 0; n < static_cast<int>(N); ++n) {
+        const auto space = m_parent.get_space_in_slot<S>(m_ws_idx, m_next_slot + n);
+        micro_kernel_assert(m_parent.get_next<S>(space) == m_next_slot + n + 1);
+      }
 #endif
 
       for (int n = 0; n < static_cast<int>(N); ++n) {
@@ -465,22 +436,7 @@ class WorkspaceManager
         for (int n = 0; n < static_cast<int>(N); ++n) {
           auto space = *ptrs[n];
           set_name<S>(space, names[n]);
-          const int team_rank = m_team.league_rank();
-          int name_idx = -1;
-          for (int n = 0; n < m_max_names; ++n) {
-            char* old_name = &(m_parent.m_all_names(team_rank, n, 0));
-            if (util::strcmp(old_name, names[n]) == 0) {
-              name_idx = n;
-              break;
-            }
-            else if (util::strcmp(old_name, "") == 0) {
-              util::strcpy(old_name, names[n]);
-              name_idx = n;
-              break;
-            }
-          }
-          micro_kernel_assert(name_idx != -1);
-          m_parent.m_counts(team_rank, name_idx, 0) += 1;
+          change_count(names[n], 1);
         }
 #endif
       });
@@ -495,18 +451,11 @@ class WorkspaceManager
                    const Kokkos::Array<Unmanaged<kokkos_1d_t<S> >*, N>& ptrs) const
     {
 #ifndef NDEBUG
-      Kokkos::single(Kokkos::PerTeam(m_team), [&] () {
-          micro_kernel_assert(m_parent.m_num_used(m_ws_idx) + static_cast<int>(N) <=
-                              m_parent.m_max_used);
-        m_parent.m_num_used(m_ws_idx) += N;
-        if (m_parent.m_num_used(m_ws_idx) > m_parent.m_high_water(m_ws_idx)) {
-          m_parent.m_high_water(m_ws_idx) = m_parent.m_num_used(m_ws_idx);
-        }
-      });
+      change_num_used(N);
 #endif
 
       int next_slot = m_next_slot;
-      for (int n = 0; n < N; ++n) {
+      for (int n = 0; n < static_cast<int>(N); ++n) {
         auto& space = *ptrs[n];
         space = m_parent.get_space_in_slot<S>(m_ws_idx, next_slot);
         next_slot = m_parent.get_next<S>(space);
@@ -521,22 +470,7 @@ class WorkspaceManager
         for (int n = 0; n < static_cast<int>(N); ++n) {
           auto space = *ptrs[n];
           set_name<S>(space, names[n]);
-          const int team_rank = m_team.league_rank();
-          int name_idx = -1;
-          for (int n = 0; n < m_max_names; ++n) {
-            char* old_name = &(m_parent.m_all_names(team_rank, n, 0));
-            if (util::strcmp(old_name, names[n]) == 0) {
-              name_idx = n;
-              break;
-            }
-            else if (util::strcmp(old_name, "") == 0) {
-              util::strcpy(old_name, names[n]);
-              name_idx = n;
-              break;
-            }
-          }
-          micro_kernel_assert(name_idx != -1);
-          m_parent.m_counts(team_rank, name_idx, 0) += 1;
+          change_count(names[n], 1);
         }
 #endif
       });
@@ -551,13 +485,7 @@ class WorkspaceManager
                              const Kokkos::Array<Unmanaged<kokkos_1d_t<S> >*, N>& ptrs) const
     {
 #ifndef NDEBUG
-      Kokkos::single(Kokkos::PerTeam(m_team), [&] () {
-          micro_kernel_assert(static_cast<int>(N) <= m_parent.m_max_used);
-          m_parent.m_num_used(m_ws_idx) = N;
-          if (m_parent.m_num_used(m_ws_idx) > m_parent.m_high_water(m_ws_idx)) {
-            m_parent.m_high_water(m_ws_idx) = m_parent.m_num_used(m_ws_idx);
-          }
-        });
+      change_num_used(N - m_parent.m_num_used(m_ws_idx));
 #endif
 
       for (int n = 0; n < static_cast<int>(N); ++n) {
@@ -572,30 +500,15 @@ class WorkspaceManager
         });
 
       Kokkos::single(Kokkos::PerTeam(m_team), [&] () {
-          m_next_slot = N;
+        m_next_slot = N;
 #ifndef NDEBUG
-          for (int n = 0; n < static_cast<int>(N); ++n) {
-            auto space = *ptrs[n];
-            set_name<S>(space, names[n]);
-            const int team_rank = m_team.league_rank();
-            int name_idx = -1;
-            for (int n = 0; n < m_max_names; ++n) {
-              char* old_name = &(m_parent.m_all_names(team_rank, n, 0));
-              if (util::strcmp(old_name, names[n]) == 0) {
-                name_idx = n;
-                break;
-              }
-              else if (util::strcmp(old_name, "") == 0) {
-                util::strcpy(old_name, names[n]);
-                name_idx = n;
-                break;
-              }
-            }
-            micro_kernel_assert(name_idx != -1);
-            m_parent.m_counts(team_rank, name_idx, 0) += 1;
-          }
+        for (int n = 0; n < static_cast<int>(N); ++n) {
+          auto space = *ptrs[n];
+          set_name<S>(space, names[n]);
+          change_count(names[n], 1);
+        }
 #endif
-        });
+      });
       // We need a barrier here so that a subsequent call to take or release
       // starts with the metadata in the correct state.
       m_team.team_barrier();
@@ -621,7 +534,7 @@ class WorkspaceManager
     {
       m_team.team_barrier();
 #ifndef NDEBUG
-      m_parent.m_num_used(m_ws_idx) = 0;
+      change_num_used(-m_parent.m_num_used(m_ws_idx));
 #endif
       m_next_slot = 0;
       Kokkos::parallel_for(
@@ -670,10 +583,65 @@ class WorkspaceManager
     KOKKOS_INLINE_FUNCTION
     void set_name(const Unmanaged<kokkos_1d_t<S> >& space, const char* name) const
     {
+      // Should only be called within a Kokkos::single block
       micro_kernel_assert(util::strlen(name) < m_max_name_len); // leave one char for null terminator
       const int slot = m_parent.get_index<S>(space);
       char* val = &(m_parent.m_curr_names(m_ws_idx, slot, 0));
       util::strcpy(val, name);
+    }
+
+    KOKKOS_INLINE_FUNCTION
+    void change_num_used(int change_by) const
+    {
+      Kokkos::single(Kokkos::PerTeam(m_team), [&] () {
+        int curr_used = m_parent.m_num_used(m_ws_idx) += change_by;
+        micro_kernel_assert(curr_used <= m_parent.m_max_used);
+        micro_kernel_assert(curr_used >= 0);
+        if (curr_used > m_parent.m_high_water(m_ws_idx)) {
+          m_parent.m_high_water(m_ws_idx) = curr_used;
+        }
+      });
+    }
+
+    KOKKOS_INLINE_FUNCTION
+    void change_count(const char* name, int change_by) const
+    {
+      Kokkos::single(Kokkos::PerTeam(m_team), [&] () {
+        micro_kernel_assert(change_by == 1 || change_by == -1);
+        const int team_rank = m_team.league_rank();
+        const int name_idx = get_name_idx(name, change_by == 1);
+        const int count_idx = change_by == 1 ? 0 : 1;
+        m_parent.m_counts(team_rank, name_idx, count_idx) += 1;
+      });
+    }
+
+    KOKKOS_INLINE_FUNCTION
+    int get_alloc_count(const char* name) const
+    { return m_parent.m_counts(m_team.league_rank(), get_name_idx(name), 0); }
+
+    KOKKOS_INLINE_FUNCTION
+    int get_release_count(const char* name) const
+    { return m_parent.m_counts(m_team.league_rank(), get_name_idx(name), 0); }
+
+    KOKKOS_INLINE_FUNCTION
+    int get_name_idx(const char* name, bool add=false) const
+    {
+      const int team_rank = m_team.league_rank();
+      int name_idx = -1;
+      for (int n = 0; n < m_max_names; ++n) {
+        char* old_name = &(m_parent.m_all_names(team_rank, n, 0));
+        if (util::strcmp(old_name, name) == 0) {
+          name_idx = n;
+          break;
+        }
+        else if (add && util::strcmp(old_name, "") == 0) {
+          util::strcpy(old_name, name);
+          name_idx = n;
+          break;
+        }
+      }
+      micro_kernel_assert(name_idx != -1);
+      return name_idx;
     }
 #endif
 
@@ -682,22 +650,8 @@ class WorkspaceManager
     void release_impl(const Unmanaged<kokkos_1d_t<S> >& space) const
     {
 #ifndef NDEBUG
-      Kokkos::single(Kokkos::PerTeam(m_team), [&] () {
-        micro_kernel_assert(m_parent.m_num_used(m_ws_idx) > 0);
-        m_parent.m_num_used(m_ws_idx) -= 1;
-        const char* name = get_name(space);
-        int name_idx = -1;
-        const int team_rank = m_team.league_rank();
-        for (int n = 0; n < m_max_names; ++n) {
-          const char* old_name = &(m_parent.m_all_names(team_rank, n, 0));
-          if (util::strcmp(old_name, name) == 0) {
-            name_idx = n;
-            break;
-          }
-        }
-        micro_kernel_assert(name_idx != -1);
-        m_parent.m_counts(team_rank, name_idx, 1) += 1;
-      });
+      change_num_used(-1);
+      change_count(get_name(space), -1);
 #endif
 
       // We don't need a barrier before this block b/c it's OK for metadata to
