@@ -431,8 +431,8 @@ class WorkspaceManager
 
     template <typename S=T, size_t N>
     KOKKOS_INLINE_FUNCTION
-    void take_many(const Kokkos::Array<const char*, N>& names,
-                   Kokkos::Array<Unmanaged<kokkos_1d_t<S> >*, N>& ptrs) const
+    void take_many_contiguous(const Kokkos::Array<const char*, N>& names,
+                              const Kokkos::Array<Unmanaged<kokkos_1d_t<S> >*, N>& ptrs) const
     {
 #ifndef NDEBUG
       Kokkos::single(Kokkos::PerTeam(m_team), [&] () {
@@ -461,6 +461,62 @@ class WorkspaceManager
       m_team.team_barrier();
       Kokkos::single(Kokkos::PerTeam(m_team), [&] () {
         m_next_slot += N;
+#ifndef NDEBUG
+        for (int n = 0; n < static_cast<int>(N); ++n) {
+          auto space = *ptrs[n];
+          set_name<S>(space, names[n]);
+          const int team_rank = m_team.league_rank();
+          int name_idx = -1;
+          for (int n = 0; n < m_max_names; ++n) {
+            char* old_name = &(m_parent.m_all_names(team_rank, n, 0));
+            if (util::strcmp(old_name, names[n]) == 0) {
+              name_idx = n;
+              break;
+            }
+            else if (util::strcmp(old_name, "") == 0) {
+              util::strcpy(old_name, names[n]);
+              name_idx = n;
+              break;
+            }
+          }
+          micro_kernel_assert(name_idx != -1);
+          m_parent.m_counts(team_rank, name_idx, 0) += 1;
+        }
+#endif
+      });
+      // We need a barrier here so that a subsequent call to take or release
+      // starts with the metadata in the correct state.
+      m_team.team_barrier();
+    }
+
+    template <typename S=T, size_t N>
+    KOKKOS_INLINE_FUNCTION
+    void take_many(const Kokkos::Array<const char*, N>& names,
+                   const Kokkos::Array<Unmanaged<kokkos_1d_t<S> >*, N>& ptrs) const
+    {
+#ifndef NDEBUG
+      Kokkos::single(Kokkos::PerTeam(m_team), [&] () {
+          micro_kernel_assert(m_parent.m_num_used(m_ws_idx) + static_cast<int>(N) <=
+                              m_parent.m_max_used);
+        m_parent.m_num_used(m_ws_idx) += N;
+        if (m_parent.m_num_used(m_ws_idx) > m_parent.m_high_water(m_ws_idx)) {
+          m_parent.m_high_water(m_ws_idx) = m_parent.m_num_used(m_ws_idx);
+        }
+      });
+#endif
+
+      int next_slot = m_next_slot;
+      for (int n = 0; n < N; ++n) {
+        auto& space = *ptrs[n];
+        space = m_parent.get_space_in_slot<S>(m_ws_idx, next_slot);
+        next_slot = m_parent.get_next<S>(space);
+      }
+
+      // We need a barrier here so get_space_in_slot above returns consistent results
+      // w/in the team.
+      m_team.team_barrier();
+      Kokkos::single(Kokkos::PerTeam(m_team), [&] () {
+        m_next_slot = next_slot;
 #ifndef NDEBUG
         for (int n = 0; n < static_cast<int>(N); ++n) {
           auto space = *ptrs[n];
