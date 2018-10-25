@@ -158,6 +158,9 @@ static int unittest_workspace()
             buf[2] = 48 + w; // 48 is offset to integers in ascii
 #ifndef NDEBUG
             if (util::strcmp(ws.get_name(*ptrs[w]), buf) != 0) ++nerrs_local;
+            if (ws.get_num_used() != 4) ++nerrs_local;
+            if (ws.get_alloc_count(buf) != r+1) ++nerrs_local;
+            if (ws.get_release_count(buf) != r) ++nerrs_local;
 #endif
             for (int i = 0; i < ints_per_ws; ++i) {
               if ((*ptrs[w])(i) != i*w) ++nerrs_local;

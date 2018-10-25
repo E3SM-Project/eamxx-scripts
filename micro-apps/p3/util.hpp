@@ -305,6 +305,7 @@ class WorkspaceManager
 #ifndef NDEBUG
     m_num_used("Workspace.m_num_used", m_concurrent_teams),
     m_high_water("Workspace.m_high_water", m_concurrent_teams),
+    m_active("Workspace.m_active", m_concurrent_teams, m_max_used),
     m_curr_names("Workspace.m_curr_names", m_concurrent_teams, m_max_used, m_max_name_len),
     m_all_names("Workspace.m_all_names", policy.league_size(), m_max_names, m_max_name_len),
     // A name's index in m_all_names is used to index into m_counts
@@ -397,8 +398,7 @@ class WorkspaceManager
       Kokkos::single(Kokkos::PerTeam(m_team), [&] () {
         m_next_slot = m_parent.get_next<S>(space);
 #ifndef NDEBUG
-        set_name<S>(space, name);
-        change_count(name, 1);
+        change_indv_meta<S>(space, name);
 #endif
       });
       // We need a barrier here so that a subsequent call to take or release
@@ -434,9 +434,7 @@ class WorkspaceManager
         m_next_slot += N;
 #ifndef NDEBUG
         for (int n = 0; n < static_cast<int>(N); ++n) {
-          auto space = *ptrs[n];
-          set_name<S>(space, names[n]);
-          change_count(names[n], 1);
+          change_indv_meta<S>(*ptrs[n], names[n]);
         }
 #endif
       });
@@ -468,9 +466,7 @@ class WorkspaceManager
         m_next_slot = next_slot;
 #ifndef NDEBUG
         for (int n = 0; n < static_cast<int>(N); ++n) {
-          auto space = *ptrs[n];
-          set_name<S>(space, names[n]);
-          change_count(names[n], 1);
+          change_indv_meta<S>(*ptrs[n], names[n], 1);
         }
 #endif
       });
@@ -502,10 +498,16 @@ class WorkspaceManager
       Kokkos::single(Kokkos::PerTeam(m_team), [&] () {
         m_next_slot = N;
 #ifndef NDEBUG
+        // Mark all old spaces as released
+        for (int a = 0; a < m_parent.m_max_used; ++a) {
+          if (m_parent.m_active(m_ws_idx, a)) {
+            change_indv_meta<S>(m_parent.get_space_in_slot<S>(m_ws_idx, a), "", true);
+          }
+        }
+
+        // Mark all new spaces as taken
         for (int n = 0; n < static_cast<int>(N); ++n) {
-          auto space = *ptrs[n];
-          set_name<S>(space, names[n]);
-          change_count(names[n], 1);
+          change_indv_meta<S>(*ptrs[n], names[n], 1);
         }
 #endif
       });
@@ -541,6 +543,18 @@ class WorkspaceManager
         Kokkos::TeamThreadRange(m_team, m_parent.m_max_used), [&] (int i) {
           m_parent.init_metadata(m_ws_idx, i);
         });
+
+#ifndef NDEBUG
+      Kokkos::single(Kokkos::PerTeam(m_team), [&] () {
+        // Mark all old spaces as released
+        for (int a = 0; a < m_parent.m_max_used; ++a) {
+          if (m_parent.m_active(m_ws_idx, a)) {
+            change_indv_meta<T>(m_parent.get_space_in_slot<T>(m_ws_idx, a), "", true);
+          }
+        }
+      });
+#endif
+
       m_team.team_barrier();
     }
 
@@ -579,17 +593,6 @@ class WorkspaceManager
       return &(m_parent.m_curr_names(m_ws_idx, slot, 0));
     }
 
-    template <typename S>
-    KOKKOS_INLINE_FUNCTION
-    void set_name(const Unmanaged<kokkos_1d_t<S> >& space, const char* name) const
-    {
-      // Should only be called within a Kokkos::single block
-      micro_kernel_assert(util::strlen(name) < m_max_name_len); // leave one char for null terminator
-      const int slot = m_parent.get_index<S>(space);
-      char* val = &(m_parent.m_curr_names(m_ws_idx, slot, 0));
-      util::strcpy(val, name);
-    }
-
     KOKKOS_INLINE_FUNCTION
     void change_num_used(int change_by) const
     {
@@ -603,15 +606,28 @@ class WorkspaceManager
       });
     }
 
+    template <typename S>
     KOKKOS_INLINE_FUNCTION
-    void change_count(const char* name, int change_by) const
+    void change_indv_meta(const Unmanaged<kokkos_1d_t<S> >& space, const char* name, bool release=false) const
     {
       Kokkos::single(Kokkos::PerTeam(m_team), [&] () {
-        micro_kernel_assert(change_by == 1 || change_by == -1);
+        const int slot = m_parent.get_index<S>(space);
+        if (!release) {
+          micro_kernel_assert(util::strlen(name) < m_max_name_len); // leave one char for null terminator
+          micro_kernel_assert(util::strlen(name) > 0);
+          micro_kernel_assert(!m_parent.m_active(m_ws_idx, slot));
+          char* val = &(m_parent.m_curr_names(m_ws_idx, slot, 0));
+          util::strcpy(val, name);
+        }
+        else {
+          micro_kernel_assert(m_parent.m_active(m_ws_idx, slot));
+          name = get_name(space);
+        }
         const int team_rank = m_team.league_rank();
-        const int name_idx = get_name_idx(name, change_by == 1);
-        const int count_idx = change_by == 1 ? 0 : 1;
+        const int name_idx = get_name_idx(name, !release);
+        const int count_idx = release ? 1 : 0;
         m_parent.m_counts(team_rank, name_idx, count_idx) += 1;
+        m_parent.m_active(m_ws_idx, slot) = !release;
       });
     }
 
@@ -622,6 +638,10 @@ class WorkspaceManager
     KOKKOS_INLINE_FUNCTION
     int get_release_count(const char* name) const
     { return m_parent.m_counts(m_team.league_rank(), get_name_idx(name), 0); }
+
+    KOKKOS_INLINE_FUNCTION
+    int get_num_used() const
+    { return m_parent.m_num_used(m_ws_idx); }
 
     KOKKOS_INLINE_FUNCTION
     int get_name_idx(const char* name, bool add=false) const
@@ -651,7 +671,7 @@ class WorkspaceManager
     {
 #ifndef NDEBUG
       change_num_used(-1);
-      change_count(get_name(space), -1);
+      change_indv_meta<S>(space, "", true);
 #endif
 
       // We don't need a barrier before this block b/c it's OK for metadata to
@@ -661,6 +681,8 @@ class WorkspaceManager
       });
       m_team.team_barrier();
     }
+
+    friend struct unit_test::UnitTest;
   }; // class Workspace
 
   KOKKOS_INLINE_FUNCTION
@@ -748,6 +770,7 @@ class WorkspaceManager
 #ifndef NDEBUG
   kokkos_1d_t<int> m_num_used;
   kokkos_1d_t<int> m_high_water;
+  kokkos_2d_t<bool> m_active;
   kokkos_3d_t<char> m_curr_names;
   kokkos_3d_t<char> m_all_names;
   kokkos_3d_t<int> m_counts;
