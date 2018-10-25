@@ -109,7 +109,7 @@ void micro_sed_func (
       auto workspace = m.workspace_mgr.get_workspace(team);
 
       Unmanaged<kokkos_1d_t<RealPack> > inv_dzq, rho, inv_rho, rhofacr, t, V_qr, V_nr, flux_qx, flux_nx, mu_r, lamr;
-      workspace.take_many_contiguous<RealPack,11>(
+      workspace.take_many_and_reset<RealPack,11>(
         {"inv_dzq", "rho", "inv_rho", "rhofacr", "t", "V_qr", "V_nr", "flux_qx", "flux_nx", "mu_r", "lamr"},
         {&inv_dzq, &rho, &inv_rho, &rhofacr, &t, &V_qr, &V_nr, &flux_qx, &flux_nx, &mu_r, &lamr});
 
@@ -214,7 +214,6 @@ void micro_sed_func (
             prt_liq(i) += prt_accum * Globals<Real>::INV_RHOW * odt;
           });
       }
-      workspace.reset();
     });
 
   // m.workspace_mgr.report(); // uncomment for detailed debug info
