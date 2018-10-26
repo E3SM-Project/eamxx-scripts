@@ -5,6 +5,7 @@
 
 #include <thread>
 #include <array>
+#include <algorithm>
 
 static Int unittest_team_policy () {
   Int nerr = 0;
@@ -131,48 +132,33 @@ static int unittest_workspace()
     }
     team.team_barrier();
 
-    // Test take_many/reset
-    {
-      for (int r = 0; r < 2; ++r) {
-        Unmanaged<kokkos_1d_t<int> > ws1, ws2, ws3, ws4;
-        Kokkos::Array<Unmanaged<kokkos_1d_t<int> >*, num_ws> ptrs = { {&ws1, &ws2, &ws3, &ws4} };
-        Kokkos::Array<const char*, num_ws> names = { {"tm0", "tm1", "tm2", "tm3"} };
-
-        ws.take_many(names, ptrs);
-
-        for (int w = 0; w < num_ws; ++w) {
-          Kokkos::parallel_for(Kokkos::TeamThreadRange(team, ints_per_ws), [&] (Int i) {
-            (*ptrs[w])(i) = i * w;
-          });
-        }
-
-        team.team_barrier();
-        for (int w = 0; w < num_ws; ++w) {
-          Kokkos::single(Kokkos::PerTeam(team), [&] () {
-            char buf[8] = "tm";
-            buf[2] = 48 + w; // 48 is offset to integers in ascii
-#ifndef NDEBUG
-            if (util::strcmp(ws.get_name(*ptrs[w]), buf) != 0) ++nerrs_local;
-#endif
-            for (int i = 0; i < ints_per_ws; ++i) {
-              if ((*ptrs[w])(i) != i*w) ++nerrs_local;
-            }
-          });
-        }
-        team.team_barrier();
-
-        ws.reset();
-      }
-    }
-
     Kokkos::Array<Unmanaged<kokkos_1d_t<int> >, num_ws> wssub;
 
-    for (int r = 0; r < 2; ++r) {
-      {
+    // Main test. Test different means of taking and release spaces.
+    for (int r = 0; r < 8; ++r) {
+      if (r % 4 == 0) {
         for (int w = 0; w < num_ws; ++w) {
           char buf[8] = "ws";
           buf[2] = 48 + w; // 48 is offset to integers in ascii
           wssub[w] = ws.take(buf);
+        }
+      }
+      else {
+        Unmanaged<kokkos_1d_t<int> > ws1, ws2, ws3, ws4;
+        Kokkos::Array<Unmanaged<kokkos_1d_t<int> >*, num_ws> ptrs = { {&ws1, &ws2, &ws3, &ws4} };
+        Kokkos::Array<const char*, num_ws> names = { {"ws0", "ws1", "ws2", "ws3"} };
+        if (r % 4 == 1) {
+          ws.take_many(names, ptrs);
+        }
+        else if (r % 4 == 2) {
+          ws.take_many_contiguous_unsafe(names, ptrs);
+        }
+        else { // % 4 == 3
+          ws.take_many_and_reset(names, ptrs);
+        }
+
+        for (int w = 0; w < num_ws; ++w) {
+          wssub[w] = *ptrs[w];
         }
       }
 
@@ -180,10 +166,13 @@ static int unittest_workspace()
         Kokkos::parallel_for(Kokkos::TeamThreadRange(team, ints_per_ws), [&] (Int i) {
           wssub[w](i) = i * w;
         });
+      }
 
+      team.team_barrier();
+
+      for (int w = 0; w < num_ws; ++w) {
         // These spaces aren't free, but their metadata should be the same as it
         // was when they were initialized
-        team.team_barrier();
         Kokkos::single(Kokkos::PerTeam(team), [&] () {
           if (wsm.get_index<int>(wssub[w]) != w) ++nerrs_local;
           if (wsm.get_next<int>(wssub[w]) != w+1) ++nerrs_local;
@@ -191,44 +180,153 @@ static int unittest_workspace()
           buf[2] = 48 + w; // 48 is offset to integers in ascii
 #ifndef NDEBUG
           if (util::strcmp(ws.get_name(wssub[w]), buf) != 0) ++nerrs_local;
+          if (ws.get_num_used() != 4) ++nerrs_local;
 #endif
           for (int i = 0; i < ints_per_ws; ++i) {
             if (wssub[w](i) != i*w) ++nerrs_local;
           }
         });
-        team.team_barrier();
       }
 
-      {
+      team.team_barrier();
+
+      if (r % 4 == 2) {
+        // let take_and_reset do the reset
+      }
+      else if (r % 2 == 0) {
+        ws.reset();
+      }
+      else {
         for (int w = num_ws - 1; w >= 0; --w) {
           ws.release(wssub[w]);
         }
       }
+
       team.team_barrier();
     }
 
-    {
-      wssub[0] = ws.take("first");
-      wssub[1] = ws.take("second");
-      wssub[2] = ws.take("third");
+#ifndef KOKKOS_ENABLE_CUDA
+    // Test weird take/release permutations.
+    for (int r = 0; r < 3; ++r) {
+      int take_order[]    = {0, 1, 2, 3};
+      int release_order[] = {-3, -2, -1, 0};
 
-      ws.release(wssub[1]);
-      //if (wsm.get_next<int>(wssub[1]) != 3) ++nerrs_local;
+      do {
+        for (int w = 0; w < num_ws; ++w) {
+          char buf[8] = "ws";
+          buf[2] = 48 + take_order[w]; // 48 is offset to integers in ascii
+          wssub[take_order[w]] = ws.take(buf);
+        }
+        team.team_barrier();
 
-      wssub[1] = ws.take("second part2");
-      //if (wsm.get_index<int>(wssub[1]) != 1) ++nerrs_local;
+        for (int w = 0; w < num_ws; ++w) {
+          Kokkos::parallel_for(Kokkos::TeamThreadRange(team, ints_per_ws), [&] (Int i) {
+            wssub[w](i) = i * w;
+          });
+        }
 
-      for (int w = 2; w >= 0; --w) {
-        ws.release(wssub[w]);
-      }
+        team.team_barrier();
 
-      total_errs += nerrs_local;
+        // verify stuff
+        for (int w = 0; w < num_ws; ++w) {
+          Kokkos::single(Kokkos::PerTeam(team), [&] () {
+            char buf[8] = "ws";
+            buf[2] = 48 + w; // 48 is offset to integers in ascii
+#ifndef NDEBUG
+            if (util::strcmp(ws.get_name(wssub[w]), buf) != 0) ++nerrs_local;
+            if (ws.get_num_used() != 4) ++nerrs_local;
+#endif
+            for (int i = 0; i < ints_per_ws; ++i) {
+              if (wssub[w](i) != i*w) ++nerrs_local;
+            }
+          });
+        }
+
+        team.team_barrier();
+
+        for (int w = 0; w < num_ws; ++w) {
+          ws.release(wssub[release_order[w] * -1]);
+        }
+
+        team.team_barrier();
+
+        std::next_permutation(release_order, release_order+4);
+
+      } while (std::next_permutation(take_order, take_order+4));
     }
+    ws.reset();
 
+    // Test weird take/release permutations.
+    for (int r = 0; r < 3; ++r) {
+      int actions[] = {-3, -2, -1, 1, 2, 3};
+      bool exp_active[] = {false, false, false, false};
+
+      do {
+        for (int a = 0; a < 6; ++a) {
+          int action = actions[a];
+          if (action < 0) {
+            action *= -1;
+            if (exp_active[action]) {
+              ws.release(wssub[action]);
+              exp_active[action] = false;
+            }
+          }
+          else {
+            if (!exp_active[action]) {
+              char buf[8] = "ws";
+              buf[2] = 48 + action; // 48 is offset to integers in ascii
+              wssub[action] = ws.take(buf);
+              exp_active[action] = true;
+            }
+          }
+        }
+
+        for (int w = 0; w < num_ws; ++w) {
+          if (exp_active[w]) {
+            Kokkos::parallel_for(Kokkos::TeamThreadRange(team, ints_per_ws), [&] (Int i) {
+              wssub[w](i) = i * w;
+            });
+          }
+        }
+
+        team.team_barrier();
+
+        // verify stuff
+        Kokkos::single(Kokkos::PerTeam(team), [&] () {
+#ifndef NDEBUG
+          int exp_num_active = 0;
+#endif
+          for (int w = 0; w < num_ws; ++w) {
+            char buf[8] = "ws";
+            buf[2] = 48 + w; // 48 is offset to integers in ascii
+            if (exp_active[w]) {
+#ifndef NDEBUG
+              if (util::strcmp(ws.get_name(wssub[w]), buf) != 0) ++nerrs_local;
+              ++exp_num_active;
+              if (!ws.is_active<int>(wssub[w])) ++nerrs_local;
+#endif
+              for (int i = 0; i < ints_per_ws; ++i) {
+                if (wssub[w](i) != i*w) ++nerrs_local;
+              }
+            }
+          }
+#ifndef NDEBUG
+          if (ws.get_num_used() != exp_num_active) ++nerrs_local;
+#endif
+        });
+
+        team.team_barrier();
+
+      } while (std::next_permutation(actions, actions + 6));
+    }
+    ws.reset();
+#endif
+
+    total_errs += nerrs_local;
     team.team_barrier();
   }, nerr);
 
-  // wsm.report(); // uncomment to debug
+  wsm.report();
 
   return nerr;
 }
