@@ -133,7 +133,7 @@ static int unittest_workspace()
 
     // Test take_many/reset
     {
-      for (int r = 0; r < 2; ++r) {
+      for (int r = 0; r < 3; ++r) {
         Unmanaged<kokkos_1d_t<int> > ws1, ws2, ws3, ws4;
         Kokkos::Array<Unmanaged<kokkos_1d_t<int> >*, num_ws> ptrs = { {&ws1, &ws2, &ws3, &ws4} };
         Kokkos::Array<const char*, num_ws> names = { {"tm0", "tm1", "tm2", "tm3"} };
@@ -141,8 +141,11 @@ static int unittest_workspace()
         if (r == 0) {
           ws.take_many(names, ptrs);
         }
-        else {
+        else if (r == 1) {
           ws.take_many_contiguous_unsafe(names, ptrs);
+        }
+        else {
+          ws.take_many_and_reset(names, ptrs);
         }
 
         for (int w = 0; w < num_ws; ++w) {

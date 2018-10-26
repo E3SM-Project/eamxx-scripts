@@ -466,7 +466,7 @@ class WorkspaceManager
         m_next_slot = next_slot;
 #ifndef NDEBUG
         for (int n = 0; n < static_cast<int>(N); ++n) {
-          change_indv_meta<S>(*ptrs[n], names[n], 1);
+          change_indv_meta<S>(*ptrs[n], names[n]);
         }
 #endif
       });
@@ -507,7 +507,7 @@ class WorkspaceManager
 
         // Mark all new spaces as taken
         for (int n = 0; n < static_cast<int>(N); ++n) {
-          change_indv_meta<S>(*ptrs[n], names[n], 1);
+          change_indv_meta<S>(*ptrs[n], names[n]);
         }
 #endif
       });
@@ -637,7 +637,7 @@ class WorkspaceManager
 
     KOKKOS_INLINE_FUNCTION
     int get_release_count(const char* name) const
-    { return m_parent.m_counts(m_team.league_rank(), get_name_idx(name), 0); }
+    { return m_parent.m_counts(m_team.league_rank(), get_name_idx(name), 1); }
 
     KOKKOS_INLINE_FUNCTION
     int get_num_used() const
