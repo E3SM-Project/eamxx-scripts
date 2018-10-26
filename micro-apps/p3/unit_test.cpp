@@ -263,6 +263,72 @@ static int unittest_workspace()
       } while (std::next_permutation(take_order, take_order+4));
     }
     ws.reset();
+
+
+    // Test weird take/release permutations.
+    for (int r = 0; r < 3; ++r) {
+      int actions[] = {-3, -2, -1, 1, 2, 3};
+      bool exp_active[] = {false, false, false, false};
+
+      do {
+        for (int a = 0; a < 6; ++a) {
+          int action = actions[a];
+          if (action < 0) {
+            action *= -1;
+            if (exp_active[action]) {
+              ws.release(wssub[action]);
+              exp_active[action] = false;
+            }
+          }
+          else {
+            if (!exp_active[action]) {
+              char buf[8] = "ws";
+              buf[2] = 48 + action; // 48 is offset to integers in ascii
+              wssub[action] = ws.take(buf);
+              exp_active[action] = true;
+            }
+          }
+        }
+
+        for (int w = 0; w < num_ws; ++w) {
+          if (exp_active[w]) {
+            Kokkos::parallel_for(Kokkos::TeamThreadRange(team, ints_per_ws), [&] (Int i) {
+              wssub[w](i) = i * w;
+            });
+          }
+        }
+
+        team.team_barrier();
+
+        // verify stuff
+        Kokkos::single(Kokkos::PerTeam(team), [&] () {
+#ifndef NDEBUG
+          int exp_num_active = 0;
+#endif
+          for (int w = 0; w < num_ws; ++w) {
+            char buf[8] = "ws";
+            buf[2] = 48 + w; // 48 is offset to integers in ascii
+            if (exp_active[w]) {
+#ifndef NDEBUG
+              if (util::strcmp(ws.get_name(wssub[w]), buf) != 0) ++nerrs_local;
+              ++exp_num_active;
+              if (!ws.is_active<int>(wssub[w])) ++nerrs_local;
+#endif
+              for (int i = 0; i < ints_per_ws; ++i) {
+                if (wssub[w](i) != i*w) ++nerrs_local;
+              }
+            }
+          }
+#ifndef NDEBUG
+          if (ws.get_num_used() != exp_num_active) ++nerrs_local;
+#endif
+        });
+
+        team.team_barrier();
+
+      } while (std::next_permutation(actions, actions + 6));
+    }
+    ws.reset();
 #endif
 
     total_errs += nerrs_local;

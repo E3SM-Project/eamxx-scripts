@@ -643,6 +643,11 @@ class WorkspaceManager
     int get_num_used() const
     { return m_parent.m_num_used(m_ws_idx); }
 
+    template <typename S>
+    KOKKOS_INLINE_FUNCTION
+    bool is_active(const Unmanaged<kokkos_1d_t<S> >& space) const
+    { return m_parent.m_active(m_ws_idx, m_parent.get_index<S>(space));}
+
     KOKKOS_INLINE_FUNCTION
     int get_name_idx(const char* name, bool add=false) const
     {
