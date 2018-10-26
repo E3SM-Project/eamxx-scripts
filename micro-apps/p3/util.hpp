@@ -307,9 +307,9 @@ class WorkspaceManager
     m_high_water("Workspace.m_high_water", m_concurrent_teams),
     m_active("Workspace.m_active", m_concurrent_teams, m_max_used),
     m_curr_names("Workspace.m_curr_names", m_concurrent_teams, m_max_used, m_max_name_len),
-    m_all_names("Workspace.m_all_names", policy.league_size(), m_max_names, m_max_name_len),
+    m_all_names("Workspace.m_all_names", m_concurrent_teams, m_max_names, m_max_name_len),
     // A name's index in m_all_names is used to index into m_counts
-    m_counts("Workspace.m_counts", policy.league_size(), m_max_names, 2),
+    m_counts("Workspace.m_counts", m_concurrent_teams, m_max_names, 2),
 #endif
     m_next_slot("Workspace.m_next_slot", m_pad_factor*m_concurrent_teams),
     m_data(Kokkos::ViewAllocateWithoutInitializing("Workspace.m_data"),
@@ -336,9 +336,8 @@ class WorkspaceManager
 
     std::cout << "\nWS deep analysis" << std::endl;
     std::map<std::string, std::tuple<int, int, int> > ws_usage_map;
-    const int league_size = m_all_names.extent(0);
-    for (int t = 0; t < league_size; ++t) {
-      std::cout << "  For team " << t << std::endl;
+    for (int t = 0; t < m_concurrent_teams; ++t) {
+      std::cout << "  For wsidx " << t << std::endl;
       for (int n = 0; n < m_max_names; ++n) {
         const char* name = &(host_all_names(t, n, 0));
         if (util::strcmp(name, "") == 0) {
@@ -368,7 +367,7 @@ class WorkspaceManager
     std::cout << "\nWS workspace summary" << std::endl;
     for (auto& kv : ws_usage_map) {
       auto data = kv.second;
-      std::cout << "Workspace '" << kv.first << "' was used by " << std::get<0>(data) << " teams with "
+      std::cout << "Workspace '" << kv.first << "' was used by " << std::get<0>(data) << " wsindices with "
                 << std::get<1>(data) << " takes and " << std::get<2>(data) << " releases." << std::endl;
     }
 #endif
@@ -623,21 +622,20 @@ class WorkspaceManager
           micro_kernel_assert(m_parent.m_active(m_ws_idx, slot));
           name = get_name(space);
         }
-        const int team_rank = m_team.league_rank();
         const int name_idx = get_name_idx(name, !release);
         const int count_idx = release ? 1 : 0;
-        m_parent.m_counts(team_rank, name_idx, count_idx) += 1;
+        m_parent.m_counts(m_ws_idx, name_idx, count_idx) += 1;
         m_parent.m_active(m_ws_idx, slot) = !release;
       });
     }
 
     KOKKOS_INLINE_FUNCTION
     int get_alloc_count(const char* name) const
-    { return m_parent.m_counts(m_team.league_rank(), get_name_idx(name), 0); }
+    { return m_parent.m_counts(m_ws_idx, get_name_idx(name), 0); }
 
     KOKKOS_INLINE_FUNCTION
     int get_release_count(const char* name) const
-    { return m_parent.m_counts(m_team.league_rank(), get_name_idx(name), 1); }
+    { return m_parent.m_counts(m_ws_idx, get_name_idx(name), 1); }
 
     KOKKOS_INLINE_FUNCTION
     int get_num_used() const
@@ -651,10 +649,9 @@ class WorkspaceManager
     KOKKOS_INLINE_FUNCTION
     int get_name_idx(const char* name, bool add=false) const
     {
-      const int team_rank = m_team.league_rank();
       int name_idx = -1;
       for (int n = 0; n < m_max_names; ++n) {
-        char* old_name = &(m_parent.m_all_names(team_rank, n, 0));
+        char* old_name = &(m_parent.m_all_names(m_ws_idx, n, 0));
         if (util::strcmp(old_name, name) == 0) {
           name_idx = n;
           break;

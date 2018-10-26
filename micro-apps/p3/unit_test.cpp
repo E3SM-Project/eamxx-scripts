@@ -135,9 +135,7 @@ static int unittest_workspace()
     Kokkos::Array<Unmanaged<kokkos_1d_t<int> >, num_ws> wssub;
 
     // Main test. Test different means of taking and release spaces.
-    int alloc_rounds = 0;
     for (int r = 0; r < 8; ++r) {
-
       if (r % 4 == 0) {
         for (int w = 0; w < num_ws; ++w) {
           char buf[8] = "ws";
@@ -163,7 +161,6 @@ static int unittest_workspace()
           wssub[w] = *ptrs[w];
         }
       }
-      ++alloc_rounds;
 
       for (int w = 0; w < num_ws; ++w) {
         Kokkos::parallel_for(Kokkos::TeamThreadRange(team, ints_per_ws), [&] (Int i) {
@@ -184,8 +181,6 @@ static int unittest_workspace()
 #ifndef NDEBUG
           if (util::strcmp(ws.get_name(wssub[w]), buf) != 0) ++nerrs_local;
           if (ws.get_num_used() != 4) ++nerrs_local;
-          if (ws.get_alloc_count(buf) != r+1) ++nerrs_local;
-          if (ws.get_release_count(buf) != r) ++nerrs_local;
 #endif
           for (int i = 0; i < ints_per_ws; ++i) {
             if (wssub[w](i) != i*w) ++nerrs_local;
@@ -222,7 +217,6 @@ static int unittest_workspace()
           buf[2] = 48 + take_order[w]; // 48 is offset to integers in ascii
           wssub[take_order[w]] = ws.take(buf);
         }
-        ++alloc_rounds;
         team.team_barrier();
 
         for (int w = 0; w < num_ws; ++w) {
@@ -241,8 +235,6 @@ static int unittest_workspace()
 #ifndef NDEBUG
             if (util::strcmp(ws.get_name(wssub[w]), buf) != 0) ++nerrs_local;
             if (ws.get_num_used() != 4) ++nerrs_local;
-            if (ws.get_alloc_count(buf) != alloc_rounds) ++nerrs_local;
-            if (ws.get_release_count(buf) != alloc_rounds - 1) ++nerrs_local;
 #endif
             for (int i = 0; i < ints_per_ws; ++i) {
               if (wssub[w](i) != i*w) ++nerrs_local;
@@ -263,7 +255,6 @@ static int unittest_workspace()
       } while (std::next_permutation(take_order, take_order+4));
     }
     ws.reset();
-
 
     // Test weird take/release permutations.
     for (int r = 0; r < 3; ++r) {
@@ -335,7 +326,7 @@ static int unittest_workspace()
     team.team_barrier();
   }, nerr);
 
-  // wsm.report(); // uncomment to debug
+  wsm.report();
 
   return nerr;
 }
