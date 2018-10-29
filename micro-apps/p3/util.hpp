@@ -288,7 +288,7 @@ subview (const Kokkos::View<T**, Parms...>& v_in, const int i) {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-template <typename T>
+template <typename T, typename ExeSpace = Kokkos::DefaultExecutionSpace>
 class WorkspaceManager
 ///////////////////////////////////////////////////////////////////////////////
 {
@@ -698,7 +698,7 @@ class WorkspaceManager
   {
     Kokkos::parallel_for(
       "WorkspaceManager ctor",
-      util::ExeSpaceUtils<>::get_default_team_policy(concurrent_teams, max_used),
+      util::ExeSpaceUtils<ExeSpace>::get_default_team_policy(concurrent_teams, max_used),
       KOKKOS_LAMBDA(const member_type& team) {
         Kokkos::parallel_for(
           Kokkos::TeamThreadRange(team, max_used), [&] (int i) {
@@ -767,7 +767,7 @@ class WorkspaceManager
          m_max_names = 256
   };
 
-  util::TeamUtils<> m_tu;
+  util::TeamUtils<ExeSpace> m_tu;
   int m_concurrent_teams, m_reserve, m_size, m_total, m_max_used;
 #ifndef NDEBUG
   kokkos_1d_t<int> m_num_used;
