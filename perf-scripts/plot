@@ -32,6 +32,8 @@ OR
 
     parser.add_argument("-d", "--dashed", action="append", help="Specify items associated with this value should be dashed")
 
+    parser.add_argument("-D", "--dotted", action="append", help="Specify items associated with this value should be dotted")
+
     parser.add_argument("-n", "--no-legend", action="store_true", help="Do not produce legend")
 
     parser.add_argument("-f", "--font", type=int, default=14, help="Set font")
@@ -42,7 +44,7 @@ OR
 
     args = parser.parse_args(args[1:])
 
-    return args.datafiles, args.dashed, args.no_legend, args.font, args.log_x, args.tests
+    return args.datafiles, args.dashed, args.dotted, args.no_legend, args.font, args.log_x, args.tests
 
 ###############################################################################
 def pad_lim(lim, pad=0.05, mult=False):
@@ -71,12 +73,25 @@ def subtle_grid():
     return plt.gca().set_axisbelow(True)
 
 ###############################################################################
-def get_line_format(line_label, color, dashed):
+def applies_to_line(match_list, line_label):
 ###############################################################################
-    if dashed:
-        for dash_item in dashed:
-            if dash_item in line_label:
-                return "{}--".format(color)
+    if match_list:
+        for item in match_list:
+            if item in line_label:
+                return True
+
+    return False
+
+###############################################################################
+def get_line_format(line_label, color, dashed, dotted):
+###############################################################################
+    dash_line = applies_to_line(dashed, line_label)
+    dot_line  = applies_to_line(dotted, line_label)
+    if dash_line:
+        expect(not dot_line, "Ambiguous line format for '{}', matched both dashed and dotted".format(line_label))
+        return "{}--".format(color)
+    elif dot_line:
+        return "{}:".format(color)
 
     return "{}-".format(color)
 
@@ -150,12 +165,12 @@ class Plotter(object):
     def get_mach_longname(self, machine):
         return self._mach_longname_map[machine] if machine in self._mach_longname_map else machine.capitalize()
 
-    def plot_line(self, xs, ys, line_label, testname, dashed, color):
+    def plot_line(self, xs, ys, line_label, testname, dashed, dotted, color):
         if not (self._tests and testname not in self._tests):
             line_label = "{} {}".format(self.get_test_longname(testname), line_label)
-            plt.plot(xs, ys, get_line_format(line_label, color, dashed), lw=2, label=line_label)
+            plt.plot(xs, ys, get_line_format(line_label, color, dashed, dotted), lw=2, label=line_label)
 
-    def plotdata(self, datafile, dashed):
+    def plotdata(self, datafile, dashed, dotted):
         xs, ys = [], []
         testname = None
         line_label = ""
@@ -196,7 +211,7 @@ class Plotter(object):
                     if xs:
                         if "machine" in self._consistent:
                             color = avail_colors.pop()
-                        self.plot_line(xs, ys, line_label, testname, dashed, color)
+                        self.plot_line(xs, ys, line_label, testname, dashed, dotted, color)
                         xs = []
                         ys = []
 
@@ -205,7 +220,7 @@ class Plotter(object):
 
         if "machine" in self._consistent:
             color = avail_colors.pop()
-        self.plot_line(xs, ys, line_label, testname, dashed, color)
+        self.plot_line(xs, ys, line_label, testname, dashed, dotted, color)
 
     def finalize(self, no_legend):
         subtle_grid()
@@ -231,12 +246,12 @@ class Plotter(object):
 ###############################################################################
 def _main_func(description):
 ###############################################################################
-    datafiles, dashed, no_legend, font, log_x, tests = parse_command_line(sys.argv, description)
+    datafiles, dashed, dotted, no_legend, font, log_x, tests = parse_command_line(sys.argv, description)
 
     plotter = Plotter(datafiles, font, log_x, tests)
 
     for datafile in datafiles:
-        plotter.plotdata(datafile, dashed)
+        plotter.plotdata(datafile, dashed, dotted)
 
     plotter.finalize(no_legend)
 
