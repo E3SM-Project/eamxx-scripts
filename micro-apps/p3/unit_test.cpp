@@ -102,9 +102,16 @@ static int unittest_workspace()
       });
   }
   {
-    util::WorkspaceManager<short> wsmc(16, num_ws, policy);
-    micro_assert(wsmc.m_reserve == 4);
-    micro_assert(wsmc.m_size == 16);
+    util::WorkspaceManager<short> wsms(16, num_ws, policy);
+    micro_assert(wsms.m_reserve == 4);
+    micro_assert(wsms.m_size == 16);
+  }
+
+  // Test host-explicit WorkspaceMgr
+  {
+    team_policy policy_host(util::ExeSpaceUtils<Kokkos::DefaultHostExecutionSpace>::get_default_team_policy(ni, nk));
+    util::WorkspaceManager<short, Kokkos::DefaultHostExecutionSpace> wsmh(16, num_ws, policy);
+    wsmh.m_data(0, 0) = 0;
   }
 
   util::WorkspaceManager<int> wsm(ints_per_ws, num_ws, policy);
