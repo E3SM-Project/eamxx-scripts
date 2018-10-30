@@ -66,7 +66,7 @@ public:
     Kokkos::deep_copy(mu_r_table, mirror_mu_table);
   }
 
-  int get_num_vert() const { return num_vert; }
+  int get_num_vert() const { return num_pack; }
 
   static std::string custom_msg()
   {
