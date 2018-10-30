@@ -292,8 +292,9 @@ def test_specific_init(test, force_threads):
 ###############################################################################
     host = socket.gethostname()
 
-    if "blake" in host and test == "micro_sed":
-        os.environ["OMP_NUM_THREADS"] = "48"
+    # This appears to be slower with 48
+    #if "blake" in host and test == "micro_sed":
+    #    os.environ["OMP_NUM_THREADS"] = "48"
 
     if force_threads:
         os.environ["OMP_NUM_THREADS"] = str(force_threads)
