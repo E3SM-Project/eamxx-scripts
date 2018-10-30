@@ -110,9 +110,9 @@ class Plotter(object):
         self._inconsistent      = []
         self._title             = None
         self._avail_colors      = ["b", "g", "r", "c", "m", "y", "k"]
-        self._var_longname_map  = {"ni" : "Number of columns", "nk" : "Column levels", "dt" : "Time step", "ts" : "Number of time steps",
+        self._var_longname_map  = {"ni" : "Number of columns per node", "nk" : "Column levels", "dt" : "Time step", "ts" : "Number of time steps",
                                    "threads" : "Threads"}
-        self._test_longname_map = {} #{"pack" : "C++/Kokkos"}
+        self._test_longname_map = {"kokkos" : "Naive Kokkos", "packnoiws" : "Final Kokkos"}
         self._mach_longname_map = {"bowman" : "KNL", "blake" : "Skylake", "waterman" : "Nvidia_V100"}
         self._log_x             = log_x
         self._min_x             = sys.maxsize
