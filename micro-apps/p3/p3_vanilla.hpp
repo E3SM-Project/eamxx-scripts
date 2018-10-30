@@ -4,7 +4,7 @@
 #include "util.hpp"
 #include "initial_conditions.hpp"
 #include "micro_kokkos.hpp"
-#include "micro_sed_vanilla.hpp"
+#include "p3_common.hpp"
 
 #include <vector>
 #include <cmath>
@@ -14,12 +14,6 @@
 
 namespace p3 {
 namespace micro_sed {
-
-template <typename Real>
-using kokkos_2d_table_t = Kokkos::View<Real[300][10], Layout, MemSpace>;
-
-template <typename Real>
-using kokkos_1d_table_t = Kokkos::View<Real[150], Layout, MemSpace>;
 
 /**
  * Finds indices in rain lookup table (3)
@@ -128,7 +122,7 @@ struct MicroSedFuncVanillaKokkos
   kokkos_2d_table_t<Real> vn_table, vm_table;
   kokkos_1d_table_t<Real> mu_r_table;
 
-  static constexpr const char* NAME = "kokkos_vanilla";
+  static constexpr const char* NAME = "vanilla";
 
 public:
   MicroSedFuncVanillaKokkos(int num_horz_, int num_vert_) :
@@ -231,20 +225,15 @@ void micro_sed_func(MicroSedFuncVanillaKokkos<Real>& msvk,
   constexpr Real nsmall = Globals<Real>::NSMALL;
 
   // direction of vertical leveling
-#ifdef TRACE
-  const int ktop = (kts < kte) ? msvk.num_vert-1 : 0;
-#endif
   const int kbot = (kts < kte) ? 0: msvk.num_vert-1;
   const int kdir = (kts < kte) ? 1  : -1;
 
   // Rain sedimentation:  (adaptivive substepping)
-  trace_loop("i_loop_main", 0, msvk.num_horz);
   Kokkos::parallel_for("main rain sed loop",
                        util::ExeSpaceUtils<>::get_default_team_policy(msvk.num_horz, msvk.num_vert),
                        KOKKOS_LAMBDA(member_type team_member) {
     const int i = team_member.league_rank();
 
-    trace_loop("  k_loop_1", kbot, ktop);
     Kokkos::parallel_for(Kokkos::TeamThreadRange(team_member, msvk.num_vert), [=] (int k) {
       // inverse of thickness of layers
       msvk.inv_dzq(i, k) = 1 / dzq(i, k);
@@ -252,7 +241,6 @@ void micro_sed_func(MicroSedFuncVanillaKokkos<Real>& msvk,
       msvk.rho(i, k) = pres(i, k) / (Globals<Real>::RD * msvk.t(i, k));
       msvk.inv_rho(i, k) = 1.0 / msvk.rho(i, k);
       msvk.rhofacr(i, k) = std::pow(Globals<Real>::RHOSUR * msvk.inv_rho(i, k), 0.54);
-      trace_data("    rhofacr", i, k, msvk.rhofacr(i, k));
     });
     team_member.team_barrier();
 
@@ -298,7 +286,6 @@ void micro_sed_func(MicroSedFuncVanillaKokkos<Real>& msvk,
         });
         team_member.team_barrier();
 
-        trace_loop("  k_loop_sedi_r1", k_qxtop, k_qxbot);
         int kmin, kmax;
         util::set_min_max(k_qxtop, k_qxbot, kmin, kmax);
         Kokkos::parallel_reduce(Kokkos::TeamThreadRange(team_member, kmax-kmin+1), [=] (int k_, Real& lmax) {
@@ -306,7 +293,6 @@ void micro_sed_func(MicroSedFuncVanillaKokkos<Real>& msvk,
           if (qr(i, k) > Globals<Real>::QSMALL) {
             // Compute Vq, Vn:
             nr(i, k) = util::max(nr(i, k), nsmall);
-            trace_data("    nr", i, k, nr(i, k));
             Real rdumii=0.0, tmp1=0.0, tmp2=0.0, rdumjj=0.0, inv_dum3=0.0;
             int dumii=0, dumjj=0;
             get_rain_dsd2_kokkos(qr(i, k), nr(i, k), msvk.mu_r(i, k), rdumii, dumii, msvk.lamr(i, k), msvk.mu_r_table, tmp1, tmp2);
@@ -319,7 +305,6 @@ void micro_sed_func(MicroSedFuncVanillaKokkos<Real>& msvk,
               (msvk.vm_table(dumii, dumjj) - msvk.vm_table(dumii-1, dumjj));
 
             msvk.V_qr(i, k) = (dum1 + (rdumjj - dumjj) * (dum2 - dum1)) * msvk.rhofacr(i, k);
-            trace_data("    V_qr", i, k, msvk.V_qr(i, k));
 
             // number-weighted fall speed:
             dum1 = msvk.vn_table(dumii-1, dumjj-1) + (rdumii-dumii) * inv_dum3 *
@@ -328,13 +313,11 @@ void micro_sed_func(MicroSedFuncVanillaKokkos<Real>& msvk,
               (msvk.vn_table(dumii, dumjj) - msvk.vn_table(dumii-1, dumjj));
 
             msvk.V_nr(i, k) = (dum1 + (rdumjj - dumjj) * (dum2 - dum1)) * msvk.rhofacr(i, k);
-            trace_data("    V_nr", i, k, msvk.V_nr(i, k));
           }
           Real Co_max_local = msvk.V_qr(i, k) * dt_left * msvk.inv_dzq(i, k);
           if (Co_max_local > lmax) {
             lmax = Co_max_local;
           }
-          trace_data("  Co_max", 0, 0, Co_max);
         }, Kokkos::Max<Real>(Co_max));
 
         // compute dt_sub
@@ -344,14 +327,11 @@ void micro_sed_func(MicroSedFuncVanillaKokkos<Real>& msvk,
         int k_temp = (k_qxbot == kbot) ? k_qxbot : (k_qxbot - kdir);
 
         // calculate fluxes
-        trace_loop("  k_flux_loop", k_temp, k_qxtop);
         util::set_min_max(k_temp, k_qxtop+kdir, kmin, kmax);
         Kokkos::parallel_for(Kokkos::TeamThreadRange(team_member, kmax-kmin+1), [&] (int k_) {
           const int k = kmin + k_;
           msvk.flux_qx(i, k) = msvk.V_qr(i, k) * qr(i, k) * msvk.rho(i, k);
-          trace_data("    flux_qx", i, k, msvk.flux_qx(i, k));
           msvk.flux_nx(i, k) = msvk.V_nr(i, k) * nr(i, k) * msvk.rho(i, k);
-          trace_data("    flux_nx", i, k, msvk.flux_nx(i, k));
         });
         team_member.team_barrier();
 
@@ -368,13 +348,10 @@ void micro_sed_func(MicroSedFuncVanillaKokkos<Real>& msvk,
           const Real fluxdiv_nx = -msvk.flux_nx(i, k) * msvk.inv_dzq(i, k);
           // update prognostic variables
           qr(i, k) += fluxdiv_qx * dt_sub * msvk.inv_rho(i, k);
-          trace_data("  qr", i, k, qr(i, k));
           nr(i, k) += fluxdiv_nx * dt_sub * msvk.inv_rho(i, k);
-          trace_data("  nr", i, k, nr(i, k));
         });
         team_member.team_barrier();
 
-        trace_loop("  k_flux_div_loop", k_qxtop - kdir, k_temp);
         util::set_min_max(k_qxtop - kdir, k_temp, kmin, kmax);
         Kokkos::parallel_for(Kokkos::TeamThreadRange(team_member, kmax-kmin+1), [&] (int k_) {
           const int k = kmin + k_;
@@ -384,9 +361,7 @@ void micro_sed_func(MicroSedFuncVanillaKokkos<Real>& msvk,
             const Real fluxdiv_nx = (msvk.flux_nx(i, k+kdir) - msvk.flux_nx(i, k)) * msvk.inv_dzq(i, k);
             // update prognostic variables
             qr(i, k) += fluxdiv_qx * dt_sub * msvk.inv_rho(i, k);
-            trace_data("    qr", i, k, qr(i, k));
             nr(i, k) += fluxdiv_nx  *dt_sub * msvk.inv_rho(i, k);
-            trace_data("    nr", i, k, nr(i, k));
           }
         });
         team_member.team_barrier();
@@ -397,12 +372,9 @@ void micro_sed_func(MicroSedFuncVanillaKokkos<Real>& msvk,
         }
       }
 
-      trace_data("  prt_liq", i, 0, prt_liq(i));
-      trace_data("  prt_accum", 0, 0, prt_accum);
       Kokkos::single(Kokkos::PerTeam(team_member), [&]() {
         prt_liq(i) += prt_accum * Globals<Real>::INV_RHOW * odt;
       });
-      trace_data("  prt_liq", i, 0, prt_liq(i));
     }
   });
 

@@ -1,4 +1,4 @@
-#include "micro_sed_vanilla.hpp"
+#include "p3_common.hpp"
 #include "types.hpp"
 #include "util.hpp"
 
@@ -10,7 +10,7 @@ void micro_sed_func_wrap(const int* ni, const int* nk, const Real* dt, const int
 
 int main(int argc, char** argv)
 {
-  common_main("micro_sed");
+  common_main("p3_ref");
 
   micro_sed_func_wrap(&ni, &nk, &dt, &ts, &kdir, &repeat);
 
