@@ -31,6 +31,12 @@ using kokkos_2d_t = Kokkos::View<Scalar**, Layout, MemSpace>;
 template <typename Scalar>
 using kokkos_1d_t = Kokkos::View<Scalar*, Layout, MemSpace>;
 
+template <typename Real>
+using kokkos_2d_table_t = Kokkos::View<Real[300][10], Layout, MemSpace>;
+
+template <typename Real>
+using kokkos_1d_table_t = Kokkos::View<Real[150], Layout, MemSpace>;
+
 // Turn a View's MemoryTraits (traits::memory_traits) into the equivalent
 // unsigned int mask.
 template <typename View>

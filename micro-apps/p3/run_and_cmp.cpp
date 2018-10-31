@@ -1,11 +1,8 @@
 #include "types.hpp"
 #include "util.hpp"
 #include "initial_conditions.hpp"
-#include "micro_sed_vanilla_kokkos.hpp"
-#include "micro_sed_workspace_kokkos.hpp"
-#include "micro_sed_pack_kokkos.hpp"
-#include "micro_sed_packnoi_kokkos.hpp"
-#include "micro_sed_packnoiws_kokkos.hpp"
+#include "p3_vanilla.hpp"
+#include "p3_final.hpp"
 #include "micro_kokkos.hpp"
 #include "cmp.hpp"
 
@@ -279,16 +276,6 @@ public:
   }
 };
 
-template <typename Scalar>
-void micro_sed_func_cpp (ic::MicroSedData<Scalar>& d, VanillaCppBridge<Scalar>& bridge)
-{
-  p3::micro_sed::micro_sed_func<Scalar>( d.reverse ? d.nk : 1, d.reverse ? 1 : d.nk,
-                                         1, d.ni, d.dt, bridge.qr, bridge.nr, bridge.th,
-                                         bridge.dzq, bridge.pres, bridge.prt_liq);
-
-  bridge.sync_to(d);
-}
-
 template <typename Scalar, typename MSK, typename BridgeType>
 void micro_sed_func_cpp_kokkos (ic::MicroSedData<Scalar>& d, BridgeType& bridge, MSK& msk)
 {
@@ -445,12 +432,9 @@ static Int run_and_cmp (const std::string& bfn, const Real& tol, bool verbose) {
       d_ic_cp.dt /= BaselineConsts::nstep;
 
       std::vector<ic::MicroSedData<Scalar> > ds
-        = {d_ic_cp, d_ic_cp, d_ic_cp, d_ic_cp, d_ic_cp, d_ic_cp, d_ic_cp};
+        = {d_ic_cp, d_ic_cp, d_ic_cp};
 
-      p3::micro_sed::MicroSedFuncWorkspaceKokkos<Scalar> mswk(d_ic.ni, d_ic.nk);
       p3::micro_sed::MicroSedFuncVanillaKokkos<Scalar> msvk(d_ic.ni, d_ic.nk);
-      p3::micro_sed::MicroSedFuncPackKokkos<Scalar> mspk(d_ic.ni, d_ic.nk);
-      p3::micro_sed::MicroSedFuncPackNoiKokkos<Scalar> mspnk(d_ic.ni, d_ic.nk);
       p3::micro_sed::MicroSedFuncPackNoiWsKokkos<Scalar> mspnwk(d_ic.ni, d_ic.nk);
 
       for (Int step = 0; step < BaselineConsts::nstep; ++step) {
@@ -484,29 +468,13 @@ static Int run_and_cmp (const std::string& bfn, const Real& tol, bool verbose) {
           [] (ic::MicroSedData<Scalar>& d, FortranBridge<Scalar>& b) { micro_sed_func(d, b); },
           ds[0], d_ref, tol, "Original Fortran", step, verbose);
 
-        nerr += do_compare<VanillaCppBridge<Scalar> >(
-          [] (ic::MicroSedData<Scalar>& d, VanillaCppBridge<Scalar>& b) { micro_sed_func_cpp(d, b); },
-          ds[1], d_ref, cpp_tol, "Super-vanilla C++", step, verbose);
-
         nerr += do_compare<KokkosCppBridge<Scalar> >(
           [&] (ic::MicroSedData<Scalar>& d, KokkosCppBridge<Scalar>& b) { micro_sed_func_cpp_kokkos(d, b, msvk); },
-          ds[2], d_ref, cpp_tol, "Vanilla Kokkos C++", step, verbose);
-
-        nerr += do_compare<KokkosCppBridge<Scalar> >(
-          [&] (ic::MicroSedData<Scalar>& d, KokkosCppBridge<Scalar>& b) { micro_sed_func_cpp_kokkos(d, b, mswk); },
-          ds[3], d_ref, cpp_tol, "Workspace Kokkos C++", step, verbose);
-
-        nerr += do_compare<KokkosPackBridge<Scalar> >(
-          [&] (ic::MicroSedData<Scalar>& d, KokkosPackBridge<Scalar>& b) { micro_sed_func_cpp_kokkos(d, b, mspk); },
-          ds[4], d_ref, cpp_tol, "Pack Kokkos C++", step, verbose);
-
-        nerr += do_compare<KokkosPackBridge<Scalar> >(
-          [&] (ic::MicroSedData<Scalar>& d, KokkosPackBridge<Scalar>& b) { micro_sed_func_cpp_kokkos(d, b, mspnk); },
-          ds[5], d_ref, cpp_tol, "Pack No-i Kokkos C++", step, verbose);
+          ds[1], d_ref, cpp_tol, "Vanilla Kokkos C++", step, verbose);
 
         nerr += do_compare<KokkosPackBridge<Scalar> >(
           [&] (ic::MicroSedData<Scalar>& d, KokkosPackBridge<Scalar>& b) { micro_sed_func_cpp_kokkos(d, b, mspnwk); },
-          ds[6], d_ref, cpp_tol, "Pack No-i WS Kokkos C++", step, verbose);
+          ds[2], d_ref, cpp_tol, "Final Kokkos C++", step, verbose);
       }
     }
   };

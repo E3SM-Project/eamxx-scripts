@@ -174,10 +174,4 @@ static MicroSedData<Scalar> reverse_k (const MicroSedData<Scalar>& msd) {
 
 } // namespace ic
 
-extern "C" {
-
-void populate_input_from_fortran(Int nk, Int kdir, Real** qr, Real** nr, Real** th, Real** dzq, Real** pres);
-
-}
-
 #endif
