@@ -251,12 +251,12 @@ def perf_analysis(ni, nk, dt, ts, repeat, force_threads, num_runs, tests, cmake_
     return True
 
 ###############################################################################
-def test_specific_init(test, force_threads):
+def test_specific_init(exename, force_threads):
 ###############################################################################
     host = socket.gethostname()
 
     # This appears to be slower with 48
-    #if "blake" in host and test == "micro_sed":
+    #if "blake" in host and exename == "p3_ref":
     #    os.environ["OMP_NUM_THREADS"] = "48"
 
     if force_threads:
