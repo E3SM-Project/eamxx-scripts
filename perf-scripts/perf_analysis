@@ -74,7 +74,7 @@ OR
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
 
-    all_impls = ["fortran", "cpp", "kokkos", "pack", "packnoi", "packnoiws", "workspace"]
+    all_impls = ["ref", "vanilla", "final"]
 
     parser.add_argument("ni", type=int, help="Num horizontal columns. If doing a scaling experiment, this is the starting value.")
 
@@ -198,41 +198,6 @@ def run_p3(exename, ni, nk, dt, ts, repeat, force_threads, num_runs):
     return median(results), threads
 
 ###############################################################################
-def run_fortran(ni, nk, dt, ts, repeat, force_threads, num_runs):
-###############################################################################
-    return run_p3("micro_sed", ni, nk, dt, ts, repeat, force_threads, num_runs)
-
-###############################################################################
-def run_cpp(ni, nk, dt, ts, repeat, force_threads, num_runs):
-###############################################################################
-    return run_p3("micro_sed_vanilla", ni, nk, dt, ts, repeat, force_threads, num_runs)
-
-###############################################################################
-def run_kokkos(ni, nk, dt, ts, repeat, force_threads, num_runs):
-###############################################################################
-    return run_p3("micro_sed_vanilla_kokkos", ni, nk, dt, ts, repeat, force_threads, num_runs)
-
-###############################################################################
-def run_pack(ni, nk, dt, ts, repeat, force_threads, num_runs):
-###############################################################################
-    return run_p3("micro_sed_pack_kokkos", ni, nk, dt, ts, repeat, force_threads, num_runs)
-
-###############################################################################
-def run_packnoi(ni, nk, dt, ts, repeat, force_threads, num_runs):
-###############################################################################
-    return run_p3("micro_sed_packnoi_kokkos", ni, nk, dt, ts, repeat, force_threads, num_runs)
-
-###############################################################################
-def run_packnoiws(ni, nk, dt, ts, repeat, force_threads, num_runs):
-###############################################################################
-    return run_p3("micro_sed_packnoiws_kokkos", ni, nk, dt, ts, repeat, force_threads, num_runs)
-
-###############################################################################
-def run_workspace(ni, nk, dt, ts, repeat, force_threads, num_runs):
-###############################################################################
-    return run_p3("micro_sed_workspace_kokkos", ni, nk, dt, ts, repeat, force_threads, num_runs)
-
-###############################################################################
 def user_explain(test, med_time, reference, ni):
 ###############################################################################
     msg = "{} ran in {} seconds".format(test, med_time)
@@ -270,9 +235,7 @@ def perf_analysis(ni, nk, dt, ts, repeat, force_threads, num_runs, tests, cmake_
 
         reference = None
         for test in tests:
-            func_name = "run_{}".format(test)
-            expect(func_name in globals(), "Unknown test '{}'".format(test))
-            med_time, threads = globals()[func_name](ni, nk, dt, ts, repeat, force_threads, num_runs)
+            med_time, threads = run_p3("p3_{}".format(test), ni, nk, dt, ts, repeat, force_threads, num_runs)
 
             if plot_friendly:
                 results.setdefault(test, []).append((ni, nk, dt, ts, threads, med_time))
