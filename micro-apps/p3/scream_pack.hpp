@@ -450,12 +450,6 @@ smallize (const Kokkos::View<BigPack<T>*, Parms...>& vp) {
   return repack<SCREAM_PACKN / SCREAM_SMALL_PACK_FACTOR>(vp);
 }
 
-template <typename T, typename ...Parms> KOKKOS_FORCEINLINE_FUNCTION
-Unmanaged<Kokkos::View<BigPack<T>*, Parms...> >
-biggize (const Kokkos::View<SmallPack<T>*, Parms...>& vp) {
-  return repack<SCREAM_PACKN>(vp);
-}
-
 } // namespace pack
 } // namespace scream
 

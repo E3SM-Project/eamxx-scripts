@@ -21,7 +21,6 @@ using scream::pack::IntPack;
 using scream::pack::RealSmallPack;
 using scream::pack::IntSmallPack;
 using scream::pack::smallize;
-using scream::pack::biggize;
 using scream::pack::scalarize;
 using Mask = scream::pack::Mask<scream::pack::BigPack<Real>::n>;
 using SmallMask = scream::pack::Mask<scream::pack::SmallPack<Real>::n>;
