@@ -202,8 +202,8 @@ KOKKOS_INLINE_FUNCTION Real get_x_ctr (const Int& i) {
   return consts_xl + ((i + 0.5)/consts_ncell)*consts_L;
 }
 
-template <typename Real>
-KOKKOS_INLINE_FUNCTION Real map_x_to_n11 (const Real& x) {
+template <typename Scalar>
+KOKKOS_INLINE_FUNCTION Scalar map_x_to_n11 (const Scalar& x) {
   return 2*(x - consts_xl)/consts_L - 1;
 }
 
@@ -221,16 +221,16 @@ KOKKOS_INLINE_FUNCTION Real get_src (const Real& x, const Real& rho) {
   return src*rate[idx];
 }
 
-template <typename Real>
-KOKKOS_INLINE_FUNCTION Real get_u (const Real& x) {
+template <typename Scalar>
+KOKKOS_INLINE_FUNCTION Scalar get_u (const Scalar& x) {
   using std::cos;
   const auto u = consts_u_max*cos(0.2*map_x_to_n11(x) + 0.25);
   //assert(u > 0 && u <= consts::u_max);
   return u;
 }
 
-template <typename Real>
-KOKKOS_INLINE_FUNCTION Real get_ic (const Real& x) {
+template <typename Scalar>
+KOKKOS_INLINE_FUNCTION Scalar get_ic (const Scalar& x) {
   return consts::rho_ref;
 }
 } // namespace problem

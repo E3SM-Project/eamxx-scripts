@@ -100,7 +100,7 @@ void read (T* v, size_t sz, const FILEPtr& fid) {
 
 bool eq(const std::string& a, const char* const b1, const char* const b2 = 0);
 
-template <typename Real> struct is_single_precision {};
+template <typename Scalar> struct is_single_precision {};
 template <> struct is_single_precision<float> { enum : bool { value = true }; };
 template <> struct is_single_precision<double> { enum : bool { value = false }; };
 
@@ -178,18 +178,20 @@ void initialize();
 
 template <typename ExeSpace = Kokkos::DefaultExecutionSpace>
 struct ExeSpaceUtils {
-  static team_policy get_default_team_policy (Int ni, Int nk) {
+  using TeamPolicy = Kokkos::TeamPolicy<ExeSpace>;
+
+  static TeamPolicy get_default_team_policy (Int ni, Int nk) {
 #ifdef MIMIC_GPU
     const int max_threads = ExeSpace::concurrency();
     const int team_size = max_threads < 7 ? max_threads : 7;
-    return team_policy(ni, team_size);
+    return TeamPolicy(ni, team_size);
 #else
-    return team_policy(ni, 1);
+    return TeamPolicy(ni, 1);
 #endif
   }
 
-  static team_policy get_team_policy_force_team_size (Int ni, Int team_size) {
-    return team_policy(ni, team_size);
+  static TeamPolicy get_team_policy_force_team_size (Int ni, Int team_size) {
+    return TeamPolicy(ni, team_size);
   }
 };
 
@@ -245,15 +247,15 @@ public:
 };
 #endif
 
-template <typename Real>
+template <typename Scalar>
 void dump_to_file(const char* filename,
-                  const Real* qr, const Real* nr, const Real* th, const Real* dzq, const Real* pres, const Real* prt_liq,
-                  const int ni, const int nk, const Real dt, const int ts, int ldk = -1)
+                  const Scalar* qr, const Scalar* nr, const Scalar* th, const Scalar* dzq, const Scalar* pres, const Scalar* prt_liq,
+                  const int ni, const int nk, const Scalar dt, const int ts, int ldk = -1)
 {
   if (ldk < 0) ldk = nk;
 
   std::string full_fn(filename);
-  full_fn += "_perf_run.dat" + std::to_string(sizeof(Real));
+  full_fn += "_perf_run.dat" + std::to_string(sizeof(Scalar));
 
   FILEPtr fid(fopen(full_fn.c_str(), "w"));
   micro_throw_if( !fid, "dump_to_file can't write " << filename);
@@ -288,13 +290,23 @@ subview (const Kokkos::View<T**, Parms...>& v_in, const int i) {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-template <typename T, typename ExeSpace = Kokkos::DefaultExecutionSpace>
+template <typename T, typename D=DefaultDevice>
 class WorkspaceManager
 ///////////////////////////////////////////////////////////////////////////////
 {
  public:
+  using TeamPolicy = typename KokkosTypes<D>::TeamPolicy;
+  using MemberType = typename KokkosTypes<D>::MemberType;
+  using ExeSpace   = typename KokkosTypes<D>::ExeSpace;
 
-  WorkspaceManager(int size, int max_used, team_policy policy) :
+  template <typename S>
+  using kokkos_1d_t = typename KokkosTypes<D>::template kokkos_1d_t<S>;
+  template <typename S>
+  using kokkos_2d_t = typename KokkosTypes<D>::template kokkos_2d_t<S>;
+  template <typename S>
+  using kokkos_3d_t = typename KokkosTypes<D>::template kokkos_3d_t<S>;
+
+  WorkspaceManager(int size, int max_used, TeamPolicy policy) :
     m_tu(policy),
     m_concurrent_teams(m_tu.get_num_concurrent_teams()),
     m_reserve( (sizeof(T) > 2*sizeof(int)) ? 1 :
@@ -376,7 +388,7 @@ class WorkspaceManager
   class Workspace {
    public:
     KOKKOS_INLINE_FUNCTION
-    Workspace(const WorkspaceManager& parent, int ws_idx, const member_type& team) :
+    Workspace(const WorkspaceManager& parent, int ws_idx, const MemberType& team) :
       m_parent(parent), m_team(team), m_ws_idx(ws_idx),
       m_next_slot(parent.m_next_slot(m_pad_factor*ws_idx))
     {}
@@ -474,7 +486,7 @@ class WorkspaceManager
       m_team.team_barrier();
     }
 
-    template <typename S=T, size_t N>
+    template <size_t N, typename S=T>
     KOKKOS_INLINE_FUNCTION
     void take_many_and_reset(const Kokkos::Array<const char*, N>& names,
                              const Kokkos::Array<Unmanaged<kokkos_1d_t<S> >*, N>& ptrs) const
@@ -579,7 +591,7 @@ class WorkspaceManager
 
    private:
     const WorkspaceManager& m_parent;
-    const member_type& m_team;
+    const MemberType& m_team;
     const int m_ws_idx;
     int& m_next_slot;
 
@@ -688,7 +700,7 @@ class WorkspaceManager
   }; // class Workspace
 
   KOKKOS_INLINE_FUNCTION
-  Workspace get_workspace(const member_type& team) const
+  Workspace get_workspace(const MemberType& team) const
   { return Workspace(*this, m_tu.get_workspace_idx(team), team); }
 
  public: // for Cuda
@@ -699,7 +711,7 @@ class WorkspaceManager
     Kokkos::parallel_for(
       "WorkspaceManager ctor",
       util::ExeSpaceUtils<ExeSpace>::get_default_team_policy(concurrent_teams, max_used),
-      KOKKOS_LAMBDA(const member_type& team) {
+      KOKKOS_LAMBDA(const MemberType& team) {
         Kokkos::parallel_for(
           Kokkos::TeamThreadRange(team, max_used), [&] (int i) {
             wm.init_metadata(team.league_rank(), i);

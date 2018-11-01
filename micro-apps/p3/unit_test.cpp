@@ -7,6 +7,18 @@
 #include <array>
 #include <algorithm>
 
+namespace unit_test {
+
+struct UnitTest {
+
+using D = DefaultDevice; // change device type here
+
+using MemberType = typename KokkosTypes<D>::MemberType;
+using TeamPolicy = typename KokkosTypes<D>::TeamPolicy;
+
+template <typename S>
+using kokkos_1d_t = typename KokkosTypes<D>::template kokkos_1d_t<S>;
+
 static Int unittest_team_policy () {
   Int nerr = 0;
 
@@ -15,7 +27,7 @@ static Int unittest_team_policy () {
 
   for (int nk: {128, 122, 255, 42}) {
     const int ni = 1000;
-    const auto p = util::ExeSpaceUtils<>::get_default_team_policy(ni, nk);
+    const auto p = util::ExeSpaceUtils<typename KokkosTypes<D>::ExeSpace>::get_default_team_policy(ni, nk);
     std::cout << "ni " << ni << " nk " << nk
               << " league size " << p.league_size()
               << " team_size " << p.team_size() << "\n";
@@ -42,8 +54,8 @@ static Int unittest_pack () {
 
   kokkos_1d_t<TestBigPack> test_k_array("test_k_array", num_bigs);
   Kokkos::parallel_reduce("unittest_pack",
-                          util::ExeSpaceUtils<>::get_default_team_policy(128, 128),
-                          KOKKOS_LAMBDA(const member_type& team, int& total_errs) {
+                          util::ExeSpaceUtils<typename KokkosTypes<D>::ExeSpace>::get_default_team_policy(128, 128),
+                          KOKKOS_LAMBDA(const MemberType& team, int& total_errs) {
 
     int nerrs_local = 0;
 
@@ -70,8 +82,6 @@ static Int unittest_pack () {
   return nerr;
 }
 
-namespace unit_test {
-struct UnitTest {
 static int unittest_workspace()
 {
   int nerr = 0;
@@ -80,7 +90,7 @@ static int unittest_workspace()
   const int ni = 128;
   const int nk = 128;
 
-  team_policy policy(util::ExeSpaceUtils<>::get_default_team_policy(ni, nk));
+  TeamPolicy policy(util::ExeSpaceUtils<typename KokkosTypes<D>::ExeSpace>::get_default_team_policy(ni, nk));
 
   {
     util::WorkspaceManager<double> wsmd(17, num_ws, policy);
@@ -93,7 +103,7 @@ static int unittest_workspace()
     micro_assert(wsmc.m_size == 16);
     Kokkos::parallel_for(
       "unittest_workspace char", policy,
-      KOKKOS_LAMBDA(const member_type& team) {
+      KOKKOS_LAMBDA(const MemberType& team) {
         auto ws = wsmc.get_workspace(team);
         const auto t1 = ws.take("t1");
         const auto t2 = ws.take("t1");
@@ -109,9 +119,10 @@ static int unittest_workspace()
 
   // Test host-explicit WorkspaceMgr
   {
-    team_policy policy_host(util::ExeSpaceUtils<Kokkos::DefaultHostExecutionSpace>::get_default_team_policy(ni, nk));
-    util::WorkspaceManager<short, Kokkos::DefaultHostExecutionSpace> wsmh(16, num_ws, policy);
-    wsmh.m_data(0, 0) = 0;
+    using HostDevice = Kokkos::Device<Kokkos::DefaultHostExecutionSpace, Kokkos::HostSpace>;
+    TeamPolicy policy_host(util::ExeSpaceUtils<typename KokkosTypes<HostDevice>::ExeSpace>::get_default_team_policy(ni, nk));
+    util::WorkspaceManager<short, HostDevice> wsmh(16, num_ws, policy);
+    wsmh.m_data(0, 0) = 0; // check on cuda machine
   }
 
   util::WorkspaceManager<int> wsm(ints_per_ws, num_ws, policy);
@@ -119,7 +130,7 @@ static int unittest_workspace()
   micro_assert(wsm.m_reserve == 2);
   micro_assert(wsm.m_size == ints_per_ws);
 
-  Kokkos::parallel_reduce("unittest_workspace", policy, KOKKOS_LAMBDA(const member_type& team, int& total_errs) {
+  Kokkos::parallel_reduce("unittest_workspace", policy, KOKKOS_LAMBDA(const MemberType& team, int& total_errs) {
 
     int nerrs_local = 0;
     auto ws = wsm.get_workspace(team);
@@ -337,8 +348,6 @@ static int unittest_workspace()
 
   return nerr;
 }
-};
-}
 
 #if 0
 static int unittest_team_utils()
@@ -350,10 +359,10 @@ static int unittest_team_utils()
     const int ni = n*5;
     omp_set_num_threads(n);
     for (int s = 1; s <= n; ++s) {
-      const auto p = util::ExeSpaceUtils<>::get_team_policy_force_team_size(ni, s);
-      const int c = util::ExeSpaceUtils<>::get_num_concurrent_teams(p);
+      const auto p = util::ExeSpaceUtils<typename KokkosTypes<D>::ExeSpace>::get_team_policy_force_team_size(ni, s);
+      const int c = util::ExeSpaceUtils<typename KokkosTypes<D>::ExeSpace>::get_num_concurrent_teams(p);
       util::TeamUtils<> tu(p);
-      Kokkos::parallel_reduce("unittest_team_utils", p, KOKKOS_LAMBDA(member_type team_member, int& total_errs) {
+      Kokkos::parallel_reduce("unittest_team_utils", p, KOKKOS_LAMBDA(MemberType team_member, int& total_errs) {
         int nerrs_local = 0;
         const int i  = team_member.league_rank();
         int expected_idx = i;
@@ -392,16 +401,19 @@ static int unittest_team_utils()
 }
 #endif
 
+};
+}
+
 int main (int argc, char** argv) {
   util::initialize();
 
   int out = 0;
   Kokkos::initialize(argc, argv); {
-    out =  unittest_team_policy();
-    out += unittest_pack();
+    out =  unit_test::UnitTest::unittest_team_policy();
+    out += unit_test::UnitTest::unittest_pack();
     out += unit_test::UnitTest::unittest_workspace();
 #if 0
-    out += unittest_team_utils();
+    out += unit_test::UnitTest::unittest_team_utils();
 #endif
   } Kokkos::finalize();
 

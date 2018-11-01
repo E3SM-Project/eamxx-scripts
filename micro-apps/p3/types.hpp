@@ -12,30 +12,32 @@ typedef double Real;
 typedef float Real;
 #endif
 
-using Layout = Kokkos::LayoutRight;
+using DefaultDevice = Kokkos::Device<Kokkos::DefaultExecutionSpace, Kokkos::DefaultExecutionSpace::memory_space>;
 
-#ifdef KOKKOS_ENABLE_CUDA
-using MemSpace = Kokkos::CudaSpace;
-#else
-using MemSpace = Kokkos::HostSpace;
-#endif
+template <typename D=DefaultDevice>
+struct KokkosTypes
+{
+  using Layout = Kokkos::LayoutRight;
+  using MemSpace = typename D::memory_space;
+  using ExeSpace = typename D::execution_space;
+  using TeamPolicy = Kokkos::TeamPolicy<ExeSpace>;
+  using MemberType = typename TeamPolicy::member_type;
 
-using ExecSpace = Kokkos::DefaultExecutionSpace;
+  template <typename Scalar>
+  using kokkos_3d_t = Kokkos::View<Scalar***, Layout, MemSpace>;
 
-template <typename Scalar>
-using kokkos_3d_t = Kokkos::View<Scalar***, Layout, MemSpace>;
+  template <typename Scalar>
+  using kokkos_2d_t = Kokkos::View<Scalar**, Layout, MemSpace>;
 
-template <typename Scalar>
-using kokkos_2d_t = Kokkos::View<Scalar**, Layout, MemSpace>;
+  template <typename Scalar>
+  using kokkos_1d_t = Kokkos::View<Scalar*, Layout, MemSpace>;
 
-template <typename Scalar>
-using kokkos_1d_t = Kokkos::View<Scalar*, Layout, MemSpace>;
+  template <typename Scalar, int X, int Y>
+  using kokkos_2d_table_t = Kokkos::View<Scalar[X][Y], Layout, MemSpace>;
 
-template <typename Real>
-using kokkos_2d_table_t = Kokkos::View<Real[300][10], Layout, MemSpace>;
-
-template <typename Real>
-using kokkos_1d_table_t = Kokkos::View<Real[150], Layout, MemSpace>;
+  template <typename Scalar, int X>
+  using kokkos_1d_table_t = Kokkos::View<Scalar[X], Layout, MemSpace>;
+};
 
 // Turn a View's MemoryTraits (traits::memory_traits) into the equivalent
 // unsigned int mask.
@@ -66,12 +68,7 @@ using Unmanaged =
                  // already there.
                  Kokkos::Unmanaged> >;
 
-template <typename Real>
-using vector_2d_t = std::vector<std::vector<Real> >;
-
-using team_policy = Kokkos::TeamPolicy<>;
-using member_type = team_policy::member_type;
-//using thread_policy = Kokkos::TeamThreadRange;
-//using vector_policy = Kokkos::ThreadVectorRange;
+template <typename Scalar>
+using vector_2d_t = std::vector<std::vector<Scalar> >;
 
 #endif

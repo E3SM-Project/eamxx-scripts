@@ -23,44 +23,44 @@ namespace micro_sed {
 using scream::pack::scalarize;
 using scream::pack::RealPack;
 
-template <typename Real>
+template <typename Scalar>
 struct Globals
 {
-  static constexpr Real INV_RHOW = 1.e-3;
-  static constexpr Real RHOW     = 997.0;
-  static constexpr Real THRD     = 1.0/3.0;
-  static constexpr Real SXTH     = 1.0/6.0;
-  static constexpr Real PI       = 3.14159265;
-  static constexpr Real PIOV6    = PI*SXTH;
-  static constexpr Real CONS1    = PIOV6*RHOW;
-  static constexpr Real QSMALL   = 1.e-14;
-  static constexpr Real NSMALL   = 1.e-16;
-  static constexpr Real RD       = 287.15;
-  static constexpr Real RHOSUR   = 100000.0/(RD*273.15);
-  static constexpr Real CP       = 1005.0;
-  static constexpr Real INV_CP   = 1.0/CP;
+  static constexpr Scalar INV_RHOW = 1.e-3;
+  static constexpr Scalar RHOW     = 997.0;
+  static constexpr Scalar THRD     = 1.0/3.0;
+  static constexpr Scalar SXTH     = 1.0/6.0;
+  static constexpr Scalar PI       = 3.14159265;
+  static constexpr Scalar PIOV6    = PI*SXTH;
+  static constexpr Scalar CONS1    = PIOV6*RHOW;
+  static constexpr Scalar QSMALL   = 1.e-14;
+  static constexpr Scalar NSMALL   = 1.e-16;
+  static constexpr Scalar RD       = 287.15;
+  static constexpr Scalar RHOSUR   = 100000.0/(RD*273.15);
+  static constexpr Scalar CP       = 1005.0;
+  static constexpr Scalar INV_CP   = 1.0/CP;
 
-  static vector_2d_t<Real> VN_TABLE, VM_TABLE;
-  static std::vector<Real> MU_R_TABLE;
+  static vector_2d_t<Scalar> VN_TABLE, VM_TABLE;
+  static std::vector<Scalar> MU_R_TABLE;
 };
 
-template <typename Real>
-vector_2d_t<Real> Globals<Real>::VN_TABLE;
+template <typename Scalar>
+vector_2d_t<Scalar> Globals<Scalar>::VN_TABLE;
 
-template <typename Real>
-vector_2d_t<Real> Globals<Real>::VM_TABLE;
+template <typename Scalar>
+vector_2d_t<Scalar> Globals<Scalar>::VM_TABLE;
 
-template <typename Real>
-std::vector<Real> Globals<Real>::MU_R_TABLE;
+template <typename Scalar>
+std::vector<Scalar> Globals<Scalar>::MU_R_TABLE;
 
-template <typename Real>
-constexpr Real Globals<Real>::NSMALL;
+template <typename Scalar>
+constexpr Scalar Globals<Scalar>::NSMALL;
 
-template <typename Real>
+template <typename Scalar>
 void populate_input(const int nk, const int kdir,
-                    std::vector<Real> & qr, std::vector<Real> & nr, std::vector<Real> & th, std::vector<Real> & dzq, std::vector<Real> & pres)
+                    std::vector<Scalar> & qr, std::vector<Scalar> & nr, std::vector<Scalar> & th, std::vector<Scalar> & dzq, std::vector<Scalar> & pres)
 {
-  ic::MicroSedData<Real> data(1, nk);
+  ic::MicroSedData<Scalar> data(1, nk);
   populate(data, kdir);
 
   for (int k = 0; k < nk; ++k) {
@@ -77,7 +77,7 @@ void populate_input(const int nk, const int kdir,
  * the lookup table is two dimensional as a function of number-weighted mean size
  * proportional to qr/Nr and shape parameter mu_r
  */
-template <typename Real>
+template <typename Scalar>
 void p3_init_cpp()
 {
   static bool is_init = false;
@@ -86,32 +86,37 @@ void p3_init_cpp()
   }
   is_init = true;
 
-  Globals<Real>::VN_TABLE.resize(300, std::vector<Real>(10));
-  Globals<Real>::VM_TABLE.resize(300, std::vector<Real>(10));
-  Globals<Real>::MU_R_TABLE.resize(150);
+  Globals<Scalar>::VN_TABLE.resize(300, std::vector<Scalar>(10));
+  Globals<Scalar>::VM_TABLE.resize(300, std::vector<Scalar>(10));
+  Globals<Scalar>::MU_R_TABLE.resize(150);
 
   p3_init();
 
-  Real* vn_table   = c_get_vn_table();
-  Real* vm_table   = c_get_vm_table();
-  Real* mu_r_table = c_get_mu_r_table();
+  Scalar* vn_table   = c_get_vn_table();
+  Scalar* vm_table   = c_get_vm_table();
+  Scalar* mu_r_table = c_get_mu_r_table();
 
   for (int i = 0; i < 300; ++i) {
     for (int k = 0; k < 10; ++k) {
-      Globals<Real>::VN_TABLE[i][k] = vn_table[300*k + i];
-      Globals<Real>::VM_TABLE[i][k] = vm_table[300*k + i];
+      Globals<Scalar>::VN_TABLE[i][k] = vn_table[300*k + i];
+      Globals<Scalar>::VM_TABLE[i][k] = vm_table[300*k + i];
     }
   }
 
   for (int i = 0; i < 150; ++i) {
-    Globals<Real>::MU_R_TABLE[i] = mu_r_table[i];
+    Globals<Scalar>::MU_R_TABLE[i] = mu_r_table[i];
   }
 }
 
-template <typename Scalar>
+template <typename Scalar, typename D=DefaultDevice>
 void dump_to_file_k(const char* basename,
-                    const kokkos_2d_t<Scalar>& qr, const kokkos_2d_t<Scalar>& nr, const kokkos_2d_t<Scalar>& th, const kokkos_2d_t<Scalar>& dzq,
-                    const kokkos_2d_t<Scalar>& pres, const kokkos_1d_t<Scalar>& prt_liq, const int ni, const int nk, const Real dt, const int ts)
+                    const typename KokkosTypes<D>::template kokkos_2d_t<Scalar>& qr,
+                    const typename KokkosTypes<D>::template kokkos_2d_t<Scalar>& nr,
+                    const typename KokkosTypes<D>::template kokkos_2d_t<Scalar>& th,
+                    const typename KokkosTypes<D>::template kokkos_2d_t<Scalar>& dzq,
+                    const typename KokkosTypes<D>::template kokkos_2d_t<Scalar>& pres,
+                    const typename KokkosTypes<D>::template kokkos_1d_t<Scalar>& prt_liq,
+                    const int ni, const int nk, const Scalar dt, const int ts)
 {
   auto qr_m      = Kokkos::create_mirror_view(qr);
   auto nr_m      = Kokkos::create_mirror_view(nr);
@@ -133,19 +138,21 @@ void dump_to_file_k(const char* basename,
   const Scalar* dzq_md  = reinterpret_cast<const Scalar*>(dzq_m.data());
   const Scalar* pres_md = reinterpret_cast<const Scalar*>(pres_m.data());
 
-  std::cout << "Dumping ni " << ni << " nk " << nk << std::endl;
-
   util::dump_to_file(
     basename, qr_md, nr_md, th_md, dzq_md, pres_md, prt_liq_m.data(),
     ni, nk, dt, ts);
 }
 
-template <typename Scalar>
+template <typename Scalar, typename D=DefaultDevice>
 void dump_to_file_k (
   const char* basename,
-  const kokkos_2d_t<RealPack>& qr, const kokkos_2d_t<RealPack>& nr, const kokkos_2d_t<RealPack>& th,
-  const kokkos_2d_t<RealPack>& dzq, const kokkos_2d_t<RealPack>& pres, const kokkos_1d_t<Scalar>& prt_liq,
-  const int ni, const int nk, const Real dt, const int ts)
+  const typename KokkosTypes<D>::template kokkos_2d_t<RealPack>& qr,
+  const typename KokkosTypes<D>::template kokkos_2d_t<RealPack>& nr,
+  const typename KokkosTypes<D>::template kokkos_2d_t<RealPack>& th,
+  const typename KokkosTypes<D>::template kokkos_2d_t<RealPack>& dzq,
+  const typename KokkosTypes<D>::template kokkos_2d_t<RealPack>& pres,
+  const typename KokkosTypes<D>::template kokkos_1d_t<Scalar>& prt_liq,
+  const int ni, const int nk, const Scalar dt, const int ts)
 {
   auto qr_m      = Kokkos::create_mirror_view(qr);
   auto nr_m      = Kokkos::create_mirror_view(nr);
@@ -169,8 +176,6 @@ void dump_to_file_k (
     spres = scalarize(pres_m);
   const int ldk = sqr.extent_int(1);
 
-  std::cout << "Dumping ni " << ni << " nk " << nk << " ldk " << ldk << std::endl;
-
   const Scalar* qr_md   = reinterpret_cast<const Scalar*>(sqr.data());
   const Scalar* nr_md   = reinterpret_cast<const Scalar*>(snr.data());
   const Scalar* th_md   = reinterpret_cast<const Scalar*>(sth.data());
@@ -182,8 +187,9 @@ void dump_to_file_k (
     ni, nk, dt, ts, ldk);
 }
 
-template <typename T, typename Scalar>
-void populate_kokkos_from_vec(const int num_vert, std::vector<Scalar> const& vec, kokkos_1d_t<T>& device)
+template <typename T, typename Scalar, typename D=DefaultDevice>
+void populate_kokkos_from_vec(const int num_vert, std::vector<Scalar> const& vec,
+                              typename KokkosTypes<D>::template kokkos_1d_t<T>& device)
 {
   const auto mirror = Kokkos::create_mirror_view(device);
 
@@ -194,8 +200,8 @@ void populate_kokkos_from_vec(const int num_vert, std::vector<Scalar> const& vec
   Kokkos::deep_copy(device, mirror);
 }
 
-template <typename Real, typename MSK>
-void micro_sed_func_kokkos_wrap(const int ni, const int nk, const Real dt, const int ts, const int kdir, const int repeat)
+template <typename Scalar, typename MSK, typename D=DefaultDevice>
+void micro_sed_func_kokkos_wrap(const int ni, const int nk, const Scalar dt, const int ts, const int kdir, const int repeat)
 {
   util::dump_arch();
 
@@ -205,28 +211,28 @@ void micro_sed_func_kokkos_wrap(const int ni, const int nk, const Real dt, const
   MSK msk(ni, nk);
 
   const int num_vert = msk.get_num_vert();
-  kokkos_2d_t<typename MSK::pack_t> qr("qr", ni, num_vert),
+  typename KokkosTypes<D>::template kokkos_2d_t<typename MSK::pack_t> qr("qr", ni, num_vert),
     nr("nr", ni, num_vert),
     th("th", ni, num_vert),
     dzq("dzq", ni, num_vert),
     pres("pres", ni, num_vert);
 
-  kokkos_1d_t<typename MSK::pack_t> qr_i("qr_i", num_vert),
+  typename KokkosTypes<D>::template kokkos_1d_t<typename MSK::pack_t> qr_i("qr_i", num_vert),
     nr_i("nr_i", num_vert),
     th_i("th_i", num_vert),
     dzq_i("dzq_i", num_vert),
     pres_i("pres_i", num_vert);
 
-  kokkos_1d_t<Real> prt_liq("prt_liq", ni), prt_liq_i("prt_liq", ni);
+  typename KokkosTypes<D>::template kokkos_1d_t<Scalar> prt_liq("prt_liq", ni), prt_liq_i("prt_liq", ni);
 
   {
-    std::vector<Real> qr_v(nk), nr_v(nk), th_v(nk), dzq_v(nk), pres_v(nk);
+    std::vector<Scalar> qr_v(nk), nr_v(nk), th_v(nk), dzq_v(nk), pres_v(nk);
 
     populate_input(nk, kdir, qr_v, nr_v, th_v, dzq_v, pres_v);
 
     for (auto item : { std::make_pair(&qr_v, &qr_i), std::make_pair(&nr_v, &nr_i), std::make_pair(&th_v, &th_i),
           std::make_pair(&dzq_v, &dzq_i), std::make_pair(&pres_v, &pres_i)}) {
-      populate_kokkos_from_vec(nk, *(item.first), *(item.second));
+      populate_kokkos_from_vec<typename MSK::pack_t, Scalar>(nk, *(item.first), *(item.second));
     }
   }
 
@@ -235,8 +241,8 @@ void micro_sed_func_kokkos_wrap(const int ni, const int nk, const Real dt, const
 
   for (int r = 0; r < repeat+1; ++r) {
     Kokkos::parallel_for("Re-init",
-                         util::ExeSpaceUtils<>::get_default_team_policy(ni, num_vert),
-                         KOKKOS_LAMBDA(member_type team_member) {
+                         util::ExeSpaceUtils<typename KokkosTypes<D>::ExeSpace>::get_default_team_policy(ni, num_vert),
+                         KOKKOS_LAMBDA(typename KokkosTypes<D>::MemberType team_member) {
       const int i = team_member.league_rank();
       Kokkos::parallel_for(Kokkos::TeamThreadRange(team_member, num_vert), [=] (int k) {
         qr(i, k)   = qr_i(k);
@@ -249,9 +255,8 @@ void micro_sed_func_kokkos_wrap(const int ni, const int nk, const Real dt, const
     });
 
     for (int i = 0; i < ts; ++i) {
-      micro_sed_func(msk,
-                     kdir == 1 ? 1 : nk, kdir == 1 ? nk : 1,
-                     1, ni, dt, qr, nr, th, dzq, pres, prt_liq);
+      msk.micro_sed_func(kdir == 1 ? 1 : nk, kdir == 1 ? nk : 1,
+                         1, ni, dt, qr, nr, th, dzq, pres, prt_liq);
       Kokkos::fence();
     }
 

@@ -103,11 +103,11 @@ class VanillaCppBridge
   std::vector<Scalar> prt_liq;
 };
 
-template <typename Scalar>
+template <typename Scalar, typename D=DefaultDevice>
 class KokkosCppBridge {
 public:
-  kokkos_2d_t<Real> qr, nr, th, dzq, pres;
-  kokkos_1d_t<Real> prt_liq;
+  typename KokkosTypes<D>::template kokkos_2d_t<Scalar> qr, nr, th, dzq, pres;
+  typename KokkosTypes<D>::template kokkos_1d_t<Scalar> prt_liq;
 
   KokkosCppBridge(const ic::MicroSedData<Scalar>& d)
     : qr("qr", d.ni, d.nk),
@@ -178,14 +178,14 @@ public:
   }
 };
 
-template <typename Scalar>
+template <typename Scalar, typename D=DefaultDevice>
 class KokkosPackBridge {
 public:
   using RealPack = p3::micro_sed::RealPack;
 
   int np;
-  kokkos_2d_t<RealPack> qr, nr, th, dzq, pres;
-  kokkos_1d_t<Real> prt_liq;
+  typename KokkosTypes<D>::template kokkos_2d_t<RealPack> qr, nr, th, dzq, pres;
+  typename KokkosTypes<D>::template kokkos_1d_t<Real> prt_liq;
 
   KokkosPackBridge(const ic::MicroSedData<Scalar>& d)
     : np(scream::pack::npack<RealPack>(d.nk)),
@@ -279,9 +279,9 @@ public:
 template <typename Scalar, typename MSK, typename BridgeType>
 void micro_sed_func_cpp_kokkos (ic::MicroSedData<Scalar>& d, BridgeType& bridge, MSK& msk)
 {
-  p3::micro_sed::micro_sed_func( msk, d.reverse ? d.nk : 1, d.reverse ? 1 : d.nk,
-                                 1, d.ni, d.dt, bridge.qr, bridge.nr, bridge.th,
-                                 bridge.dzq, bridge.pres, bridge.prt_liq);
+  msk.micro_sed_func( d.reverse ? d.nk : 1, d.reverse ? 1 : d.nk,
+                      1, d.ni, d.dt, bridge.qr, bridge.nr, bridge.th,
+                      bridge.dzq, bridge.pres, bridge.prt_liq);
 
   bridge.sync_to(d);
 }
@@ -384,13 +384,14 @@ static Int compare (const std::string& label, const ic::MicroSedData<Scalar>& d_
   // Compare just the last column.
   const auto os = d.nk*(d.ni-1);
   const auto n = d.nk;
+  Scalar zero = 0.0;
   return (cmp::compare(label + " qr", d_ref.qr, d.qr + os, n, tol, verbose) +
           cmp::compare(label + " nr", d_ref.nr, d.nr + os, n, tol, verbose) +
           cmp::compare(label + " prt_liq", d_ref.prt_liq, d.prt_liq + (d.ni-1), d_ref.ni, tol, verbose) +
           // The rest should not be written, so check that they are BFB.
-          cmp::compare(label + " th", d_ref.th, d.th + os, n, 0, verbose) +
-          cmp::compare(label + " dzq", d_ref.dzq, d.dzq + os, n, 0, verbose) +
-          cmp::compare(label + " pres", d_ref.pres, d.pres + os, n, 0, verbose));
+          cmp::compare(label + " th", d_ref.th, d.th + os, n, zero, verbose) +
+          cmp::compare(label + " dzq", d_ref.dzq, d.dzq + os, n, zero, verbose) +
+          cmp::compare(label + " pres", d_ref.pres, d.pres + os, n, zero, verbose));
 }
 
 template <typename Bridge, typename Lambda, typename Scalar>
@@ -407,7 +408,7 @@ int do_compare(const Lambda& func, ic::MicroSedData<Scalar>& d, const ic::MicroS
   return compare(ss.str(), d_ref, d, tol, verbose);
 }
 
-template <typename Scalar>
+template <typename Scalar, typename D=DefaultDevice>
 static Int run_and_cmp (const std::string& bfn, const Real& tol, bool verbose) {
   struct Observer : public BaselineObserver {
     util::FILEPtr fid;
@@ -420,7 +421,7 @@ static Int run_and_cmp (const std::string& bfn, const Real& tol, bool verbose) {
       fid = util::FILEPtr(fopen(bfn.c_str(), "r"));
       micro_throw_if( ! fid, "run_and_cmp can't read " << bfn);
 
-      if (!util::OnGpu<ExecSpace>::value) {
+      if (!util::OnGpu<typename KokkosTypes<D>::ExeSpace>::value) {
         // Sanity check.
         micro_throw_if( ! util::is_single_precision<Real>::value && tol != 0,
                         "We want BFB in double precision, at least in DEBUG builds.");
@@ -434,8 +435,8 @@ static Int run_and_cmp (const std::string& bfn, const Real& tol, bool verbose) {
       std::vector<ic::MicroSedData<Scalar> > ds
         = {d_ic_cp, d_ic_cp, d_ic_cp};
 
-      p3::micro_sed::MicroSedFuncVanillaKokkos<Scalar> msvk(d_ic.ni, d_ic.nk);
-      p3::micro_sed::MicroSedFuncPackNoiWsKokkos<Scalar> mspnwk(d_ic.ni, d_ic.nk);
+      p3::micro_sed::MicroSedFuncVanillaKokkos<Scalar, D> msvk(d_ic.ni, d_ic.nk);
+      p3::micro_sed::MicroSedFuncPackNoiWsKokkos<Scalar, D> mspnwk(d_ic.ni, d_ic.nk);
 
       for (Int step = 0; step < BaselineConsts::nstep; ++step) {
         // Read the baseline.
@@ -468,11 +469,11 @@ static Int run_and_cmp (const std::string& bfn, const Real& tol, bool verbose) {
           [] (ic::MicroSedData<Scalar>& d, FortranBridge<Scalar>& b) { micro_sed_func(d, b); },
           ds[0], d_ref, tol, "Original Fortran", step, verbose);
 
-        nerr += do_compare<KokkosCppBridge<Scalar> >(
+        nerr += do_compare<KokkosCppBridge<Scalar, D> >(
           [&] (ic::MicroSedData<Scalar>& d, KokkosCppBridge<Scalar>& b) { micro_sed_func_cpp_kokkos(d, b, msvk); },
           ds[1], d_ref, cpp_tol, "Vanilla Kokkos C++", step, verbose);
 
-        nerr += do_compare<KokkosPackBridge<Scalar> >(
+        nerr += do_compare<KokkosPackBridge<Scalar, D> >(
           [&] (ic::MicroSedData<Scalar>& d, KokkosPackBridge<Scalar>& b) { micro_sed_func_cpp_kokkos(d, b, mspnwk); },
           ds[2], d_ref, cpp_tol, "Final Kokkos C++", step, verbose);
       }
@@ -507,8 +508,10 @@ int main (int argc, char** argv) {
     return -1;
   }
 
+  using Device = DefaultDevice; // change device here
+
   bool generate = false, verbose=false;
-  Real tol = util::OnGpu<ExecSpace>::value ? 1e-13 : 0.0;
+  Real tol = util::OnGpu<typename KokkosTypes<Device>::ExeSpace>::value ? 1e-13 : 0.0;
 
   for (Int i = 1; i < argc-1; ++i) {
     if (util::eq(argv[i], "-g", "--generate")) generate = true;
@@ -533,7 +536,7 @@ int main (int argc, char** argv) {
     } else {
       // Run with multiple columns, but compare only the last one to the baseline.
       printf("Comparing with %s at tol %1.1e\n", baseline_fn.c_str(), tol);
-      out += run_and_cmp<Real>(baseline_fn, tol, verbose);
+      out += run_and_cmp<Real, Device>(baseline_fn, tol, verbose);
     }
   } Kokkos::finalize();
 
