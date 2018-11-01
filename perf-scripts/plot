@@ -100,7 +100,7 @@ class Plotter(object):
 ###############################################################################
 
     def __init__(self, datafiles, font, log_x, tests):
-        plt.rcParams.update({'font.size': font})
+        # plt.rcParams.update({'font.size': font})
         # axis_tight_pad()
         subtle_grid()
 
@@ -118,6 +118,7 @@ class Plotter(object):
         self._min_x             = sys.maxsize
         self._max_x             = 0
         self._tests             = tests
+        self._font              = font
 
         for datafile in datafiles:
             with open(datafile, "r") as fd:
@@ -226,22 +227,23 @@ class Plotter(object):
 
     def finalize(self, no_legend):
         subtle_grid()
-        plt.title(self._title)
+        plt.title(self._title, fontsize=self._font)
 
         if self._log_x:
             log_base_str = str(int(self._scaling_factor)) if self._scaling_factor.is_integer() else "{:.2f}".format(self._scaling_factor)
-            plt.xlabel(r"$\log_{}$ {}".format(log_base_str, self.get_var_longname(self._scaling_var)))
+            plt.xlabel(r"$\log_{}$ {}".format(log_base_str, self.get_var_longname(self._scaling_var)), fontsize=self._font)
         else:
             distance = int(round(math.log(self._max_x / self._min_x, self._scaling_factor)))
             start = int(round(math.log(self._min_x, self._scaling_factor)))
             plt.xticks(ticks=list(range(start, start+distance+1)),
                        labels=[str(int(round(pow(self._scaling_factor, item)))) for item in range(start, start+distance+1)],
-                       rotation=45)
-            plt.xlabel(self.get_var_longname(self._scaling_var))
+                       rotation=45, fontsize=self._font - 4)
+            plt.xlabel(self.get_var_longname(self._scaling_var), fontsize=self._font)
 
-        plt.ylabel("Thousands of columns per second")
+        plt.ylabel("Thousands of columns per second", fontsize=self._font)
+        plt.yticks(fontsize=self._font - 4)
         if not no_legend:
-            plt.legend(loc=2, framealpha=0)
+            plt.legend(loc=2, framealpha=0, fontsize=self._font - 4)
 
         plt.show()
 
