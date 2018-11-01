@@ -110,9 +110,9 @@ class Plotter(object):
         self._inconsistent      = []
         self._title             = None
         self._avail_colors      = ["b", "g", "r", "c", "m", "y", "k"]
-        self._var_longname_map  = {"ni" : "Number of columns per node", "nk" : "Column levels", "dt" : "Time step", "ts" : "Number of time steps",
+        self._var_longname_map  = {"ni" : "Number of columns per node", "nk" : "Number of vertical levels", "dt" : "Time step", "ts" : "Number of time steps",
                                    "threads" : "Threads"}
-        self._test_longname_map = {"kokkos" : "Naive Kokkos", "packnoiws" : "Final Kokkos"}
+        self._test_longname_map = {"ref" : "Fortran", "vanilla" : "Initial Kokkos", "final" : "Final Kokkos"}
         self._mach_longname_map = {"bowman" : "KNL", "blake" : "Skylake", "waterman" : "Nvidia_V100"}
         self._log_x             = log_x
         self._min_x             = sys.maxsize
@@ -140,6 +140,8 @@ class Plotter(object):
 
             for item in prov_line.split()[1:]:
                 key, value = item.split("=")
+                if key == "dt":
+                    value += "sec"
                 if first_file:
                     self._consistent[key] = value
                 else:
@@ -168,7 +170,7 @@ class Plotter(object):
     def plot_line(self, xs, ys, line_label, testname, dashed, dotted, color):
         if not (self._tests and testname not in self._tests):
             line_label = "{} {}".format(self.get_test_longname(testname), line_label)
-            plt.plot(xs, ys, get_line_format(line_label, color, dashed, dotted), lw=2, label=line_label)
+            plt.plot(xs, ys, get_line_format(line_label, color, dashed, dotted), lw=2, label=line_label, linewidth=3)
 
     def plotdata(self, datafile, dashed, dotted):
         xs, ys = [], []
@@ -195,7 +197,7 @@ class Plotter(object):
                         for key, value in prov_dict.items():
                             if key in self._inconsistent:
                                 if first:
-                                    line_label += " with"
+                                    line_label += ","
                                     first = False
 
                                 line_label += " {} {}".format(value, self.get_var_longname(key).lower())
@@ -237,9 +239,9 @@ class Plotter(object):
                        rotation=45)
             plt.xlabel(self.get_var_longname(self._scaling_var))
 
-        plt.ylabel("Columns per second / $10^3$")
+        plt.ylabel("Thousands of columns per second")
         if not no_legend:
-            plt.legend(loc="best", framealpha=0)
+            plt.legend(loc=2, framealpha=0)
 
         plt.show()
 
