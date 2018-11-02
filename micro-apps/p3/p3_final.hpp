@@ -15,7 +15,6 @@
 namespace p3 {
 namespace micro_sed {
 
-using micro_sed::Globals;
 using scream::pack::RealPack;
 using scream::pack::IntPack;
 using scream::pack::RealSmallPack;

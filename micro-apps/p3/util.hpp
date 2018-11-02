@@ -198,8 +198,10 @@ struct ExeSpaceUtils {
 #ifdef KOKKOS_ENABLE_CUDA
 template <>
 struct ExeSpaceUtils<Kokkos::Cuda> {
-  static team_policy get_default_team_policy (Int ni, Int nk) {
-    return team_policy(ni, std::min(128, 32*((nk + 31)/32)));
+  using TeamPolicy = Kokkos::TeamPolicy<Kokkos::Cuda>;
+
+  static TeamPolicy get_default_team_policy (Int ni, Int nk) {
+    return TeamPolicy(ni, std::min(128, 32*((nk + 31)/32)));
   }
 };
 #endif

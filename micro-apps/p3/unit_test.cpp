@@ -121,8 +121,8 @@ static int unittest_workspace()
   // Test host-explicit WorkspaceMgr
   {
     using HostDevice = Kokkos::Device<Kokkos::DefaultHostExecutionSpace, Kokkos::HostSpace>;
-    TeamPolicy policy_host(util::ExeSpaceUtils<typename KokkosTypes<HostDevice>::ExeSpace>::get_default_team_policy(ni, nk));
-    util::WorkspaceManager<short, HostDevice> wsmh(16, num_ws, policy);
+    typename KokkosTypes<HostDevice>::TeamPolicy policy_host(util::ExeSpaceUtils<typename KokkosTypes<HostDevice>::ExeSpace>::get_default_team_policy(ni, nk));
+    util::WorkspaceManager<short, HostDevice> wsmh(16, num_ws, policy_host);
     wsmh.m_data(0, 0) = 0; // check on cuda machine
   }
 
