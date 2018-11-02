@@ -279,7 +279,7 @@ public:
 template <typename Scalar, typename MSK, typename BridgeType>
 void micro_sed_func_cpp_kokkos (ic::MicroSedData<Scalar>& d, BridgeType& bridge, MSK& msk)
 {
-  msk.micro_sed_func( d.reverse ? d.nk : 1, d.reverse ? 1 : d.nk,
+  MSK::micro_sed_func(msk, d.reverse ? d.nk : 1, d.reverse ? 1 : d.nk,
                       1, d.ni, d.dt, bridge.qr, bridge.nr, bridge.th,
                       bridge.dzq, bridge.pres, bridge.prt_liq);
 
@@ -436,7 +436,7 @@ static Int run_and_cmp (const std::string& bfn, const Real& tol, bool verbose) {
         = {d_ic_cp, d_ic_cp, d_ic_cp};
 
       p3::micro_sed::MicroSedFuncVanillaKokkos<Scalar, D> msvk(d_ic.ni, d_ic.nk);
-      p3::micro_sed::MicroSedFuncPackNoiWsKokkos<Scalar, D> mspnwk(d_ic.ni, d_ic.nk);
+      p3::micro_sed::MicroSedFuncFinalKokkos<Scalar, D> mspnwk(d_ic.ni, d_ic.nk);
 
       for (Int step = 0; step < BaselineConsts::nstep; ++step) {
         // Read the baseline.

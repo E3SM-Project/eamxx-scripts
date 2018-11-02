@@ -200,7 +200,7 @@ void populate_kokkos_from_vec(const int num_vert, std::vector<Scalar> const& vec
   Kokkos::deep_copy(device, mirror);
 }
 
-template <typename Scalar, typename MSK, typename D=DefaultDevice>
+template <typename Scalar, typename MSK>
 void micro_sed_func_kokkos_wrap(const int ni, const int nk, const Scalar dt, const int ts, const int kdir, const int repeat)
 {
   util::dump_arch();
@@ -211,19 +211,19 @@ void micro_sed_func_kokkos_wrap(const int ni, const int nk, const Scalar dt, con
   MSK msk(ni, nk);
 
   const int num_vert = msk.get_num_vert();
-  typename KokkosTypes<D>::template kokkos_2d_t<typename MSK::pack_t> qr("qr", ni, num_vert),
+  typename MSK::template kokkos_2d_t<typename MSK::pack_t> qr("qr", ni, num_vert),
     nr("nr", ni, num_vert),
     th("th", ni, num_vert),
     dzq("dzq", ni, num_vert),
     pres("pres", ni, num_vert);
 
-  typename KokkosTypes<D>::template kokkos_1d_t<typename MSK::pack_t> qr_i("qr_i", num_vert),
+  typename MSK::template kokkos_1d_t<typename MSK::pack_t> qr_i("qr_i", num_vert),
     nr_i("nr_i", num_vert),
     th_i("th_i", num_vert),
     dzq_i("dzq_i", num_vert),
     pres_i("pres_i", num_vert);
 
-  typename KokkosTypes<D>::template kokkos_1d_t<Scalar> prt_liq("prt_liq", ni), prt_liq_i("prt_liq", ni);
+  typename MSK::template kokkos_1d_t<Scalar> prt_liq("prt_liq", ni), prt_liq_i("prt_liq", ni);
 
   {
     std::vector<Scalar> qr_v(nk), nr_v(nk), th_v(nk), dzq_v(nk), pres_v(nk);
@@ -241,8 +241,8 @@ void micro_sed_func_kokkos_wrap(const int ni, const int nk, const Scalar dt, con
 
   for (int r = 0; r < repeat+1; ++r) {
     Kokkos::parallel_for("Re-init",
-                         util::ExeSpaceUtils<typename KokkosTypes<D>::ExeSpace>::get_default_team_policy(ni, num_vert),
-                         KOKKOS_LAMBDA(typename KokkosTypes<D>::MemberType team_member) {
+                         util::ExeSpaceUtils<typename MSK::ExeSpace>::get_default_team_policy(ni, num_vert),
+                         KOKKOS_LAMBDA(typename MSK::MemberType team_member) {
       const int i = team_member.league_rank();
       Kokkos::parallel_for(Kokkos::TeamThreadRange(team_member, num_vert), [=] (int k) {
         qr(i, k)   = qr_i(k);
@@ -255,8 +255,8 @@ void micro_sed_func_kokkos_wrap(const int ni, const int nk, const Scalar dt, con
     });
 
     for (int i = 0; i < ts; ++i) {
-      msk.micro_sed_func(kdir == 1 ? 1 : nk, kdir == 1 ? nk : 1,
-                         1, ni, dt, qr, nr, th, dzq, pres, prt_liq);
+      MSK::micro_sed_func(msk, kdir == 1 ? 1 : nk, kdir == 1 ? nk : 1,
+                          1, ni, dt, qr, nr, th, dzq, pres, prt_liq);
       Kokkos::fence();
     }
 

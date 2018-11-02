@@ -66,6 +66,7 @@ struct MicroSedFuncVanillaKokkos
   template <typename S>
   using kokkos_2d_t = typename KokkosTypes<D>::template kokkos_2d_t<S>;
 
+  using ExeSpace    = typename KokkosTypes<D>::ExeSpace;
   using MemberType  = typename KokkosTypes<D>::MemberType;
 
   using kokkos_1d_table_t = typename KokkosTypes<D>::template kokkos_1d_table_t<Scalar, 150>;
@@ -78,7 +79,7 @@ struct MicroSedFuncVanillaKokkos
   int num_horz, num_vert;
 
   // re-usable scratch views
-  kokkos_2d_t<Scalar> V_qr, V_nr, flux_qx, flux_nx, mu_r, lamr, rhofacr, inv_dzq, rho, inv_rho, t, tmparr1;
+  kokkos_2d_t<Scalar> V_qr, V_nr, flux_qx, flux_nx, mu_r, lamr, rhofacr, inv_dzq, rho, inv_rho, t;
 
   kokkos_2d_table_t vn_table, vm_table;
   kokkos_1d_table_t mu_r_table;
@@ -98,7 +99,6 @@ struct MicroSedFuncVanillaKokkos
     rho("rho", num_horz, num_vert),
     inv_rho("inv_rho", num_horz, num_vert),
     t("t", num_horz, num_vert),
-    tmparr1("tmparr1", num_horz, num_vert),
     vn_table("VN_TABLE"), vm_table("VM_TABLE"),
     mu_r_table("MU_R_TABLE")
   {
@@ -132,26 +132,25 @@ struct MicroSedFuncVanillaKokkos
 
   int get_num_vert() const { return num_vert; }
 
-  void reset()
+  static void reset(const MicroSedFuncVanillaKokkos<Scalar, D>& msvk)
   {
     Kokkos::parallel_for(
       "2d reset",
-      util::ExeSpaceUtils<typename KokkosTypes<D>::ExeSpace>::get_default_team_policy(num_horz, num_vert),
+      util::ExeSpaceUtils<ExeSpace>::get_default_team_policy(msvk.num_horz, msvk.num_vert),
       KOKKOS_LAMBDA(MemberType team_member) {
         const int i = team_member.league_rank();
-        Kokkos::parallel_for(Kokkos::TeamThreadRange(team_member, num_vert), [=] (int k) {
-          V_qr(i, k)    = 0.0;
-          V_nr(i, k)    = 0.0;
-          flux_qx(i, k) = 0.0;
-          flux_nx(i, k) = 0.0;
-          mu_r(i, k)    = 0.0;
-          lamr(i, k)    = 0.0;
-          rhofacr(i, k) = 0.0;
-          inv_dzq(i, k) = 0.0;
-          rho(i, k)     = 0.0;
-          inv_rho(i, k) = 0.0;
-          t(i, k)       = 0.0;
-          tmparr1(i, k) = 0.0;
+        Kokkos::parallel_for(Kokkos::TeamThreadRange(team_member, msvk.num_vert), [=] (int k) {
+          msvk.V_qr(i, k)    = 0.0;
+          msvk.V_nr(i, k)    = 0.0;
+          msvk.flux_qx(i, k) = 0.0;
+          msvk.flux_nx(i, k) = 0.0;
+          msvk.mu_r(i, k)    = 0.0;
+          msvk.lamr(i, k)    = 0.0;
+          msvk.rhofacr(i, k) = 0.0;
+          msvk.inv_dzq(i, k) = 0.0;
+          msvk.rho(i, k)     = 0.0;
+          msvk.inv_rho(i, k) = 0.0;
+          msvk.t(i, k)       = 0.0;
         });
       });
   }
@@ -160,8 +159,10 @@ struct MicroSedFuncVanillaKokkos
    * Computes and returns rain size distribution parameters
    */
   KOKKOS_FUNCTION
-  void get_rain_dsd2_kokkos(const Scalar qr, Scalar& nr, Scalar& mu_r, Scalar& rdumii, int& dumii, Scalar& lamr,
-                            Scalar& cdistr, Scalar& logn0r) const
+  static void get_rain_dsd2_kokkos(
+    const kokkos_1d_table_t& mu_r_table,
+    const Scalar qr, Scalar& nr, Scalar& mu_r, Scalar& rdumii, int& dumii, Scalar& lamr,
+    Scalar& cdistr, Scalar& logn0r)
   {
     constexpr Scalar nsmall = Globals<Scalar>::NSMALL;
     if (qr >= Globals<Scalar>::QSMALL) {
@@ -230,33 +231,35 @@ struct MicroSedFuncVanillaKokkos
    * pres: pressure                               Pa
    * prt_liq: precipitation rate, total liquid    m s-1  (output)
    */
-  void micro_sed_func(const int kts, const int kte, const int its, const int ite, const Scalar dt,
-                      kokkos_2d_t<Scalar>& qr, kokkos_2d_t<Scalar>& nr,
-                      kokkos_2d_t<const Scalar> const& th, kokkos_2d_t<const Scalar> const& dzq, kokkos_2d_t<const Scalar> const& pres,
-                      kokkos_1d_t<Scalar>& prt_liq)
+  static void micro_sed_func(
+    const MicroSedFuncVanillaKokkos<Scalar, D>& msvk,
+    const int kts, const int kte, const int its, const int ite, const Scalar dt,
+    kokkos_2d_t<Scalar>& qr, kokkos_2d_t<Scalar>& nr,
+    kokkos_2d_t<const Scalar> const& th, kokkos_2d_t<const Scalar> const& dzq, kokkos_2d_t<const Scalar> const& pres,
+    kokkos_1d_t<Scalar>& prt_liq)
   {
     // constants
     const Scalar odt = 1.0 / dt;
     constexpr Scalar nsmall = Globals<Scalar>::NSMALL;
 
     // direction of vertical leveling
-    const int kbot = (kts < kte) ? 0: num_vert-1;
+    const int kbot = (kts < kte) ? 0: msvk.num_vert-1;
     const int kdir = (kts < kte) ? 1  : -1;
 
     // Rain sedimentation:  (adaptivive substepping)
     Kokkos::parallel_for(
       "main rain sed loop",
-      util::ExeSpaceUtils<typename KokkosTypes<D>::ExeSpace>::get_default_team_policy(num_horz, num_vert),
+      util::ExeSpaceUtils<typename KokkosTypes<D>::ExeSpace>::get_default_team_policy(msvk.num_horz, msvk.num_vert),
       KOKKOS_LAMBDA(MemberType team_member) {
         const int i = team_member.league_rank();
 
-        Kokkos::parallel_for(Kokkos::TeamThreadRange(team_member, num_vert), [=] (int k) {
+        Kokkos::parallel_for(Kokkos::TeamThreadRange(team_member, msvk.num_vert), [=] (int k) {
           // inverse of thickness of layers
-          inv_dzq(i, k) = 1 / dzq(i, k);
-          t(i, k) = std::pow(pres(i, k) * 1.e-5, Globals<Scalar>::RD * Globals<Scalar>::INV_CP) * th(i, k);
-          rho(i, k) = pres(i, k) / (Globals<Scalar>::RD * t(i, k));
-          inv_rho(i, k) = 1.0 / rho(i, k);
-          rhofacr(i, k) = std::pow(Globals<Scalar>::RHOSUR * inv_rho(i, k), 0.54);
+          msvk.inv_dzq(i, k) = 1 / dzq(i, k);
+          msvk.t(i, k) = std::pow(pres(i, k) * 1.e-5, Globals<Scalar>::RD * Globals<Scalar>::INV_CP) * th(i, k);
+          msvk.rho(i, k) = pres(i, k) / (Globals<Scalar>::RD * msvk.t(i, k));
+          msvk.inv_rho(i, k) = 1.0 / msvk.rho(i, k);
+          msvk.rhofacr(i, k) = std::pow(Globals<Scalar>::RHOSUR * msvk.inv_rho(i, k), 0.54);
         });
         team_member.team_barrier();
 
@@ -266,7 +269,7 @@ struct MicroSedFuncVanillaKokkos
         int k_qxtop = -1; // avoid warning, but don't use a meanigful value
 
         // find top, determine qxpresent
-        Kokkos::parallel_reduce(Kokkos::TeamThreadRange(team_member, num_vert), [=] (int k, int& lmax) {
+        Kokkos::parallel_reduce(Kokkos::TeamThreadRange(team_member, msvk.num_vert), [=] (int k, int& lmax) {
           if (qr(i, k) >= Globals<Scalar>::QSMALL && k*kdir > lmax) {
             lmax = k*kdir;
           }
@@ -285,7 +288,7 @@ struct MicroSedFuncVanillaKokkos
           int k_qxbot = 0;
 
           // find bottom
-          Kokkos::parallel_reduce(Kokkos::TeamThreadRange(team_member, num_vert), [=] (int k, int& lmin) {
+          Kokkos::parallel_reduce(Kokkos::TeamThreadRange(team_member, msvk.num_vert), [=] (int k, int& lmin) {
             if (qr(i, k) >= Globals<Scalar>::QSMALL && k*kdir < lmin) {
               lmin = k*kdir;
             }
@@ -296,9 +299,9 @@ struct MicroSedFuncVanillaKokkos
 
           while (dt_left > 1.e-4) {
             Scalar Co_max = 0.0;
-            Kokkos::parallel_for(Kokkos::TeamThreadRange(team_member, num_vert), [=] (int kk) {
-              V_qr(i, kk) = 0.0;
-              V_nr(i, kk) = 0.0;
+            Kokkos::parallel_for(Kokkos::TeamThreadRange(team_member, msvk.num_vert), [=] (int kk) {
+              msvk.V_qr(i, kk) = 0.0;
+              msvk.V_nr(i, kk) = 0.0;
             });
             team_member.team_barrier();
 
@@ -311,26 +314,26 @@ struct MicroSedFuncVanillaKokkos
                 nr(i, k) = util::max(nr(i, k), nsmall);
                 Scalar rdumii=0.0, tmp1=0.0, tmp2=0.0, rdumjj=0.0, inv_dum3=0.0;
                 int dumii=0, dumjj=0;
-                get_rain_dsd2_kokkos(qr(i, k), nr(i, k), mu_r(i, k), rdumii, dumii, lamr(i, k), tmp1, tmp2);
-                find_lookupTable_indices_3_kokkos(dumii, dumjj, rdumii, rdumjj, inv_dum3, mu_r(i, k), lamr(i, k));
+                get_rain_dsd2_kokkos(msvk.mu_r_table, qr(i, k), nr(i, k), msvk.mu_r(i, k), rdumii, dumii, msvk.lamr(i, k), tmp1, tmp2);
+                find_lookupTable_indices_3_kokkos(dumii, dumjj, rdumii, rdumjj, inv_dum3, msvk.mu_r(i, k), msvk.lamr(i, k));
 
                 // mass-weighted fall speed:
-                Scalar dum1 = vm_table(dumii-1, dumjj-1) + (rdumii-dumii) * inv_dum3 *
-                  (vm_table(dumii, dumjj-1) - vm_table(dumii-1, dumjj-1));
-                Scalar dum2 = vm_table(dumii-1, dumjj) + (rdumii-dumii) * inv_dum3 *
-                  (vm_table(dumii, dumjj) - vm_table(dumii-1, dumjj));
+                Scalar dum1 = msvk.vm_table(dumii-1, dumjj-1) + (rdumii-dumii) * inv_dum3 *
+                  (msvk.vm_table(dumii, dumjj-1) - msvk.vm_table(dumii-1, dumjj-1));
+                Scalar dum2 = msvk.vm_table(dumii-1, dumjj) + (rdumii-dumii) * inv_dum3 *
+                  (msvk.vm_table(dumii, dumjj) - msvk.vm_table(dumii-1, dumjj));
 
-                V_qr(i, k) = (dum1 + (rdumjj - dumjj) * (dum2 - dum1)) * rhofacr(i, k);
+                msvk.V_qr(i, k) = (dum1 + (rdumjj - dumjj) * (dum2 - dum1)) * msvk.rhofacr(i, k);
 
                 // number-weighted fall speed:
-                dum1 = vn_table(dumii-1, dumjj-1) + (rdumii-dumii) * inv_dum3 *
-                  (vn_table(dumii, dumjj-1) - vn_table(dumii-1, dumjj-1));
-                dum2 = vn_table(dumii-1, dumjj) + (rdumii-dumii) * inv_dum3 *
-                  (vn_table(dumii, dumjj) - vn_table(dumii-1, dumjj));
+                dum1 = msvk.vn_table(dumii-1, dumjj-1) + (rdumii-dumii) * inv_dum3 *
+                  (msvk.vn_table(dumii, dumjj-1) - msvk.vn_table(dumii-1, dumjj-1));
+                dum2 = msvk.vn_table(dumii-1, dumjj) + (rdumii-dumii) * inv_dum3 *
+                  (msvk.vn_table(dumii, dumjj) - msvk.vn_table(dumii-1, dumjj));
 
-                V_nr(i, k) = (dum1 + (rdumjj - dumjj) * (dum2 - dum1)) * rhofacr(i, k);
+                msvk.V_nr(i, k) = (dum1 + (rdumjj - dumjj) * (dum2 - dum1)) * msvk.rhofacr(i, k);
               }
-              Scalar Co_max_local = V_qr(i, k) * dt_left * inv_dzq(i, k);
+              Scalar Co_max_local = msvk.V_qr(i, k) * dt_left * msvk.inv_dzq(i, k);
               if (Co_max_local > lmax) {
                 lmax = Co_max_local;
               }
@@ -346,25 +349,25 @@ struct MicroSedFuncVanillaKokkos
             util::set_min_max(k_temp, k_qxtop+kdir, kmin, kmax);
             Kokkos::parallel_for(Kokkos::TeamThreadRange(team_member, kmax-kmin+1), [&] (int k_) {
               const int k = kmin + k_;
-              flux_qx(i, k) = V_qr(i, k) * qr(i, k) * rho(i, k);
-              flux_nx(i, k) = V_nr(i, k) * nr(i, k) * rho(i, k);
+              msvk.flux_qx(i, k) = msvk.V_qr(i, k) * qr(i, k) * msvk.rho(i, k);
+              msvk.flux_nx(i, k) = msvk.V_nr(i, k) * nr(i, k) * msvk.rho(i, k);
             });
             team_member.team_barrier();
 
             // accumulated precip during time step
             if (k_qxbot == kbot) {
-              prt_accum += flux_qx(i, kbot) * dt_sub;
+              prt_accum += msvk.flux_qx(i, kbot) * dt_sub;
             }
 
             Kokkos::single(Kokkos::PerTeam(team_member), [&]() {
               // for top level only (since flux is 0 above)
               int k = k_qxtop;
               // compute flux divergence
-              const Scalar fluxdiv_qx = -flux_qx(i, k) * inv_dzq(i, k);
-              const Scalar fluxdiv_nx = -flux_nx(i, k) * inv_dzq(i, k);
+              const Scalar fluxdiv_qx = -msvk.flux_qx(i, k) * msvk.inv_dzq(i, k);
+              const Scalar fluxdiv_nx = -msvk.flux_nx(i, k) * msvk.inv_dzq(i, k);
               // update prognostic variables
-              qr(i, k) += fluxdiv_qx * dt_sub * inv_rho(i, k);
-              nr(i, k) += fluxdiv_nx * dt_sub * inv_rho(i, k);
+              qr(i, k) += fluxdiv_qx * dt_sub * msvk.inv_rho(i, k);
+              nr(i, k) += fluxdiv_nx * dt_sub * msvk.inv_rho(i, k);
             });
             team_member.team_barrier();
 
@@ -373,11 +376,11 @@ struct MicroSedFuncVanillaKokkos
               const int k = kmin + k_;
               {
                 // compute flux divergence
-                const Scalar fluxdiv_qx = (flux_qx(i, k+kdir) - flux_qx(i, k)) * inv_dzq(i, k);
-                const Scalar fluxdiv_nx = (flux_nx(i, k+kdir) - flux_nx(i, k)) * inv_dzq(i, k);
+                const Scalar fluxdiv_qx = (msvk.flux_qx(i, k+kdir) - msvk.flux_qx(i, k)) * msvk.inv_dzq(i, k);
+                const Scalar fluxdiv_nx = (msvk.flux_nx(i, k+kdir) - msvk.flux_nx(i, k)) * msvk.inv_dzq(i, k);
                 // update prognostic variables
-                qr(i, k) += fluxdiv_qx * dt_sub * inv_rho(i, k);
-                nr(i, k) += fluxdiv_nx  *dt_sub * inv_rho(i, k);
+                qr(i, k) += fluxdiv_qx * dt_sub * msvk.inv_rho(i, k);
+                nr(i, k) += fluxdiv_nx  *dt_sub * msvk.inv_rho(i, k);
               }
             });
             team_member.team_barrier();
@@ -394,7 +397,7 @@ struct MicroSedFuncVanillaKokkos
         }
       });
 
-    reset();
+    reset(msvk);
   }
 
 };

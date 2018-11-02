@@ -80,7 +80,7 @@ void find_lookupTable_indices_3_kokkos (
 }
 
 template <typename Scalar, typename D=DefaultDevice>
-struct MicroSedFuncPackNoiWsKokkos
+struct MicroSedFuncFinalKokkos
 {
   //
   // types
@@ -96,6 +96,7 @@ struct MicroSedFuncPackNoiWsKokkos
   using kokkos_1d_table_t = typename KokkosTypes<D>::template kokkos_1d_table_t<Scalar, 150>;
   using kokkos_2d_table_t = typename KokkosTypes<D>::template kokkos_2d_table_t<Scalar, 300, 10>;
 
+  using ExeSpace    = typename KokkosTypes<D>::ExeSpace;
   using MemberType  = typename KokkosTypes<D>::MemberType;
   using TeamPolicy  = typename KokkosTypes<D>::TeamPolicy;
 
@@ -114,12 +115,12 @@ struct MicroSedFuncPackNoiWsKokkos
   util::WorkspaceManager<RealPack, D> workspace_mgr;
 
 public:
-  MicroSedFuncPackNoiWsKokkos(int num_horz_, int num_vert_) :
+  MicroSedFuncFinalKokkos(int num_horz_, int num_vert_) :
     num_horz(num_horz_), num_vert(num_vert_),
     num_pack(scream::pack::npack<RealPack>(num_vert_)),
     vn_table("VN_TABLE"), vm_table("VM_TABLE"),
     mu_r_table("MU_R_TABLE"),
-    policy(util::ExeSpaceUtils<typename KokkosTypes<D>::ExeSpace>::get_default_team_policy(num_horz, num_pack)),
+    policy(util::ExeSpaceUtils<ExeSpace>::get_default_team_policy(num_horz, num_pack)),
     workspace_mgr(num_pack, 11, policy) // rain sed's high-water is 11 workspace for any team
   {
     // initialize on host
@@ -155,8 +156,8 @@ public:
   }
 
   KOKKOS_INLINE_FUNCTION
-  RealSmallPack apply_table (
-    const SmallMask& qr_gt_small, const kokkos_2d_table_t& table, const Table3& t) const
+  static RealSmallPack apply_table (
+    const SmallMask& qr_gt_small, const kokkos_2d_table_t& table, const Table3& t)
   {
     const auto rdumii_m_dumii = t.rdumii - RealSmallPack(t.dumii);
     const auto t_im1_jm1 = index(table, t.dumii-1, t.dumjj-1);
@@ -170,7 +171,8 @@ public:
 
   // Computes and returns rain size distribution parameters
   KOKKOS_INLINE_FUNCTION
-  void get_rain_dsd2_kokkos (
+  static void get_rain_dsd2_kokkos (
+    const kokkos_1d_table_t& mu_r_table,
     const SmallMask& qr_gt_small, const RealSmallPack& qr, RealSmallPack& nr, RealSmallPack& mu_r,
     RealSmallPack& rdumii, IntSmallPack& dumii, RealSmallPack& lamr,
     RealSmallPack& cdistr, RealSmallPack& logn0r)
@@ -246,7 +248,7 @@ public:
   // Calculate the step in the region [k_bot, k_top].
   template <Int kdir, int nfield>
   KOKKOS_INLINE_FUNCTION
-  void calc_first_order_upwind_step (
+  static void calc_first_order_upwind_step (
     const Unmanaged<kokkos_1d_t<const RealSmallPack> >& rho,
     const Unmanaged<kokkos_1d_t<const RealSmallPack> >& inv_rho,
     const Unmanaged<kokkos_1d_t<const RealSmallPack> >& inv_dzq,
@@ -312,8 +314,9 @@ public:
       });
   }
 
-  template <int nfield> KOKKOS_INLINE_FUNCTION
-  void calc_first_order_upwind_step (
+  template <int nfield>
+  KOKKOS_INLINE_FUNCTION
+  static void calc_first_order_upwind_step (
     const Unmanaged<kokkos_1d_t<const RealSmallPack> >& rho,
     const Unmanaged<kokkos_1d_t<const RealSmallPack> >& inv_rho,
     const Unmanaged<kokkos_1d_t<const RealSmallPack> >& inv_dzq,
@@ -335,10 +338,12 @@ public:
 // Find the bottom and top of the mixing ratio, e.g., qr. It's worth casing
 // these out in two ways: 1 thread/column vs many, and by kdir.
   KOKKOS_INLINE_FUNCTION
-  Int find_bottom (const MemberType& team,
-                   const Unmanaged<kokkos_1d_t<const Real> >& v, const Real& small,
-                   const Int& kbot, const Int& ktop, const Int& kdir,
-                   bool& log_present) {
+  static Int find_bottom (
+    const MemberType& team,
+    const Unmanaged<kokkos_1d_t<const Real> >& v, const Real& small,
+    const Int& kbot, const Int& ktop, const Int& kdir,
+    bool& log_present)
+  {
     log_present = false;
     Int k_xbot = 0;
     if (team.team_size() == 1) {
@@ -372,10 +377,12 @@ public:
 
 //TODO Unit test.
   KOKKOS_INLINE_FUNCTION
-  Int find_top (const MemberType& team,
-                const Unmanaged<kokkos_1d_t<const Real> >& v, const Real& small,
-                const Int& kbot, const Int& ktop, const Int& kdir,
-                bool& log_present) {
+  static Int find_top (
+    const MemberType& team,
+    const Unmanaged<kokkos_1d_t<const Real> >& v, const Real& small,
+    const Int& kbot, const Int& ktop, const Int& kdir,
+    bool& log_present)
+  {
     log_present = false;
     Int k_xtop = 0;
     if (team.team_size() == 1) {
@@ -407,7 +414,8 @@ public:
     return k_xtop;
   }
 
-  void micro_sed_func (
+  static void micro_sed_func (
+    const MicroSedFuncFinalKokkos<Scalar, D>& msfk,
     const Int kts, const Int kte, const int its, const int ite, const Real dt,
     const kokkos_2d_t<RealPack>& qr, const kokkos_2d_t<RealPack>& nr,
     const kokkos_2d_t<RealPack>& th, const kokkos_2d_t<RealPack>& dzq, const kokkos_2d_t<RealPack>& pres,
@@ -422,8 +430,8 @@ public:
     constexpr auto qsmall = Globals<Real>::QSMALL;
 
     // direction of vertical leveling
-    const Int kbot = (kts < kte) ? 0 : num_vert-1;
-    const Int ktop = (kts < kte) ? num_vert-1 : 0;
+    const Int kbot = (kts < kte) ? 0 : msfk.num_vert-1;
+    const Int ktop = (kts < kte) ? msfk.num_vert-1 : 0;
     const Int kdir = (kts < kte) ? 1 : -1;
 
     const auto lqr = smallize(qr), lnr = smallize(nr);
@@ -432,11 +440,11 @@ public:
     // Rain sedimentation:  (adaptive substepping)
     Kokkos::parallel_for(
       "main rain sed loop",
-      policy,
+      msfk.policy,
       KOKKOS_LAMBDA(const MemberType& team) {
         const int i = team.league_rank();
 
-        auto workspace = workspace_mgr.get_workspace(team);
+        auto workspace = msfk.workspace_mgr.get_workspace(team);
 
         Unmanaged<kokkos_1d_t<RealPack> > inv_dzq, rho, inv_rho, rhofacr, t, V_qr, V_nr, flux_qx, flux_nx, mu_r, lamr;
         workspace.template take_many_and_reset<11>(
@@ -453,7 +461,7 @@ public:
           linv_dzq = smallize(inv_dzq);
 
         Kokkos::parallel_for(
-          Kokkos::TeamThreadRange(team, num_pack), [&] (Int k) {
+          Kokkos::TeamThreadRange(team, msfk.num_pack), [&] (Int k) {
             inv_dzq(k) = 1.0 / odzq(k);
             t(k) = pow(opres(k) * 1.e-5, rd_inv_cp) * oth(k);
             rho(k) = opres(k) / (rd * t(k));
@@ -479,7 +487,7 @@ public:
             Int kmin, kmax;
 
             Kokkos::parallel_for(
-              Kokkos::TeamThreadRange(team, num_pack), [&] (Int k) {
+              Kokkos::TeamThreadRange(team, msfk.num_pack), [&] (Int k) {
                 V_qr(k) = 0;
                 V_nr(k) = 0;
               });
@@ -496,16 +504,17 @@ public:
                   olnr(pk).set(qr_gt_small, max(olnr(pk), nsmall));
                   Table3 table;
                   RealSmallPack tmp1, tmp2;
-                  get_rain_dsd2_kokkos(qr_gt_small, olqr(pk), olnr(pk), lmu_r(pk),
+                  get_rain_dsd2_kokkos(msfk.mu_r_table,
+                                       qr_gt_small, olqr(pk), olnr(pk), lmu_r(pk),
                                        table.rdumii, table.dumii, llamr(pk),
                                        tmp1, tmp2);
                   find_lookupTable_indices_3_kokkos(qr_gt_small, table, lmu_r(pk), llamr(pk));
                   // mass-weighted fall speed:
                   lV_qr(pk).set(qr_gt_small,
-                                apply_table(qr_gt_small, vm_table, table) * lrhofacr(pk));
+                                apply_table(qr_gt_small, msfk.vm_table, table) * lrhofacr(pk));
                   // number-weighted fall speed:
                   lV_nr(pk).set(qr_gt_small,
-                                apply_table(qr_gt_small, vn_table, table) * lrhofacr(pk));
+                                apply_table(qr_gt_small, msfk.vn_table, table) * lrhofacr(pk));
                   const auto Co_max_local = max(qr_gt_small, -1,
                                                 lV_qr(pk) * dt_left * linv_dzq(pk));
                   if (Co_max_local > lmax)
@@ -528,7 +537,7 @@ public:
 
             calc_first_order_upwind_step<2>(
               lrho, linv_rho, linv_dzq, team,
-              num_vert, k_temp, k_qxtop, kdir, dt_sub,
+              msfk.num_vert, k_temp, k_qxtop, kdir, dt_sub,
               {&lflux_qx, &lflux_nx}, {&lV_qr, &lV_nr}, {&olqr, &olnr});
             team.team_barrier();
 
