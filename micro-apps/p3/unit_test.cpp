@@ -15,6 +15,7 @@ using D = DefaultDevice; // change device type here
 
 using MemberType = typename KokkosTypes<D>::MemberType;
 using TeamPolicy = typename KokkosTypes<D>::TeamPolicy;
+using ExeSpace   = typename KokkosTypes<D>::ExeSpace;
 
 template <typename S>
 using kokkos_1d_t = typename KokkosTypes<D>::template kokkos_1d_t<S>;
@@ -27,7 +28,7 @@ static Int unittest_team_policy () {
 
   for (int nk: {128, 122, 255, 42}) {
     const int ni = 1000;
-    const auto p = util::ExeSpaceUtils<typename KokkosTypes<D>::ExeSpace>::get_default_team_policy(ni, nk);
+    const auto p = util::ExeSpaceUtils<ExeSpace>::get_default_team_policy(ni, nk);
     std::cout << "ni " << ni << " nk " << nk
               << " league size " << p.league_size()
               << " team_size " << p.team_size() << "\n";
@@ -54,7 +55,7 @@ static Int unittest_pack () {
 
   kokkos_1d_t<TestBigPack> test_k_array("test_k_array", num_bigs);
   Kokkos::parallel_reduce("unittest_pack",
-                          util::ExeSpaceUtils<typename KokkosTypes<D>::ExeSpace>::get_default_team_policy(128, 128),
+                          util::ExeSpaceUtils<ExeSpace>::get_default_team_policy(128, 128),
                           KOKKOS_LAMBDA(const MemberType& team, int& total_errs) {
 
     int nerrs_local = 0;
@@ -90,7 +91,7 @@ static int unittest_workspace()
   const int ni = 128;
   const int nk = 128;
 
-  TeamPolicy policy(util::ExeSpaceUtils<typename KokkosTypes<D>::ExeSpace>::get_default_team_policy(ni, nk));
+  TeamPolicy policy(util::ExeSpaceUtils<ExeSpace>::get_default_team_policy(ni, nk));
 
   {
     util::WorkspaceManager<double> wsmd(17, num_ws, policy);
@@ -359,9 +360,9 @@ static int unittest_team_utils()
     const int ni = n*5;
     omp_set_num_threads(n);
     for (int s = 1; s <= n; ++s) {
-      const auto p = util::ExeSpaceUtils<typename KokkosTypes<D>::ExeSpace>::get_team_policy_force_team_size(ni, s);
-      const int c = util::ExeSpaceUtils<typename KokkosTypes<D>::ExeSpace>::get_num_concurrent_teams(p);
-      util::TeamUtils<> tu(p);
+      const auto p = util::ExeSpaceUtils<ExeSpace>::get_team_policy_force_team_size(ni, s);
+      const int c = util::ExeSpaceUtils<ExeSpace>::get_num_concurrent_teams(p);
+      util::TeamUtils<ExeSpace> tu(p);
       Kokkos::parallel_reduce("unittest_team_utils", p, KOKKOS_LAMBDA(MemberType team_member, int& total_errs) {
         int nerrs_local = 0;
         const int i  = team_member.league_rank();
