@@ -15,23 +15,29 @@
 namespace p3 {
 namespace micro_sed {
 
-using scream::pack::RealPack;
 using scream::pack::IntPack;
-using scream::pack::RealSmallPack;
 using scream::pack::IntSmallPack;
 using scream::pack::smallize;
 using scream::pack::scalarize;
-using Mask = scream::pack::Mask<scream::pack::BigPack<Real>::n>;
-using SmallMask = scream::pack::Mask<scream::pack::SmallPack<Real>::n>;
+using scream::pack::BigPack;
+using scream::pack::SmallPack;
 
+template <typename Scalar>
+using Mask = scream::pack::Mask<BigPack<Scalar>::n>;
+
+template <typename Scalar>
+using SmallMask = scream::pack::Mask<SmallPack<Scalar>::n>;
+
+template <typename Scalar>
 struct Table3 {
   IntSmallPack dumii, dumjj;
-  RealSmallPack rdumii, rdumjj, inv_dum3;
+  SmallPack<Scalar> rdumii, rdumjj, inv_dum3;
 };
 
+template <typename Scalar>
 KOKKOS_INLINE_FUNCTION
 void find_lookupTable_indices_3_kokkos (
-  const SmallMask& qr_gt_small, Table3& t, const RealSmallPack& mu_r, const RealSmallPack& lamr)
+  const SmallMask<Scalar>& qr_gt_small, Table3<Scalar>& t, const SmallPack<Scalar>& mu_r, const SmallPack<Scalar>& lamr)
 {
   // find location in scaled mean size space
   const auto dum1 = (mu_r+1.) / lamr;
@@ -40,8 +46,8 @@ void find_lookupTable_indices_3_kokkos (
     scream_masked_loop(dum1_lt, s) {
       const auto inv_dum3 = 0.1;
       auto rdumii = (dum1[s]*1.e6+5.)*inv_dum3;
-      rdumii = util::max<Real>(rdumii,  1.);
-      rdumii = util::min<Real>(rdumii, 20.);
+      rdumii = util::max<Scalar>(rdumii,  1.);
+      rdumii = util::min<Scalar>(rdumii, 20.);
       Int dumii = rdumii;
       dumii = util::max(dumii,  1);
       dumii = util::min(dumii, 20);
@@ -53,10 +59,10 @@ void find_lookupTable_indices_3_kokkos (
   const auto dum1_gte = qr_gt_small && ! dum1_lt;
   if (dum1_gte.any()) {
     scream_masked_loop(dum1_gte, s) {
-      const auto inv_dum3 = Globals<Real>::THRD*0.1;
+      const auto inv_dum3 = Globals<Scalar>::THRD*0.1;
       auto rdumii = (dum1[s]*1.e+6-195.)*inv_dum3 + 20.;
-      rdumii = util::max<Real>(rdumii, 20.);
-      rdumii = util::min<Real>(rdumii,300.);
+      rdumii = util::max<Scalar>(rdumii, 20.);
+      rdumii = util::min<Scalar>(rdumii,300.);
       Int dumii = rdumii;
       dumii = util::max(dumii, 20);
       dumii = util::min(dumii,299);
@@ -86,7 +92,8 @@ struct MicroSedFuncFinalKokkos
   // types
   //
 
-  using pack_t = RealPack;
+  using Pack = BigPack<Scalar>;
+  using Spack = SmallPack<Scalar>;
 
   template <typename S>
   using view_1d = typename KokkosTypes<D>::template view_1d<S>;
@@ -95,6 +102,9 @@ struct MicroSedFuncFinalKokkos
 
   using view_1d_table = typename KokkosTypes<D>::template view_1d_table<Scalar, 150>;
   using view_2d_table = typename KokkosTypes<D>::template view_2d_table<Scalar, 300, 10>;
+
+  template <typename S, int N>
+  using view_1d_ptr_array = typename KokkosTypes<D>::template view_1d_ptr_array<S, N>;
 
   using ExeSpace    = typename KokkosTypes<D>::ExeSpace;
   using MemberType  = typename KokkosTypes<D>::MemberType;
@@ -112,12 +122,12 @@ struct MicroSedFuncFinalKokkos
   view_1d_table mu_r_table;
 
   TeamPolicy policy;
-  util::WorkspaceManager<RealPack, D> workspace_mgr;
+  util::WorkspaceManager<Pack, D> workspace_mgr;
 
 public:
   MicroSedFuncFinalKokkos(int num_horz_, int num_vert_) :
     num_horz(num_horz_), num_vert(num_vert_),
-    num_pack(scream::pack::npack<RealPack>(num_vert_)),
+    num_pack(scream::pack::npack<Pack>(num_vert_)),
     vn_table("VN_TABLE"), vm_table("VM_TABLE"),
     mu_r_table("MU_R_TABLE"),
     policy(util::ExeSpaceUtils<ExeSpace>::get_default_team_policy(num_horz, num_pack)),
@@ -131,13 +141,13 @@ public:
 
     for (int i = 0; i < 300; ++i) {
       for (int k = 0; k < 10; ++k) {
-        mirror_vn_table(i, k) = Globals<Real>::VN_TABLE[i][k];
-        mirror_vm_table(i, k) = Globals<Real>::VM_TABLE[i][k];
+        mirror_vn_table(i, k) = Globals<Scalar>::VN_TABLE[i][k];
+        mirror_vm_table(i, k) = Globals<Scalar>::VM_TABLE[i][k];
       }
     }
 
     for (int i = 0; i < 150; ++i) {
-      mirror_mu_table(i) = Globals<Real>::MU_R_TABLE[i];
+      mirror_mu_table(i) = Globals<Scalar>::MU_R_TABLE[i];
     }
 
     // deep copy to device
@@ -156,30 +166,30 @@ public:
   }
 
   KOKKOS_INLINE_FUNCTION
-  static RealSmallPack apply_table (
-    const SmallMask& qr_gt_small, const view_2d_table& table, const Table3& t)
+  static Spack apply_table (
+    const SmallMask<Scalar>& qr_gt_small, const view_2d_table& table, const Table3<Scalar>& t)
   {
-    const auto rdumii_m_dumii = t.rdumii - RealSmallPack(t.dumii);
+    const auto rdumii_m_dumii = t.rdumii - Spack(t.dumii);
     const auto t_im1_jm1 = index(table, t.dumii-1, t.dumjj-1);
     const auto dum1 = (t_im1_jm1 + rdumii_m_dumii * t.inv_dum3 *
                        (index(table, t.dumii, t.dumjj-1) - t_im1_jm1));
     const auto t_im1_j = index(table, t.dumii-1, t.dumjj);
     const auto dum2 = (t_im1_j + rdumii_m_dumii * t.inv_dum3 *
                        (index(table, t.dumii, t.dumjj) - t_im1_j));
-    return dum1 + (t.rdumjj - RealSmallPack(t.dumjj)) * (dum2 - dum1);
+    return dum1 + (t.rdumjj - Spack(t.dumjj)) * (dum2 - dum1);
   }
 
   // Computes and returns rain size distribution parameters
   KOKKOS_INLINE_FUNCTION
   static void get_rain_dsd2_kokkos (
     const view_1d_table& mu_r_table,
-    const SmallMask& qr_gt_small, const RealSmallPack& qr, RealSmallPack& nr, RealSmallPack& mu_r,
-    RealSmallPack& rdumii, IntSmallPack& dumii, RealSmallPack& lamr,
-    RealSmallPack& cdistr, RealSmallPack& logn0r)
+    const SmallMask& qr_gt_small, const Spack& qr, Spack& nr, Spack& mu_r,
+    Spack& rdumii, IntSmallPack& dumii, Spack& lamr,
+    Spack& cdistr, Spack& logn0r)
   {
-    constexpr auto nsmall = Globals<Real>::NSMALL;
-    constexpr auto thrd = Globals<Real>::THRD;
-    constexpr auto cons1 = Globals<Real>::CONS1;
+    constexpr auto nsmall = Globals<Scalar>::NSMALL;
+    constexpr auto thrd = Globals<Scalar>::THRD;
+    constexpr auto cons1 = Globals<Scalar>::CONS1;
 
     lamr = 0;
     cdistr = 0;
@@ -191,7 +201,7 @@ public:
     // find spot in lookup table
     // (scaled N/q for lookup table parameter space)
     const auto nr_lim = max(nr, nsmall);
-    RealSmallPack inv_dum(0);
+    Spack inv_dum(0);
     inv_dum.set(qr_gt_small,
                 pow(qr / (cons1 * nr_lim * 6.0), thrd));
 
@@ -205,9 +215,9 @@ public:
       if (m2.any()) {
         scream_masked_loop(m2, s) {
           // interpolate
-          Real rdumiis = (inv_dum[s] - 250.e-6)*0.5e6;
-          rdumiis = util::max<Real>(rdumiis, 1.0);
-          rdumiis = util::min<Real>(rdumiis, 150.0);
+          Scalar rdumiis = (inv_dum[s] - 250.e-6)*0.5e6;
+          rdumiis = util::max<Scalar>(rdumiis, 1.0);
+          rdumiis = util::min<Scalar>(rdumiis, 150.0);
           rdumii[s] = rdumiis;
           Int dumiis = rdumiis;
           dumiis = util::min(dumiis, 149);
@@ -249,21 +259,21 @@ public:
   template <Int kdir, int nfield>
   KOKKOS_INLINE_FUNCTION
   static void calc_first_order_upwind_step (
-    const Unmanaged<view_1d<const RealSmallPack> >& rho,
-    const Unmanaged<view_1d<const RealSmallPack> >& inv_rho,
-    const Unmanaged<view_1d<const RealSmallPack> >& inv_dzq,
+    const Unmanaged<view_1d<const Spack> >& rho,
+    const Unmanaged<view_1d<const Spack> >& inv_rho,
+    const Unmanaged<view_1d<const Spack> >& inv_dzq,
     const MemberType& team,
-    const Int& nk, const Int& k_bot, const Int& k_top, const Real& dt_sub,
-    const Kokkos::Array<const Unmanaged<view_1d<RealSmallPack> >*,nfield>& flux,
-    const Kokkos::Array<const Unmanaged<view_1d<RealSmallPack> >*,nfield>& V,
-    const Kokkos::Array<const Unmanaged<view_1d<RealSmallPack> >*,nfield>& r)
+    const Int& nk, const Int& k_bot, const Int& k_top, const Scalar& dt_sub,
+    const view_1d_ptr_array<Spack, nfield>& flux,
+    const view_1d_ptr_array<Spack, nfield>& V,
+    const view_1d_ptr_array<Spack, nfield>& r)
   {
     Int
-      kmin = ( kdir == 1 ? k_bot : k_top)                     / RealSmallPack::n,
-      // Add 1 to make [kmin, kmax). But then the extra term (RealSmallPack::n -
+      kmin = ( kdir == 1 ? k_bot : k_top)                     / Spack::n,
+      // Add 1 to make [kmin, kmax). But then the extra term (Spack::n -
       // 1) to determine pack index cancels the +1.
-      kmax = ((kdir == 1 ? k_top : k_bot) + RealSmallPack::n) / RealSmallPack::n;
-    const Int k_top_pack = k_top / RealSmallPack::n;
+      kmax = ((kdir == 1 ? k_top : k_bot) + Spack::n) / Spack::n;
+    const Int k_top_pack = k_top / Spack::n;
 
     // calculate fluxes
     Kokkos::parallel_for(
@@ -277,9 +287,9 @@ public:
     Kokkos::single(
       Kokkos::PerTeam(team), [&] () {
         const Int k = k_top_pack;
-        if (nk % RealSmallPack::n != 0) {
+        if (nk % Spack::n != 0) {
           const auto mask =
-            scream::pack::range<IntSmallPack>(k_top_pack*RealSmallPack::n) >= nk;
+            scream::pack::range<IntSmallPack>(k_top_pack*Spack::n) >= nk;
           for (int f = 0; f < nfield; ++f)
             (*flux[f])(k_top_pack).set(mask, 0);
         }
@@ -317,14 +327,14 @@ public:
   template <int nfield>
   KOKKOS_INLINE_FUNCTION
   static void calc_first_order_upwind_step (
-    const Unmanaged<view_1d<const RealSmallPack> >& rho,
-    const Unmanaged<view_1d<const RealSmallPack> >& inv_rho,
-    const Unmanaged<view_1d<const RealSmallPack> >& inv_dzq,
+    const Unmanaged<view_1d<const Spack> >& rho,
+    const Unmanaged<view_1d<const Spack> >& inv_rho,
+    const Unmanaged<view_1d<const Spack> >& inv_dzq,
     const MemberType& team,
-    const Int& nk, const Int& k_bot, const Int& k_top, const Int& kdir, const Real& dt_sub,
-    const Kokkos::Array<const Unmanaged<view_1d<RealSmallPack> >*,nfield>& flux,
-    const Kokkos::Array<const Unmanaged<view_1d<RealSmallPack> >*,nfield>& V,
-    const Kokkos::Array<const Unmanaged<view_1d<RealSmallPack> >*,nfield>& r)
+    const Int& nk, const Int& k_bot, const Int& k_top, const Int& kdir, const Scalar& dt_sub,
+    const view_1d_ptr_array<Spack, nfield>& flux,
+    const view_1d_ptr_array<Spack, nfield>& V,
+    const view_1d_ptr_array<Spack, nfield>& r)
   {
     if (kdir == 1)
       calc_first_order_upwind_step< 1, nfield>(
@@ -340,7 +350,7 @@ public:
   KOKKOS_INLINE_FUNCTION
   static Int find_bottom (
     const MemberType& team,
-    const Unmanaged<view_1d<const Real> >& v, const Real& small,
+    const Unmanaged<view_1d<const Scalar> >& v, const Scalar& small,
     const Int& kbot, const Int& ktop, const Int& kdir,
     bool& log_present)
   {
@@ -379,7 +389,7 @@ public:
   KOKKOS_INLINE_FUNCTION
   static Int find_top (
     const MemberType& team,
-    const Unmanaged<view_1d<const Real> >& v, const Real& small,
+    const Unmanaged<view_1d<const Scalar> >& v, const Scalar& small,
     const Int& kbot, const Int& ktop, const Int& kdir,
     bool& log_present)
   {
@@ -416,18 +426,18 @@ public:
 
   static void micro_sed_func (
     const MicroSedFuncFinalKokkos<Scalar, D>& msfk,
-    const Int kts, const Int kte, const int its, const int ite, const Real dt,
-    const view_2d<RealPack>& qr, const view_2d<RealPack>& nr,
-    const view_2d<RealPack>& th, const view_2d<RealPack>& dzq, const view_2d<RealPack>& pres,
-    const view_1d<Real>& prt_liq)
+    const Int kts, const Int kte, const int its, const int ite, const Scalar dt,
+    const view_2d<Pack>& qr, const view_2d<Pack>& nr,
+    const view_2d<Pack>& th, const view_2d<Pack>& dzq, const view_2d<Pack>& pres,
+    const view_1d<Scalar>& prt_liq)
   {
     // constants
-    const Real odt = 1.0 / dt;
-    constexpr auto nsmall = Globals<Real>::NSMALL;
-    constexpr auto rd = Globals<Real>::RD;
-    constexpr auto rd_inv_cp = Globals<Real>::RD * Globals<Real>::INV_CP;
-    constexpr auto rhosur = Globals<Real>::RHOSUR;
-    constexpr auto qsmall = Globals<Real>::QSMALL;
+    const Scalar odt = 1.0 / dt;
+    constexpr auto nsmall = Globals<Scalar>::NSMALL;
+    constexpr auto rd = Globals<Scalar>::RD;
+    constexpr auto rd_inv_cp = Globals<Scalar>::RD * Globals<Scalar>::INV_CP;
+    constexpr auto rhosur = Globals<Scalar>::RHOSUR;
+    constexpr auto qsmall = Globals<Scalar>::QSMALL;
 
     // direction of vertical leveling
     const Int kbot = (kts < kte) ? 0 : msfk.num_vert-1;
@@ -446,7 +456,7 @@ public:
 
         auto workspace = msfk.workspace_mgr.get_workspace(team);
 
-        Unmanaged<view_1d<RealPack> > inv_dzq, rho, inv_rho, rhofacr, t, V_qr, V_nr, flux_qx, flux_nx, mu_r, lamr;
+        Unmanaged<view_1d<Pack> > inv_dzq, rho, inv_rho, rhofacr, t, V_qr, V_nr, flux_qx, flux_nx, mu_r, lamr;
         workspace.template take_many_and_reset<11>(
           {"inv_dzq", "rho", "inv_rho", "rhofacr", "t", "V_qr", "V_nr", "flux_qx", "flux_nx", "mu_r", "lamr"},
           {&inv_dzq, &rho, &inv_rho, &rhofacr, &t, &V_qr, &V_nr, &flux_qx, &flux_nx, &mu_r, &lamr});
@@ -474,8 +484,8 @@ public:
         const Int k_qxtop = find_top(team, osqr, qsmall, kbot, ktop, kdir, log_qxpresent);
 
         if (log_qxpresent) {
-          Real dt_left = dt;    // time remaining for sedi over full model (mp) time step
-          Real prt_accum = 0.0; // precip rate for individual category
+          Scalar dt_left = dt;    // time remaining for sedi over full model (mp) time step
+          Scalar prt_accum = 0.0; // precip rate for individual category
 
           Int k_qxbot = find_bottom(team, osqr, qsmall, kbot, k_qxtop, kdir, log_qxpresent);
 
@@ -483,7 +493,7 @@ public:
           const auto sflux_qx = scalarize(lflux_qx);
 
           while (dt_left > 1.e-4) {
-            Real Co_max = 0.0;
+            Scalar Co_max = 0.0;
             Int kmin, kmax;
 
             Kokkos::parallel_for(
@@ -493,17 +503,17 @@ public:
               });
             team.team_barrier();
 
-            util::set_min_max(k_qxbot, k_qxtop, kmin, kmax, RealSmallPack::n);
+            util::set_min_max(k_qxbot, k_qxtop, kmin, kmax, Spack::n);
 
             Kokkos::parallel_reduce(
-              Kokkos::TeamThreadRange(team, kmax-kmin+1), [&] (int pk_, Real& lmax) {
+              Kokkos::TeamThreadRange(team, kmax-kmin+1), [&] (int pk_, Scalar& lmax) {
                 const int pk = kmin + pk_;
                 auto qr_gt_small = (olqr(pk) > qsmall);
                 if (qr_gt_small.any()) {
                   // Compute Vq, Vn:
                   olnr(pk).set(qr_gt_small, max(olnr(pk), nsmall));
                   Table3 table;
-                  RealSmallPack tmp1, tmp2;
+                  Spack tmp1, tmp2;
                   get_rain_dsd2_kokkos(msfk.mu_r_table,
                                        qr_gt_small, olqr(pk), olnr(pk), lmu_r(pk),
                                        table.rdumii, table.dumii, llamr(pk),
@@ -520,7 +530,7 @@ public:
                   if (Co_max_local > lmax)
                     lmax = Co_max_local;
                 }
-              }, Kokkos::Max<Real>(Co_max));
+              }, Kokkos::Max<Scalar>(Co_max));
             team.team_barrier();
 
             if (Co_max < 0) {
@@ -530,7 +540,7 @@ public:
 
             // compute dt_sub
             const Int Co_max_p1 = static_cast<Int>(Co_max + 1.0);
-            const Real dt_sub = util::min(dt_left, dt_left / Co_max_p1);
+            const Scalar dt_sub = util::min(dt_left, dt_left / Co_max_p1);
 
             // Move bottom cell down by 1 if not at ground already.
             const Int k_temp = (k_qxbot == kbot) ? k_qxbot : k_qxbot - kdir;
@@ -550,7 +560,7 @@ public:
 
           Kokkos::single(
             Kokkos::PerTeam(team), [&] () {
-              prt_liq(i) += prt_accum * Globals<Real>::INV_RHOW * odt;
+              prt_liq(i) += prt_accum * Globals<Scalar>::INV_RHOW * odt;
             });
         }
       });

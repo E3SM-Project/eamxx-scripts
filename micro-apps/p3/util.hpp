@@ -308,6 +308,9 @@ class WorkspaceManager
   template <typename S>
   using view_3d = typename KokkosTypes<D>::template view_3d<S>;
 
+  template <typename S, int N>
+  using view_1d_ptr_array = typename KokkosTypes<D>::template view_1d_ptr_array<S, N>;
+
   WorkspaceManager(int size, int max_used, TeamPolicy policy) :
     m_tu(policy),
     m_concurrent_teams(m_tu.get_num_concurrent_teams()),
@@ -421,10 +424,10 @@ class WorkspaceManager
       return space;
     }
 
-    template <typename S=T, size_t N>
+    template <size_t N, typename S=T>
     KOKKOS_INLINE_FUNCTION
     void take_many_contiguous_unsafe(const Kokkos::Array<const char*, N>& names,
-                                     const Kokkos::Array<Unmanaged<view_1d<S> >*, N>& ptrs) const
+                                     const view_1d_ptr_array<S, N>& ptrs) const
     {
 #ifndef NDEBUG
       change_num_used(N);
@@ -456,10 +459,10 @@ class WorkspaceManager
       m_team.team_barrier();
     }
 
-    template <typename S=T, size_t N>
+    template <size_t N, typename S=T>
     KOKKOS_INLINE_FUNCTION
     void take_many(const Kokkos::Array<const char*, N>& names,
-                   const Kokkos::Array<Unmanaged<view_1d<S> >*, N>& ptrs) const
+                   const view_1d_ptr_array<S, N>& ptrs) const
     {
 #ifndef NDEBUG
       change_num_used(N);
@@ -491,7 +494,7 @@ class WorkspaceManager
     template <size_t N, typename S=T>
     KOKKOS_INLINE_FUNCTION
     void take_many_and_reset(const Kokkos::Array<const char*, N>& names,
-                             const Kokkos::Array<Unmanaged<view_1d<S> >*, N>& ptrs) const
+                             const view_1d_ptr_array<S, N>& ptrs) const
     {
 #ifndef NDEBUG
       change_num_used(N - m_parent.m_num_used(m_ws_idx));
