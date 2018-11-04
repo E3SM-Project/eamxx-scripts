@@ -62,9 +62,9 @@ struct MicroSedFuncVanillaKokkos
   using pack_t = Scalar;
 
   template <typename S>
-  using kokkos_1d_t = typename KokkosTypes<D>::template kokkos_1d_t<S>;
+  using view_1d = typename KokkosTypes<D>::template view_1d<S>;
   template <typename S>
-  using kokkos_2d_t = typename KokkosTypes<D>::template kokkos_2d_t<S>;
+  using view_2d = typename KokkosTypes<D>::template view_2d<S>;
 
   using ExeSpace    = typename KokkosTypes<D>::ExeSpace;
   using MemberType  = typename KokkosTypes<D>::MemberType;
@@ -79,7 +79,7 @@ struct MicroSedFuncVanillaKokkos
   int num_horz, num_vert;
 
   // re-usable scratch views
-  kokkos_2d_t<Scalar> V_qr, V_nr, flux_qx, flux_nx, mu_r, lamr, rhofacr, inv_dzq, rho, inv_rho, t;
+  view_2d<Scalar> V_qr, V_nr, flux_qx, flux_nx, mu_r, lamr, rhofacr, inv_dzq, rho, inv_rho, t;
 
   view_2d_table vn_table, vm_table;
   view_1d_table mu_r_table;
@@ -234,9 +234,9 @@ struct MicroSedFuncVanillaKokkos
   static void micro_sed_func(
     const MicroSedFuncVanillaKokkos<Scalar, D>& msvk,
     const int kts, const int kte, const int its, const int ite, const Scalar dt,
-    kokkos_2d_t<Scalar>& qr, kokkos_2d_t<Scalar>& nr,
-    kokkos_2d_t<const Scalar> const& th, kokkos_2d_t<const Scalar> const& dzq, kokkos_2d_t<const Scalar> const& pres,
-    kokkos_1d_t<Scalar>& prt_liq)
+    view_2d<Scalar>& qr, view_2d<Scalar>& nr,
+    view_2d<const Scalar> const& th, view_2d<const Scalar> const& dzq, view_2d<const Scalar> const& pres,
+    view_1d<Scalar>& prt_liq)
   {
     // constants
     const Scalar odt = 1.0 / dt;

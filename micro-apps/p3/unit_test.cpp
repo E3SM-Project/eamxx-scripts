@@ -18,7 +18,7 @@ using TeamPolicy = typename KokkosTypes<D>::TeamPolicy;
 using ExeSpace   = typename KokkosTypes<D>::ExeSpace;
 
 template <typename S>
-using kokkos_1d_t = typename KokkosTypes<D>::template kokkos_1d_t<S>;
+using view_1d = typename KokkosTypes<D>::template view_1d<S>;
 
 static Int unittest_team_policy () {
   Int nerr = 0;
@@ -53,7 +53,7 @@ static Int unittest_pack () {
 
   using TestBigPack   = scream::pack::Pack<Real, 16>;
 
-  kokkos_1d_t<TestBigPack> test_k_array("test_k_array", num_bigs);
+  view_1d<TestBigPack> test_k_array("test_k_array", num_bigs);
   Kokkos::parallel_reduce("unittest_pack",
                           util::ExeSpaceUtils<ExeSpace>::get_default_team_policy(128, 128),
                           KOKKOS_LAMBDA(const MemberType& team, int& total_errs) {
@@ -151,7 +151,7 @@ static int unittest_workspace()
     }
     team.team_barrier();
 
-    Kokkos::Array<Unmanaged<kokkos_1d_t<int> >, num_ws> wssub;
+    Kokkos::Array<Unmanaged<view_1d<int> >, num_ws> wssub;
 
     // Main test. Test different means of taking and release spaces.
     for (int r = 0; r < 8; ++r) {
@@ -163,8 +163,8 @@ static int unittest_workspace()
         }
       }
       else {
-        Unmanaged<kokkos_1d_t<int> > ws1, ws2, ws3, ws4;
-        Kokkos::Array<Unmanaged<kokkos_1d_t<int> >*, num_ws> ptrs = { {&ws1, &ws2, &ws3, &ws4} };
+        Unmanaged<view_1d<int> > ws1, ws2, ws3, ws4;
+        Kokkos::Array<Unmanaged<view_1d<int> >*, num_ws> ptrs = { {&ws1, &ws2, &ws3, &ws4} };
         Kokkos::Array<const char*, num_ws> names = { {"ws0", "ws1", "ws2", "ws3"} };
         if (r % 4 == 1) {
           ws.take_many(names, ptrs);

@@ -106,8 +106,8 @@ class VanillaCppBridge
 template <typename Scalar, typename D=DefaultDevice>
 class KokkosCppBridge {
 public:
-  typename KokkosTypes<D>::template kokkos_2d_t<Scalar> qr, nr, th, dzq, pres;
-  typename KokkosTypes<D>::template kokkos_1d_t<Scalar> prt_liq;
+  typename KokkosTypes<D>::template view_2d<Scalar> qr, nr, th, dzq, pres;
+  typename KokkosTypes<D>::template view_1d<Scalar> prt_liq;
 
   KokkosCppBridge(const ic::MicroSedData<Scalar>& d)
     : qr("qr", d.ni, d.nk),
@@ -184,8 +184,8 @@ public:
   using RealPack = p3::micro_sed::RealPack;
 
   int np;
-  typename KokkosTypes<D>::template kokkos_2d_t<RealPack> qr, nr, th, dzq, pres;
-  typename KokkosTypes<D>::template kokkos_1d_t<Real> prt_liq;
+  typename KokkosTypes<D>::template view_2d<RealPack> qr, nr, th, dzq, pres;
+  typename KokkosTypes<D>::template view_1d<Real> prt_liq;
 
   KokkosPackBridge(const ic::MicroSedData<Scalar>& d)
     : np(scream::pack::npack<RealPack>(d.nk)),

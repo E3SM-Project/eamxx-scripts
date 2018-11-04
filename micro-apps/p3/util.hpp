@@ -302,11 +302,11 @@ class WorkspaceManager
   using ExeSpace   = typename KokkosTypes<D>::ExeSpace;
 
   template <typename S>
-  using kokkos_1d_t = typename KokkosTypes<D>::template kokkos_1d_t<S>;
+  using view_1d = typename KokkosTypes<D>::template view_1d<S>;
   template <typename S>
-  using kokkos_2d_t = typename KokkosTypes<D>::template kokkos_2d_t<S>;
+  using view_2d = typename KokkosTypes<D>::template view_2d<S>;
   template <typename S>
-  using kokkos_3d_t = typename KokkosTypes<D>::template kokkos_3d_t<S>;
+  using view_3d = typename KokkosTypes<D>::template view_3d<S>;
 
   WorkspaceManager(int size, int max_used, TeamPolicy policy) :
     m_tu(policy),
@@ -397,7 +397,7 @@ class WorkspaceManager
 
     template <typename S=T>
     KOKKOS_INLINE_FUNCTION
-    Unmanaged<kokkos_1d_t<S> > take(const char* name) const
+    Unmanaged<view_1d<S> > take(const char* name) const
     {
 #ifndef NDEBUG
       change_num_used(1);
@@ -424,7 +424,7 @@ class WorkspaceManager
     template <typename S=T, size_t N>
     KOKKOS_INLINE_FUNCTION
     void take_many_contiguous_unsafe(const Kokkos::Array<const char*, N>& names,
-                                     const Kokkos::Array<Unmanaged<kokkos_1d_t<S> >*, N>& ptrs) const
+                                     const Kokkos::Array<Unmanaged<view_1d<S> >*, N>& ptrs) const
     {
 #ifndef NDEBUG
       change_num_used(N);
@@ -459,7 +459,7 @@ class WorkspaceManager
     template <typename S=T, size_t N>
     KOKKOS_INLINE_FUNCTION
     void take_many(const Kokkos::Array<const char*, N>& names,
-                   const Kokkos::Array<Unmanaged<kokkos_1d_t<S> >*, N>& ptrs) const
+                   const Kokkos::Array<Unmanaged<view_1d<S> >*, N>& ptrs) const
     {
 #ifndef NDEBUG
       change_num_used(N);
@@ -491,7 +491,7 @@ class WorkspaceManager
     template <size_t N, typename S=T>
     KOKKOS_INLINE_FUNCTION
     void take_many_and_reset(const Kokkos::Array<const char*, N>& names,
-                             const Kokkos::Array<Unmanaged<kokkos_1d_t<S> >*, N>& ptrs) const
+                             const Kokkos::Array<Unmanaged<view_1d<S> >*, N>& ptrs) const
     {
 #ifndef NDEBUG
       change_num_used(N - m_parent.m_num_used(m_ws_idx));
@@ -600,7 +600,7 @@ class WorkspaceManager
 #ifndef NDEBUG
     template <typename S>
     KOKKOS_INLINE_FUNCTION
-    const char* get_name_impl(const Unmanaged<kokkos_1d_t<S> >& space) const
+    const char* get_name_impl(const Unmanaged<view_1d<S> >& space) const
     {
       const int slot = m_parent.get_index<S>(space);
       return &(m_parent.m_curr_names(m_ws_idx, slot, 0));
@@ -621,7 +621,7 @@ class WorkspaceManager
 
     template <typename S>
     KOKKOS_INLINE_FUNCTION
-    void change_indv_meta(const Unmanaged<kokkos_1d_t<S> >& space, const char* name, bool release=false) const
+    void change_indv_meta(const Unmanaged<view_1d<S> >& space, const char* name, bool release=false) const
     {
       Kokkos::single(Kokkos::PerTeam(m_team), [&] () {
         const int slot = m_parent.get_index<S>(space);
@@ -657,7 +657,7 @@ class WorkspaceManager
 
     template <typename S>
     KOKKOS_INLINE_FUNCTION
-    bool is_active(const Unmanaged<kokkos_1d_t<S> >& space) const
+    bool is_active(const Unmanaged<view_1d<S> >& space) const
     { return m_parent.m_active(m_ws_idx, m_parent.get_index<S>(space));}
 
     KOKKOS_INLINE_FUNCTION
@@ -683,7 +683,7 @@ class WorkspaceManager
 
     template <typename S>
     KOKKOS_INLINE_FUNCTION
-    void release_impl(const Unmanaged<kokkos_1d_t<S> >& space) const
+    void release_impl(const Unmanaged<view_1d<S> >& space) const
     {
 #ifndef NDEBUG
       change_num_used(-1);
@@ -707,7 +707,7 @@ class WorkspaceManager
 
  public: // for Cuda
 
-  static void init(const WorkspaceManager& wm, const kokkos_2d_t<T>& data,
+  static void init(const WorkspaceManager& wm, const view_2d<T>& data,
                    const int concurrent_teams, const int max_used, const int total)
   {
     Kokkos::parallel_for(
@@ -725,21 +725,21 @@ class WorkspaceManager
 
   template <typename S=T>
   KOKKOS_FORCEINLINE_FUNCTION
-  int get_index(const Unmanaged<kokkos_1d_t<S> >& space) const
+  int get_index(const Unmanaged<view_1d<S> >& space) const
   {
     return reinterpret_cast<const int*>(reinterpret_cast<const T*>(space.data()) - m_reserve)[0];
   }
 
   template <typename S=T>
   KOKKOS_FORCEINLINE_FUNCTION
-  int get_next(const Unmanaged<kokkos_1d_t<S> >& space) const
+  int get_next(const Unmanaged<view_1d<S> >& space) const
   {
     return reinterpret_cast<const int*>(reinterpret_cast<const T*>(space.data()) - m_reserve)[1];
   }
 
   template <typename S=T>
   KOKKOS_FORCEINLINE_FUNCTION
-  int set_next_and_get_index(const Unmanaged<kokkos_1d_t<S> >& space, int next) const
+  int set_next_and_get_index(const Unmanaged<view_1d<S> >& space, int next) const
   {
     const auto metadata = reinterpret_cast<int*>(reinterpret_cast<T*>(space.data()) - m_reserve);
     metadata[1] = next;
@@ -748,9 +748,9 @@ class WorkspaceManager
 
   template <typename S=T>
   KOKKOS_FORCEINLINE_FUNCTION
-  Unmanaged<kokkos_1d_t<S> > get_space_in_slot(const int team_idx, const int slot) const
+  Unmanaged<view_1d<S> > get_space_in_slot(const int team_idx, const int slot) const
   {
-    return Unmanaged<kokkos_1d_t<S> >(
+    return Unmanaged<view_1d<S> >(
       reinterpret_cast<S*>(&m_data(team_idx, slot*m_total) + m_reserve),
       sizeof(T) == sizeof(S) ?
       m_size :
@@ -784,15 +784,15 @@ class WorkspaceManager
   util::TeamUtils<ExeSpace> m_tu;
   int m_concurrent_teams, m_reserve, m_size, m_total, m_max_used;
 #ifndef NDEBUG
-  kokkos_1d_t<int> m_num_used;
-  kokkos_1d_t<int> m_high_water;
-  kokkos_2d_t<bool> m_active;
-  kokkos_3d_t<char> m_curr_names;
-  kokkos_3d_t<char> m_all_names;
-  kokkos_3d_t<int> m_counts;
+  view_1d<int> m_num_used;
+  view_1d<int> m_high_water;
+  view_2d<bool> m_active;
+  view_3d<char> m_curr_names;
+  view_3d<char> m_all_names;
+  view_3d<int> m_counts;
 #endif
-  kokkos_1d_t<int> m_next_slot;
-  kokkos_2d_t<T> m_data;
+  view_1d<int> m_next_slot;
+  view_2d<T> m_data;
 };
 
 } // namespace util

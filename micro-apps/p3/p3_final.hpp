@@ -89,9 +89,9 @@ struct MicroSedFuncFinalKokkos
   using pack_t = RealPack;
 
   template <typename S>
-  using kokkos_1d_t = typename KokkosTypes<D>::template kokkos_1d_t<S>;
+  using view_1d = typename KokkosTypes<D>::template view_1d<S>;
   template <typename S>
-  using kokkos_2d_t = typename KokkosTypes<D>::template kokkos_2d_t<S>;
+  using view_2d = typename KokkosTypes<D>::template view_2d<S>;
 
   using view_1d_table = typename KokkosTypes<D>::template view_1d_table<Scalar, 150>;
   using view_2d_table = typename KokkosTypes<D>::template view_2d_table<Scalar, 300, 10>;
@@ -249,14 +249,14 @@ public:
   template <Int kdir, int nfield>
   KOKKOS_INLINE_FUNCTION
   static void calc_first_order_upwind_step (
-    const Unmanaged<kokkos_1d_t<const RealSmallPack> >& rho,
-    const Unmanaged<kokkos_1d_t<const RealSmallPack> >& inv_rho,
-    const Unmanaged<kokkos_1d_t<const RealSmallPack> >& inv_dzq,
+    const Unmanaged<view_1d<const RealSmallPack> >& rho,
+    const Unmanaged<view_1d<const RealSmallPack> >& inv_rho,
+    const Unmanaged<view_1d<const RealSmallPack> >& inv_dzq,
     const MemberType& team,
     const Int& nk, const Int& k_bot, const Int& k_top, const Real& dt_sub,
-    const Kokkos::Array<const Unmanaged<kokkos_1d_t<RealSmallPack> >*,nfield>& flux,
-    const Kokkos::Array<const Unmanaged<kokkos_1d_t<RealSmallPack> >*,nfield>& V,
-    const Kokkos::Array<const Unmanaged<kokkos_1d_t<RealSmallPack> >*,nfield>& r)
+    const Kokkos::Array<const Unmanaged<view_1d<RealSmallPack> >*,nfield>& flux,
+    const Kokkos::Array<const Unmanaged<view_1d<RealSmallPack> >*,nfield>& V,
+    const Kokkos::Array<const Unmanaged<view_1d<RealSmallPack> >*,nfield>& r)
   {
     Int
       kmin = ( kdir == 1 ? k_bot : k_top)                     / RealSmallPack::n,
@@ -317,14 +317,14 @@ public:
   template <int nfield>
   KOKKOS_INLINE_FUNCTION
   static void calc_first_order_upwind_step (
-    const Unmanaged<kokkos_1d_t<const RealSmallPack> >& rho,
-    const Unmanaged<kokkos_1d_t<const RealSmallPack> >& inv_rho,
-    const Unmanaged<kokkos_1d_t<const RealSmallPack> >& inv_dzq,
+    const Unmanaged<view_1d<const RealSmallPack> >& rho,
+    const Unmanaged<view_1d<const RealSmallPack> >& inv_rho,
+    const Unmanaged<view_1d<const RealSmallPack> >& inv_dzq,
     const MemberType& team,
     const Int& nk, const Int& k_bot, const Int& k_top, const Int& kdir, const Real& dt_sub,
-    const Kokkos::Array<const Unmanaged<kokkos_1d_t<RealSmallPack> >*,nfield>& flux,
-    const Kokkos::Array<const Unmanaged<kokkos_1d_t<RealSmallPack> >*,nfield>& V,
-    const Kokkos::Array<const Unmanaged<kokkos_1d_t<RealSmallPack> >*,nfield>& r)
+    const Kokkos::Array<const Unmanaged<view_1d<RealSmallPack> >*,nfield>& flux,
+    const Kokkos::Array<const Unmanaged<view_1d<RealSmallPack> >*,nfield>& V,
+    const Kokkos::Array<const Unmanaged<view_1d<RealSmallPack> >*,nfield>& r)
   {
     if (kdir == 1)
       calc_first_order_upwind_step< 1, nfield>(
@@ -340,7 +340,7 @@ public:
   KOKKOS_INLINE_FUNCTION
   static Int find_bottom (
     const MemberType& team,
-    const Unmanaged<kokkos_1d_t<const Real> >& v, const Real& small,
+    const Unmanaged<view_1d<const Real> >& v, const Real& small,
     const Int& kbot, const Int& ktop, const Int& kdir,
     bool& log_present)
   {
@@ -379,7 +379,7 @@ public:
   KOKKOS_INLINE_FUNCTION
   static Int find_top (
     const MemberType& team,
-    const Unmanaged<kokkos_1d_t<const Real> >& v, const Real& small,
+    const Unmanaged<view_1d<const Real> >& v, const Real& small,
     const Int& kbot, const Int& ktop, const Int& kdir,
     bool& log_present)
   {
@@ -417,9 +417,9 @@ public:
   static void micro_sed_func (
     const MicroSedFuncFinalKokkos<Scalar, D>& msfk,
     const Int kts, const Int kte, const int its, const int ite, const Real dt,
-    const kokkos_2d_t<RealPack>& qr, const kokkos_2d_t<RealPack>& nr,
-    const kokkos_2d_t<RealPack>& th, const kokkos_2d_t<RealPack>& dzq, const kokkos_2d_t<RealPack>& pres,
-    const kokkos_1d_t<Real>& prt_liq)
+    const view_2d<RealPack>& qr, const view_2d<RealPack>& nr,
+    const view_2d<RealPack>& th, const view_2d<RealPack>& dzq, const view_2d<RealPack>& pres,
+    const view_1d<Real>& prt_liq)
   {
     // constants
     const Real odt = 1.0 / dt;
@@ -446,7 +446,7 @@ public:
 
         auto workspace = msfk.workspace_mgr.get_workspace(team);
 
-        Unmanaged<kokkos_1d_t<RealPack> > inv_dzq, rho, inv_rho, rhofacr, t, V_qr, V_nr, flux_qx, flux_nx, mu_r, lamr;
+        Unmanaged<view_1d<RealPack> > inv_dzq, rho, inv_rho, rhofacr, t, V_qr, V_nr, flux_qx, flux_nx, mu_r, lamr;
         workspace.template take_many_and_reset<11>(
           {"inv_dzq", "rho", "inv_rho", "rhofacr", "t", "V_qr", "V_nr", "flux_qx", "flux_nx", "mu_r", "lamr"},
           {&inv_dzq, &rho, &inv_rho, &rhofacr, &t, &V_qr, &V_nr, &flux_qx, &flux_nx, &mu_r, &lamr});

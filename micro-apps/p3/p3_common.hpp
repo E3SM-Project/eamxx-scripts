@@ -110,12 +110,12 @@ void p3_init_cpp()
 
 template <typename Scalar, typename D=DefaultDevice>
 void dump_to_file_k(const char* basename,
-                    const typename KokkosTypes<D>::template kokkos_2d_t<Scalar>& qr,
-                    const typename KokkosTypes<D>::template kokkos_2d_t<Scalar>& nr,
-                    const typename KokkosTypes<D>::template kokkos_2d_t<Scalar>& th,
-                    const typename KokkosTypes<D>::template kokkos_2d_t<Scalar>& dzq,
-                    const typename KokkosTypes<D>::template kokkos_2d_t<Scalar>& pres,
-                    const typename KokkosTypes<D>::template kokkos_1d_t<Scalar>& prt_liq,
+                    const typename KokkosTypes<D>::template view_2d<Scalar>& qr,
+                    const typename KokkosTypes<D>::template view_2d<Scalar>& nr,
+                    const typename KokkosTypes<D>::template view_2d<Scalar>& th,
+                    const typename KokkosTypes<D>::template view_2d<Scalar>& dzq,
+                    const typename KokkosTypes<D>::template view_2d<Scalar>& pres,
+                    const typename KokkosTypes<D>::template view_1d<Scalar>& prt_liq,
                     const int ni, const int nk, const Scalar dt, const int ts)
 {
   auto qr_m      = Kokkos::create_mirror_view(qr);
@@ -146,12 +146,12 @@ void dump_to_file_k(const char* basename,
 template <typename Scalar, typename D=DefaultDevice>
 void dump_to_file_k (
   const char* basename,
-  const typename KokkosTypes<D>::template kokkos_2d_t<RealPack>& qr,
-  const typename KokkosTypes<D>::template kokkos_2d_t<RealPack>& nr,
-  const typename KokkosTypes<D>::template kokkos_2d_t<RealPack>& th,
-  const typename KokkosTypes<D>::template kokkos_2d_t<RealPack>& dzq,
-  const typename KokkosTypes<D>::template kokkos_2d_t<RealPack>& pres,
-  const typename KokkosTypes<D>::template kokkos_1d_t<Scalar>& prt_liq,
+  const typename KokkosTypes<D>::template view_2d<RealPack>& qr,
+  const typename KokkosTypes<D>::template view_2d<RealPack>& nr,
+  const typename KokkosTypes<D>::template view_2d<RealPack>& th,
+  const typename KokkosTypes<D>::template view_2d<RealPack>& dzq,
+  const typename KokkosTypes<D>::template view_2d<RealPack>& pres,
+  const typename KokkosTypes<D>::template view_1d<Scalar>& prt_liq,
   const int ni, const int nk, const Scalar dt, const int ts)
 {
   auto qr_m      = Kokkos::create_mirror_view(qr);
@@ -189,7 +189,7 @@ void dump_to_file_k (
 
 template <typename T, typename Scalar, typename D=DefaultDevice>
 void populate_kokkos_from_vec(const int num_vert, std::vector<Scalar> const& vec,
-                              typename KokkosTypes<D>::template kokkos_1d_t<T>& device)
+                              typename KokkosTypes<D>::template view_1d<T>& device)
 {
   const auto mirror = Kokkos::create_mirror_view(device);
 
@@ -211,19 +211,19 @@ void micro_sed_func_kokkos_wrap(const int ni, const int nk, const Scalar dt, con
   MSK msk(ni, nk);
 
   const int num_vert = msk.get_num_vert();
-  typename MSK::template kokkos_2d_t<typename MSK::pack_t> qr("qr", ni, num_vert),
+  typename MSK::template view_2d<typename MSK::pack_t> qr("qr", ni, num_vert),
     nr("nr", ni, num_vert),
     th("th", ni, num_vert),
     dzq("dzq", ni, num_vert),
     pres("pres", ni, num_vert);
 
-  typename MSK::template kokkos_1d_t<typename MSK::pack_t> qr_i("qr_i", num_vert),
+  typename MSK::template view_1d<typename MSK::pack_t> qr_i("qr_i", num_vert),
     nr_i("nr_i", num_vert),
     th_i("th_i", num_vert),
     dzq_i("dzq_i", num_vert),
     pres_i("pres_i", num_vert);
 
-  typename MSK::template kokkos_1d_t<Scalar> prt_liq("prt_liq", ni), prt_liq_i("prt_liq", ni);
+  typename MSK::template view_1d<Scalar> prt_liq("prt_liq", ni), prt_liq_i("prt_liq", ni);
 
   {
     std::vector<Scalar> qr_v(nk), nr_v(nk), th_v(nk), dzq_v(nk), pres_v(nk);

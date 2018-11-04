@@ -24,13 +24,13 @@ struct KokkosTypes
   using MemberType = typename TeamPolicy::member_type;
 
   template <typename Scalar>
-  using kokkos_3d_t = Kokkos::View<Scalar***, Layout, MemSpace>;
+  using view_3d = Kokkos::View<Scalar***, Layout, MemSpace>;
 
   template <typename Scalar>
-  using kokkos_2d_t = Kokkos::View<Scalar**, Layout, MemSpace>;
+  using view_2d = Kokkos::View<Scalar**, Layout, MemSpace>;
 
   template <typename Scalar>
-  using kokkos_1d_t = Kokkos::View<Scalar*, Layout, MemSpace>;
+  using view_1d = Kokkos::View<Scalar*, Layout, MemSpace>;
 
   template <typename Scalar, int X, int Y>
   using view_2d_table = Kokkos::View<Scalar[X][Y], Layout, MemSpace>;
