@@ -59,7 +59,7 @@ struct MicroSedFuncVanillaKokkos
   // types
   //
 
-  using pack_t = Scalar;
+  using Pack = Scalar;
 
   template <typename S>
   using view_1d = typename KokkosTypes<D>::template view_1d<S>;
@@ -249,7 +249,7 @@ struct MicroSedFuncVanillaKokkos
     // Rain sedimentation:  (adaptivive substepping)
     Kokkos::parallel_for(
       "main rain sed loop",
-      util::ExeSpaceUtils<typename KokkosTypes<D>::ExeSpace>::get_default_team_policy(msvk.num_horz, msvk.num_vert),
+      util::ExeSpaceUtils<ExeSpace>::get_default_team_policy(msvk.num_horz, msvk.num_vert),
       KOKKOS_LAMBDA(MemberType team_member) {
         const int i = team_member.league_rank();
 

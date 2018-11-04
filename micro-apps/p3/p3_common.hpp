@@ -211,13 +211,13 @@ void micro_sed_func_kokkos_wrap(const int ni, const int nk, const Scalar dt, con
   MSK msk(ni, nk);
 
   const int num_vert = msk.get_num_vert();
-  typename MSK::template view_2d<typename MSK::pack_t> qr("qr", ni, num_vert),
+  typename MSK::template view_2d<typename MSK::Pack> qr("qr", ni, num_vert),
     nr("nr", ni, num_vert),
     th("th", ni, num_vert),
     dzq("dzq", ni, num_vert),
     pres("pres", ni, num_vert);
 
-  typename MSK::template view_1d<typename MSK::pack_t> qr_i("qr_i", num_vert),
+  typename MSK::template view_1d<typename MSK::Pack> qr_i("qr_i", num_vert),
     nr_i("nr_i", num_vert),
     th_i("th_i", num_vert),
     dzq_i("dzq_i", num_vert),
@@ -232,7 +232,7 @@ void micro_sed_func_kokkos_wrap(const int ni, const int nk, const Scalar dt, con
 
     for (auto item : { std::make_pair(&qr_v, &qr_i), std::make_pair(&nr_v, &nr_i), std::make_pair(&th_v, &th_i),
           std::make_pair(&dzq_v, &dzq_i), std::make_pair(&pres_v, &pres_i)}) {
-      populate_kokkos_from_vec<typename MSK::pack_t, Scalar>(nk, *(item.first), *(item.second));
+      populate_kokkos_from_vec<typename MSK::Pack, Scalar>(nk, *(item.first), *(item.second));
     }
   }
 

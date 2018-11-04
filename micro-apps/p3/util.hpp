@@ -774,14 +774,9 @@ class WorkspaceManager
   // data
   //
 
-  enum { m_pad_factor =
-#ifdef KOKKOS_ENABLE_CUDA  // TODO: Replace with OnGpu<ES>::value
-         1,
-#else
-         32,
-#endif
+  enum { m_pad_factor   = OnGpu<ExeSpace>::value ? 1 : 32;
          m_max_name_len = 128,
-         m_max_names = 256
+         m_max_names    = 256
   };
 
   util::TeamUtils<ExeSpace> m_tu;
