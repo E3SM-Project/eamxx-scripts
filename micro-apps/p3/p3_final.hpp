@@ -93,8 +93,8 @@ struct MicroSedFuncFinalKokkos
   template <typename S>
   using kokkos_2d_t = typename KokkosTypes<D>::template kokkos_2d_t<S>;
 
-  using kokkos_1d_table_t = typename KokkosTypes<D>::template kokkos_1d_table_t<Scalar, 150>;
-  using kokkos_2d_table_t = typename KokkosTypes<D>::template kokkos_2d_table_t<Scalar, 300, 10>;
+  using view_1d_table = typename KokkosTypes<D>::template view_1d_table<Scalar, 150>;
+  using view_2d_table = typename KokkosTypes<D>::template view_2d_table<Scalar, 300, 10>;
 
   using ExeSpace    = typename KokkosTypes<D>::ExeSpace;
   using MemberType  = typename KokkosTypes<D>::MemberType;
@@ -108,8 +108,8 @@ struct MicroSedFuncFinalKokkos
 
   int num_horz, num_vert, num_pack;
 
-  kokkos_2d_table_t vn_table, vm_table;
-  kokkos_1d_table_t mu_r_table;
+  view_2d_table vn_table, vm_table;
+  view_1d_table mu_r_table;
 
   TeamPolicy policy;
   util::WorkspaceManager<RealPack, D> workspace_mgr;
@@ -157,7 +157,7 @@ public:
 
   KOKKOS_INLINE_FUNCTION
   static RealSmallPack apply_table (
-    const SmallMask& qr_gt_small, const kokkos_2d_table_t& table, const Table3& t)
+    const SmallMask& qr_gt_small, const view_2d_table& table, const Table3& t)
   {
     const auto rdumii_m_dumii = t.rdumii - RealSmallPack(t.dumii);
     const auto t_im1_jm1 = index(table, t.dumii-1, t.dumjj-1);
@@ -172,7 +172,7 @@ public:
   // Computes and returns rain size distribution parameters
   KOKKOS_INLINE_FUNCTION
   static void get_rain_dsd2_kokkos (
-    const kokkos_1d_table_t& mu_r_table,
+    const view_1d_table& mu_r_table,
     const SmallMask& qr_gt_small, const RealSmallPack& qr, RealSmallPack& nr, RealSmallPack& mu_r,
     RealSmallPack& rdumii, IntSmallPack& dumii, RealSmallPack& lamr,
     RealSmallPack& cdistr, RealSmallPack& logn0r)

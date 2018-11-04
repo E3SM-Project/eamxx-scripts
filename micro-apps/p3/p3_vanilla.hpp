@@ -69,8 +69,8 @@ struct MicroSedFuncVanillaKokkos
   using ExeSpace    = typename KokkosTypes<D>::ExeSpace;
   using MemberType  = typename KokkosTypes<D>::MemberType;
 
-  using kokkos_1d_table_t = typename KokkosTypes<D>::template kokkos_1d_table_t<Scalar, 150>;
-  using kokkos_2d_table_t = typename KokkosTypes<D>::template kokkos_2d_table_t<Scalar, 300, 10>;
+  using view_1d_table = typename KokkosTypes<D>::template view_1d_table<Scalar, 150>;
+  using view_2d_table = typename KokkosTypes<D>::template view_2d_table<Scalar, 300, 10>;
 
   //
   // members
@@ -81,8 +81,8 @@ struct MicroSedFuncVanillaKokkos
   // re-usable scratch views
   kokkos_2d_t<Scalar> V_qr, V_nr, flux_qx, flux_nx, mu_r, lamr, rhofacr, inv_dzq, rho, inv_rho, t;
 
-  kokkos_2d_table_t vn_table, vm_table;
-  kokkos_1d_table_t mu_r_table;
+  view_2d_table vn_table, vm_table;
+  view_1d_table mu_r_table;
 
   static constexpr const char* NAME = "vanilla";
 
@@ -160,7 +160,7 @@ struct MicroSedFuncVanillaKokkos
    */
   KOKKOS_FUNCTION
   static void get_rain_dsd2_kokkos(
-    const kokkos_1d_table_t& mu_r_table,
+    const view_1d_table& mu_r_table,
     const Scalar qr, Scalar& nr, Scalar& mu_r, Scalar& rdumii, int& dumii, Scalar& lamr,
     Scalar& cdistr, Scalar& logn0r)
   {

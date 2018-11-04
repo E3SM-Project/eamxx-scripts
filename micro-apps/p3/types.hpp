@@ -33,10 +33,10 @@ struct KokkosTypes
   using kokkos_1d_t = Kokkos::View<Scalar*, Layout, MemSpace>;
 
   template <typename Scalar, int X, int Y>
-  using kokkos_2d_table_t = Kokkos::View<Scalar[X][Y], Layout, MemSpace>;
+  using view_2d_table = Kokkos::View<Scalar[X][Y], Layout, MemSpace>;
 
   template <typename Scalar, int X>
-  using kokkos_1d_table_t = Kokkos::View<Scalar[X], Layout, MemSpace>;
+  using view_1d_table = Kokkos::View<Scalar[X], Layout, MemSpace>;
 };
 
 // Turn a View's MemoryTraits (traits::memory_traits) into the equivalent
