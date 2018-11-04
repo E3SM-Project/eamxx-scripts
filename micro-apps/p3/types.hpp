@@ -17,26 +17,30 @@ using DefaultDevice = Kokkos::Device<Kokkos::DefaultExecutionSpace, Kokkos::Defa
 template <typename D=DefaultDevice>
 struct KokkosTypes
 {
+  using Devive = D;
   using Layout = Kokkos::LayoutRight;
-  using MemSpace = typename D::memory_space;
-  using ExeSpace = typename D::execution_space;
+  using MemSpace = typename Device::memory_space;
+  using ExeSpace = typename Device::execution_space;
   using TeamPolicy = Kokkos::TeamPolicy<ExeSpace>;
   using MemberType = typename TeamPolicy::member_type;
 
-  template <typename Scalar>
-  using view_3d = Kokkos::View<Scalar***, Layout, MemSpace>;
+  template <typename DataType>
+  using view = Kokkos::View<DataType, Layout, Device>;
 
   template <typename Scalar>
-  using view_2d = Kokkos::View<Scalar**, Layout, MemSpace>;
+  using view_3d = view<Scalar***>;
 
   template <typename Scalar>
-  using view_1d = Kokkos::View<Scalar*, Layout, MemSpace>;
+  using view_2d = view<Scalar**>;
+
+  template <typename Scalar>
+  using view_1d = view<Scalar*>;
 
   template <typename Scalar, int X, int Y>
-  using view_2d_table = Kokkos::View<Scalar[X][Y], Layout, MemSpace>;
+  using view_2d_table = view<Scalar[X][Y]>;
 
   template <typename Scalar, int X>
-  using view_1d_table = Kokkos::View<Scalar[X], Layout, MemSpace>;
+  using view_1d_table = view<Scalar[X]>;
 };
 
 // Turn a View's MemoryTraits (traits::memory_traits) into the equivalent
