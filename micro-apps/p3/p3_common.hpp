@@ -21,7 +21,7 @@ namespace p3 {
 namespace micro_sed {
 
 using scream::pack::scalarize;
-using scream::pack::RealPack;
+using scream::pack::BigPack;
 
 template <typename Scalar>
 struct Globals
@@ -146,11 +146,11 @@ void dump_to_file_k(const char* basename,
 template <typename Scalar, typename D=DefaultDevice>
 void dump_to_file_k (
   const char* basename,
-  const typename KokkosTypes<D>::template view_2d<RealPack>& qr,
-  const typename KokkosTypes<D>::template view_2d<RealPack>& nr,
-  const typename KokkosTypes<D>::template view_2d<RealPack>& th,
-  const typename KokkosTypes<D>::template view_2d<RealPack>& dzq,
-  const typename KokkosTypes<D>::template view_2d<RealPack>& pres,
+  const typename KokkosTypes<D>::template view_2d<BigPack<Scalar> >& qr,
+  const typename KokkosTypes<D>::template view_2d<BigPack<Scalar> >& nr,
+  const typename KokkosTypes<D>::template view_2d<BigPack<Scalar> >& th,
+  const typename KokkosTypes<D>::template view_2d<BigPack<Scalar> >& dzq,
+  const typename KokkosTypes<D>::template view_2d<BigPack<Scalar> >& pres,
   const typename KokkosTypes<D>::template view_1d<Scalar>& prt_liq,
   const int ni, const int nk, const Scalar dt, const int ts)
 {

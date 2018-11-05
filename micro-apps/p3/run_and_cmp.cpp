@@ -181,14 +181,14 @@ public:
 template <typename Scalar, typename D=DefaultDevice>
 class KokkosPackBridge {
 public:
-  using RealPack = p3::micro_sed::RealPack;
+  using BigPack = scream::pack::BigPack<Scalar>;
 
   int np;
-  typename KokkosTypes<D>::template view_2d<RealPack> qr, nr, th, dzq, pres;
+  typename KokkosTypes<D>::template view_2d<BigPack> qr, nr, th, dzq, pres;
   typename KokkosTypes<D>::template view_1d<Real> prt_liq;
 
   KokkosPackBridge(const ic::MicroSedData<Scalar>& d)
-    : np(scream::pack::npack<RealPack>(d.nk)),
+    : np(scream::pack::npack<BigPack>(d.nk)),
       qr("qr", d.ni, np),
       nr("nr", d.ni, np),
       th("th", d.ni, np),
