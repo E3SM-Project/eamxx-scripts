@@ -270,7 +270,7 @@ public:
     const view_1d_ptr_array<Spack, nfield>& r)
   {
     Int
-      kmin = ( kdir == 1 ? k_bot : k_top)                     / Spack::n,
+      kmin = ( kdir == 1 ? k_bot : k_top)             / Spack::n,
       // Add 1 to make [kmin, kmax). But then the extra term (Spack::n -
       // 1) to determine pack index cancels the +1.
       kmax = ((kdir == 1 ? k_top : k_bot) + Spack::n) / Spack::n;
