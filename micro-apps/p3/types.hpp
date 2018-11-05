@@ -73,7 +73,10 @@ struct KokkosTypes
 
   // Our workspace implementation makes this a useful type
   template <typename Scalar, int N>
-  using view_1d_ptr_array = Kokkos::Array<const Unmanaged<view_1d<Scalar> >*, N>;
+  using view_1d_ptr_array = Kokkos::Array<Unmanaged<view_1d<Scalar> >*, N>;
+
+  template <typename Scalar, int N>
+  using view_1d_ptr_carray = Kokkos::Array<const Unmanaged<view_1d<Scalar> >*, N>;
 };
 
 template <typename Scalar>

@@ -104,7 +104,7 @@ struct MicroSedFuncFinalKokkos
   using view_2d_table = typename KokkosTypes<D>::template view_2d_table<Scalar, 300, 10>;
 
   template <typename S, int N>
-  using view_1d_ptr_array = typename KokkosTypes<D>::template view_1d_ptr_array<S, N>;
+  using view_1d_ptr_array = typename KokkosTypes<D>::template view_1d_ptr_carray<S, N>;
 
   using ExeSpace    = typename KokkosTypes<D>::ExeSpace;
   using MemberType  = typename KokkosTypes<D>::MemberType;
@@ -183,7 +183,7 @@ public:
   KOKKOS_INLINE_FUNCTION
   static void get_rain_dsd2_kokkos (
     const view_1d_table& mu_r_table,
-    const SmallMask& qr_gt_small, const Spack& qr, Spack& nr, Spack& mu_r,
+    const SmallMask<Scalar>& qr_gt_small, const Spack& qr, Spack& nr, Spack& mu_r,
     Spack& rdumii, IntSmallPack& dumii, Spack& lamr,
     Spack& cdistr, Spack& logn0r)
   {
@@ -512,7 +512,7 @@ public:
                 if (qr_gt_small.any()) {
                   // Compute Vq, Vn:
                   olnr(pk).set(qr_gt_small, max(olnr(pk), nsmall));
-                  Table3 table;
+                  Table3<Scalar> table;
                   Spack tmp1, tmp2;
                   get_rain_dsd2_kokkos(msfk.mu_r_table,
                                        qr_gt_small, olqr(pk), olnr(pk), lmu_r(pk),
