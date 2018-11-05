@@ -76,6 +76,7 @@ struct MicroSedFuncVanillaKokkos
   // members
   //
 
+private:
   int num_horz, num_vert;
 
   // re-usable scratch views
@@ -84,6 +85,7 @@ struct MicroSedFuncVanillaKokkos
   view_2d_table vn_table, vm_table;
   view_1d_table mu_r_table;
 
+public:
   static constexpr const char* NAME = "vanilla";
 
   MicroSedFuncVanillaKokkos(int num_horz_, int num_vert_) :

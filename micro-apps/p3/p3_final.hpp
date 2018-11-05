@@ -116,6 +116,7 @@ struct MicroSedFuncFinalKokkos
 
   static constexpr const char* NAME = "final";
 
+private:
   int num_horz, num_vert, num_pack;
 
   view_2d_table vn_table, vm_table;
