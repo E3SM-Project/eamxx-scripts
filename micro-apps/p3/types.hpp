@@ -46,7 +46,7 @@ using DefaultDevice = Kokkos::Device<Kokkos::DefaultExecutionSpace, Kokkos::Defa
 template <typename D=DefaultDevice>
 struct KokkosTypes
 {
-  using Devive = D;
+  using Device = D;
   using Layout = Kokkos::LayoutRight;
   using MemSpace = typename Device::memory_space;
   using ExeSpace = typename Device::execution_space;

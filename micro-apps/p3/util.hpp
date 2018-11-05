@@ -78,6 +78,7 @@
   p3::micro_sed::p3_init_cpp<Real>()
 
 namespace unit_test {
+template <typename D>
 struct UnitTest;
 }
 
@@ -701,7 +702,7 @@ class WorkspaceManager
       m_team.team_barrier();
     }
 
-    friend struct unit_test::UnitTest;
+    friend struct unit_test::UnitTest<D>;
   }; // class Workspace
 
   KOKKOS_INLINE_FUNCTION
@@ -768,13 +769,13 @@ class WorkspaceManager
     metadata[1] = slot + 1; // next
   }
 
-  friend struct unit_test::UnitTest;
+  friend struct unit_test::UnitTest<D>;
 
   //
   // data
   //
 
-  enum { m_pad_factor   = OnGpu<ExeSpace>::value ? 1 : 32;
+  enum { m_pad_factor   = OnGpu<ExeSpace>::value ? 1 : 32,
          m_max_name_len = 128,
          m_max_names    = 256
   };

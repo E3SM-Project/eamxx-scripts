@@ -94,10 +94,6 @@ if (CMAKE_BUILD_TYPE_ci STREQUAL "debug")
   endif ()
 endif ()
 
-if (${ENABLE_TRACING})
-  add_definitions(-DTRACE)
-endif()
-
 if (${ENABLE_FPE})
   message("Enabling FPE.")
   add_definitions(-DFPE)
