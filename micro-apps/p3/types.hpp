@@ -12,6 +12,13 @@ typedef double Real;
 typedef float Real;
 #endif
 
+#if defined KOKKOS_COMPILER_GNU
+// See https://github.com/kokkos/kokkos-kernels/issues/129 
+# define ConstExceptGnu
+#else
+# define ConstExceptGnu const
+#endif
+
 // Turn a View's MemoryTraits (traits::memory_traits) into the equivalent
 // unsigned int mask.
 template <typename View>

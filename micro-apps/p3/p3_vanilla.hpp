@@ -245,8 +245,8 @@ public:
     constexpr Scalar nsmall = Globals<Scalar>::NSMALL;
 
     // direction of vertical leveling
-    const int kbot = (kts < kte) ? 0: msvk.num_vert-1;
-    const int kdir = (kts < kte) ? 1  : -1;
+    ConstExceptGnu int kbot = (kts < kte) ? 0: msvk.num_vert-1;
+    ConstExceptGnu int kdir = (kts < kte) ? 1  : -1;
 
     // Rain sedimentation:  (adaptivive substepping)
     Kokkos::parallel_for(
