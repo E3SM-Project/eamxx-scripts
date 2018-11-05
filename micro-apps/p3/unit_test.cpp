@@ -416,8 +416,8 @@ int main (int argc, char** argv) {
     out += unit_test::UnitTest<>::unittest_team_utils();
 #endif
     // Force host testing on CUDA
-    using HostDevice = Kokkos::Device<Kokkos::DefaultHostExecutionSpace, Kokkos::DefaultHostExecutionSpace::memory_space>;
 #ifdef KOKKOS_ENABLE_CUDA
+    using HostDevice = Kokkos::Device<Kokkos::DefaultHostExecutionSpace, Kokkos::DefaultHostExecutionSpace::memory_space>;
     out += unit_test::UnitTest<HostDevice>::unittest_team_policy();
     out += unit_test::UnitTest<HostDevice>::unittest_pack();
     out += unit_test::UnitTest<HostDevice>::unittest_workspace();
