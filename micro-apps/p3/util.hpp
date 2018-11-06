@@ -78,7 +78,7 @@
   p3::micro_sed::p3_init_cpp<Real>()
 
 namespace unit_test {
-struct UnitTest;
+struct UnitWrap;
 }
 
 namespace util {
@@ -100,7 +100,7 @@ void read (T* v, size_t sz, const FILEPtr& fid) {
 
 bool eq(const std::string& a, const char* const b1, const char* const b2 = 0);
 
-template <typename Real> struct is_single_precision {};
+template <typename Scalar> struct is_single_precision {};
 template <> struct is_single_precision<float> { enum : bool { value = true }; };
 template <> struct is_single_precision<double> { enum : bool { value = false }; };
 
@@ -178,26 +178,30 @@ void initialize();
 
 template <typename ExeSpace = Kokkos::DefaultExecutionSpace>
 struct ExeSpaceUtils {
-  static team_policy get_default_team_policy (Int ni, Int nk) {
+  using TeamPolicy = Kokkos::TeamPolicy<ExeSpace>;
+
+  static TeamPolicy get_default_team_policy (Int ni, Int nk) {
 #ifdef MIMIC_GPU
     const int max_threads = ExeSpace::concurrency();
     const int team_size = max_threads < 7 ? max_threads : 7;
-    return team_policy(ni, team_size);
+    return TeamPolicy(ni, team_size);
 #else
-    return team_policy(ni, 1);
+    return TeamPolicy(ni, 1);
 #endif
   }
 
-  static team_policy get_team_policy_force_team_size (Int ni, Int team_size) {
-    return team_policy(ni, team_size);
+  static TeamPolicy get_team_policy_force_team_size (Int ni, Int team_size) {
+    return TeamPolicy(ni, team_size);
   }
 };
 
 #ifdef KOKKOS_ENABLE_CUDA
 template <>
 struct ExeSpaceUtils<Kokkos::Cuda> {
-  static team_policy get_default_team_policy (Int ni, Int nk) {
-    return team_policy(ni, std::min(128, 32*((nk + 31)/32)));
+  using TeamPolicy = Kokkos::TeamPolicy<Kokkos::Cuda>;
+
+  static TeamPolicy get_default_team_policy (Int ni, Int nk) {
+    return TeamPolicy(ni, std::min(128, 32*((nk + 31)/32)));
   }
 };
 #endif
@@ -245,15 +249,15 @@ public:
 };
 #endif
 
-template <typename Real>
+template <typename Scalar>
 void dump_to_file(const char* filename,
-                  const Real* qr, const Real* nr, const Real* th, const Real* dzq, const Real* pres, const Real* prt_liq,
-                  const int ni, const int nk, const Real dt, const int ts, int ldk = -1)
+                  const Scalar* qr, const Scalar* nr, const Scalar* th, const Scalar* dzq, const Scalar* pres, const Scalar* prt_liq,
+                  const int ni, const int nk, const Scalar dt, const int ts, int ldk = -1)
 {
   if (ldk < 0) ldk = nk;
 
   std::string full_fn(filename);
-  full_fn += "_perf_run.dat" + std::to_string(sizeof(Real));
+  full_fn += "_perf_run.dat" + std::to_string(sizeof(Scalar));
 
   FILEPtr fid(fopen(full_fn.c_str(), "w"));
   micro_throw_if( !fid, "dump_to_file can't write " << filename);
@@ -288,13 +292,26 @@ subview (const Kokkos::View<T**, Parms...>& v_in, const int i) {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-template <typename T>
+template <typename T, typename D=DefaultDevice>
 class WorkspaceManager
 ///////////////////////////////////////////////////////////////////////////////
 {
  public:
+  using TeamPolicy = typename KokkosTypes<D>::TeamPolicy;
+  using MemberType = typename KokkosTypes<D>::MemberType;
+  using ExeSpace   = typename KokkosTypes<D>::ExeSpace;
 
-  WorkspaceManager(int size, int max_used, team_policy policy) :
+  template <typename S>
+  using view_1d = typename KokkosTypes<D>::template view_1d<S>;
+  template <typename S>
+  using view_2d = typename KokkosTypes<D>::template view_2d<S>;
+  template <typename S>
+  using view_3d = typename KokkosTypes<D>::template view_3d<S>;
+
+  template <typename S, int N>
+  using view_1d_ptr_array = typename KokkosTypes<D>::template view_1d_ptr_array<S, N>;
+
+  WorkspaceManager(int size, int max_used, TeamPolicy policy) :
     m_tu(policy),
     m_concurrent_teams(m_tu.get_num_concurrent_teams()),
     m_reserve( (sizeof(T) > 2*sizeof(int)) ? 1 :
@@ -376,14 +393,14 @@ class WorkspaceManager
   class Workspace {
    public:
     KOKKOS_INLINE_FUNCTION
-    Workspace(const WorkspaceManager& parent, int ws_idx, const member_type& team) :
+    Workspace(const WorkspaceManager& parent, int ws_idx, const MemberType& team) :
       m_parent(parent), m_team(team), m_ws_idx(ws_idx),
       m_next_slot(parent.m_next_slot(m_pad_factor*ws_idx))
     {}
 
     template <typename S=T>
     KOKKOS_INLINE_FUNCTION
-    Unmanaged<kokkos_1d_t<S> > take(const char* name) const
+    Unmanaged<view_1d<S> > take(const char* name) const
     {
 #ifndef NDEBUG
       change_num_used(1);
@@ -407,10 +424,10 @@ class WorkspaceManager
       return space;
     }
 
-    template <typename S=T, size_t N>
+    template <size_t N, typename S=T>
     KOKKOS_INLINE_FUNCTION
     void take_many_contiguous_unsafe(const Kokkos::Array<const char*, N>& names,
-                                     const Kokkos::Array<Unmanaged<kokkos_1d_t<S> >*, N>& ptrs) const
+                                     const view_1d_ptr_array<S, N>& ptrs) const
     {
 #ifndef NDEBUG
       change_num_used(N);
@@ -442,10 +459,10 @@ class WorkspaceManager
       m_team.team_barrier();
     }
 
-    template <typename S=T, size_t N>
+    template <size_t N, typename S=T>
     KOKKOS_INLINE_FUNCTION
     void take_many(const Kokkos::Array<const char*, N>& names,
-                   const Kokkos::Array<Unmanaged<kokkos_1d_t<S> >*, N>& ptrs) const
+                   const view_1d_ptr_array<S, N>& ptrs) const
     {
 #ifndef NDEBUG
       change_num_used(N);
@@ -474,10 +491,10 @@ class WorkspaceManager
       m_team.team_barrier();
     }
 
-    template <typename S=T, size_t N>
+    template <size_t N, typename S=T>
     KOKKOS_INLINE_FUNCTION
     void take_many_and_reset(const Kokkos::Array<const char*, N>& names,
-                             const Kokkos::Array<Unmanaged<kokkos_1d_t<S> >*, N>& ptrs) const
+                             const view_1d_ptr_array<S, N>& ptrs) const
     {
 #ifndef NDEBUG
       change_num_used(N - m_parent.m_num_used(m_ws_idx));
@@ -579,14 +596,14 @@ class WorkspaceManager
 
    private:
     const WorkspaceManager& m_parent;
-    const member_type& m_team;
+    const MemberType& m_team;
     const int m_ws_idx;
     int& m_next_slot;
 
 #ifndef NDEBUG
     template <typename S>
     KOKKOS_INLINE_FUNCTION
-    const char* get_name_impl(const Unmanaged<kokkos_1d_t<S> >& space) const
+    const char* get_name_impl(const Unmanaged<view_1d<S> >& space) const
     {
       const int slot = m_parent.get_index<S>(space);
       return &(m_parent.m_curr_names(m_ws_idx, slot, 0));
@@ -607,7 +624,7 @@ class WorkspaceManager
 
     template <typename S>
     KOKKOS_INLINE_FUNCTION
-    void change_indv_meta(const Unmanaged<kokkos_1d_t<S> >& space, const char* name, bool release=false) const
+    void change_indv_meta(const Unmanaged<view_1d<S> >& space, const char* name, bool release=false) const
     {
       Kokkos::single(Kokkos::PerTeam(m_team), [&] () {
         const int slot = m_parent.get_index<S>(space);
@@ -643,7 +660,7 @@ class WorkspaceManager
 
     template <typename S>
     KOKKOS_INLINE_FUNCTION
-    bool is_active(const Unmanaged<kokkos_1d_t<S> >& space) const
+    bool is_active(const Unmanaged<view_1d<S> >& space) const
     { return m_parent.m_active(m_ws_idx, m_parent.get_index<S>(space));}
 
     KOKKOS_INLINE_FUNCTION
@@ -669,7 +686,7 @@ class WorkspaceManager
 
     template <typename S>
     KOKKOS_INLINE_FUNCTION
-    void release_impl(const Unmanaged<kokkos_1d_t<S> >& space) const
+    void release_impl(const Unmanaged<view_1d<S> >& space) const
     {
 #ifndef NDEBUG
       change_num_used(-1);
@@ -684,22 +701,22 @@ class WorkspaceManager
       m_team.team_barrier();
     }
 
-    friend struct unit_test::UnitTest;
+    friend struct unit_test::UnitWrap;
   }; // class Workspace
 
   KOKKOS_INLINE_FUNCTION
-  Workspace get_workspace(const member_type& team) const
+  Workspace get_workspace(const MemberType& team) const
   { return Workspace(*this, m_tu.get_workspace_idx(team), team); }
 
  public: // for Cuda
 
-  static void init(const WorkspaceManager& wm, const kokkos_2d_t<T>& data,
+  static void init(const WorkspaceManager& wm, const view_2d<T>& data,
                    const int concurrent_teams, const int max_used, const int total)
   {
     Kokkos::parallel_for(
       "WorkspaceManager ctor",
-      util::ExeSpaceUtils<>::get_default_team_policy(concurrent_teams, max_used),
-      KOKKOS_LAMBDA(const member_type& team) {
+      util::ExeSpaceUtils<ExeSpace>::get_default_team_policy(concurrent_teams, max_used),
+      KOKKOS_LAMBDA(const MemberType& team) {
         Kokkos::parallel_for(
           Kokkos::TeamThreadRange(team, max_used), [&] (int i) {
             wm.init_metadata(team.league_rank(), i);
@@ -711,21 +728,21 @@ class WorkspaceManager
 
   template <typename S=T>
   KOKKOS_FORCEINLINE_FUNCTION
-  int get_index(const Unmanaged<kokkos_1d_t<S> >& space) const
+  int get_index(const Unmanaged<view_1d<S> >& space) const
   {
     return reinterpret_cast<const int*>(reinterpret_cast<const T*>(space.data()) - m_reserve)[0];
   }
 
   template <typename S=T>
   KOKKOS_FORCEINLINE_FUNCTION
-  int get_next(const Unmanaged<kokkos_1d_t<S> >& space) const
+  int get_next(const Unmanaged<view_1d<S> >& space) const
   {
     return reinterpret_cast<const int*>(reinterpret_cast<const T*>(space.data()) - m_reserve)[1];
   }
 
   template <typename S=T>
   KOKKOS_FORCEINLINE_FUNCTION
-  int set_next_and_get_index(const Unmanaged<kokkos_1d_t<S> >& space, int next) const
+  int set_next_and_get_index(const Unmanaged<view_1d<S> >& space, int next) const
   {
     const auto metadata = reinterpret_cast<int*>(reinterpret_cast<T*>(space.data()) - m_reserve);
     metadata[1] = next;
@@ -734,9 +751,9 @@ class WorkspaceManager
 
   template <typename S=T>
   KOKKOS_FORCEINLINE_FUNCTION
-  Unmanaged<kokkos_1d_t<S> > get_space_in_slot(const int team_idx, const int slot) const
+  Unmanaged<view_1d<S> > get_space_in_slot(const int team_idx, const int slot) const
   {
-    return Unmanaged<kokkos_1d_t<S> >(
+    return Unmanaged<view_1d<S> >(
       reinterpret_cast<S*>(&m_data(team_idx, slot*m_total) + m_reserve),
       sizeof(T) == sizeof(S) ?
       m_size :
@@ -751,34 +768,29 @@ class WorkspaceManager
     metadata[1] = slot + 1; // next
   }
 
-  friend struct unit_test::UnitTest;
+  friend struct unit_test::UnitWrap;
 
   //
   // data
   //
 
-  enum { m_pad_factor =
-#ifdef KOKKOS_ENABLE_CUDA  // TODO: Replace with OnGpu<ES>::value
-         1,
-#else
-         32,
-#endif
+  enum { m_pad_factor   = OnGpu<ExeSpace>::value ? 1 : 32,
          m_max_name_len = 128,
-         m_max_names = 256
+         m_max_names    = 256
   };
 
-  util::TeamUtils<> m_tu;
+  util::TeamUtils<ExeSpace> m_tu;
   int m_concurrent_teams, m_reserve, m_size, m_total, m_max_used;
 #ifndef NDEBUG
-  kokkos_1d_t<int> m_num_used;
-  kokkos_1d_t<int> m_high_water;
-  kokkos_2d_t<bool> m_active;
-  kokkos_3d_t<char> m_curr_names;
-  kokkos_3d_t<char> m_all_names;
-  kokkos_3d_t<int> m_counts;
+  view_1d<int> m_num_used;
+  view_1d<int> m_high_water;
+  view_2d<bool> m_active;
+  view_3d<char> m_curr_names;
+  view_3d<char> m_all_names;
+  view_3d<int> m_counts;
 #endif
-  kokkos_1d_t<int> m_next_slot;
-  kokkos_2d_t<T> m_data;
+  view_1d<int> m_next_slot;
+  view_2d<T> m_data;
 };
 
 } // namespace util

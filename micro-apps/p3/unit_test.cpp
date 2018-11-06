@@ -7,6 +7,20 @@
 #include <array>
 #include <algorithm>
 
+namespace unit_test {
+
+struct UnitWrap {
+
+template <typename D=DefaultDevice>
+struct UnitTest {
+
+using MemberType = typename KokkosTypes<D>::MemberType;
+using TeamPolicy = typename KokkosTypes<D>::TeamPolicy;
+using ExeSpace   = typename KokkosTypes<D>::ExeSpace;
+
+template <typename S>
+using view_1d = typename KokkosTypes<D>::template view_1d<S>;
+
 static Int unittest_team_policy () {
   Int nerr = 0;
 
@@ -15,7 +29,7 @@ static Int unittest_team_policy () {
 
   for (int nk: {128, 122, 255, 42}) {
     const int ni = 1000;
-    const auto p = util::ExeSpaceUtils<>::get_default_team_policy(ni, nk);
+    const auto p = util::ExeSpaceUtils<ExeSpace>::get_default_team_policy(ni, nk);
     std::cout << "ni " << ni << " nk " << nk
               << " league size " << p.league_size()
               << " team_size " << p.team_size() << "\n";
@@ -40,10 +54,10 @@ static Int unittest_pack () {
 
   using TestBigPack   = scream::pack::Pack<Real, 16>;
 
-  kokkos_1d_t<TestBigPack> test_k_array("test_k_array", num_bigs);
+  view_1d<TestBigPack> test_k_array("test_k_array", num_bigs);
   Kokkos::parallel_reduce("unittest_pack",
-                          util::ExeSpaceUtils<>::get_default_team_policy(128, 128),
-                          KOKKOS_LAMBDA(const member_type& team, int& total_errs) {
+                          util::ExeSpaceUtils<ExeSpace>::get_default_team_policy(128, 128),
+                          KOKKOS_LAMBDA(const MemberType& team, int& total_errs) {
 
     int nerrs_local = 0;
 
@@ -70,8 +84,6 @@ static Int unittest_pack () {
   return nerr;
 }
 
-namespace unit_test {
-struct UnitTest {
 static int unittest_workspace()
 {
   int nerr = 0;
@@ -80,20 +92,20 @@ static int unittest_workspace()
   const int ni = 128;
   const int nk = 128;
 
-  team_policy policy(util::ExeSpaceUtils<>::get_default_team_policy(ni, nk));
+  TeamPolicy policy(util::ExeSpaceUtils<ExeSpace>::get_default_team_policy(ni, nk));
 
   {
-    util::WorkspaceManager<double> wsmd(17, num_ws, policy);
+    util::WorkspaceManager<double, D> wsmd(17, num_ws, policy);
     micro_assert(wsmd.m_reserve == 1);
     micro_assert(wsmd.m_size == 17);
   }
   {
-    util::WorkspaceManager<char> wsmc(16, num_ws, policy);
+    util::WorkspaceManager<char, D> wsmc(16, num_ws, policy);
     micro_assert(wsmc.m_reserve == 8);
     micro_assert(wsmc.m_size == 16);
     Kokkos::parallel_for(
       "unittest_workspace char", policy,
-      KOKKOS_LAMBDA(const member_type& team) {
+      KOKKOS_LAMBDA(const MemberType& team) {
         auto ws = wsmc.get_workspace(team);
         const auto t1 = ws.take("t1");
         const auto t2 = ws.take("t1");
@@ -102,17 +114,25 @@ static int unittest_workspace()
       });
   }
   {
-    util::WorkspaceManager<short> wsmc(16, num_ws, policy);
-    micro_assert(wsmc.m_reserve == 4);
-    micro_assert(wsmc.m_size == 16);
+    util::WorkspaceManager<short, D> wsms(16, num_ws, policy);
+    micro_assert(wsms.m_reserve == 4);
+    micro_assert(wsms.m_size == 16);
   }
 
-  util::WorkspaceManager<int> wsm(ints_per_ws, num_ws, policy);
+  // Test host-explicit WorkspaceMgr
+  {
+    using HostDevice = Kokkos::Device<Kokkos::DefaultHostExecutionSpace, Kokkos::HostSpace>;
+    typename KokkosTypes<HostDevice>::TeamPolicy policy_host(util::ExeSpaceUtils<typename KokkosTypes<HostDevice>::ExeSpace>::get_default_team_policy(ni, nk));
+    util::WorkspaceManager<short, HostDevice> wsmh(16, num_ws, policy_host);
+    wsmh.m_data(0, 0) = 0; // check on cuda machine
+  }
+
+  util::WorkspaceManager<int, D> wsm(ints_per_ws, num_ws, policy);
 
   micro_assert(wsm.m_reserve == 2);
   micro_assert(wsm.m_size == ints_per_ws);
 
-  Kokkos::parallel_reduce("unittest_workspace", policy, KOKKOS_LAMBDA(const member_type& team, int& total_errs) {
+  Kokkos::parallel_reduce("unittest_workspace", policy, KOKKOS_LAMBDA(const MemberType& team, int& total_errs) {
 
     int nerrs_local = 0;
     auto ws = wsm.get_workspace(team);
@@ -126,13 +146,13 @@ static int unittest_workspace()
       if (ws_int.extent(0) != ints_per_ws) ++nerrs_local;
       ws.release(ws_int);
 
-      auto ws_dlb = ws.take<double>("doubles");
+      auto ws_dlb = ws.template take<double>("doubles");
       if (ws_dlb.extent(0) != 18) ++nerrs_local;
       ws.release(ws_dlb);
     }
     team.team_barrier();
 
-    Kokkos::Array<Unmanaged<kokkos_1d_t<int> >, num_ws> wssub;
+    Kokkos::Array<Unmanaged<view_1d<int> >, num_ws> wssub;
 
     // Main test. Test different means of taking and release spaces.
     for (int r = 0; r < 8; ++r) {
@@ -144,8 +164,8 @@ static int unittest_workspace()
         }
       }
       else {
-        Unmanaged<kokkos_1d_t<int> > ws1, ws2, ws3, ws4;
-        Kokkos::Array<Unmanaged<kokkos_1d_t<int> >*, num_ws> ptrs = { {&ws1, &ws2, &ws3, &ws4} };
+        Unmanaged<view_1d<int> > ws1, ws2, ws3, ws4;
+        Kokkos::Array<Unmanaged<view_1d<int> >*, num_ws> ptrs = { {&ws1, &ws2, &ws3, &ws4} };
         Kokkos::Array<const char*, num_ws> names = { {"ws0", "ws1", "ws2", "ws3"} };
         if (r % 4 == 1) {
           ws.take_many(names, ptrs);
@@ -174,8 +194,8 @@ static int unittest_workspace()
         // These spaces aren't free, but their metadata should be the same as it
         // was when they were initialized
         Kokkos::single(Kokkos::PerTeam(team), [&] () {
-          if (wsm.get_index<int>(wssub[w]) != w) ++nerrs_local;
-          if (wsm.get_next<int>(wssub[w]) != w+1) ++nerrs_local;
+          if (wsm.get_index(wssub[w]) != w) ++nerrs_local;
+          if (wsm.get_next(wssub[w]) != w+1) ++nerrs_local;
           char buf[8] = "ws";
           buf[2] = 48 + w; // 48 is offset to integers in ascii
 #ifndef NDEBUG
@@ -303,7 +323,7 @@ static int unittest_workspace()
 #ifndef NDEBUG
               if (util::strcmp(ws.get_name(wssub[w]), buf) != 0) ++nerrs_local;
               ++exp_num_active;
-              if (!ws.is_active<int>(wssub[w])) ++nerrs_local;
+              if (!ws.template is_active<int>(wssub[w])) ++nerrs_local;
 #endif
               for (int i = 0; i < ints_per_ws; ++i) {
                 if (wssub[w](i) != i*w) ++nerrs_local;
@@ -330,8 +350,6 @@ static int unittest_workspace()
 
   return nerr;
 }
-};
-}
 
 #if 0
 static int unittest_team_utils()
@@ -343,10 +361,10 @@ static int unittest_team_utils()
     const int ni = n*5;
     omp_set_num_threads(n);
     for (int s = 1; s <= n; ++s) {
-      const auto p = util::ExeSpaceUtils<>::get_team_policy_force_team_size(ni, s);
-      const int c = util::ExeSpaceUtils<>::get_num_concurrent_teams(p);
-      util::TeamUtils<> tu(p);
-      Kokkos::parallel_reduce("unittest_team_utils", p, KOKKOS_LAMBDA(member_type team_member, int& total_errs) {
+      const auto p = util::ExeSpaceUtils<ExeSpace>::get_team_policy_force_team_size(ni, s);
+      const int c = util::ExeSpaceUtils<ExeSpace>::get_num_concurrent_teams(p);
+      util::TeamUtils<ExeSpace> tu(p);
+      Kokkos::parallel_reduce("unittest_team_utils", p, KOKKOS_LAMBDA(MemberType team_member, int& total_errs) {
         int nerrs_local = 0;
         const int i  = team_member.league_rank();
         int expected_idx = i;
@@ -385,16 +403,28 @@ static int unittest_team_utils()
 }
 #endif
 
+};
+};
+} // namespace unit_test
+
+template <typename D=DefaultDevice>
+using UnitTest = unit_test::UnitWrap::UnitTest<D>;
+
 int main (int argc, char** argv) {
   util::initialize();
 
   int out = 0;
   Kokkos::initialize(argc, argv); {
-    out =  unittest_team_policy();
-    out += unittest_pack();
-    out += unit_test::UnitTest::unittest_workspace();
-#if 0
-    out += unittest_team_utils();
+    out =  UnitTest<>::unittest_team_policy();
+    out += UnitTest<>::unittest_pack();
+    out += UnitTest<>::unittest_workspace();
+    //out += UnitTest<>::unittest_team_utils();
+
+#ifdef KOKKOS_ENABLE_CUDA
+    // Force host testing on CUDA
+    using HostDevice = Kokkos::Device<Kokkos::DefaultHostExecutionSpace, Kokkos::DefaultHostExecutionSpace::memory_space>;
+    out += UnitTest<HostDevice>::unittest_workspace();
+    //out += UnitTest<HostDevice>::unittest_team_utils();
 #endif
   } Kokkos::finalize();
 

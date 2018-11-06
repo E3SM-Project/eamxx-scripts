@@ -6,7 +6,6 @@
 #include <vector>
 
 #include "types.hpp"
-#include "micro_kokkos.hpp"
 
 namespace ic {
 
@@ -92,14 +91,14 @@ protected:
   }
 
 public:
-  Real dt;
+  Scalar dt;
   bool reverse;
-  Real* qr;
-  Real* nr;
-  Real* th;
-  Real* dzq;  // Not sure what 'q' means here, but this is dz [m].
-  Real* pres;
-  Real* prt_liq;
+  Scalar* qr;
+  Scalar* nr;
+  Scalar* th;
+  Scalar* dzq;  // Not sure what 'q' means here, but this is dz [m].
+  Scalar* pres;
+  Scalar* prt_liq;
 
   MicroSedData(Int ni_, Int nk_)
     : ni(ni_), nk(nk_),

@@ -26,12 +26,12 @@ void transpose(const Scalar* sv, Scalar* dv, Int ni, Int nk) {
 
 template <typename Scalar>
 static Int compare (const std::string& label, const Scalar* a,
-                    const Scalar* b, const Int& n, const Real& tol, bool verbose=false) {
+                    const Scalar* b, const Int& n, const Scalar& tol, bool verbose=false) {
   Int nerr = 0;
-  Real den = 0;
+  Scalar den = 0;
   for (Int i = 0; i < n; ++i)
     den = std::max(den, std::abs(a[i]));
-  Real worst = 0;
+  Scalar worst = 0;
   for (Int i = 0; i < n; ++i) {
     const auto num = std::abs(a[i] - b[i]);
     if (num > tol*den ||
