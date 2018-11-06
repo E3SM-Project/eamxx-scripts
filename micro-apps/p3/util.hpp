@@ -78,8 +78,7 @@
   p3::micro_sed::p3_init_cpp<Real>()
 
 namespace unit_test {
-template <typename D>
-struct UnitTest;
+struct UnitWrap;
 }
 
 namespace util {
@@ -702,7 +701,7 @@ class WorkspaceManager
       m_team.team_barrier();
     }
 
-    friend struct unit_test::UnitTest<D>;
+    friend struct unit_test::UnitWrap;
   }; // class Workspace
 
   KOKKOS_INLINE_FUNCTION
@@ -769,7 +768,7 @@ class WorkspaceManager
     metadata[1] = slot + 1; // next
   }
 
-  friend struct unit_test::UnitTest<D>;
+  friend struct unit_test::UnitWrap;
 
   //
   // data

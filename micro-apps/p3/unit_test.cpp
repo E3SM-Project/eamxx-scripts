@@ -9,6 +9,8 @@
 
 namespace unit_test {
 
+struct UnitWrap {
+
 template <typename D=DefaultDevice>
 struct UnitTest {
 
@@ -402,29 +404,27 @@ static int unittest_team_utils()
 #endif
 
 };
-}
+};
+} // namespace unit_test
+
+template <typename D=DefaultDevice>
+using UnitTest = unit_test::UnitWrap::UnitTest<D>;
 
 int main (int argc, char** argv) {
   util::initialize();
 
   int out = 0;
   Kokkos::initialize(argc, argv); {
-    out =  unit_test::UnitTest<>::unittest_team_policy();
-    out += unit_test::UnitTest<>::unittest_pack();
-    out += unit_test::UnitTest<>::unittest_workspace();
-#if 0
-    out += unit_test::UnitTest<>::unittest_team_utils();
-#endif
-    // Force host testing on CUDA
-#ifdef KOKKOS_ENABLE_CUDA
-    using HostDevice = Kokkos::Device<Kokkos::DefaultHostExecutionSpace, Kokkos::DefaultHostExecutionSpace::memory_space>;
-    out += unit_test::UnitTest<HostDevice>::unittest_team_policy();
-    out += unit_test::UnitTest<HostDevice>::unittest_pack();
-    out += unit_test::UnitTest<HostDevice>::unittest_workspace();
-#if 0
-    out += unit_test::UnitTest<HostDevice>::unittest_team_utils();
-#endif
+    out =  UnitTest<>::unittest_team_policy();
+    out += UnitTest<>::unittest_pack();
+    out += UnitTest<>::unittest_workspace();
+    //out += UnitTest<>::unittest_team_utils();
 
+#ifdef KOKKOS_ENABLE_CUDA
+    // Force host testing on CUDA
+    using HostDevice = Kokkos::Device<Kokkos::DefaultHostExecutionSpace, Kokkos::DefaultHostExecutionSpace::memory_space>;
+    out += UnitTest<HostDevice>::unittest_workspace();
+    //out += UnitTest<HostDevice>::unittest_team_utils();
 #endif
   } Kokkos::finalize();
 
