@@ -25,6 +25,7 @@ MACHINE_METADATA = {
     "bowman"   : (["intel/compilers/18.2.199", "git/2.8.2",  "cmake/3.5.2"], "~/scream-docs-perf-bowman",    "$HOME/kokkos-install-bowman/install", "$(which icpc)",                    "srun"),
     "blake"    : (["intel/compilers/18.1.163", "git/2.9.4",  "cmake/3.9.0"], "~/scream-docs-perf-blake",     "$HOME/kokkos-install-blake/install",  "$(which icpc)",                    "srun"),
     "waterman" : (["gcc/7.2.0", "cuda/9.2.88", "git/2.10.1", "cmake/3.9.6"], "~/scream-docs-perf-waterman",  "$HOME/kokkos-install/install",        "$kokkos_install/bin/nvcc_wrapper", "bsub -I -q rhel7W"),
+    "white"    : (["gcc/7.2.0", "cuda/9.2.88", "git/2.10.1", "cmake/3.9.6"], "~/scream-docs-perf-white",     "$HOME/kokkos-install-white/install",  "$kokkos_install/bin/nvcc_wrapper", "bsub -I -q rhel7G"),
 }
 
 ###############################################################################
@@ -37,8 +38,14 @@ OR
 
 \033[1mEXAMPLES:\033[0m
     \033[1;32m# Gather data \033[0m
-    > {0} '64 128 300 30 $kokkos_install --cxx=$compiler -t fortran -t pack -s "ni:2.0:8192" -n 10'
+    > {0} '64 128 300 30 10 $kokkos_install --cxx=$compiler -s "ni:2.0:16384" -n 10'
     # NOTE: leave the variables in the args unresolved so the script can resolve them
+
+    \033[1;32m# Gather data for specific tests and specific machines \033[0m
+    > {0} '64 128 300 30 10 $kokkos_install --cxx=$compiler -t ref -t final -s "ni:2.0:16384" -n 10' -m waterman -m bowman
+
+    \033[1;32m# Do correctness testing instead of performance testing \033[0m
+    > {0} '' -t
 """.format(os.path.basename(args[0])),
         description=description,
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
@@ -90,7 +97,7 @@ def run_on_machine(machine, perf_analysis_args, commit, test_all):
 ###############################################################################
 def gather_all_data(perf_analysis_args, commit, machines, test_all):
 ###############################################################################
-    os.mkdir(os.path.join("test-all-results" if test_all else "perf-results", commit))
+    os.makedirs(os.path.join("test-all-results" if test_all else "perf-results", commit))
 
     success = True
 
