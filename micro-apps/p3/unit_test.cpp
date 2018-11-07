@@ -34,15 +34,18 @@ static Int unittest_team_policy () {
               << " league size " << p.league_size()
               << " team_size " << p.team_size() << "\n";
     if (p.league_size() != ni) ++nerr;
-#ifdef KOKKOS_ENABLE_CUDA
-    if (nk == 42) {
-      if (p.team_size() != 64) ++nerr;
-    } else {
-      if (p.team_size() != 128) ++nerr;
+    if (util::OnGpu<ExeSpace>::value) {
+      if (nk == 42) {
+        if (p.team_size() != 64) ++nerr;
+      } else {
+        if (p.team_size() != 128) ++nerr;
+      }
     }
-#elif defined MIMIC_GPU && defined KOKKOS_ENABLE_OPENMP
-    if (omp_get_num_threads() > 1 && p.team_size() == 1) ++nerr;
+    else {
+#if defined MIMIC_GPU && defined KOKKOS_ENABLE_OPENMP
+      if (omp_get_num_threads() > 1 && p.team_size() == 1) ++nerr;
 #endif
+    }
   }
 
   return nerr;
@@ -351,10 +354,10 @@ static int unittest_workspace()
   return nerr;
 }
 
-#if 0
 static int unittest_team_utils()
 {
   int nerr = 0;
+#ifdef KOKKOS_ENABLE_OPENMP
   int N = omp_get_max_threads();
 
   for (int n = 1; n <= N; ++n) {
@@ -362,8 +365,8 @@ static int unittest_team_utils()
     omp_set_num_threads(n);
     for (int s = 1; s <= n; ++s) {
       const auto p = util::ExeSpaceUtils<ExeSpace>::get_team_policy_force_team_size(ni, s);
-      const int c = util::ExeSpaceUtils<ExeSpace>::get_num_concurrent_teams(p);
       util::TeamUtils<ExeSpace> tu(p);
+      const int c = tu.get_num_concurrent_teams();
       Kokkos::parallel_reduce("unittest_team_utils", p, KOKKOS_LAMBDA(MemberType team_member, int& total_errs) {
         int nerrs_local = 0;
         const int i  = team_member.league_rank();
@@ -383,12 +386,8 @@ static int unittest_team_utils()
         }
 
         Kokkos::parallel_reduce(Kokkos::TeamThreadRange(team_member, team_member.team_size()), [=] (int t, int& team_errs) {
-#ifdef KOKKOS_ENABLE_CUDA
-          if (wi != i)  ++team_errs;
-#elif defined KOKKOS_ENABLE_OPENMP
           if (wi >= c) ++team_errs;
           if (wi != expected_idx) ++team_errs;
-#endif
         }, nerrs_local);
         total_errs += nerrs_local;
         expected_idx += c;
@@ -398,10 +397,9 @@ static int unittest_team_utils()
   }
 
   omp_set_num_threads(N);
-
+#endif
   return nerr;
 }
-#endif
 
 };
 };
@@ -413,18 +411,20 @@ using UnitTest = unit_test::UnitWrap::UnitTest<D>;
 int main (int argc, char** argv) {
   util::initialize();
 
+  using HostDevice = Kokkos::Device<Kokkos::DefaultHostExecutionSpace, Kokkos::DefaultHostExecutionSpace::memory_space>;
+
   int out = 0;
   Kokkos::initialize(argc, argv); {
     out =  UnitTest<>::unittest_team_policy();
     out += UnitTest<>::unittest_pack();
     out += UnitTest<>::unittest_workspace();
-    //out += UnitTest<>::unittest_team_utils();
+
+    //out += UnitTest<HostDevice>::unittest_team_utils();
 
 #ifdef KOKKOS_ENABLE_CUDA
     // Force host testing on CUDA
-    using HostDevice = Kokkos::Device<Kokkos::DefaultHostExecutionSpace, Kokkos::DefaultHostExecutionSpace::memory_space>;
+    out += UnitTest<HostDevice>::unittest_team_policy();
     out += UnitTest<HostDevice>::unittest_workspace();
-    //out += UnitTest<HostDevice>::unittest_team_utils();
 #endif
   } Kokkos::finalize();
 
