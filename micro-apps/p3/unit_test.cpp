@@ -449,10 +449,9 @@ int main (int argc, char** argv) {
 
   int out = 0;
   Kokkos::initialize(argc, argv); {
-    // out =  UnitTest<>::unittest_team_policy();
-    // out += UnitTest<>::unittest_pack();
-    // out += UnitTest<>::unittest_workspace();
-
+    out =  UnitTest<>::unittest_team_policy();
+    out += UnitTest<>::unittest_pack();
+    out += UnitTest<>::unittest_workspace();
     out += UnitTest<HostDevice>::unittest_team_utils();
 
 #ifdef KOKKOS_ENABLE_CUDA
