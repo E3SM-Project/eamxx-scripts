@@ -360,63 +360,77 @@ static int unittest_workspace()
 
 static int unittest_team_utils()
 {
+  // NOTE: Kokkos does not tolerate changing num_threads post-kokkos-initialization and
+  // also does not tolerate multiple initializations in the same process, so this will need
+  // to be tested with a bash loop.
   int nerr = 0;
 #ifdef KOKKOS_ENABLE_OPENMP
-  int N = omp_get_max_threads();
-  omp_set_dynamic(0);     // Explicitly disable dynamic teams
+  const int n = omp_get_max_threads();
+  const int ni = n*5;
+  for (int s = 1; s <= n; ++s) {
+    const auto p = util::ExeSpaceUtils<ExeSpace>::get_team_policy_force_team_size(ni, s);
+    util::TeamUtils<ExeSpace> tu(p);
+    const int c = tu.get_num_concurrent_teams();
+    view_2d<int> ws_idxs("ws_idxs", ni, s);
+    const int real_ts = omp_get_max_threads() / c;
+    std::cout << "thrds " << n << " teamsizeV " << s << " teamsizeR " << real_ts << " ni " << ni << " conc " << c <<  std::endl;
+    Kokkos::parallel_reduce("unittest_team_utils", p, KOKKOS_LAMBDA(MemberType team_member, int& total_errs) {
+      int nerrs_local = 0;
+      const int i  = team_member.league_rank();
+      const int wi = tu.get_workspace_idx(team_member);
 
-  for (int n = 1; n <= N; ++n) {
-    const int ni = n*5;
-    std::cout << "Setting threads to " << n << std::endl;
-    omp_set_num_threads(n);
-    std::cout << "Threads are " << omp_get_max_threads() << std::endl;
-    for (int s = 1; s <= n; ++s) {
-      std::cout << "  s " << s << " n " << n << " nt " << omp_get_max_threads() << std::endl;
-      const auto p = util::ExeSpaceUtils<ExeSpace>::get_team_policy_force_team_size(ni, s);
-      util::TeamUtils<ExeSpace> tu(p);
-      const int c = tu.get_num_concurrent_teams();
-      view_2d<int> ws_idxs("ws_idxs", ni, s);
-      Kokkos::parallel_reduce("unittest_team_utils", p, KOKKOS_LAMBDA(MemberType team_member, int& total_errs) {
-        int nerrs_local = 0;
-        const int i  = team_member.league_rank();
-        const int wi = tu.get_workspace_idx(team_member);
-        const int thread_num = omp_get_thread_num();
-
-        for (int j = 0; j < n; ++j) {
-          if (j == thread_num) {
-            if (j == 0) {
-              std::cout << "===================================" << std::endl;
-            }
-            std::cout << "   For total_threads: " << n << " league size " << team_member.league_size() << " and team_size: " << s << ", team: " << i << ", team_rank=" << team_member.team_rank() << ", thread: " << thread_num << " , conc: " << c << ", idx: " << wi << std::endl;
-         }
-          std::this_thread::sleep_for(std::chrono::milliseconds(100));
-          team_member.team_barrier();
+#if 0
+      const int thread_num = omp_get_thread_num();
+      for (int j = 0; j < n; ++j) {
+        if (j == thread_num) {
+          if (j == 0) {
+            std::cout << "===================================" << std::endl;
+          }
+          std::cout << " For total_threads: " << n << " league size " << team_member.league_size() << " and team_size: " << s << ", team: " << i << ", team_rank=" << team_member.team_rank() << ", thread: " << thread_num << " , conc: " << c << ", idx: " << wi << std::endl;
         }
-        ws_idxs(i, team_member.team_rank()) = wi+1; // never zero
-        // no concurrent teams should share wsidx , all threads in a team should share wsidx
-        if (wi >= c) ++nerrs_local;
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        team_member.team_barrier();
+      }
+#endif
+      ws_idxs(i, team_member.team_rank()) = wi+1; // never zero
+      if (wi >= c) ++nerrs_local;
 
-        total_errs += nerrs_local;
-      }, nerr);
-      std::cout << "===================== DONE ==========================" << std::endl;
-      // post processing
-      for (int i = 0; i < ni; ++i) {
-        int exp_wi = 0;
-        for (int t = 0; t < s; ++t) {
-          int curr_wi = ws_idxs(i, t);
-          std::cout << "idxs(" << i << ", " << t << ") = " << curr_wi << std::endl;
-          if (curr_wi == 0) ++nerr; // this league/team rank never ran
-          if (t == 0) exp_wi = curr_wi;
-          else if (curr_wi != exp_wi) {
-            std::cout << "ERROR for ws_idxs(" << i << ", " << t << "), " << curr_wi << " != " << exp_wi << std::endl;
+      total_errs += nerrs_local;
+    }, nerr);
+#if 0
+    std::cout << "===================== DONE ==========================" << std::endl;
+#endif
+
+    // post processing
+    for (int i = 0; i < ni; ++i) {
+      int teams_per_idx = ni / c;
+
+      if (ni % c != 0) ++teams_per_idx;
+
+      int exp_wi = 0;
+      // all threads in a team should share wsidx
+      for (int t = 0; t < s; ++t) {
+        int curr_wi = ws_idxs(i, t);
+#if 0
+        std::cout << "idxs(" << i << ", " << t << ") = " << curr_wi << std::endl;
+#endif
+        if (t == 0) exp_wi = curr_wi;
+        if (curr_wi == 0) ++nerr;
+        else if (curr_wi != exp_wi) {
+          std::cout << "SHARING ERROR for ws_idxs(" << i << ", " << t << "), " << curr_wi << " != " << exp_wi << std::endl;
+          ++nerr;
+        }
+
+        // no thread in any concurrent team should have this wsidx
+        for (int ct = i + teams_per_idx; ct < ni; ct += teams_per_idx) {
+          if (curr_wi == ws_idxs(ct, t)) {
+            std::cout << "CONC ERROR for ws_idxs(" << ct << ", " << t << "), " << curr_wi << " == " << ws_idxs(ct, t) << std::endl;
             ++nerr;
           }
         }
       }
     }
   }
-
-  omp_set_num_threads(N);
 #endif
   return nerr;
 }
