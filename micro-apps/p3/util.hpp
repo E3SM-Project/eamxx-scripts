@@ -182,7 +182,7 @@ struct ExeSpaceUtils {
 
   static TeamPolicy get_default_team_policy (Int ni, Int nk) {
 #ifdef MIMIC_GPU
-    const int max_threads = ExeSpace::concurrency();
+    const int max_threads = omp_get_max_threads();
     const int team_size = max_threads < 7 ? max_threads : 7;
     return TeamPolicy(ni, team_size);
 #else
@@ -215,7 +215,7 @@ public:
   template <typename TeamPolicy>
   TeamUtils(const TeamPolicy& policy) : _team_size(0)
   {
-    const int max_threads = ExeSpace::concurrency();
+    const int max_threads = omp_get_max_threads();
     const int team_size = policy.team_size();
     _num_teams = max_threads / team_size;
     _team_size = max_threads / _num_teams;

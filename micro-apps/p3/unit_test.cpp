@@ -20,6 +20,10 @@ using ExeSpace   = typename KokkosTypes<D>::ExeSpace;
 
 template <typename S>
 using view_1d = typename KokkosTypes<D>::template view_1d<S>;
+template <typename S>
+using view_2d = typename KokkosTypes<D>::template view_2d<S>;
+template <typename S>
+using view_3d = typename KokkosTypes<D>::template view_3d<S>;
 
 static Int unittest_team_policy () {
   Int nerr = 0;
@@ -359,18 +363,22 @@ static int unittest_team_utils()
   int nerr = 0;
 #ifdef KOKKOS_ENABLE_OPENMP
   int N = omp_get_max_threads();
+  omp_set_dynamic(0);     // Explicitly disable dynamic teams
 
   for (int n = 1; n <= N; ++n) {
     const int ni = n*5;
+    std::cout << "Setting threads to " << n << std::endl;
     omp_set_num_threads(n);
+    std::cout << "Threads are " << omp_get_max_threads() << std::endl;
     for (int s = 1; s <= n; ++s) {
+      std::cout << "  s " << s << " n " << n << " nt " << omp_get_max_threads() << std::endl;
       const auto p = util::ExeSpaceUtils<ExeSpace>::get_team_policy_force_team_size(ni, s);
       util::TeamUtils<ExeSpace> tu(p);
       const int c = tu.get_num_concurrent_teams();
+      view_2d<int> ws_idxs("ws_idxs", ni, s);
       Kokkos::parallel_reduce("unittest_team_utils", p, KOKKOS_LAMBDA(MemberType team_member, int& total_errs) {
         int nerrs_local = 0;
         const int i  = team_member.league_rank();
-        int expected_idx = i;
         const int wi = tu.get_workspace_idx(team_member);
         const int thread_num = omp_get_thread_num();
 
@@ -379,20 +387,32 @@ static int unittest_team_utils()
             if (j == 0) {
               std::cout << "===================================" << std::endl;
             }
-            std::cout << "For total_threads: " << n << " and team_size: " << s << ", team: " << i << ", team_rank=" << team_member.team_rank() << ", thread: " << thread_num << " , conc: " << c << ", expected_idx: " << expected_idx << ", idx: " << wi << std::endl;
+            std::cout << "   For total_threads: " << n << " league size " << team_member.league_size() << " and team_size: " << s << ", team: " << i << ", team_rank=" << team_member.team_rank() << ", thread: " << thread_num << " , conc: " << c << ", idx: " << wi << std::endl;
          }
           std::this_thread::sleep_for(std::chrono::milliseconds(100));
           team_member.team_barrier();
         }
+        ws_idxs(i, team_member.team_rank()) = wi+1; // never zero
+        // no concurrent teams should share wsidx , all threads in a team should share wsidx
+        if (wi >= c) ++nerrs_local;
 
-        Kokkos::parallel_reduce(Kokkos::TeamThreadRange(team_member, team_member.team_size()), [=] (int t, int& team_errs) {
-          if (wi >= c) ++team_errs;
-          if (wi != expected_idx) ++team_errs;
-        }, nerrs_local);
         total_errs += nerrs_local;
-        expected_idx += c;
       }, nerr);
-      std::cout << "===============================================" << std::endl;
+      std::cout << "===================== DONE ==========================" << std::endl;
+      // post processing
+      for (int i = 0; i < ni; ++i) {
+        int exp_wi = 0;
+        for (int t = 0; t < s; ++t) {
+          int curr_wi = ws_idxs(i, t);
+          std::cout << "idxs(" << i << ", " << t << ") = " << curr_wi << std::endl;
+          if (curr_wi == 0) ++nerr; // this league/team rank never ran
+          if (t == 0) exp_wi = curr_wi;
+          else if (curr_wi != exp_wi) {
+            std::cout << "ERROR for ws_idxs(" << i << ", " << t << "), " << curr_wi << " != " << exp_wi << std::endl;
+            ++nerr;
+          }
+        }
+      }
     }
   }
 
@@ -415,11 +435,11 @@ int main (int argc, char** argv) {
 
   int out = 0;
   Kokkos::initialize(argc, argv); {
-    out =  UnitTest<>::unittest_team_policy();
-    out += UnitTest<>::unittest_pack();
-    out += UnitTest<>::unittest_workspace();
+    // out =  UnitTest<>::unittest_team_policy();
+    // out += UnitTest<>::unittest_pack();
+    // out += UnitTest<>::unittest_workspace();
 
-    //out += UnitTest<HostDevice>::unittest_team_utils();
+    out += UnitTest<HostDevice>::unittest_team_utils();
 
 #ifdef KOKKOS_ENABLE_CUDA
     // Force host testing on CUDA
