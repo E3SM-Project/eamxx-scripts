@@ -429,7 +429,7 @@ static int unittest_team_utils()
         for (int i = 0; i < ni; ++i) {
           if (ws_idxs(i,t) == ci) ++cnt;
         }
-        if (cnt != teams_per_idx && cnt != teams_per_idx-1) {
+        if (cnt > teams_per_idx) {
           std::cout << "CONC ERROR for ws_idx " << ci << ", was used " << cnt << " times, expected about " << teams_per_idx << "." << std::endl;
           ++nerr;
         }
