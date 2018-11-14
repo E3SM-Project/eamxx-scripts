@@ -1,3 +1,3 @@
 #include "p3_final_impl.hpp"
 
-struct template MicroSedFuncFinalKokkos<Real, DefaultDevice>;
+struct template p3::micro_sed::MicroSedFuncFinalKokkos<Real, DefaultDevice>;
