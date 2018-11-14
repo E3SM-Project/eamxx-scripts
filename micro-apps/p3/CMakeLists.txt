@@ -4,6 +4,7 @@ set(P3_MICRO_SRCS
   array_io.cpp
   initial_conditions.cpp
   util.cpp
+  p3_final.cpp
 )
 
 add_library(p3 ${P3_MICRO_SRCS})
