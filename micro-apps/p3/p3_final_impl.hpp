@@ -37,6 +37,7 @@ struct MicroSedFuncFinalKokkos<ScalarT,DeviceT>::Impl
 
   using Pack = BigPack<Scalar>;
   using Spack = SmallPack<Scalar>;
+  template <typename S> using SmallMask = scream::pack::Mask<SmallPack<S>::n>;
 
   using KT = KokkosTypes<Device>;
 
@@ -196,10 +197,10 @@ public:
                   olnr(pk).set(qr_gt_small, max(olnr(pk), nsmall));
                   typename Fun::Table3 table;
                   Spack tmp1, tmp2;
-                  Fun::get_rain_dsd2_kokkos(msfk.mu_r_table,
-                                            qr_gt_small, olqr(pk), olnr(pk), lmu_r(pk),
-                                            table.rdumii, table.dumii, llamr(pk),
-                                            tmp1, tmp2);
+                  get_rain_dsd2_kokkos(msfk.mu_r_table,
+                                       qr_gt_small, olqr(pk), olnr(pk), lmu_r(pk),
+                                       table.rdumii, table.dumii, llamr(pk),
+                                       tmp1, tmp2);
                   Fun::lookup(qr_gt_small, table, lmu_r(pk), llamr(pk));
                   // mass-weighted fall speed:
                   lV_qr(pk).set(qr_gt_small,
@@ -250,6 +251,80 @@ public:
     // workspace_mgr.report(); // uncomment for detailed debug info
   }
 
+  // Computes and returns rain size distribution parameters
+  KOKKOS_INLINE_FUNCTION
+  static void get_rain_dsd2_kokkos (
+    const view_1d_table& mu_r_table,
+    const SmallMask<Scalar>& qr_gt_small, const Spack& qr, Spack& nr, Spack& mu_r,
+    Spack& rdumii, IntSmallPack& dumii, Spack& lamr,
+    Spack& cdistr, Spack& logn0r)
+  {
+    constexpr auto nsmall = Globals<Scalar>::NSMALL;
+    constexpr auto thrd = Globals<Scalar>::THRD;
+    constexpr auto cons1 = Globals<Scalar>::CONS1;
+
+    lamr = 0;
+    cdistr = 0;
+    logn0r = 0;
+
+    // use lookup table to get mu
+    // mu-lambda relationship is from Cao et al. (2008), eq. (7)
+
+    // find spot in lookup table
+    // (scaled N/q for lookup table parameter space)
+    const auto nr_lim = max(nr, nsmall);
+    Spack inv_dum(0);
+    inv_dum.set(qr_gt_small,
+                pow(qr / (cons1 * nr_lim * 6.0), thrd));
+
+    mu_r = 0;
+    {
+      const auto m1 = qr_gt_small && (inv_dum < 282.e-6);
+      mu_r.set(m1, 8.282);
+    }
+    {
+      const auto m2 = qr_gt_small && (inv_dum >= 282.e-6) && (inv_dum < 502.e-6);
+      if (m2.any()) {
+        scream_masked_loop(m2, s) {
+          // interpolate
+          Scalar rdumiis = (inv_dum[s] - 250.e-6)*0.5e6;
+          rdumiis = util::max<Scalar>(rdumiis, 1.0);
+          rdumiis = util::min<Scalar>(rdumiis, 150.0);
+          rdumii[s] = rdumiis;
+          Int dumiis = rdumiis;
+          dumiis = util::min(dumiis, 149);
+          dumii[s] = dumiis;
+          const auto mu_r_im1 = mu_r_table(dumiis-1);
+          mu_r[s] = mu_r_im1 + (mu_r_table(dumiis) - mu_r_im1) * (rdumiis - dumiis);
+        }
+      }
+    }
+
+    // recalculate slope based on mu_r
+    lamr.set(qr_gt_small,
+             pow(cons1 * nr_lim * (mu_r + 3) *
+                 (mu_r + 2) * (mu_r + 1)/qr,
+                 thrd));
+
+    // check for slope
+    const auto lammax = (mu_r+1.)*1.e+5;
+    // set to small value since breakup is explicitly included (mean size 0.8 mm)
+    const auto lammin = (mu_r+1.)*1250.0;
+    // apply lambda limiters for rain
+    const auto lt = qr_gt_small && (lamr < lammin);
+    const auto gt = qr_gt_small && (lamr > lammax);
+    const auto either = lt || gt;
+    nr.set(qr_gt_small, nr_lim);
+    if (either.any()) {
+      lamr.set(lt, lammin);
+      lamr.set(gt, lammax);
+      scream_masked_loop(either, s) {
+        nr[s] = std::exp(3*std::log(lamr[s]) + std::log(qr[s]) +
+                         std::log(std::tgamma(mu_r[s] + 1)) - std::log(std::tgamma(mu_r[s] + 4)))
+          / cons1;
+      }
+    }
+  }
 };
 
 template <typename Scalar, typename D>

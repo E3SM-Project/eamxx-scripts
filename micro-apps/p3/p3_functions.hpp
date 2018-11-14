@@ -48,143 +48,12 @@ public:
   };
 
   KOKKOS_INLINE_FUNCTION
-  static void lookup (
-    const SmallMask<Scalar>& qr_gt_small, Table3& t, const SmallPack<Scalar>& mu_r, const SmallPack<Scalar>& lamr)
-  {
-    // find location in scaled mean size space
-    const auto dum1 = (mu_r+1.) / lamr;
-    const auto dum1_lt = qr_gt_small && (dum1 <= 195.e-6);
-    if (dum1_lt.any()) {
-      scream_masked_loop(dum1_lt, s) {
-        const auto inv_dum3 = 0.1;
-        auto rdumii = (dum1[s]*1.e6+5.)*inv_dum3;
-        rdumii = util::max<Scalar>(rdumii,  1.);
-        rdumii = util::min<Scalar>(rdumii, 20.);
-        Int dumii = rdumii;
-        dumii = util::max(dumii,  1);
-        dumii = util::min(dumii, 20);
-        t.inv_dum3[s] = inv_dum3;
-        t.rdumii[s] = rdumii;
-        t.dumii[s] = dumii;
-      }
-    }
-    const auto dum1_gte = qr_gt_small && ! dum1_lt;
-    if (dum1_gte.any()) {
-      scream_masked_loop(dum1_gte, s) {
-        const auto inv_dum3 = Globals<Scalar>::THRD*0.1;
-        auto rdumii = (dum1[s]*1.e+6-195.)*inv_dum3 + 20.;
-        rdumii = util::max<Scalar>(rdumii, 20.);
-        rdumii = util::min<Scalar>(rdumii,300.);
-        Int dumii = rdumii;
-        dumii = util::max(dumii, 20);
-        dumii = util::min(dumii,299);
-        t.inv_dum3[s] = inv_dum3;
-        t.rdumii[s] = rdumii;
-        t.dumii[s] = dumii;
-      }
-    }
-
-    // find location in mu_r space
-    {
-      auto rdumjj = mu_r+1.;
-      rdumjj = max(rdumjj,1.);
-      rdumjj = min(rdumjj,10.);
-      IntSmallPack dumjj(rdumjj);
-      dumjj  = max(dumjj,1);
-      dumjj  = min(dumjj,9);
-      t.rdumjj.set(qr_gt_small, rdumjj);
-      t.dumjj.set(qr_gt_small, dumjj);
-    }
-  }
+  static void lookup (const SmallMask<Scalar>& qr_gt_small, Table3& t,
+                      const SmallPack<Scalar>& mu_r, const SmallPack<Scalar>& lamr);
 
   KOKKOS_INLINE_FUNCTION
-  static Spack apply_table (
-    const SmallMask<Scalar>& qr_gt_small, const view_2d_table& table, const Table3& t)
-  {
-    const auto rdumii_m_dumii = t.rdumii - Spack(t.dumii);
-    const auto t_im1_jm1 = index(table, t.dumii-1, t.dumjj-1);
-    const auto dum1 = (t_im1_jm1 + rdumii_m_dumii * t.inv_dum3 *
-                       (index(table, t.dumii, t.dumjj-1) - t_im1_jm1));
-    const auto t_im1_j = index(table, t.dumii-1, t.dumjj);
-    const auto dum2 = (t_im1_j + rdumii_m_dumii * t.inv_dum3 *
-                       (index(table, t.dumii, t.dumjj) - t_im1_j));
-    return dum1 + (t.rdumjj - Spack(t.dumjj)) * (dum2 - dum1);
-  }
-
-  // Computes and returns rain size distribution parameters
-  KOKKOS_INLINE_FUNCTION
-  static void get_rain_dsd2_kokkos (
-    const view_1d_table& mu_r_table,
-    const SmallMask<Scalar>& qr_gt_small, const Spack& qr, Spack& nr, Spack& mu_r,
-    Spack& rdumii, IntSmallPack& dumii, Spack& lamr,
-    Spack& cdistr, Spack& logn0r)
-  {
-    constexpr auto nsmall = Globals<Scalar>::NSMALL;
-    constexpr auto thrd = Globals<Scalar>::THRD;
-    constexpr auto cons1 = Globals<Scalar>::CONS1;
-
-    lamr = 0;
-    cdistr = 0;
-    logn0r = 0;
-
-    // use lookup table to get mu
-    // mu-lambda relationship is from Cao et al. (2008), eq. (7)
-
-    // find spot in lookup table
-    // (scaled N/q for lookup table parameter space)
-    const auto nr_lim = max(nr, nsmall);
-    Spack inv_dum(0);
-    inv_dum.set(qr_gt_small,
-                pow(qr / (cons1 * nr_lim * 6.0), thrd));
-
-    mu_r = 0;
-    {
-      const auto m1 = qr_gt_small && (inv_dum < 282.e-6);
-      mu_r.set(m1, 8.282);
-    }
-    {
-      const auto m2 = qr_gt_small && (inv_dum >= 282.e-6) && (inv_dum < 502.e-6);
-      if (m2.any()) {
-        scream_masked_loop(m2, s) {
-          // interpolate
-          Scalar rdumiis = (inv_dum[s] - 250.e-6)*0.5e6;
-          rdumiis = util::max<Scalar>(rdumiis, 1.0);
-          rdumiis = util::min<Scalar>(rdumiis, 150.0);
-          rdumii[s] = rdumiis;
-          Int dumiis = rdumiis;
-          dumiis = util::min(dumiis, 149);
-          dumii[s] = dumiis;
-          const auto mu_r_im1 = mu_r_table(dumiis-1);
-          mu_r[s] = mu_r_im1 + (mu_r_table(dumiis) - mu_r_im1) * (rdumiis - dumiis);
-        }
-      }
-    }
-
-    // recalculate slope based on mu_r
-    lamr.set(qr_gt_small,
-             pow(cons1 * nr_lim * (mu_r + 3) *
-                 (mu_r + 2) * (mu_r + 1)/qr,
-                 thrd));
-
-    // check for slope
-    const auto lammax = (mu_r+1.)*1.e+5;
-    // set to small value since breakup is explicitly included (mean size 0.8 mm)
-    const auto lammin = (mu_r+1.)*1250.0;
-    // apply lambda limiters for rain
-    const auto lt = qr_gt_small && (lamr < lammin);
-    const auto gt = qr_gt_small && (lamr > lammax);
-    const auto either = lt || gt;
-    nr.set(qr_gt_small, nr_lim);
-    if (either.any()) {
-      lamr.set(lt, lammin);
-      lamr.set(gt, lammax);
-      scream_masked_loop(either, s) {
-        nr[s] = std::exp(3*std::log(lamr[s]) + std::log(qr[s]) +
-                         std::log(std::tgamma(mu_r[s] + 1)) - std::log(std::tgamma(mu_r[s] + 4)))
-          / cons1;
-      }
-    }
-  }
+  static Spack apply_table(const SmallMask<Scalar>& qr_gt_small, const view_2d_table& table,
+                           const Table3& t);
 
   //TODO Unit test.
   // Calculate the step in the region [k_bot, k_top].
@@ -359,5 +228,12 @@ public:
 
 } // namespace micro_sed
 } // namespace p3
+
+// If a GPU build, make all code available to the translation unit; otherwise,
+// ETI is used.
+//TODO But optional ETI is not yet implemented for these functions.
+//#ifdef KOKKOS_ENABLE_CUDA
+# include "p3_functions_table3.hpp"
+//#endif
 
 #endif
