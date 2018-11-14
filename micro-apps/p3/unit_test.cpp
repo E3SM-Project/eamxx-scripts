@@ -467,33 +467,37 @@ int main (int argc, char** argv) {
 
   int lower = 1, upper=N, increment=1; // defaults
   for (int i = 0; i < argc; ++i) {
+#ifdef KOKKOS_ENABLE_OPENMP
     if (util::eq(argv[i], "-l", "--lower")) { expect_another_arg(i, argc); lower     = std::atoi(argv[++i]); }
     if (util::eq(argv[i], "-u", "--upper")) { expect_another_arg(i, argc); upper     = std::atoi(argv[++i]); }
     if (util::eq(argv[i], "-i", "--inc"))   { expect_another_arg(i, argc); increment = std::atoi(argv[++i]); }
+#endif
   }
 
   int out = 0; // running error count
 
-  // thread-insensitive tests
-  Kokkos::initialize(argc, argv); {
-    out += UnitTest<>::unittest_pack();
-  } Kokkos::finalize();
-
-  // thread-sensitive tests
   for (int nt = lower; nt <= upper; nt+=increment) { // #threads sweep
 #ifdef KOKKOS_ENABLE_OPENMP
     omp_set_num_threads(nt);
 #endif
     Kokkos::initialize(argc, argv); {
-      out += UnitTest<>::unittest_team_policy();
-      out += UnitTest<>::unittest_workspace();
-      out += UnitTest<HostDevice>::unittest_team_utils();
+      // thread-insensitive tests
+      if (nt == lower) {
+        out += UnitTest<>::unittest_pack();
+      }
+
+      // thread-sensitive tests
+      {
+        out += UnitTest<>::unittest_team_policy();
+        out += UnitTest<>::unittest_workspace();
+        out += UnitTest<HostDevice>::unittest_team_utils();
 
 #ifdef KOKKOS_ENABLE_CUDA
-      // Force host testing on CUDA
-      out += UnitTest<HostDevice>::unittest_team_policy();
-      out += UnitTest<HostDevice>::unittest_workspace();
+        // Force host testing on CUDA
+        out += UnitTest<HostDevice>::unittest_team_policy();
+        out += UnitTest<HostDevice>::unittest_workspace();
 #endif
+      }
     } Kokkos::finalize();
   }
 
