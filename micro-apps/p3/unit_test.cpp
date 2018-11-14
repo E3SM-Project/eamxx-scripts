@@ -374,6 +374,7 @@ static int unittest_team_utils()
     view_2d<int> ws_idxs("ws_idxs", ni, s);
     const int real_ts = omp_get_max_threads() / c;
     std::cout << "thrds " << n << " teamsizeV " << s << " teamsizeR " << real_ts << " ni " << ni << " conc " << c <<  std::endl;
+    int kernel_errors = 0;
     Kokkos::parallel_reduce("unittest_team_utils", p, KOKKOS_LAMBDA(MemberType team_member, int& total_errs) {
       int nerrs_local = 0;
       const int i  = team_member.league_rank();
@@ -396,17 +397,15 @@ static int unittest_team_utils()
       if (wi >= c) ++nerrs_local;
 
       total_errs += nerrs_local;
-    }, nerr);
+    }, kernel_errors);
 #if 0
     std::cout << "===================== DONE ==========================" << std::endl;
 #endif
+    nerr += kernel_errors;
 
     // post processing
+    const int teams_per_idx = (ni + c - 1) / c;
     for (int i = 0; i < ni; ++i) {
-      int teams_per_idx = ni / c;
-
-      if (ni % c != 0) ++teams_per_idx;
-
       int exp_wi = 0;
       // all threads in a team should share wsidx
       for (int t = 0; t < s; ++t) {
@@ -420,13 +419,19 @@ static int unittest_team_utils()
           std::cout << "SHARING ERROR for ws_idxs(" << i << ", " << t << "), " << curr_wi << " != " << exp_wi << std::endl;
           ++nerr;
         }
+      }
+    }
 
-        // no thread in any concurrent team should have this wsidx
-        for (int ct = i + teams_per_idx; ct < ni; ct += teams_per_idx) {
-          if (curr_wi == ws_idxs(ct, t)) {
-            std::cout << "CONC ERROR for ws_idxs(" << ct << ", " << t << "), " << curr_wi << " == " << ws_idxs(ct, t) << std::endl;
-            ++nerr;
-          }
+    // Check that each wsidx used correct number of times
+    for (int ci = 1; ci <= c; ++ci) {
+      for (int t = 0; t < s; ++t) {
+        int cnt = 0;
+        for (int i = 0; i < ni; ++i) {
+          if (ws_idxs(i,t) == ci) ++cnt;
+        }
+        if (cnt != teams_per_idx && cnt != teams_per_idx-1) {
+          std::cout << "CONC ERROR for ws_idx " << ci << ", was used " << cnt << " times, expected about " << teams_per_idx << "." << std::endl;
+          ++nerr;
         }
       }
     }
@@ -442,24 +447,55 @@ static int unittest_team_utils()
 template <typename D=DefaultDevice>
 using UnitTest = unit_test::UnitWrap::UnitTest<D>;
 
+static void expect_another_arg (Int i, Int argc) {
+  if (i == argc-1)
+    throw std::runtime_error("Expected another cmd-line arg.");
+}
+
 int main (int argc, char** argv) {
   util::initialize();
 
   using HostDevice = Kokkos::Device<Kokkos::DefaultHostExecutionSpace, Kokkos::DefaultHostExecutionSpace::memory_space>;
 
-  int out = 0;
+  const auto N =
+#ifdef KOKKOS_ENABLE_OPENMP
+    omp_get_max_threads() // naturally configurable by machine since env var
+#else
+    1
+#endif
+    ;
+
+  int lower = 1, upper=N, increment=1; // defaults
+  for (int i = 0; i < argc; ++i) {
+    if (util::eq(argv[i], "-l", "--lower")) { expect_another_arg(i, argc); lower     = std::atoi(argv[++i]); }
+    if (util::eq(argv[i], "-u", "--upper")) { expect_another_arg(i, argc); upper     = std::atoi(argv[++i]); }
+    if (util::eq(argv[i], "-i", "--inc"))   { expect_another_arg(i, argc); increment = std::atoi(argv[++i]); }
+  }
+
+  int out = 0; // running error count
+
+  // thread-insensitive tests
   Kokkos::initialize(argc, argv); {
-    out =  UnitTest<>::unittest_team_policy();
     out += UnitTest<>::unittest_pack();
-    out += UnitTest<>::unittest_workspace();
-    out += UnitTest<HostDevice>::unittest_team_utils();
+  } Kokkos::finalize();
+
+  // thread-sensitive tests
+  for (int nt = lower; nt <= upper; nt+=increment) { // #threads sweep
+#ifdef KOKKOS_ENABLE_OPENMP
+    omp_set_num_threads(nt);
+#endif
+    Kokkos::initialize(argc, argv); {
+      out += UnitTest<>::unittest_team_policy();
+      out += UnitTest<>::unittest_workspace();
+      out += UnitTest<HostDevice>::unittest_team_utils();
 
 #ifdef KOKKOS_ENABLE_CUDA
-    // Force host testing on CUDA
-    out += UnitTest<HostDevice>::unittest_team_policy();
-    out += UnitTest<HostDevice>::unittest_workspace();
+      // Force host testing on CUDA
+      out += UnitTest<HostDevice>::unittest_team_policy();
+      out += UnitTest<HostDevice>::unittest_workspace();
 #endif
-  } Kokkos::finalize();
+    } Kokkos::finalize();
+  }
 
   if (out != 0) std::cout << "Some tests failed" << std::endl;
 

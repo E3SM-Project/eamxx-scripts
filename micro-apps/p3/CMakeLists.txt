@@ -47,17 +47,7 @@ add_custom_target(baseline
 
 add_test(nanoapp nanoapp -nc 4 -ns 100)
 add_test(run_unit_test_f90 unit_test_f90)
-
-if (CUDA_BUILD)
-  add_test(run_unit_test unit_test)
-else ()
-  # On a standard openmp machine, run unit tests with lots of different thread configs
-  foreach(thrd RANGE 1 16)
-    add_test(run_unit_test_${thrd} unit_test)
-    set_property(TEST run_unit_test_${thrd} PROPERTY ENVIRONMENT "OMP_NUM_THREADS=${thrd}")
-  endforeach()
-endif()
-
+add_test(run_unit_test unit_test)
 add_test(p3_func_regression run_and_cmp run_and_cmp.baseline)
 set(PERF_ARGS 10 128 300 30 1 3) # ni nk dt ts kdir repeat
 foreach (p3_impl ${p3_impls})
