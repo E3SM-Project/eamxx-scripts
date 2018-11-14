@@ -47,7 +47,7 @@ add_custom_target(baseline
 
 add_test(nanoapp nanoapp -nc 4 -ns 100)
 add_test(run_unit_test_f90 unit_test_f90)
-add_test(run_unit_test unit_test)
+add_test(run_unit_test unit_test -u 16) # Cap at 16 threads
 add_test(p3_func_regression run_and_cmp run_and_cmp.baseline)
 set(PERF_ARGS 10 128 300 30 1 3) # ni nk dt ts kdir repeat
 foreach (p3_impl ${p3_impls})
