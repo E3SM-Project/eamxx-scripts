@@ -284,7 +284,7 @@ static int unittest_workspace()
     ws.reset();
 
     // Test weird take/release permutations.
-    for (int r = 0; r < 3; ++r) {
+    {
       int actions[] = {-3, -2, -1, 1, 2, 3};
       bool exp_active[] = {false, false, false, false};
 
