@@ -1,4 +1,4 @@
-#include "p3_functions_table3.hpp"
+#include "p3_functions_table3_impl.hpp"
 #include "types.hpp"
 
 namespace p3 {

@@ -61,4 +61,8 @@ public:
 } // namespace micro_sed
 } // namespace p3
 
+#ifdef KOKKOS_ENABLE_CUDA
+# include "p3_final_impl.hpp"
+#endif
+
 #endif

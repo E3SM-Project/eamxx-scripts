@@ -1,4 +1,4 @@
-#include "p3_functions_upwind.hpp"
+#include "p3_functions_upwind_impl.hpp"
 #include "types.hpp"
 
 namespace p3 {

@@ -12,7 +12,7 @@ template <typename ScalarT, typename DeviceT>
 struct Functions {
   using Scalar = ScalarT;
   using Device = DeviceT;
-  
+
   template <typename S> using BigPack = scream::pack::BigPack<S>;
   template <typename S> using SmallPack = scream::pack::SmallPack<S>;
   using IntSmallPack = scream::pack::IntSmallPack;
@@ -41,7 +41,7 @@ struct Functions {
 
   using MemberType = typename KT::MemberType;
 
-public:  
+public:
   struct Table3 {
     IntSmallPack dumii, dumjj;
     SmallPack<Scalar> rdumii, rdumjj, inv_dum3;
@@ -84,82 +84,20 @@ public:
   //TODO Unit test.
   // Find the bottom and top of the mixing ratio, e.g., qr. It's worth casing
   // these out in two ways: 1 thread/column vs many, and by kdir.
-  KOKKOS_INLINE_FUNCTION
+  KOKKOS_FUNCTION
   static Int find_bottom (
     const MemberType& team,
     const Unmanaged<view_1d<const Scalar> >& v, const Scalar& small,
     const Int& kbot, const Int& ktop, const Int& kdir,
-    bool& log_present)
-  {
-    log_present = false;
-    Int k_xbot = 0;
-    if (team.team_size() == 1) {
-      for (Int k = kbot; k != ktop + kdir; k += kdir) {
-        if (v(k) < small) continue;
-        k_xbot = k;
-        log_present = true;
-        break;
-      }
-    } else {
-      if (kdir == -1) {
-        Kokkos::parallel_reduce(
-          Kokkos::TeamThreadRange(team, kbot - ktop + 1), [&] (Int k_, int& lmax) {
-            const Int k = ktop + k_;
-            if (v(k) >= small && k > lmax)
-              lmax = k;
-          }, Kokkos::Max<int>(k_xbot));
-        log_present = k_xbot >= ktop;
-      } else {
-        Kokkos::parallel_reduce(
-          Kokkos::TeamThreadRange(team, ktop - kbot + 1), [&] (Int k_, int& lmin) {
-            const Int k = kbot + k_;
-            if (v(k) >= small && k < lmin)
-              lmin = k;
-          }, Kokkos::Min<int>(k_xbot));
-        log_present = k_xbot <= ktop;
-      }
-    }
-    return k_xbot;
-  }
+    bool& log_present);
 
   //TODO Unit test.
-  KOKKOS_INLINE_FUNCTION
+  KOKKOS_FUNCTION
   static Int find_top (
     const MemberType& team,
     const Unmanaged<view_1d<const Scalar> >& v, const Scalar& small,
     const Int& kbot, const Int& ktop, const Int& kdir,
-    bool& log_present)
-  {
-    log_present = false;
-    Int k_xtop = 0;
-    if (team.team_size() == 1) {
-      for (Int k = ktop; k != kbot - kdir; k -= kdir) {
-        if (v(k) < small) continue;
-        k_xtop = k;
-        log_present = true;
-        break;
-      }
-    } else {
-      if (kdir == -1) {
-        Kokkos::parallel_reduce(
-          Kokkos::TeamThreadRange(team, kbot - ktop + 1), [&] (Int k_, int& lmin) {
-            const Int k = ktop + k_;
-            if (v(k) >= small && k < lmin)
-              lmin = k;
-          }, Kokkos::Min<int>(k_xtop));
-        log_present = k_xtop <= kbot;
-      } else {
-        Kokkos::parallel_reduce(
-          Kokkos::TeamThreadRange(team, ktop - kbot + 1), [&] (Int k_, int& lmax) {
-            const Int k = kbot + k_;
-            if (v(k) >= small && k > lmax)
-              lmax = k;
-          }, Kokkos::Max<int>(k_xtop));
-        log_present = k_xtop >= kbot;
-      }
-    }
-    return k_xtop;
-  }
+    bool& log_present);
 };
 
 } // namespace micro_sed
@@ -167,10 +105,10 @@ public:
 
 // If a GPU build, make all code available to the translation unit; otherwise,
 // ETI is used.
-//TODO But optional ETI is not yet implemented for these functions.
-//#ifdef KOKKOS_ENABLE_CUDA
-//# include "p3_functions_table3.hpp"
-//# include "p3_functions_upwind.hpp"
-//#endif
+#ifdef KOKKOS_ENABLE_CUDA
+# include "p3_functions_table3_impl.hpp"
+# include "p3_functions_upwind_impl.hpp"
+# include "p3_functions_find_impl.hpp"
+#endif
 
 #endif
