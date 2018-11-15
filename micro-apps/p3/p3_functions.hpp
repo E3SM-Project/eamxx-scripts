@@ -12,7 +12,7 @@ template <typename ScalarT, typename DeviceT>
 struct Functions {
   using Scalar = ScalarT;
   using Device = DeviceT;
-  
+
   template <typename S> using BigPack = scream::pack::BigPack<S>;
   template <typename S> using SmallPack = scream::pack::SmallPack<S>;
   using IntSmallPack = scream::pack::IntSmallPack;
@@ -41,7 +41,7 @@ struct Functions {
 
   using MemberType = typename KT::MemberType;
 
-public:  
+public:
   struct Table3 {
     IntSmallPack dumii, dumjj;
     SmallPack<Scalar> rdumii, rdumjj, inv_dum3;

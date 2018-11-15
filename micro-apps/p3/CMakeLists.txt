@@ -5,6 +5,7 @@ set(P3_MICRO_SRCS
   initial_conditions.cpp
   util.cpp
   p3_final.cpp
+  wsm.cpp
 )
 
 add_library(p3 ${P3_MICRO_SRCS})

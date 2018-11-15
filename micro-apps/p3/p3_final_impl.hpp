@@ -4,6 +4,7 @@
 #include "p3_final.hpp"
 
 #include "util.hpp"
+#include "wsm.hpp"
 #include "initial_conditions.hpp"
 #include "micro_kokkos.hpp"
 #include "p3_common.hpp"
@@ -140,9 +141,9 @@ public:
         auto workspace = msfk.workspace_mgr.get_workspace(team);
 
         Unmanaged<view_1d<Pack> > inv_dzq, rho, inv_rho, rhofacr, t, V_qr, V_nr, flux_qx, flux_nx, mu_r, lamr;
-        workspace.template take_many_and_reset<11>(
-          {"inv_dzq", "rho", "inv_rho", "rhofacr", "t", "V_qr", "V_nr", "flux_qx", "flux_nx", "mu_r", "lamr"},
-          {&inv_dzq, &rho, &inv_rho, &rhofacr, &t, &V_qr, &V_nr, &flux_qx, &flux_nx, &mu_r, &lamr});
+        // workspace.template take_many_and_reset<11>(
+        //   {"inv_dzq", "rho", "inv_rho", "rhofacr", "t", "V_qr", "V_nr", "flux_qx", "flux_nx", "mu_r", "lamr"},
+        //   {&inv_dzq, &rho, &inv_rho, &rhofacr, &t, &V_qr, &V_nr, &flux_qx, &flux_nx, &mu_r, &lamr});
 
         const auto olqr = util::subview(lqr, i), olnr = util::subview(lnr, i);
         const auto osqr = util::subview(sqr, i);

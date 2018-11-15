@@ -1,5 +1,6 @@
 #include "types.hpp"
 #include "util.hpp"
+#include "wsm_impl.hpp"
 #include "micro_kokkos.hpp"
 #include "scream_pack.hpp"
 
@@ -103,13 +104,13 @@ static int unittest_workspace()
 
   {
     util::WorkspaceManager<double, D> wsmd(17, num_ws, policy);
-    micro_assert(wsmd.m_reserve == 1);
-    micro_assert(wsmd.m_size == 17);
+    micro_assert(wsmd.impl->m_reserve == 1);
+    micro_assert(wsmd.impl->m_size == 17);
   }
   {
     util::WorkspaceManager<char, D> wsmc(16, num_ws, policy);
-    micro_assert(wsmc.m_reserve == 8);
-    micro_assert(wsmc.m_size == 16);
+    micro_assert(wsmc.impl->m_reserve == 8);
+    micro_assert(wsmc.impl->m_size == 16);
     Kokkos::parallel_for(
       "unittest_workspace char", policy,
       KOKKOS_LAMBDA(const MemberType& team) {
@@ -122,8 +123,8 @@ static int unittest_workspace()
   }
   {
     util::WorkspaceManager<short, D> wsms(16, num_ws, policy);
-    micro_assert(wsms.m_reserve == 4);
-    micro_assert(wsms.m_size == 16);
+    micro_assert(wsms.impl->m_reserve == 4);
+    micro_assert(wsms.impl->m_size == 16);
   }
 
   // Test host-explicit WorkspaceMgr
@@ -131,13 +132,13 @@ static int unittest_workspace()
     using HostDevice = Kokkos::Device<Kokkos::DefaultHostExecutionSpace, Kokkos::HostSpace>;
     typename KokkosTypes<HostDevice>::TeamPolicy policy_host(util::ExeSpaceUtils<typename KokkosTypes<HostDevice>::ExeSpace>::get_default_team_policy(ni, nk));
     util::WorkspaceManager<short, HostDevice> wsmh(16, num_ws, policy_host);
-    wsmh.m_data(0, 0) = 0; // check on cuda machine
+    wsmh.impl->m_data(0, 0) = 0; // check on cuda machine
   }
 
   util::WorkspaceManager<int, D> wsm(ints_per_ws, num_ws, policy);
 
-  micro_assert(wsm.m_reserve == 2);
-  micro_assert(wsm.m_size == ints_per_ws);
+  micro_assert(wsm.impl->m_reserve == 2);
+  micro_assert(wsm.impl->m_size == ints_per_ws);
 
   Kokkos::parallel_reduce("unittest_workspace", policy, KOKKOS_LAMBDA(const MemberType& team, int& total_errs) {
 
@@ -153,7 +154,7 @@ static int unittest_workspace()
       if (ws_int.extent(0) != ints_per_ws) ++nerrs_local;
       ws.release(ws_int);
 
-      auto ws_dlb = ws.template take<double>("doubles");
+      const auto ws_dlb = ws.template take<double>("doubles");
       if (ws_dlb.extent(0) != 18) ++nerrs_local;
       ws.release(ws_dlb);
     }
@@ -201,13 +202,13 @@ static int unittest_workspace()
         // These spaces aren't free, but their metadata should be the same as it
         // was when they were initialized
         Kokkos::single(Kokkos::PerTeam(team), [&] () {
-          if (wsm.get_index(wssub[w]) != w) ++nerrs_local;
-          if (wsm.get_next(wssub[w]) != w+1) ++nerrs_local;
+          if (wsm.impl->get_index(wssub[w]) != w) ++nerrs_local;
+          if (wsm.impl->get_next(wssub[w]) != w+1) ++nerrs_local;
           char buf[8] = "ws";
           buf[2] = 48 + w; // 48 is offset to integers in ascii
 #ifndef NDEBUG
           if (util::strcmp(ws.get_name(wssub[w]), buf) != 0) ++nerrs_local;
-          if (ws.get_num_used() != 4) ++nerrs_local;
+          if (ws.impl->get_num_used() != 4) ++nerrs_local;
 #endif
           for (int i = 0; i < ints_per_ws; ++i) {
             if (wssub[w](i) != i*w) ++nerrs_local;
@@ -261,7 +262,7 @@ static int unittest_workspace()
             buf[2] = 48 + w; // 48 is offset to integers in ascii
 #ifndef NDEBUG
             if (util::strcmp(ws.get_name(wssub[w]), buf) != 0) ++nerrs_local;
-            if (ws.get_num_used() != 4) ++nerrs_local;
+            if (ws.impl->get_num_used() != 4) ++nerrs_local;
 #endif
             for (int i = 0; i < ints_per_ws; ++i) {
               if (wssub[w](i) != i*w) ++nerrs_local;
@@ -330,7 +331,7 @@ static int unittest_workspace()
 #ifndef NDEBUG
               if (util::strcmp(ws.get_name(wssub[w]), buf) != 0) ++nerrs_local;
               ++exp_num_active;
-              if (!ws.template is_active<int>(wssub[w])) ++nerrs_local;
+              if (!ws.impl->template is_active<int>(wssub[w])) ++nerrs_local;
 #endif
               for (int i = 0; i < ints_per_ws; ++i) {
                 if (wssub[w](i) != i*w) ++nerrs_local;
@@ -338,7 +339,7 @@ static int unittest_workspace()
             }
           }
 #ifndef NDEBUG
-          if (ws.get_num_used() != exp_num_active) ++nerrs_local;
+          if (ws.impl->get_num_used() != exp_num_active) ++nerrs_local;
 #endif
         });
 
