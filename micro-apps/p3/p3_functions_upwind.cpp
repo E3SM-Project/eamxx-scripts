@@ -4,8 +4,6 @@
 namespace p3 {
 namespace micro_sed {
 
-template struct Functions<Real,DefaultDevice>;
-
 template void Functions<Real,DefaultDevice>::calc_first_order_upwind_step<2>(
   const Unmanaged<view_1d<const Spack> >& rho,
   const Unmanaged<view_1d<const Spack> >& inv_rho,
