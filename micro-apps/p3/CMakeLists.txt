@@ -11,6 +11,7 @@ if (NOT CUDA_BUILD)
   list(APPEND P3_MICRO_SRCS
     p3_final.cpp
     p3_functions_table3.cpp
+    p3_functions_find.cpp
     p3_functions_upwind.cpp)
 endif()
 
