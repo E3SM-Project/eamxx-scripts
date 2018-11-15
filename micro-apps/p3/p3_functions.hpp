@@ -160,14 +160,7 @@ public:
     }
     return k_xtop;
   }
-
-  template <typename T>
-  void foo(T& t) {}
 };
-
-  template <typename T>
-  void bar(T& t) {}
-
 
 } // namespace micro_sed
 } // namespace p3
