@@ -5,6 +5,8 @@ set(P3_MICRO_SRCS
   initial_conditions.cpp
   util.cpp
   p3_final.cpp
+  p3_functions_table3.cpp
+  p3_functions_upwind.cpp
 )
 
 add_library(p3 ${P3_MICRO_SRCS})
