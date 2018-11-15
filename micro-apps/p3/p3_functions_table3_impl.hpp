@@ -1,5 +1,5 @@
-#ifndef MICRO_SED_P3_FUNCTIONS_TABLE3_HPP
-#define MICRO_SED_P3_FUNCTIONS_TABLE3_HPP
+#ifndef MICRO_SED_P3_FUNCTIONS_TABLE3_IMPL_HPP
+#define MICRO_SED_P3_FUNCTIONS_TABLE3_IMPL_HPP
 
 #include "p3_functions.hpp"
 
@@ -7,7 +7,7 @@ namespace p3 {
 namespace micro_sed {
 
 template <typename S, typename D>
-KOKKOS_INLINE_FUNCTION
+KOKKOS_FUNCTION
 void Functions<S,D>
 ::lookup (const SmallMask<Scalar>& qr_gt_small, Table3& t, const SmallPack<Scalar>& mu_r,
           const SmallPack<Scalar>& lamr) {
@@ -58,7 +58,7 @@ void Functions<S,D>
 }
 
 template <typename S, typename D>
-KOKKOS_INLINE_FUNCTION
+KOKKOS_FUNCTION
 typename Functions<S,D>::Spack Functions<S,D>
 ::apply_table (const SmallMask<Scalar>& qr_gt_small, const view_2d_table& table,
                const Table3& t) {
