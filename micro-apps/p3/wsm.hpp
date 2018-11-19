@@ -87,12 +87,12 @@ class WorkspaceManager
     // Private
     //
 
-   private:
-
-    KOKKOS_INLINE_FUNCTION
-    Workspace(const WorkspaceManager& parent, int ws_idx, const MemberType& team);
+#ifndef KOKKOS_ENABLE_CUDA
+   private: // for CUDA
+#endif
 
     template <typename S>
+    KOKKOS_INLINE_FUNCTION
     void release_impl(const Unmanaged<view_1d<S> >& space) const;
 
 #ifndef NDEBUG
@@ -128,6 +128,9 @@ class WorkspaceManager
     { return m_parent.m_active(m_ws_idx, m_parent.template get_index<S>(space));}
 #endif
 
+    KOKKOS_INLINE_FUNCTION
+    Workspace(const WorkspaceManager& parent, int ws_idx, const MemberType& team);
+
     friend struct unit_test::UnitWrap;
     friend class WorkspaceManager;
 
@@ -137,7 +140,9 @@ class WorkspaceManager
     int& m_next_slot;
   }; // class Workspace
 
+#ifndef KOKKOS_ENABLE_CUDA
  private:
+#endif
 
   friend struct unit_test::UnitWrap;
 
@@ -162,12 +167,8 @@ class WorkspaceManager
   KOKKOS_INLINE_FUNCTION
   void init_metadata(const int ws_idx, const int slot) const;
 
- public: // for CUDA
-
   static void init(const WorkspaceManager& wm, const view_2d<T>& data,
                    const int concurrent_teams, const int max_used, const int total);
-
- private:
 
   //
   // data

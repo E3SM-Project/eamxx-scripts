@@ -33,12 +33,6 @@ struct MicroSedFuncFinalKokkos
 
   static constexpr const char* NAME = "final";
 
-private:
-
-  class Impl;
-  std::shared_ptr<Impl> impl;
-
-public:
   MicroSedFuncFinalKokkos(int num_horz, int num_vert);
 
   //TODO This should be made a member function and the first arg dropped.
@@ -56,6 +50,13 @@ public:
     out << " packn=" << SCREAM_PACKN << " small_pack_factor=" << SCREAM_SMALL_PACK_FACTOR;
     return out.str();
   }
+
+#ifndef KOKKOS_ENABLE_CUDA
+ private:
+#endif
+
+  class Impl;
+  std::shared_ptr<Impl> impl;
 };
 
 } // namespace micro_sed
