@@ -6,6 +6,15 @@ set(P3_MICRO_SRCS
   util.cpp
 )
 
+# Add ETI source files if not on CUDA
+if (NOT CUDA_BUILD)
+  list(APPEND P3_MICRO_SRCS
+    p3_final.cpp
+    p3_functions_table3.cpp
+    p3_functions_find.cpp
+    p3_functions_upwind.cpp)
+endif()
+
 add_library(p3 ${P3_MICRO_SRCS})
 target_include_directories (p3 PUBLIC ${SCREAM_MICRO_APPS_INCLUDES})
 

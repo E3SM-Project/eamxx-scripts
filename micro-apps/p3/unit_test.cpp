@@ -1,5 +1,6 @@
 #include "types.hpp"
 #include "util.hpp"
+#include "wsm_impl.hpp"
 #include "micro_kokkos.hpp"
 #include "scream_pack.hpp"
 
@@ -153,7 +154,7 @@ static int unittest_workspace()
       if (ws_int.extent(0) != ints_per_ws) ++nerrs_local;
       ws.release(ws_int);
 
-      auto ws_dlb = ws.template take<double>("doubles");
+      const auto ws_dlb = ws.template take<double>("doubles");
       if (ws_dlb.extent(0) != 18) ++nerrs_local;
       ws.release(ws_dlb);
     }
@@ -447,10 +448,12 @@ static int unittest_team_utils()
 template <typename D=DefaultDevice>
 using UnitTest = unit_test::UnitWrap::UnitTest<D>;
 
+#ifdef KOKKOS_ENABLE_OPENMP
 static void expect_another_arg (Int i, Int argc) {
   if (i == argc-1)
     throw std::runtime_error("Expected another cmd-line arg.");
 }
+#endif
 
 int main (int argc, char** argv) {
   util::initialize();
