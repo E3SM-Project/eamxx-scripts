@@ -110,6 +110,7 @@ class Plotter(object):
         self._inconsistent      = []
         self._title             = None
         self._avail_colors      = ["b", "g", "r", "c", "m", "y", "k"]
+        self._mach_color_map    = {}
         self._var_longname_map  = {"ni" : "Number of columns per node", "nk" : "Number of vertical levels", "dt" : "Time step", "ts" : "Number of time steps",
                                    "threads" : "Threads"}
         self._test_longname_map = {"ref" : "Fortran", "vanilla" : "Initial Kokkos", "final" : "Final Kokkos"}
@@ -179,9 +180,7 @@ class Plotter(object):
         line_label = ""
         xlabel = None
 
-        if "machine" in self._inconsistent:
-            color = self._avail_colors.pop(0)
-        else:
+        if "machine" not in self._inconsistent:
             avail_colors = list(self._avail_colors)
 
         with open(datafile, "r") as fd:
@@ -190,8 +189,14 @@ class Plotter(object):
                 if "Provenance" in line:
                     prov_dict = dict([item.split("=") for item in line.split()[1:] if not item.endswith("=None")])
                     if "machine" in self._inconsistent:
-                        line_label = "on {}".format(self.get_mach_longname(prov_dict["machine"]))
+                        machine = prov_dict["machine"]
+                        line_label = "on {}".format(self.get_mach_longname(machine))
                         del prov_dict["machine"]
+                        if machine in self._mach_color_map:
+                            color = self._mach_color_map[machine]
+                        else:
+                            color = self._avail_colors.pop(0)
+                            self._mach_color_map[machine] = color
 
                     if prov_dict:
                         first = True
@@ -223,6 +228,7 @@ class Plotter(object):
 
         if "machine" in self._consistent:
             color = avail_colors.pop()
+
         self.plot_line(xs, ys, line_label, testname, dashed, dotted, color)
 
     def finalize(self, no_legend):
