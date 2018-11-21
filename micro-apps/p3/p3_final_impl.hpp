@@ -4,6 +4,7 @@
 #include "p3_final.hpp"
 
 #include "util.hpp"
+#include "kokkos_util.hpp"
 #include "wsm.hpp"
 #include "initial_conditions.hpp"
 #include "micro_kokkos.hpp"
@@ -81,7 +82,7 @@ public:
     vn_table("VN_TABLE"), vm_table("VM_TABLE"),
     mu_r_table("MU_R_TABLE"),
     policy(util::ExeSpaceUtils<ExeSpace>::get_default_team_policy(num_horz, num_pack)),
-    workspace_mgr(num_pack, 11, policy) // rain sed's high-water is 11 workspace for any team
+    workspace_mgr(num_pack, 11, policy) // rain sed's high-water is 11 spaces for any team
   {
     // initialize on host
 
@@ -112,7 +113,7 @@ public:
     const Impl& msfk,
     const Int kts, const Int kte, const int its, const int ite, const Scalar dt,
     const view_2d<Pack>& qr, const view_2d<Pack>& nr,
-    const view_2d<Pack>& th, const view_2d<Pack>& dzq, const view_2d<Pack>& pres,
+    const view_2d<const Pack>& th, const view_2d<const Pack>& dzq, const view_2d<const Pack>& pres,
     const view_1d<Scalar>& prt_liq)
   {
     // constants
@@ -337,13 +338,12 @@ MicroSedFuncFinalKokkos<Scalar, D>
 template <typename Scalar, typename D>
 void MicroSedFuncFinalKokkos<Scalar, D>
 ::micro_sed_func (
-  MicroSedFuncFinalKokkos& msfk,
   const Int kts, const Int kte, const int its, const int ite, const Scalar dt,
   const view_2d<Pack>& qr, const view_2d<Pack>& nr,
-  const view_2d<Pack>& th, const view_2d<Pack>& dzq, const view_2d<Pack>& pres,
+  const view_2d<const Pack>& th, const view_2d<const Pack>& dzq, const view_2d<const Pack>& pres,
   const view_1d<Scalar>& prt_liq)
 {
-  Impl::micro_sed_func(*msfk.impl, kts, kte, its, ite, dt, qr, nr, th, dzq, pres,
+  Impl::micro_sed_func(*impl, kts, kte, its, ite, dt, qr, nr, th, dzq, pres,
                        prt_liq);
 }
 

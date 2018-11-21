@@ -4,6 +4,7 @@
 #include "initial_conditions.hpp"
 #include "types.hpp"
 #include "scream_pack.hpp"
+#include "kokkos_util.hpp"
 
 #include <vector>
 
@@ -255,8 +256,8 @@ void micro_sed_func_kokkos_wrap(const int ni, const int nk, const Scalar dt, con
     });
 
     for (int i = 0; i < ts; ++i) {
-      MSK::micro_sed_func(msk, kdir == 1 ? 1 : nk, kdir == 1 ? nk : 1,
-                          1, ni, dt, qr, nr, th, dzq, pres, prt_liq);
+      msk.micro_sed_func(kdir == 1 ? 1 : nk, kdir == 1 ? nk : 1,
+                         1, ni, dt, qr, nr, th, dzq, pres, prt_liq);
       Kokkos::fence();
     }
 

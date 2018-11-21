@@ -1,6 +1,7 @@
 #include "types.hpp"
 #include "util.hpp"
 #include "cmp.hpp"
+#include "scream_arch.hpp"
 
 #include <vector>
 #include <iostream>
@@ -21,8 +22,8 @@ Scalar compare_property(const std::string& file1_fn, const std::string& file2_fn
   util::read(&item1, 1, fid1);
   util::read(&item2, 1, fid2);
 
-  micro_throw_if(item1 != item2, "Files " << file1_fn << " and " << file2_fn <<
-                 " have mismatch in basic property '" << name << "', " << item1 << " != " << item2);
+  micro_require_msg(item1 == item2, "Files " << file1_fn << " and " << file2_fn <<
+                    " have mismatch in basic property '" << name << "', " << item1 << " != " << item2);
 
   if (verbose) std::cout << name << " matches, = " << item1 << std::endl;
 

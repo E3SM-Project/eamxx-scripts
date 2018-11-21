@@ -8,8 +8,20 @@
 namespace p3 {
 namespace micro_sed {
 
+/*
+ * Functions is a stateless struct used to encapsulate a
+ * number of functions for p3.
+ * TODO: Need a bit more documentation in this file.
+ */
+
 template <typename ScalarT, typename DeviceT>
-struct Functions {
+struct Functions
+{
+
+  //
+  // ------- Types --------
+  //
+
   using Scalar = ScalarT;
   using Device = DeviceT;
 
@@ -41,11 +53,14 @@ struct Functions {
 
   using MemberType = typename KT::MemberType;
 
-public:
   struct Table3 {
     IntSmallPack dumii, dumjj;
     SmallPack<Scalar> rdumii, rdumjj, inv_dum3;
   };
+
+  //
+  // --------- Functions ---------
+  //
 
   KOKKOS_FUNCTION
   static void lookup(const SmallMask<Scalar>& qr_gt_small, Table3& t,
@@ -55,7 +70,6 @@ public:
   static Spack apply_table(const SmallMask<Scalar>& qr_gt_small, const view_2d_table& table,
                            const Table3& t);
 
-  //TODO Unit test.
   // Calculate the step in the region [k_bot, k_top].
   template <Int kdir, int nfield>
   KOKKOS_FUNCTION
@@ -81,7 +95,6 @@ public:
     const view_1d_ptr_array<Spack, nfield>& V,
     const view_1d_ptr_array<Spack, nfield>& r);
 
-  //TODO Unit test.
   // Find the bottom and top of the mixing ratio, e.g., qr. It's worth casing
   // these out in two ways: 1 thread/column vs many, and by kdir.
   KOKKOS_FUNCTION
@@ -91,7 +104,6 @@ public:
     const Int& kbot, const Int& ktop, const Int& kdir,
     bool& log_present);
 
-  //TODO Unit test.
   KOKKOS_FUNCTION
   static Int find_top (
     const MemberType& team,

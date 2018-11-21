@@ -4,6 +4,7 @@ set(P3_MICRO_SRCS
   array_io.cpp
   initial_conditions.cpp
   util.cpp
+  scream_arch.cpp
 )
 
 # Add ETI source files if not on CUDA
