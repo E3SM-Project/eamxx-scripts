@@ -4,6 +4,10 @@
 #include "types.hpp"
 #include "scream_assert.hpp"
 
+#ifdef _OPENMP
+# include <omp.h>
+#endif
+
 namespace util {
 
 /*
