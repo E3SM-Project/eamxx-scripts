@@ -5,6 +5,13 @@
 
 #include <vector>
 
+/*
+ * Header contains globally useful types for Scream.
+ * The global Int and Real types are defined here along
+ * with a type dictionary for accessing commonly-used
+ * Kokkos types.
+ */
+
 typedef int Int;
 #ifdef DOUBLE_PRECISION
 typedef double Real;
@@ -13,7 +20,7 @@ typedef float Real;
 #endif
 
 #if defined KOKKOS_COMPILER_GNU
-// See https://github.com/kokkos/kokkos-kernels/issues/129 
+// See https://github.com/kokkos/kokkos-kernels/issues/129
 # define ConstExceptGnu
 #else
 # define ConstExceptGnu const
@@ -50,6 +57,7 @@ using Unmanaged =
 
 using DefaultDevice = Kokkos::Device<Kokkos::DefaultExecutionSpace, Kokkos::DefaultExecutionSpace::memory_space>;
 
+// Struct for getting useful Kokkos types based on the device
 template <typename D=DefaultDevice>
 struct KokkosTypes
 {

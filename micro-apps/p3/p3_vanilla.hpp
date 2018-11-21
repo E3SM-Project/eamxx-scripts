@@ -233,7 +233,16 @@ public:
    * pres: pressure                               Pa
    * prt_liq: precipitation rate, total liquid    m s-1  (output)
    */
-  static void micro_sed_func(
+  void micro_sed_func(
+    const int kts, const int kte, const int its, const int ite, const Scalar dt,
+    view_2d<Scalar>& qr, view_2d<Scalar>& nr,
+    view_2d<const Scalar> const& th, view_2d<const Scalar> const& dzq, view_2d<const Scalar> const& pres,
+    view_1d<Scalar>& prt_liq)
+  {
+    micro_sed_func_impl(*this, kts, kte, its, ite, dt, qr, nr, th, dzq, pres, prt_liq);
+  }
+
+  static void micro_sed_func_impl(
     const MicroSedFuncVanillaKokkos<Scalar, D>& msvk,
     const int kts, const int kte, const int its, const int ite, const Scalar dt,
     view_2d<Scalar>& qr, view_2d<Scalar>& nr,

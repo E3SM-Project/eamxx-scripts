@@ -5,6 +5,7 @@
 // - bounds checking define
 
 #include "util.hpp"
+#include "scream_arch.hpp"
 
 namespace scream {
 namespace pack {
@@ -432,7 +433,7 @@ repack (const Kokkos::View<Pack<T, old_pack_size>*, Parms...>& vp) {
   static_assert(new_pack_size > 0 &&
                 new_pack_size % old_pack_size == 0,
                 "Old pack size must divide new pack size.");
-  micro_kernel_assert(vp.extent_int(0) % (new_pack_size / old_pack_size) == 0);
+  micro_kassert(vp.extent_int(0) % (new_pack_size / old_pack_size) == 0);
   return Unmanaged<Kokkos::View<Pack<T, new_pack_size>*, Parms...> >(
     reinterpret_cast<Pack<T, new_pack_size>*>(vp.data()),
     vp.extent_int(0) / (new_pack_size / old_pack_size));

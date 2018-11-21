@@ -279,9 +279,9 @@ public:
 template <typename Scalar, typename MSK, typename BridgeType>
 void micro_sed_func_cpp_kokkos (ic::MicroSedData<Scalar>& d, BridgeType& bridge, MSK& msk)
 {
-  MSK::micro_sed_func(msk, d.reverse ? d.nk : 1, d.reverse ? 1 : d.nk,
-                      1, d.ni, d.dt, bridge.qr, bridge.nr, bridge.th,
-                      bridge.dzq, bridge.pres, bridge.prt_liq);
+  msk.micro_sed_func(d.reverse ? d.nk : 1, d.reverse ? 1 : d.nk,
+                     1, d.ni, d.dt, bridge.qr, bridge.nr, bridge.th,
+                     bridge.dzq, bridge.pres, bridge.prt_liq);
 
   bridge.sync_to(d);
 }
@@ -349,7 +349,7 @@ static Int generate_baseline (const std::string& bfn) {
 
     Observer (const std::string& bfn) {
       fid = util::FILEPtr(fopen(bfn.c_str(), "w"));
-      micro_throw_if( ! fid, "generate_baseline can't write " << bfn);
+      micro_require_msg( fid, "generate_baseline can't write " << bfn);
     }
 
     virtual void observe (const ic::MicroSedData<Scalar>& d_ic) override {
@@ -419,11 +419,11 @@ static Int run_and_cmp (const std::string& bfn, const Real& tol, bool verbose) {
       : tol(tol_), verbose(verbose_)
     {
       fid = util::FILEPtr(fopen(bfn.c_str(), "r"));
-      micro_throw_if( ! fid, "run_and_cmp can't read " << bfn);
+      micro_require_msg( fid, "run_and_cmp can't read " << bfn);
 
       if (!util::OnGpu<typename KokkosTypes<D>::ExeSpace>::value) {
         // Sanity check.
-        micro_throw_if( ! util::is_single_precision<Real>::value && tol != 0,
+        micro_require_msg( util::is_single_precision<Real>::value || tol == 0,
                         "We want BFB in double precision, at least in DEBUG builds.");
       }
     }
@@ -443,7 +443,7 @@ static Int run_and_cmp (const std::string& bfn, const Real& tol, bool verbose) {
         Int ni, nk;
         util::read(&ni, 1, fid);
         util::read(&nk, 1, fid);
-        micro_throw_if(ni != 1 || nk != d_ic.nk,
+        micro_require_msg(ni == 1 && nk == d_ic.nk,
                        "Baseline file has (ni,nk) = " << ni << ", " << nk
                        << " but we expected " << 1 << ", " << d_ic.nk);
         const auto n = ni*nk;

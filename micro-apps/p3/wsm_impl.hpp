@@ -186,7 +186,7 @@ void WorkspaceManager<T, D>::Workspace::take_many_contiguous_unsafe(
   // Verify contiguous
   for (int n = 0; n < static_cast<int>(N); ++n) {
     const auto space = m_parent.get_space_in_slot<S>(m_ws_idx, m_next_slot + n);
-    micro_kernel_assert(m_parent.get_next<S>(space) == m_next_slot + n + 1);
+    micro_kassert(m_parent.get_next<S>(space) == m_next_slot + n + 1);
   }
 #endif
 
@@ -354,8 +354,8 @@ void WorkspaceManager<T, D>::Workspace::change_num_used(int change_by) const
 {
   Kokkos::single(Kokkos::PerTeam(m_team), [&] () {
     int curr_used = m_parent.m_num_used(m_ws_idx) += change_by;
-    micro_kernel_assert(curr_used <= m_parent.m_max_used);
-    micro_kernel_assert(curr_used >= 0);
+    micro_kassert(curr_used <= m_parent.m_max_used);
+    micro_kassert(curr_used >= 0);
     if (curr_used > m_parent.m_high_water(m_ws_idx)) {
       m_parent.m_high_water(m_ws_idx) = curr_used;
     }
@@ -371,14 +371,14 @@ void WorkspaceManager<T, D>::Workspace::change_indv_meta(
   Kokkos::single(Kokkos::PerTeam(m_team), [&] () {
     const int slot = m_parent.get_index<S>(space);
     if (!release) {
-      micro_kernel_assert(util::strlen(name) < m_max_name_len); // leave one char for null terminator
-      micro_kernel_assert(util::strlen(name) > 0);
-      micro_kernel_assert(!m_parent.m_active(m_ws_idx, slot));
+      micro_kassert(util::strlen(name) < m_max_name_len); // leave one char for null terminator
+      micro_kassert(util::strlen(name) > 0);
+      micro_kassert(!m_parent.m_active(m_ws_idx, slot));
       char* val = &(m_parent.m_curr_names(m_ws_idx, slot, 0));
       util::strcpy(val, name);
     }
     else {
-      micro_kernel_assert(m_parent.m_active(m_ws_idx, slot));
+      micro_kassert(m_parent.m_active(m_ws_idx, slot));
       name = get_name(space);
     }
     const int name_idx = get_name_idx(name, !release);
@@ -405,7 +405,7 @@ int WorkspaceManager<T, D>::Workspace::get_name_idx(const char* name, bool add) 
       break;
     }
   }
-  micro_kernel_assert(name_idx != -1);
+  micro_kassert(name_idx != -1);
   return name_idx;
 }
 #endif

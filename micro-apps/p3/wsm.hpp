@@ -2,6 +2,8 @@
 #define WSM_HPP
 
 #include "types.hpp"
+#include "scream_arch.hpp"
+#include "kokkos_util.hpp"
 
 namespace unit_test {
 struct UnitWrap;
@@ -147,7 +149,7 @@ class WorkspaceManager
     //
 
 #ifndef KOKKOS_ENABLE_CUDA
-   private: // for CUDA
+   private:
 #endif
 
     template <typename S>

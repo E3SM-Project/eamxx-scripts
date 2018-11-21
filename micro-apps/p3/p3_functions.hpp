@@ -11,6 +11,7 @@ namespace micro_sed {
 /*
  * Functions is a stateless struct used to encapsulate a
  * number of functions for p3.
+ * TODO: Need a bit more documentation in this file.
  */
 
 template <typename ScalarT, typename DeviceT>
