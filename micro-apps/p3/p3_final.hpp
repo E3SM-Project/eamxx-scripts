@@ -52,7 +52,7 @@ struct MicroSedFuncFinalKokkos
 
   MicroSedFuncFinalKokkos(int num_horz, int num_vert);
 
-  // Rain sed calculation
+  // Rain sed calculation. TODO: more documentation needed
   //
   // kts: vertical array bound (top)
   // kte: vertical array bound (bottom)

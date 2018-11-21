@@ -3,6 +3,7 @@
 #include "wsm_impl.hpp"
 #include "micro_kokkos.hpp"
 #include "scream_pack.hpp"
+#include "p3_functions.hpp"
 
 #include <thread>
 #include <array>
@@ -15,16 +16,17 @@ struct UnitWrap {
 template <typename D=DefaultDevice>
 struct UnitTest {
 
-using MemberType = typename KokkosTypes<D>::MemberType;
-using TeamPolicy = typename KokkosTypes<D>::TeamPolicy;
-using ExeSpace   = typename KokkosTypes<D>::ExeSpace;
+using Device     = D;
+using MemberType = typename KokkosTypes<Device>::MemberType;
+using TeamPolicy = typename KokkosTypes<Device>::TeamPolicy;
+using ExeSpace   = typename KokkosTypes<Device>::ExeSpace;
 
 template <typename S>
-using view_1d = typename KokkosTypes<D>::template view_1d<S>;
+using view_1d = typename KokkosTypes<Device>::template view_1d<S>;
 template <typename S>
-using view_2d = typename KokkosTypes<D>::template view_2d<S>;
+using view_2d = typename KokkosTypes<Device>::template view_2d<S>;
 template <typename S>
-using view_3d = typename KokkosTypes<D>::template view_3d<S>;
+using view_3d = typename KokkosTypes<Device>::template view_3d<S>;
 
 static Int unittest_team_policy () {
   Int nerr = 0;
@@ -92,6 +94,31 @@ static Int unittest_pack () {
   return nerr;
 }
 
+static int unittest_p3()
+{
+  using Functions = p3::micro_sed::Functions<Real, Device>;
+  using view_1d_table = typename Functions::view_1d_table;
+  using view_2d_table = typename Functions::view_2d_table;
+
+  int nerr = 0;
+
+  view_1d_table mu_r_table;
+  view_2d_table vn_table, vm_table;
+  Functions::init_kokkos_tables(vn_table, vm_table, mu_r_table);
+
+  // single team of size 1
+  const auto policy = util::ExeSpaceUtils<ExeSpace>::get_team_policy_force_team_size(1, 1);
+
+  Kokkos::parallel_reduce("unittest_p3",
+                          policy,
+                          KOKKOS_LAMBDA(const MemberType& team, int& total_errs) {
+    int nerrs_local = 0;
+    total_errs += nerrs_local;
+  }, nerr);
+
+  return nerr;
+}
+
 static int unittest_workspace()
 {
   int nerr = 0;
@@ -103,12 +130,12 @@ static int unittest_workspace()
   TeamPolicy policy(util::ExeSpaceUtils<ExeSpace>::get_default_team_policy(ni, nk));
 
   {
-    util::WorkspaceManager<double, D> wsmd(17, num_ws, policy);
+    util::WorkspaceManager<double, Device> wsmd(17, num_ws, policy);
     micro_assert(wsmd.m_reserve == 1);
     micro_assert(wsmd.m_size == 17);
   }
   {
-    util::WorkspaceManager<char, D> wsmc(16, num_ws, policy);
+    util::WorkspaceManager<char, Device> wsmc(16, num_ws, policy);
     micro_assert(wsmc.m_reserve == 8);
     micro_assert(wsmc.m_size == 16);
     Kokkos::parallel_for(
@@ -122,7 +149,7 @@ static int unittest_workspace()
       });
   }
   {
-    util::WorkspaceManager<short, D> wsms(16, num_ws, policy);
+    util::WorkspaceManager<short, Device> wsms(16, num_ws, policy);
     micro_assert(wsms.m_reserve == 4);
     micro_assert(wsms.m_size == 16);
   }
@@ -135,7 +162,7 @@ static int unittest_workspace()
     wsmh.m_data(0, 0) = 0; // check on cuda machine
   }
 
-  util::WorkspaceManager<int, D> wsm(ints_per_ws, num_ws, policy);
+  util::WorkspaceManager<int, Device> wsm(ints_per_ws, num_ws, policy);
 
   micro_assert(wsm.m_reserve == 2);
   micro_assert(wsm.m_size == ints_per_ws);
@@ -361,9 +388,6 @@ static int unittest_workspace()
 
 static int unittest_team_utils()
 {
-  // NOTE: Kokkos does not tolerate changing num_threads post-kokkos-initialization and
-  // also does not tolerate multiple initializations in the same process, so this will need
-  // to be tested with a bash loop.
   int nerr = 0;
 #ifdef KOKKOS_ENABLE_OPENMP
   const int n = omp_get_max_threads();
@@ -477,8 +501,11 @@ int main (int argc, char** argv) {
 #endif
   }
 
+  p3::micro_sed::p3_init_cpp<Real>();
+
   int out = 0; // running error count
 
+  // NOTE: Kokkos does not tolerate changing num_threads post-kokkos-initialization
   for (int nt = lower; nt <= upper; nt+=increment) { // #threads sweep
 #ifdef KOKKOS_ENABLE_OPENMP
     omp_set_num_threads(nt);
@@ -487,6 +514,7 @@ int main (int argc, char** argv) {
       // thread-insensitive tests
       if (nt == lower) {
         out += UnitTest<>::unittest_pack();
+        out += UnitTest<HostDevice>::unittest_p3();
       }
 
       // thread-sensitive tests

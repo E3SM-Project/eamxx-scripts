@@ -9,8 +9,8 @@ namespace micro_sed {
 template <typename S, typename D>
 KOKKOS_FUNCTION
 void Functions<S,D>
-::lookup (const SmallMask<Scalar>& qr_gt_small, Table3& t, const SmallPack<Scalar>& mu_r,
-          const SmallPack<Scalar>& lamr) {
+::lookup (const Smask& qr_gt_small, Table3& t, const Spack& mu_r,
+          const Spack& lamr) {
   // find location in scaled mean size space
   const auto dum1 = (mu_r+1.) / lamr;
   const auto dum1_lt = qr_gt_small && (dum1 <= 195.e-6);
@@ -60,7 +60,7 @@ void Functions<S,D>
 template <typename S, typename D>
 KOKKOS_FUNCTION
 typename Functions<S,D>::Spack Functions<S,D>
-::apply_table (const SmallMask<Scalar>& qr_gt_small, const view_2d_table& table,
+::apply_table (const Smask& qr_gt_small, const view_2d_table& table,
                const Table3& t) {
   const auto rdumii_m_dumii = t.rdumii - Spack(t.dumii);
   const auto t_im1_jm1 = index(table, t.dumii-1, t.dumjj-1);
@@ -70,6 +70,33 @@ typename Functions<S,D>::Spack Functions<S,D>
   const auto dum2 = (t_im1_j + rdumii_m_dumii * t.inv_dum3 *
                      (index(table, t.dumii, t.dumjj) - t_im1_j));
   return dum1 + (t.rdumjj - Spack(t.dumjj)) * (dum2 - dum1);
+}
+
+template <typename S, typename D>
+void Functions<S,D>
+::init_kokkos_tables(const view_2d_table& vn_table, const view_2d_table& vm_table, const view_1d_table& mu_r_table)
+{
+  // initialize on host
+
+  auto mirror_vn_table = Kokkos::create_mirror_view(vn_table);
+  auto mirror_vm_table = Kokkos::create_mirror_view(vm_table);
+  auto mirror_mu_table = Kokkos::create_mirror_view(mu_r_table);
+
+  for (int i = 0; i < 300; ++i) {
+    for (int k = 0; k < 10; ++k) {
+      mirror_vn_table(i, k) = Globals<Scalar>::VN_TABLE[i][k];
+      mirror_vm_table(i, k) = Globals<Scalar>::VM_TABLE[i][k];
+    }
+  }
+
+  for (int i = 0; i < 150; ++i) {
+    mirror_mu_table(i) = Globals<Scalar>::MU_R_TABLE[i];
+  }
+
+  // deep copy to device
+  Kokkos::deep_copy(vn_table, mirror_vn_table);
+  Kokkos::deep_copy(vm_table, mirror_vm_table);
+  Kokkos::deep_copy(mu_r_table, mirror_mu_table);
 }
 
 } // namespace micro_sed

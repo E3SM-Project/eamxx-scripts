@@ -5,6 +5,7 @@
 #include "initial_conditions.hpp"
 #include "micro_kokkos.hpp"
 #include "p3_common.hpp"
+#include "p3_functions.hpp"
 
 #include <vector>
 #include <cmath>
@@ -104,27 +105,7 @@ public:
     vn_table("VN_TABLE"), vm_table("VM_TABLE"),
     mu_r_table("MU_R_TABLE")
   {
-    // initialize on host
-
-    auto mirror_vn_table = Kokkos::create_mirror_view(vn_table);
-    auto mirror_vm_table = Kokkos::create_mirror_view(vm_table);
-    auto mirror_mu_table = Kokkos::create_mirror_view(mu_r_table);
-
-    for (int i = 0; i < 300; ++i) {
-      for (int k = 0; k < 10; ++k) {
-        mirror_vn_table(i, k) = Globals<Scalar>::VN_TABLE[i][k];
-        mirror_vm_table(i, k) = Globals<Scalar>::VM_TABLE[i][k];
-      }
-    }
-
-    for (int i = 0; i < 150; ++i) {
-      mirror_mu_table(i) = Globals<Scalar>::MU_R_TABLE[i];
-    }
-
-    // deep copy to device
-    Kokkos::deep_copy(vn_table, mirror_vn_table);
-    Kokkos::deep_copy(vm_table, mirror_vm_table);
-    Kokkos::deep_copy(mu_r_table, mirror_mu_table);
+    Functions<Scalar, D>::init_kokkos_tables(vn_table, vm_table, mu_r_table);
   }
 
   static std::string custom_msg()
