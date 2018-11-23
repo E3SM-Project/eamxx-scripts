@@ -189,6 +189,8 @@ static int unittest_p3(int max_threads)
       // Test lookup/apply_table
       //
 
+      // TODO: These values need to be set to be mathematically interesting
+
       Table3 test_table;
       test_table.dumii = 1;
       test_table.rdumii = 1.;
