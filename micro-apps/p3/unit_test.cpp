@@ -162,27 +162,27 @@ static int unittest_p3(int max_threads)
 
       bool log_qxpresent;
       int top = Functions::find_top(team, qr_present, small, kbot, ktop, 1, log_qxpresent);
-      if (!log_qxpresent) { std::cout << "wrong log_qxpresent" << std::endl; ++nerrs_local; }
-      if (top != large_idx_stop) { std::cout << "top(" << top << ") != large_idx_stop(" << large_idx_stop << ")" << std::endl; ++nerrs_local; }
+      if (!log_qxpresent) ++nerrs_local;
+      if (top != large_idx_stop) ++nerrs_local;
 
       int bot = Functions::find_bottom(team, qr_present, small, kbot, top, 1, log_qxpresent);
-      if (!log_qxpresent) { std::cout << "wrong log_qxpresent" << std::endl; ++nerrs_local; }
-      if (bot != large_idx_start) { std::cout << "bot(" << bot << ") != large_idx_start(" << large_idx_start << ")" << std::endl; ++nerrs_local; }
+      if (!log_qxpresent) ++nerrs_local;
+      if (bot != large_idx_start) ++nerrs_local;
 
       top = Functions::find_top(team, qr_present, small, ktop, kbot, -1, log_qxpresent);
-      if (!log_qxpresent) { std::cout << "wrong log_qxpresent" << std::endl; ++nerrs_local; }
-      if (top != large_idx_start) { std::cout << "top(" << top << ") != large_idx_stop(" << large_idx_stop << ")" << std::endl; ++nerrs_local; }
+      if (!log_qxpresent) ++nerrs_local;
+      if (top != large_idx_start) ++nerrs_local;
 
       bot = Functions::find_bottom(team, qr_present, small, ktop, top, -1, log_qxpresent);
-      if (!log_qxpresent) { std::cout << "wrong log_qxpresent" << std::endl; ++nerrs_local; }
-      if (bot != large_idx_stop) { std::cout << "bot(" << bot << ") != large_idx_start(" << large_idx_start << ")" << std::endl; ++nerrs_local; }
+      if (!log_qxpresent) ++nerrs_local;
+      if (bot != large_idx_stop) ++nerrs_local;
 
       top = Functions::find_top(team, qr_not_present, small, kbot, ktop, 1, log_qxpresent);
-      if (log_qxpresent) { std::cout << "wrong log_qxpresent" << std::endl; ++nerrs_local; }
+      if (log_qxpresent) ++nerrs_local;
       //if (top != 0) { std::cout << "top(" << top << ") != 0" << std::endl; ++nerrs_local; }
 
       bot = Functions::find_bottom(team, qr_not_present, small, kbot, ktop, 1, log_qxpresent);
-      if (log_qxpresent) { std::cout << "wrong log_qxpresent" << std::endl; ++nerrs_local; }
+      if (log_qxpresent) ++nerrs_local;
       //if (bot != 0) { std::cout << "bot(" << bot << ") != 0" << std::endl; ++nerrs_local; }
 
       //
