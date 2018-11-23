@@ -66,7 +66,7 @@ static Int unittest_pack () {
 
   view_1d<TestBigPack> test_k_array("test_k_array", num_bigs);
   Kokkos::parallel_reduce("unittest_pack",
-                          util::ExeSpaceUtils<ExeSpace>::get_default_team_policy(128, 128),
+                          util::ExeSpaceUtils<ExeSpace>::get_default_team_policy(1, 1),
                           KOKKOS_LAMBDA(const MemberType& team, int& total_errs) {
 
     int nerrs_local = 0;
@@ -88,33 +88,138 @@ static Int unittest_pack () {
     auto big = scream::pack::repack<16>(small);
     if (big.extent(0) != num_bigs) ++nerrs_local;
 
+    Kokkos::parallel_for(Kokkos::TeamThreadRange(team, num_bigs*4), [&] (int i) {
+      for (int p = 0; p < 4; ++p) {
+        small(i)[p] = p * i;
+      }
+    });
+
+    Kokkos::parallel_for(Kokkos::TeamThreadRange(team, num_bigs*4), [&] (int i) {
+      auto mask = small(i) >= (2 * i);
+      for (int p = 0; p < 4; ++p) {
+        if (i == 0) {
+          if (!mask[p]) ++nerrs_local;
+        }
+        else {
+          if (mask[p] != (p >= 2)) ++nerrs_local;
+        }
+      }
+    });
+
     total_errs += nerrs_local;
   }, nerr);
 
   return nerr;
 }
 
-static int unittest_p3()
+static int unittest_p3(int max_threads)
 {
   using Functions = p3::micro_sed::Functions<Real, Device>;
   using view_1d_table = typename Functions::view_1d_table;
   using view_2d_table = typename Functions::view_2d_table;
+  using Smask = typename Functions::Smask;
+  using Spack = typename Functions::Spack;
+  using Table3 = typename Functions::Table3;
 
   int nerr = 0;
 
-  view_1d_table mu_r_table;
-  view_2d_table vn_table, vm_table;
+  view_1d_table mu_r_table("mu_r_table");
+  view_2d_table vn_table("vn_table"), vm_table("vm_table");
   Functions::init_kokkos_tables(vn_table, vm_table, mu_r_table);
 
-  // single team of size 1
-  const auto policy = util::ExeSpaceUtils<ExeSpace>::get_team_policy_force_team_size(1, 1);
+  const int num_vert = 100;
+  view_1d<Real> qr_present("qr", num_vert);
+  view_1d<Real> qr_not_present("qr", num_vert);
+  const int kbot = 0;
+  const int ktop = num_vert - 1;
+  const Real small = 0.5;
+  const int large_idx_start = 33;
+  const int large_idx_stop  = 77;
 
-  Kokkos::parallel_reduce("unittest_p3",
-                          policy,
-                          KOKKOS_LAMBDA(const MemberType& team, int& total_errs) {
-    int nerrs_local = 0;
-    total_errs += nerrs_local;
-  }, nerr);
+  auto mirror_qrp  = Kokkos::create_mirror_view(qr_present);
+  auto mirror_qrnp = Kokkos::create_mirror_view(qr_not_present);
+
+  for (int i = 0; i < num_vert; ++i) {
+    mirror_qrnp(i) = small - 0.1;
+    mirror_qrp(i)  = (i >= large_idx_start && i <= large_idx_stop) ? small + 0.1 : small - 0.1;
+  }
+
+  Kokkos::deep_copy(qr_present, mirror_qrp);
+  Kokkos::deep_copy(qr_not_present, mirror_qrnp);
+
+  for (int team_size : {1, max_threads}) {
+    const auto policy = util::ExeSpaceUtils<ExeSpace>::get_team_policy_force_team_size(1, team_size);
+
+    int errs_for_this_ts = 0;
+    Kokkos::parallel_reduce("unittest_p3",
+                            policy,
+                            KOKKOS_LAMBDA(const MemberType& team, int& total_errs) {
+      int nerrs_local = 0;
+
+      //
+      // Test find_top and find_bottom
+      //
+
+      bool log_qxpresent;
+      int top = Functions::find_top(team, qr_present, small, kbot, ktop, 1, log_qxpresent);
+      if (!log_qxpresent) { std::cout << "wrong log_qxpresent" << std::endl; ++nerrs_local; }
+      if (top != large_idx_stop) { std::cout << "top(" << top << ") != large_idx_stop(" << large_idx_stop << ")" << std::endl; ++nerrs_local; }
+
+      int bot = Functions::find_bottom(team, qr_present, small, kbot, top, 1, log_qxpresent);
+      if (!log_qxpresent) { std::cout << "wrong log_qxpresent" << std::endl; ++nerrs_local; }
+      if (bot != large_idx_start) { std::cout << "bot(" << bot << ") != large_idx_start(" << large_idx_start << ")" << std::endl; ++nerrs_local; }
+
+      top = Functions::find_top(team, qr_present, small, ktop, kbot, -1, log_qxpresent);
+      if (!log_qxpresent) { std::cout << "wrong log_qxpresent" << std::endl; ++nerrs_local; }
+      if (top != large_idx_start) { std::cout << "top(" << top << ") != large_idx_stop(" << large_idx_stop << ")" << std::endl; ++nerrs_local; }
+
+      bot = Functions::find_bottom(team, qr_present, small, ktop, top, -1, log_qxpresent);
+      if (!log_qxpresent) { std::cout << "wrong log_qxpresent" << std::endl; ++nerrs_local; }
+      if (bot != large_idx_stop) { std::cout << "bot(" << bot << ") != large_idx_start(" << large_idx_start << ")" << std::endl; ++nerrs_local; }
+
+      top = Functions::find_top(team, qr_not_present, small, kbot, ktop, 1, log_qxpresent);
+      if (log_qxpresent) { std::cout << "wrong log_qxpresent" << std::endl; ++nerrs_local; }
+      //if (top != 0) { std::cout << "top(" << top << ") != 0" << std::endl; ++nerrs_local; }
+
+      bot = Functions::find_bottom(team, qr_not_present, small, kbot, ktop, 1, log_qxpresent);
+      if (log_qxpresent) { std::cout << "wrong log_qxpresent" << std::endl; ++nerrs_local; }
+      //if (bot != 0) { std::cout << "bot(" << bot << ") != 0" << std::endl; ++nerrs_local; }
+
+      //
+      // Test lookup/apply_table
+      //
+
+      Table3 test_table;
+      test_table.dumii = 1;
+      test_table.rdumii = 1.;
+
+      Smask qr_gt_small(true);
+
+      Spack mu_r, lamr;
+      for (int p = 0; p < Spack::n; ++p) {
+        mu_r[p] = p;
+        lamr[p] = p+1;
+      }
+
+      Functions::lookup(qr_gt_small, test_table, mu_r, lamr);
+
+      Spack at(qr_gt_small, Functions::apply_table(qr_gt_small, vm_table, test_table));
+
+#if 0
+      for (int p = 0; p < Spack::n; ++p) {
+        std::cout << p << ", " << qr_gt_small[p] << std::endl;
+        std::cout << "  " << test_table.dumjj[p] << std::endl;
+        std::cout << "  " << test_table.rdumjj[p] << std::endl;
+        std::cout << "  " << test_table.inv_dum3[p] << std::endl;
+        std::cout << "  " << at[p] << std::endl;
+      }
+#endif
+
+      total_errs += nerrs_local;
+    }, errs_for_this_ts);
+
+    nerr += errs_for_this_ts;
+  }
 
   return nerr;
 }
@@ -514,13 +619,13 @@ int main (int argc, char** argv) {
       // thread-insensitive tests
       if (nt == lower) {
         out += UnitTest<>::unittest_pack();
-        out += UnitTest<HostDevice>::unittest_p3();
       }
 
       // thread-sensitive tests
       {
         out += UnitTest<>::unittest_team_policy();
         out += UnitTest<>::unittest_workspace();
+        out += UnitTest<>::unittest_p3(nt);
         out += UnitTest<HostDevice>::unittest_team_utils();
 
 #ifdef KOKKOS_ENABLE_CUDA
