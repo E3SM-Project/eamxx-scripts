@@ -38,6 +38,8 @@ struct Functions
   template <typename S>
   using SmallMask = scream::pack::Mask<SmallPack<S>::n>;
 
+  using Smask = SmallMask<Scalar>;
+
   using KT = KokkosTypes<Device>;
 
   template <typename S>
@@ -55,7 +57,7 @@ struct Functions
 
   struct Table3 {
     IntSmallPack dumii, dumjj;
-    SmallPack<Scalar> rdumii, rdumjj, inv_dum3;
+    Spack rdumii, rdumjj, inv_dum3;
   };
 
   //
@@ -63,11 +65,11 @@ struct Functions
   //
 
   KOKKOS_FUNCTION
-  static void lookup(const SmallMask<Scalar>& qr_gt_small, Table3& t,
-                     const SmallPack<Scalar>& mu_r, const SmallPack<Scalar>& lamr);
+  static void lookup(const Smask& qr_gt_small, Table3& t,
+                     const Spack& mu_r, const Spack& lamr);
 
   KOKKOS_FUNCTION
-  static Spack apply_table(const SmallMask<Scalar>& qr_gt_small, const view_2d_table& table,
+  static Spack apply_table(const Smask& qr_gt_small, const view_2d_table& table,
                            const Table3& t);
 
   // Calculate the step in the region [k_bot, k_top].
@@ -110,6 +112,10 @@ struct Functions
     const Unmanaged<view_1d<const Scalar> >& v, const Scalar& small,
     const Int& kbot, const Int& ktop, const Int& kdir,
     bool& log_present);
+
+  // Call from host
+  static void init_kokkos_tables(
+    const view_2d_table& vn_table, const view_2d_table& vm_table, const view_1d_table& mu_r_table);
 };
 
 } // namespace micro_sed

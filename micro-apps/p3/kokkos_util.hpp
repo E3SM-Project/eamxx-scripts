@@ -45,6 +45,10 @@ struct ExeSpaceUtils<Kokkos::Cuda> {
   static TeamPolicy get_default_team_policy (Int ni, Int nk) {
     return TeamPolicy(ni, std::min(128, 32*((nk + 31)/32)));
   }
+
+  static TeamPolicy get_team_policy_force_team_size (Int ni, Int team_size) {
+    return TeamPolicy(ni, team_size);
+  }
 };
 #endif
 

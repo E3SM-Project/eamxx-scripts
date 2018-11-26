@@ -84,27 +84,7 @@ public:
     policy(util::ExeSpaceUtils<ExeSpace>::get_default_team_policy(num_horz, num_pack)),
     workspace_mgr(num_pack, 11, policy) // rain sed's high-water is 11 spaces for any team
   {
-    // initialize on host
-
-    auto mirror_vn_table = Kokkos::create_mirror_view(vn_table);
-    auto mirror_vm_table = Kokkos::create_mirror_view(vm_table);
-    auto mirror_mu_table = Kokkos::create_mirror_view(mu_r_table);
-
-    for (int i = 0; i < 300; ++i) {
-      for (int k = 0; k < 10; ++k) {
-        mirror_vn_table(i, k) = Globals<Scalar>::VN_TABLE[i][k];
-        mirror_vm_table(i, k) = Globals<Scalar>::VM_TABLE[i][k];
-      }
-    }
-
-    for (int i = 0; i < 150; ++i) {
-      mirror_mu_table(i) = Globals<Scalar>::MU_R_TABLE[i];
-    }
-
-    // deep copy to device
-    Kokkos::deep_copy(vn_table, mirror_vn_table);
-    Kokkos::deep_copy(vm_table, mirror_vm_table);
-    Kokkos::deep_copy(mu_r_table, mirror_mu_table);
+    Fun::init_kokkos_tables(vn_table, vm_table, mu_r_table);
   }
 
   int get_num_vert() const { return num_pack; }
