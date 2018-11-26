@@ -144,6 +144,9 @@ static int unittest_p3(int max_threads)
     mirror_qrp(i)  = (i >= large_idx_start && i <= large_idx_stop) ? small + 0.1 : small - 0.1;
   }
 
+  // add "hole"
+  mirror_qrp(50) = small;
+
   Kokkos::deep_copy(qr_present, mirror_qrp);
   Kokkos::deep_copy(qr_not_present, mirror_qrnp);
 
