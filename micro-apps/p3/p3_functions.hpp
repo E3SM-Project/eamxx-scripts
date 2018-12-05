@@ -72,7 +72,10 @@ struct Functions
   static Spack apply_table(const Smask& qr_gt_small, const view_2d_table& table,
                            const Table3& t);
 
-  // Calculate the step in the region [k_bot, k_top].
+  // Calculate the first-order upwind step in the region [k_bot, k_top]. V is
+  // input, and flux is workspace and need not be initialized. On input, r
+  // contains field data at the time step start; on output, it contains field
+  // data at the time step end.
   template <Int kdir, int nfield>
   KOKKOS_FUNCTION
   static void calc_first_order_upwind_step(

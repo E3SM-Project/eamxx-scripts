@@ -229,6 +229,53 @@ static int unittest_p3(int max_threads)
   return nerr;
 }
 
+static int unittest_upwind()
+{
+  static const Int nfield = 2;
+  
+  using Functions = p3::micro_sed::Functions<Real, Device>;
+  using Pack = typename Functions::Pack;
+  using Spack = typename Functions::Spack;
+  using view_1d_ptr_array = typename Functions::template view_1d_ptr_array<Spack, nfield>;
+
+  const Int nk = 77, npack = (nk + Pack::n - 1) / Pack::n, kmin = 11, kmax = 73;
+  static constexpr Real max_speed = 4.2, min_dz = 0.33;
+  const Real dt = min_dz/max_speed;
+
+  view_1d<Pack> rho("rho", npack), inv_rho("inv_rho", npack), inv_dz("inv_dz", npack);
+  const auto lrho = smallize(rho), linv_rho = smallize(inv_rho), linv_dz = smallize(inv_dz);
+
+  Kokkos::Array<view_1d<Pack>, nfield> flux, V, r;
+  Kokkos::Array<Unmanaged<view_1d<Spack> >, nfield> lflux, lV, lr;
+  view_1d_ptr_array aflux, aV, ar;
+  const auto init_array = [&] (const std::string& name, const Int& i, decltype(flux)& f,
+                               decltype(lflux)& lf, decltype(aflux)& af) {
+    f[i] = view_1d<Pack>("f", npack);
+    lf[i] = smallize(f[i]);
+    af[i] = &lf[i];
+  };
+  for (int i = 0; i < nfield; ++i) {
+    init_array("flux", i, flux, lflux, aflux);
+    init_array("V", i, V, lV, aV);
+    init_array("r", i, r, lr, ar);
+  }
+
+  Int nerr;
+  for (Int kdir : {-1, 1}) {
+    const Int k_bot = kdir == 1 ? kmin : kmax;
+    const Int k_top = kdir == 1 ? kmax : kmin;
+    const auto run = KOKKOS_LAMBDA (const MemberType& team, Int& nerr) {
+      nerr = 0;
+      Functions::template calc_first_order_upwind_step<nfield>(
+        lrho, linv_rho, linv_dz, team, nk, k_bot, k_top, kdir, dt, aflux, aV, ar);
+      team.team_barrier();
+    };
+    Kokkos::parallel_reduce(util::ExeSpaceUtils<ExeSpace>::get_default_team_policy(1, nk),
+                            run, nerr);
+  }
+  return nerr;
+}
+
 static int unittest_workspace()
 {
   int nerr = 0;
@@ -626,11 +673,15 @@ int main (int argc, char** argv) {
         out += UnitTest<>::unittest_pack();
       }
 
+#pragma message "AMB rm"
+      if (nt == upper) out += UnitTest<>::unittest_workspace();
+
       // thread-sensitive tests
       {
         out += UnitTest<>::unittest_team_policy();
-        out += UnitTest<>::unittest_workspace();
+        //out += UnitTest<>::unittest_workspace();
         out += UnitTest<>::unittest_p3(nt);
+        out += UnitTest<>::unittest_upwind();
         out += UnitTest<HostDevice>::unittest_team_utils();
 
 #ifdef KOKKOS_ENABLE_CUDA
