@@ -14,6 +14,7 @@ void Functions<S,D>
   // find location in scaled mean size space
   const auto dum1 = (mu_r+1.) / lamr;
   const auto dum1_lt = qr_gt_small && (dum1 <= 195.e-6);
+  t.dumii = 1;
   if (dum1_lt.any()) {
     scream_masked_loop(dum1_lt, s) {
       const auto inv_dum3 = 0.1;
@@ -53,6 +54,7 @@ void Functions<S,D>
     dumjj  = max(dumjj,1);
     dumjj  = min(dumjj,9);
     t.rdumjj.set(qr_gt_small, rdumjj);
+    t.dumjj = 1;
     t.dumjj.set(qr_gt_small, dumjj);
   }
 }
