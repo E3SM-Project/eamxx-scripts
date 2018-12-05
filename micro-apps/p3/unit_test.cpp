@@ -9,6 +9,9 @@
 #include <array>
 #include <algorithm>
 
+#define AMB_NO_MPI
+#include "/home/ambrad/repo/sik/hommexx/dbg.hpp"
+
 namespace unit_test {
 
 struct UnitWrap {
@@ -229,50 +232,128 @@ static int unittest_p3(int max_threads)
   return nerr;
 }
 
-static int unittest_upwind()
-{
+static int unittest_upwind () {
   static const Int nfield = 2;
   
   using Functions = p3::micro_sed::Functions<Real, Device>;
+  using Scalar = typename Functions::Scalar;
   using Pack = typename Functions::Pack;
   using Spack = typename Functions::Spack;
-  using view_1d_ptr_array = typename Functions::template view_1d_ptr_array<Spack, nfield>;
 
-  const Int nk = 77, npack = (nk + Pack::n - 1) / Pack::n, kmin = 11, kmax = 73;
-  static constexpr Real max_speed = 4.2, min_dz = 0.33;
-  const Real dt = min_dz/max_speed;
+  Int nerr = 0;
+  for (Int nk : {17}) {
+    const Int npack = (nk + Pack::n - 1) / Pack::n, kmin = 0, kmax = nk - 1;
+    static constexpr Real max_speed = 4.2, min_dz = 0.33;
+    const Real dt = min_dz/max_speed;
 
-  view_1d<Pack> rho("rho", npack), inv_rho("inv_rho", npack), inv_dz("inv_dz", npack);
-  const auto lrho = smallize(rho), linv_rho = smallize(inv_rho), linv_dz = smallize(inv_dz);
+    view_1d<Pack> rho("rho", npack), inv_rho("inv_rho", npack), inv_dz("inv_dz", npack);
+    const auto lrho = smallize(rho), linv_rho = smallize(inv_rho), linv_dz = smallize(inv_dz);
 
-  Kokkos::Array<view_1d<Pack>, nfield> flux, V, r;
-  Kokkos::Array<Unmanaged<view_1d<Spack> >, nfield> lflux, lV, lr;
-  view_1d_ptr_array aflux, aV, ar;
-  const auto init_array = [&] (const std::string& name, const Int& i, decltype(flux)& f,
-                               decltype(lflux)& lf, decltype(aflux)& af) {
-    f[i] = view_1d<Pack>("f", npack);
-    lf[i] = smallize(f[i]);
-    af[i] = &lf[i];
-  };
-  for (int i = 0; i < nfield; ++i) {
-    init_array("flux", i, flux, lflux, aflux);
-    init_array("V", i, V, lV, aV);
-    init_array("r", i, r, lr, ar);
-  }
-
-  Int nerr;
-  for (Int kdir : {-1, 1}) {
-    const Int k_bot = kdir == 1 ? kmin : kmax;
-    const Int k_top = kdir == 1 ? kmax : kmin;
-    const auto run = KOKKOS_LAMBDA (const MemberType& team, Int& nerr) {
-      nerr = 0;
-      Functions::template calc_first_order_upwind_step<nfield>(
-        lrho, linv_rho, linv_dz, team, nk, k_bot, k_top, kdir, dt, aflux, aV, ar);
-      team.team_barrier();
+    Kokkos::Array<view_1d<Pack>, nfield> flux, V, r;
+    Kokkos::Array<Unmanaged<view_1d<Spack> >, nfield> lflux, lV, lr;
+    const auto init_array = [&] (const std::string& name, const Int& i, decltype(flux)& f,
+                                 decltype(lflux)& lf) {
+      f[i] = view_1d<Pack>("f", npack);
+      lf[i] = smallize(f[i]);
     };
-    Kokkos::parallel_reduce(util::ExeSpaceUtils<ExeSpace>::get_default_team_policy(1, nk),
-                            run, nerr);
+    for (int i = 0; i < nfield; ++i) {
+      init_array("flux", i, flux, lflux);
+      init_array("V", i, V, lV);
+      init_array("r", i, r, lr);
+    }
+
+    for (Int kdir : {-1, 1}) {
+      const Int k_bot = kdir == 1 ? kmin : kmax;
+      const Int k_top = kdir == 1 ? kmax : kmin;
+
+      // Set rho, dz, mixing ratio r.
+      const auto init_fields = KOKKOS_LAMBDA (const MemberType& team) {
+        const auto set_fields = [&] (const Int& k) {
+          for (Int i = 0; i < nfield; ++i) {
+            const auto range = scream::pack::range<Pack>(k*Pack::n);
+            rho(k) = 1 + range/nk;
+            inv_rho(k) = 1 / rho(k);
+            inv_dz(k) = 1 / (min_dz + range*range / (nk*nk));
+            V[i](k) = 0.5*(1 + range/nk) * max_speed;
+            r[i](k) = 0;
+            const auto mask = range >= 2 && range < nk-2;
+            r[i](k).set(mask, range/nk);
+            micro_kassert((V[i](k) >= 0).all());
+            micro_kassert((V[i](k) <= max_speed).all());
+          }
+          micro_kassert((V[0](k) == V[1](k)).all());
+          micro_kassert((r[0](k) == r[1](k)).all());
+        };
+        Kokkos::parallel_for(Kokkos::TeamThreadRange(team, npack), set_fields);
+        team.team_barrier();
+      };
+      Kokkos::parallel_for(util::ExeSpaceUtils<ExeSpace>::get_default_team_policy(1, npack),
+                           init_fields);
+
+      const auto sflux = scalarize(flux[0]);
+      for (Int time_step = 0; time_step < 2*nk; ++time_step) {
+        // Take one upwind step.
+        const auto step = KOKKOS_LAMBDA (const MemberType& team, Int& nerr) {
+          // Gather diagnostics: total mass and extremal mixing ratio values.
+          const auto sr = scalarize(r[1]), srho = scalarize(rho), sinv_dz = scalarize(inv_dz);
+
+          const auto gather_diagnostics = [&] (Scalar& mass, Scalar& r_min, Scalar& r_max) {
+            mass = 0;
+            const auto sum_mass = [&] (const Int& k, Scalar& mass) {
+              mass += srho(k)*sr(k)/sinv_dz(k);
+            };
+            Kokkos::parallel_reduce(Kokkos::TeamThreadRange(team, nk), sum_mass, mass);
+      
+            const auto find_min_r = [&] (const Int& k, Scalar& r_min) {
+              r_min = util::min(sr(k), r_min);
+            };
+            Kokkos::parallel_reduce(Kokkos::TeamThreadRange(team, nk), find_min_r,
+                                    Kokkos::Min<Scalar>(r_min));
+
+            const auto find_max_r = [&] (const Int& k, Scalar& r_max) {
+              r_max = util::max(sr(k), r_max);
+            };
+            Kokkos::parallel_reduce(Kokkos::TeamThreadRange(team, nk), find_max_r,
+                                    Kokkos::Max<Scalar>(r_max));
+          };
+
+          Scalar mass0, r_min0, r_max0;
+          gather_diagnostics(mass0, r_min0, r_max0);
+          team.team_barrier();
+
+          // Compute.
+          Int k_bot_lcl = k_bot, k_top_lcl = k_top;
+          if (time_step == 0) {
+            // On the first step, the ICs are such that we can test restricting
+            // the interval.
+            k_bot_lcl += kdir;
+            k_top_lcl -= kdir;
+          }
+          Functions::template calc_first_order_upwind_step<nfield>(
+            lrho, linv_rho, linv_dz, team, nk, k_bot_lcl, k_top_lcl, kdir, dt,
+          {&lflux[0], &lflux[1]}, {&lV[0], &lV[1]}, {&lr[0], &lr[1]});
+          team.team_barrier();
+
+          // Check diagnostics.
+          Scalar mass1, r_min1, r_max1;
+          gather_diagnostics(mass1, r_min1, r_max1);
+          // Include mass flowing out of the boundary.
+          if (time_step > 1) mass1 += sflux(0)*dt;
+          team.team_barrier();
+          const auto eps = std::numeric_limits<Scalar>::epsilon();
+          // Check for conservation of mass.
+          if (util::reldif(mass0, mass1) > 1e1*eps) ++nerr;
+          // Check for preservation of global extrema.
+          if (r_min1 < r_min0 - 10*eps) ++nerr;
+          if (r_max1 > r_max0 + 10*eps) ++nerr;
+        };
+        Kokkos::parallel_reduce(util::ExeSpaceUtils<ExeSpace>::get_default_team_policy(1, npack),
+                                step, nerr);
+      }
+    }
   }
+
+  pr(puf("upwind nerr") pu(nerr));
   return nerr;
 }
 
