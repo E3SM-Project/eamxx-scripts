@@ -237,10 +237,12 @@ static int unittest_upwind () {
   using Pack = typename Functions::Pack;
   using Spack = typename Functions::Spack;
 
+  const auto eps = std::numeric_limits<Scalar>::epsilon();
+
   Int nerr = 0;
   for (Int nk : {17}) {
     const Int npack = (nk + Pack::n - 1) / Pack::n, kmin = 0, kmax = nk - 1;
-    static constexpr Real max_speed = 4.2, min_dz = 0.33;
+    const Real max_speed = 4.2, min_dz = 0.33;
     const Real dt = min_dz/max_speed;
 
     view_1d<Pack> rho("rho", npack), inv_rho("inv_rho", npack), inv_dz("inv_dz", npack);
@@ -337,7 +339,6 @@ static int unittest_upwind () {
           // Include mass flowing out of the boundary.
           if (time_step > 1) mass1 += sflux(0)*dt;
           team.team_barrier();
-          const auto eps = std::numeric_limits<Scalar>::epsilon();
           // Check for conservation of mass.
           if (util::reldif(mass0, mass1) > 1e1*eps) ++nerr;
           // Check for preservation of global extrema.
@@ -737,7 +738,7 @@ int main (int argc, char** argv) {
 
   p3::micro_sed::p3_init_cpp<Real>();
 
-  int out = 0; // running error count
+  int ne, out = 0; // running error count
 
   // NOTE: Kokkos does not tolerate changing num_threads post-kokkos-initialization
   for (int nt = lower; nt <= upper; nt+=increment) { // #threads sweep
@@ -750,15 +751,14 @@ int main (int argc, char** argv) {
         out += UnitTest<>::unittest_pack();
       }
 
-#pragma message "AMB rm"
-      if (nt == upper) out += UnitTest<>::unittest_workspace();
-
       // thread-sensitive tests
       {
+        ne = UnitTest<>::unittest_upwind();
+        if (ne) std::cout << "unittest_upwind failed with nerr " << ne << "\n";
+        out += ne;
         out += UnitTest<>::unittest_team_policy();
-        //out += UnitTest<>::unittest_workspace();
+        out += UnitTest<>::unittest_workspace();
         out += UnitTest<>::unittest_p3(nt);
-        out += UnitTest<>::unittest_upwind();
         out += UnitTest<HostDevice>::unittest_team_utils();
 
 #ifdef KOKKOS_ENABLE_CUDA
