@@ -9,9 +9,6 @@
 #include <array>
 #include <algorithm>
 
-#define AMB_NO_MPI
-#include "/home/ambrad/repo/sik/hommexx/dbg.hpp"
-
 namespace unit_test {
 
 struct UnitWrap {
@@ -279,7 +276,7 @@ static int unittest_upwind () {
             const auto mask = range >= 2 && range < nk-2;
             r[i](k).set(mask, range/nk);
             micro_kassert((V[i](k) >= 0).all());
-            micro_kassert((V[i](k) <= max_speed).all());
+            micro_kassert((V[i](k) <= max_speed || (range >= nk)).all());
           }
           micro_kassert((V[0](k) == V[1](k)).all());
           micro_kassert((r[0](k) == r[1](k)).all());
@@ -353,7 +350,6 @@ static int unittest_upwind () {
     }
   }
 
-  pr(puf("upwind nerr") pu(nerr));
   return nerr;
 }
 
