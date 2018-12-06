@@ -9,9 +9,6 @@
 #include <array>
 #include <algorithm>
 
-#define AMB_NO_MPI
-#include "/home/ambrad/repo/sik/hommexx/dbg.hpp"
-
 namespace unit_test {
 
 struct UnitWrap {
@@ -315,7 +312,10 @@ static int unittest_upwind () {
               // uniform mixing ratio r[0] to capture the true advected
               // background rho_true = r[0]*rho. Then the true mixing ratio
               // corresponding to r[1] is
-              //     (r[1]*rho)/(rho_true) = (r[1]*rho)/(r[0]*rho) = r[1]/r[0].
+              //     r_true = (r[1]*rho)/(rho_true)
+              //            = (r[1]*rho)/(r[0]*rho) = r[1]/r[0].
+              // This mixing ratio should not violate the previous time step's
+              // global extrema.
               const auto mixing_ratio_true = sr(k)/sr0(k);
               r_max = util::max(mixing_ratio_true, r_max);
             };
@@ -354,19 +354,10 @@ static int unittest_upwind () {
           if (time_step > 1) mass1 += sflux(kdir == 1 ? 0 : nk-1)*dt;
           team.team_barrier();
           // Check for conservation of mass.
-          if (util::reldif(mass0, mass1) > 1e1*eps) {
-            ++nerr;
-            pr(puf(nk) pu(kdir) pu(time_step) pu(mass0) pu(mass1) pu(mass1-mass0));
-          }
+          if (util::reldif(mass0, mass1) > 1e1*eps) ++nerr;
           // Check for preservation of global extrema.
-          if (r_min1 < r_min0 - 10*eps) {
-            ++nerr;
-            pr(puf(nk) pu(kdir) pu(time_step) pu(r_min0) pu(r_min1) pu(r_min1 - r_min0));
-          }
-          if (r_max1 > r_max0 + 10*eps) {
-            ++nerr;
-            pr(puf(nk) pu(kdir) pu(time_step) pu(r_max0) pu(r_max1) pu(r_max0 - r_max1));
-          }
+          if (r_min1 < r_min0 - 10*eps) ++nerr;
+          if (r_max1 > r_max0 + 10*eps) ++nerr;
         };
         Int lnerr;
         Kokkos::parallel_reduce(util::ExeSpaceUtils<ExeSpace>::get_default_team_policy(1, npack),
@@ -376,7 +367,6 @@ static int unittest_upwind () {
     }
   }
 
-  prc(nerr);
   return nerr;
 }
 
@@ -754,11 +744,13 @@ int main (int argc, char** argv) {
     ;
 
   int lower = 1, upper=N, increment=1; // defaults
+  bool brief = false;
   for (int i = 0; i < argc; ++i) {
 #ifdef KOKKOS_ENABLE_OPENMP
     if (util::eq(argv[i], "-l", "--lower")) { expect_another_arg(i, argc); lower     = std::atoi(argv[++i]); }
     if (util::eq(argv[i], "-u", "--upper")) { expect_another_arg(i, argc); upper     = std::atoi(argv[++i]); }
     if (util::eq(argv[i], "-i", "--inc"))   { expect_another_arg(i, argc); increment = std::atoi(argv[++i]); }
+    if (util::eq(argv[i], "-b", "--brief")) brief = true;
 #endif
   }
 
@@ -777,14 +769,16 @@ int main (int argc, char** argv) {
         out += UnitTest<>::unittest_pack();
       }
 
+      if (brief && nt == upper)
+        out += UnitTest<>::unittest_workspace();
+
       // thread-sensitive tests
       {
         ne = UnitTest<>::unittest_upwind();
         if (ne) std::cout << "unittest_upwind failed with nerr " << ne << "\n";
         out += ne;
         out += UnitTest<>::unittest_team_policy();
-#pragma message "AMB uncomment"
-        //out += UnitTest<>::unittest_workspace();
+        if ( ! brief) out += UnitTest<>::unittest_workspace();
         out += UnitTest<>::unittest_p3(nt);
         out += UnitTest<HostDevice>::unittest_team_utils();
 
