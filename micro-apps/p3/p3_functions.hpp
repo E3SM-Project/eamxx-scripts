@@ -72,10 +72,6 @@ struct Functions
   static Spack apply_table(const Smask& qr_gt_small, const view_2d_table& table,
                            const Table3& t);
 
-  // Calculate the first-order upwind step in the region [k_bot,
-  // k_top]. Velocity V is input, and flux is workspace and need not be
-  // initialized. On input, r contains mixing ratio data at the time step start;
-  // on output, it contains mixing ratio data at the time step end.
   template <Int kdir, int nfield>
   KOKKOS_FUNCTION
   static void calc_first_order_upwind_step(
@@ -88,11 +84,20 @@ struct Functions
     const view_1d_ptr_array<Spack, nfield>& V,
     const view_1d_ptr_array<Spack, nfield>& r);
 
+  // Calculate the first-order upwind step in the region [k_bot,
+  // k_top]. Velocity V is input, and flux is workspace and need not be
+  // initialized. On input, r contains mixing ratio data at the time step start;
+  // on output, it contains mixing ratio data at the time step end.
+  //
+  // A subtlety is that this procedure does not do exact upwind of a mixing
+  // ratio. That is because the background density rho is assumed to be static;
+  // rho does not get advected. Thus, there is an inconsistency between rho and
+  // r*rho at the level of |r|.
   template <int nfield>
   KOKKOS_FUNCTION
   static void calc_first_order_upwind_step(
     const Unmanaged<view_1d<const Spack> >& rho,
-    const Unmanaged<view_1d<const Spack> >& inv_rho,
+    const Unmanaged<view_1d<const Spack> >& inv_rho, // 1/rho
     const Unmanaged<view_1d<const Spack> >& inv_dzq,
     const MemberType& team,
     const Int& nk, const Int& k_bot, const Int& k_top, const Int& kdir, const Scalar& dt_sub,

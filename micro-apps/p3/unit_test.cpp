@@ -9,6 +9,9 @@
 #include <array>
 #include <algorithm>
 
+#define AMB_NO_MPI
+#include "/home/ambrad/repo/sik/hommexx/dbg.hpp"
+
 namespace unit_test {
 
 struct UnitWrap {
@@ -240,7 +243,7 @@ static int unittest_upwind () {
   const auto eps = std::numeric_limits<Scalar>::epsilon();
 
   Int nerr = 0;
-  for (Int nk : {17}) {
+  for (Int nk : {17, 32, 77, 128}) {
     const Int npack = (nk + Pack::n - 1) / Pack::n, kmin = 0, kmax = nk - 1;
     const Real max_speed = 4.2, min_dz = 0.33;
     const Real dt = min_dz/max_speed;
@@ -274,14 +277,17 @@ static int unittest_upwind () {
             inv_rho(k) = 1 / rho(k);
             inv_dz(k) = 1 / (min_dz + range*range / (nk*nk));
             V[i](k) = 0.5*(1 + range/nk) * max_speed;
-            r[i](k) = 0;
-            const auto mask = range >= 2 && range < nk-2;
-            r[i](k).set(mask, range/nk);
+            if (i == 1) {
+              r[i](k) = 0;
+              const auto mask = range >= 2 && range < nk-2;
+              r[i](k).set(mask, range/nk); // Nontrivial mixing ratio.
+            } else {
+              r[i](k) = 1; // Evolve the background density field.
+            }
             micro_kassert((V[i](k) >= 0).all());
             micro_kassert((V[i](k) <= max_speed || (range >= nk)).all());
           }
           micro_kassert((V[0](k) == V[1](k)).all());
-          micro_kassert((r[0](k) == r[1](k)).all());
         };
         Kokkos::parallel_for(Kokkos::TeamThreadRange(team, npack), set_fields);
         team.team_barrier();
@@ -289,12 +295,13 @@ static int unittest_upwind () {
       Kokkos::parallel_for(util::ExeSpaceUtils<ExeSpace>::get_default_team_policy(1, npack),
                            init_fields);
 
-      const auto sflux = scalarize(flux[0]);
+      const auto sflux = scalarize(flux[1]);
       for (Int time_step = 0; time_step < 2*nk; ++time_step) {
         // Take one upwind step.
         const auto step = KOKKOS_LAMBDA (const MemberType& team, Int& nerr) {
           // Gather diagnostics: total mass and extremal mixing ratio values.
           const auto sr = scalarize(r[1]), srho = scalarize(rho), sinv_dz = scalarize(inv_dz);
+          const auto sr0 = scalarize(r[0]);
 
           const auto gather_diagnostics = [&] (Scalar& mass, Scalar& r_min, Scalar& r_max) {
             mass = 0;
@@ -302,18 +309,25 @@ static int unittest_upwind () {
               mass += srho(k)*sr(k)/sinv_dz(k);
             };
             Kokkos::parallel_reduce(Kokkos::TeamThreadRange(team, nk), sum_mass, mass);
-      
-            const auto find_min_r = [&] (const Int& k, Scalar& r_min) {
-              r_min = util::min(sr(k), r_min);
-            };
-            Kokkos::parallel_reduce(Kokkos::TeamThreadRange(team, nk), find_min_r,
-                                    Kokkos::Min<Scalar>(r_min));
 
             const auto find_max_r = [&] (const Int& k, Scalar& r_max) {
-              r_max = util::max(sr(k), r_max);
+              // The background rho is is not advected. We advect the initially
+              // uniform mixing ratio r[0] to capture the true advected
+              // background rho_true = r[0]*rho. Then the true mixing ratio
+              // corresponding to r[1] is
+              //     (r[1]*rho)/(rho_true) = (r[1]*rho)/(r[0]*rho) = r[1]/r[0].
+              const auto mixing_ratio_true = sr(k)/sr0(k);
+              r_max = util::max(mixing_ratio_true, r_max);
             };
             Kokkos::parallel_reduce(Kokkos::TeamThreadRange(team, nk), find_max_r,
                                     Kokkos::Max<Scalar>(r_max));
+
+            const auto find_min_r = [&] (const Int& k, Scalar& r_min) {
+              const auto mixing_ratio_true = sr(k)/sr0(k);
+              r_min = util::min(mixing_ratio_true, r_min);
+            };
+            Kokkos::parallel_reduce(Kokkos::TeamThreadRange(team, nk), find_min_r,
+                                    Kokkos::Min<Scalar>(r_min));
           };
 
           Scalar mass0, r_min0, r_max0;
@@ -337,20 +351,32 @@ static int unittest_upwind () {
           Scalar mass1, r_min1, r_max1;
           gather_diagnostics(mass1, r_min1, r_max1);
           // Include mass flowing out of the boundary.
-          if (time_step > 1) mass1 += sflux(0)*dt;
+          if (time_step > 1) mass1 += sflux(kdir == 1 ? 0 : nk-1)*dt;
           team.team_barrier();
           // Check for conservation of mass.
-          if (util::reldif(mass0, mass1) > 1e1*eps) ++nerr;
+          if (util::reldif(mass0, mass1) > 1e1*eps) {
+            ++nerr;
+            pr(puf(nk) pu(kdir) pu(time_step) pu(mass0) pu(mass1) pu(mass1-mass0));
+          }
           // Check for preservation of global extrema.
-          if (r_min1 < r_min0 - 10*eps) ++nerr;
-          if (r_max1 > r_max0 + 10*eps) ++nerr;
+          if (r_min1 < r_min0 - 10*eps) {
+            ++nerr;
+            pr(puf(nk) pu(kdir) pu(time_step) pu(r_min0) pu(r_min1) pu(r_min1 - r_min0));
+          }
+          if (r_max1 > r_max0 + 10*eps) {
+            ++nerr;
+            pr(puf(nk) pu(kdir) pu(time_step) pu(r_max0) pu(r_max1) pu(r_max0 - r_max1));
+          }
         };
+        Int lnerr;
         Kokkos::parallel_reduce(util::ExeSpaceUtils<ExeSpace>::get_default_team_policy(1, npack),
-                                step, nerr);
+                                step, lnerr);
+        nerr += lnerr;
       }
     }
   }
 
+  prc(nerr);
   return nerr;
 }
 
@@ -757,7 +783,8 @@ int main (int argc, char** argv) {
         if (ne) std::cout << "unittest_upwind failed with nerr " << ne << "\n";
         out += ne;
         out += UnitTest<>::unittest_team_policy();
-        out += UnitTest<>::unittest_workspace();
+#pragma message "AMB uncomment"
+        //out += UnitTest<>::unittest_workspace();
         out += UnitTest<>::unittest_p3(nt);
         out += UnitTest<HostDevice>::unittest_team_utils();
 
