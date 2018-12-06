@@ -112,20 +112,18 @@ static Int unittest_pack () {
   return nerr;
 }
 
-static int unittest_p3(int max_threads)
+//
+// Test find_top and find_bottom
+//
+static int unittest_find_top_bottom(int max_threads)
 {
   using Functions = p3::micro_sed::Functions<Real, Device>;
   using view_1d_table = typename Functions::view_1d_table;
   using view_2d_table = typename Functions::view_2d_table;
   using Smask = typename Functions::Smask;
   using Spack = typename Functions::Spack;
-  using Table3 = typename Functions::Table3;
 
   int nerr = 0;
-
-  view_1d_table mu_r_table("mu_r_table");
-  view_2d_table vn_table("vn_table"), vm_table("vm_table");
-  Functions::init_kokkos_tables(vn_table, vm_table, mu_r_table);
 
   const int num_vert = 100;
   view_1d<Real> qr_present("qr", num_vert);
@@ -154,7 +152,7 @@ static int unittest_p3(int max_threads)
     const auto policy = util::ExeSpaceUtils<ExeSpace>::get_team_policy_force_team_size(1, team_size);
 
     int errs_for_this_ts = 0;
-    Kokkos::parallel_reduce("unittest_p3",
+    Kokkos::parallel_reduce("unittest_find_top_bottom",
                             policy,
                             KOKKOS_LAMBDA(const MemberType& team, int& total_errs) {
       int nerrs_local = 0;
@@ -188,38 +186,6 @@ static int unittest_p3(int max_threads)
       if (log_qxpresent) ++nerrs_local;
       //if (bot != 0) { std::cout << "bot(" << bot << ") != 0" << std::endl; ++nerrs_local; }
 
-      //
-      // Test lookup/apply_table
-      //
-
-      // TODO: These values need to be set to be mathematically interesting
-
-      Table3 test_table;
-      test_table.dumii = 1;
-      test_table.rdumii = 1.;
-
-      Smask qr_gt_small(true);
-
-      Spack mu_r, lamr;
-      for (int p = 0; p < Spack::n; ++p) {
-        mu_r[p] = p;
-        lamr[p] = p+1;
-      }
-
-      Functions::lookup(qr_gt_small, test_table, mu_r, lamr);
-
-      Spack at(qr_gt_small, Functions::apply_table(qr_gt_small, vm_table, test_table));
-
-#if 0
-      for (int p = 0; p < Spack::n; ++p) {
-        std::cout << p << ", " << qr_gt_small[p] << std::endl;
-        std::cout << "  " << test_table.dumjj[p] << std::endl;
-        std::cout << "  " << test_table.rdumjj[p] << std::endl;
-        std::cout << "  " << test_table.inv_dum3[p] << std::endl;
-        std::cout << "  " << at[p] << std::endl;
-      }
-#endif
-
       total_errs += nerrs_local;
     }, errs_for_this_ts);
 
@@ -227,6 +193,45 @@ static int unittest_p3(int max_threads)
   }
 
   return nerr;
+}
+
+//
+// Test lookup/apply_table
+//
+static int unittest_table3(int max_threads)
+{
+#if 0
+  using Functions = p3::micro_sed::Functions<Real, Device>;
+  using view_1d_table = typename Functions::view_1d_table;
+  using view_2d_table = typename Functions::view_2d_table;
+  using Smask = typename Functions::Smask;
+  using Spack = typename Functions::Spack;
+  using Table3 = typename Functions::Table3;
+
+  int nerr = 0;
+
+  view_1d_table mu_r_table("mu_r_table");
+  view_2d_table vn_table("vn_table"), vm_table("vm_table");
+  Functions::init_kokkos_tables(vn_table, vm_table, mu_r_table);
+
+  Table3 test_table;
+  test_table.dumii = 1;
+  test_table.rdumii = 1.;
+
+  Smask qr_gt_small(true);
+
+  Spack mu_r, lamr;
+  for (int p = 0; p < Spack::n; ++p) {
+    mu_r[p] = p;
+    lamr[p] = p+1;
+  }
+
+  Functions::lookup(qr_gt_small, test_table, mu_r, lamr);
+
+  Spack at(qr_gt_small, Functions::apply_table(qr_gt_small, vm_table, test_table));
+  
+  return nerr;
+#endif
 }
 
 static int unittest_upwind () {
@@ -355,7 +360,7 @@ static int unittest_upwind () {
           team.team_barrier();
           // Check for conservation of mass.
           if (util::reldif(mass0, mass1) > 1e1*eps) ++nerr;
-          // Check for preservation of global extrema.
+          // Check for non-violation of global extrema.
           if (r_min1 < r_min0 - 10*eps) ++nerr;
           if (r_max1 > r_max0 + 10*eps) ++nerr;
         };
@@ -758,6 +763,11 @@ int main (int argc, char** argv) {
 
   int ne, out = 0; // running error count
 
+  const auto wrap_test = [&] (const std::string& name, const Int& ne) {
+    if (ne) std::cout << name << " failed with nerr " << ne << "\n";
+    out += ne;
+  };
+
   // NOTE: Kokkos does not tolerate changing num_threads post-kokkos-initialization
   for (int nt = lower; nt <= upper; nt+=increment) { // #threads sweep
 #ifdef KOKKOS_ENABLE_OPENMP
@@ -765,27 +775,25 @@ int main (int argc, char** argv) {
 #endif
     Kokkos::initialize(argc, argv); {
       // thread-insensitive tests
-      if (nt == lower) {
-        out += UnitTest<>::unittest_pack();
-      }
+      if (nt == lower)
+        wrap_test("pack", UnitTest<>::unittest_pack());
 
       if (brief && nt == upper)
-        out += UnitTest<>::unittest_workspace();
-
+        wrap_test("workspace", UnitTest<>::unittest_workspace());
+      
       // thread-sensitive tests
       {
-        ne = UnitTest<>::unittest_upwind();
-        if (ne) std::cout << "unittest_upwind failed with nerr " << ne << "\n";
-        out += ne;
-        out += UnitTest<>::unittest_team_policy();
-        if ( ! brief) out += UnitTest<>::unittest_workspace();
-        out += UnitTest<>::unittest_p3(nt);
-        out += UnitTest<HostDevice>::unittest_team_utils();
+        wrap_test("upwind", UnitTest<>::unittest_upwind());
+        wrap_test("team_policy", UnitTest<>::unittest_team_policy());
+        if ( ! brief) wrap_test("workspace", UnitTest<>::unittest_workspace());
+        wrap_test("find_top/bottom", UnitTest<>::unittest_find_top_bottom(nt));
+        wrap_test("table3", UnitTest<>::unittest_table3(nt));
+        wrap_test("team_utils", UnitTest<HostDevice>::unittest_team_utils());
 
 #ifdef KOKKOS_ENABLE_CUDA
         // Force host testing on CUDA
-        out += UnitTest<HostDevice>::unittest_team_policy();
-        out += UnitTest<HostDevice>::unittest_workspace();
+        wrap_test("team_policy on host", UnitTest<HostDevice>::unittest_team_policy());
+        wrap_test("workspace on host", UnitTest<HostDevice>::unittest_workspace());
 #endif
       }
     } Kokkos::finalize();
