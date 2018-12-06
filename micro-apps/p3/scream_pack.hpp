@@ -35,6 +35,12 @@ struct Mask {
     return b;
   }
 
+  KOKKOS_FORCEINLINE_FUNCTION bool all () const {
+    bool b = true;
+    vector_simd for (int i = 0; i < n; ++i) if ( ! d[i]) b = false;
+    return b;
+  }
+
 private:
   type d[n];
 };

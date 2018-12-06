@@ -10,13 +10,16 @@ module vec
 #endif
 #if VEC_DP
 # define MYREAL 8
+# define CREAL c_double
 #else
 # define MYREAL 4
+# define CREAL c_float
 #endif
 
   integer, parameter :: &
        ncell = VEC_NCELL, &
-       myreal = MYREAL
+       myreal = MYREAL, &
+       c_real = CREAL
 
   real(kind=myreal), parameter :: &
        L = 2.0_myreal, &
@@ -104,9 +107,11 @@ contains
   end subroutine step1
 
   subroutine f90_step(ncol, nstep, dt, rho, work) bind(c)
-    integer, intent(in) :: ncol, nstep
-    real(kind=myreal), intent(in) :: dt
-    real(kind=myreal), intent(inout) :: rho(ncell,ncol), work(ncell,ncol)
+    use iso_c_binding
+    
+    integer(kind=c_int), intent(in) :: ncol, nstep
+    real(kind=c_real), intent(in) :: dt
+    real(kind=c_real), intent(inout) :: rho(ncell,ncol), work(ncell,ncol)
     integer :: c, i
 
     !$omp parallel do

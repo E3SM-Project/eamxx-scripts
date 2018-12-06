@@ -112,20 +112,14 @@ static Int unittest_pack () {
   return nerr;
 }
 
-static int unittest_p3(int max_threads)
+//
+// Test find_top and find_bottom
+//
+static int unittest_find_top_bottom(int max_threads)
 {
   using Functions = p3::micro_sed::Functions<Real, Device>;
-  using view_1d_table = typename Functions::view_1d_table;
-  using view_2d_table = typename Functions::view_2d_table;
-  using Smask = typename Functions::Smask;
-  using Spack = typename Functions::Spack;
-  using Table3 = typename Functions::Table3;
 
   int nerr = 0;
-
-  view_1d_table mu_r_table("mu_r_table");
-  view_2d_table vn_table("vn_table"), vm_table("vm_table");
-  Functions::init_kokkos_tables(vn_table, vm_table, mu_r_table);
 
   const int num_vert = 100;
   view_1d<Real> qr_present("qr", num_vert);
@@ -154,7 +148,7 @@ static int unittest_p3(int max_threads)
     const auto policy = util::ExeSpaceUtils<ExeSpace>::get_team_policy_force_team_size(1, team_size);
 
     int errs_for_this_ts = 0;
-    Kokkos::parallel_reduce("unittest_p3",
+    Kokkos::parallel_reduce("unittest_find_top_bottom",
                             policy,
                             KOKKOS_LAMBDA(const MemberType& team, int& total_errs) {
       int nerrs_local = 0;
@@ -188,42 +182,191 @@ static int unittest_p3(int max_threads)
       if (log_qxpresent) ++nerrs_local;
       //if (bot != 0) { std::cout << "bot(" << bot << ") != 0" << std::endl; ++nerrs_local; }
 
-      //
-      // Test lookup/apply_table
-      //
-
-      // TODO: These values need to be set to be mathematically interesting
-
-      Table3 test_table;
-      test_table.dumii = 1;
-      test_table.rdumii = 1.;
-
-      Smask qr_gt_small(true);
-
-      Spack mu_r, lamr;
-      for (int p = 0; p < Spack::n; ++p) {
-        mu_r[p] = p;
-        lamr[p] = p+1;
-      }
-
-      Functions::lookup(qr_gt_small, test_table, mu_r, lamr);
-
-      Spack at(qr_gt_small, Functions::apply_table(qr_gt_small, vm_table, test_table));
-
-#if 0
-      for (int p = 0; p < Spack::n; ++p) {
-        std::cout << p << ", " << qr_gt_small[p] << std::endl;
-        std::cout << "  " << test_table.dumjj[p] << std::endl;
-        std::cout << "  " << test_table.rdumjj[p] << std::endl;
-        std::cout << "  " << test_table.inv_dum3[p] << std::endl;
-        std::cout << "  " << at[p] << std::endl;
-      }
-#endif
-
       total_errs += nerrs_local;
     }, errs_for_this_ts);
 
     nerr += errs_for_this_ts;
+  }
+
+  return nerr;
+}
+
+//
+// Test lookup/apply_table
+//
+static int unittest_table3(int max_threads)
+{
+#if 0
+  using Functions = p3::micro_sed::Functions<Real, Device>;
+  using view_1d_table = typename Functions::view_1d_table;
+  using view_2d_table = typename Functions::view_2d_table;
+  using Smask = typename Functions::Smask;
+  using Spack = typename Functions::Spack;
+  using Table3 = typename Functions::Table3;
+
+  int nerr = 0;
+
+  view_1d_table mu_r_table("mu_r_table");
+  view_2d_table vn_table("vn_table"), vm_table("vm_table");
+  Functions::init_kokkos_tables(vn_table, vm_table, mu_r_table);
+
+  Table3 test_table;
+  test_table.dumii = 1;
+  test_table.rdumii = 1.;
+
+  Smask qr_gt_small(true);
+
+  Spack mu_r, lamr;
+  for (int p = 0; p < Spack::n; ++p) {
+    mu_r[p] = p;
+    lamr[p] = p+1;
+  }
+
+  Functions::lookup(qr_gt_small, test_table, mu_r, lamr);
+
+  Spack at(qr_gt_small, Functions::apply_table(qr_gt_small, vm_table, test_table));
+  
+  return nerr;
+#endif
+  return 0;
+}
+
+static int unittest_upwind () {
+  static const Int nfield = 2;
+  
+  using Functions = p3::micro_sed::Functions<Real, Device>;
+  using Scalar = typename Functions::Scalar;
+  using Pack = typename Functions::Pack;
+  using Spack = typename Functions::Spack;
+
+  const auto eps = std::numeric_limits<Scalar>::epsilon();
+
+  Int nerr = 0;
+  for (Int nk : {17, 32, 77, 128}) {
+    const Int npack = (nk + Pack::n - 1) / Pack::n, kmin = 0, kmax = nk - 1;
+    const Real max_speed = 4.2, min_dz = 0.33;
+    const Real dt = min_dz/max_speed;
+
+    view_1d<Pack> rho("rho", npack), inv_rho("inv_rho", npack), inv_dz("inv_dz", npack);
+    const auto lrho = smallize(rho), linv_rho = smallize(inv_rho), linv_dz = smallize(inv_dz);
+
+    Kokkos::Array<view_1d<Pack>, nfield> flux, V, r;
+    Kokkos::Array<Unmanaged<view_1d<Spack> >, nfield> lflux, lV, lr;
+    const auto init_array = [&] (const std::string& name, const Int& i, decltype(flux)& f,
+                                 decltype(lflux)& lf) {
+      f[i] = view_1d<Pack>("f", npack);
+      lf[i] = smallize(f[i]);
+    };
+    for (int i = 0; i < nfield; ++i) {
+      init_array("flux", i, flux, lflux);
+      init_array("V", i, V, lV);
+      init_array("r", i, r, lr);
+    }
+
+    for (Int kdir : {-1, 1}) {
+      const Int k_bot = kdir == 1 ? kmin : kmax;
+      const Int k_top = kdir == 1 ? kmax : kmin;
+
+      // Set rho, dz, mixing ratio r.
+      const auto init_fields = KOKKOS_LAMBDA (const MemberType& team) {
+        const auto set_fields = [&] (const Int& k) {
+          for (Int i = 0; i < nfield; ++i) {
+            const auto range = scream::pack::range<Pack>(k*Pack::n);
+            rho(k) = 1 + range/nk;
+            inv_rho(k) = 1 / rho(k);
+            inv_dz(k) = 1 / (min_dz + range*range / (nk*nk));
+            V[i](k) = 0.5*(1 + range/nk) * max_speed;
+            if (i == 1) {
+              r[i](k) = 0;
+              const auto mask = range >= 2 && range < nk-2;
+              r[i](k).set(mask, range/nk); // Nontrivial mixing ratio.
+            } else {
+              r[i](k) = 1; // Evolve the background density field.
+            }
+            micro_kassert((V[i](k) >= 0).all());
+            micro_kassert((V[i](k) <= max_speed || (range >= nk)).all());
+          }
+          micro_kassert((V[0](k) == V[1](k)).all());
+        };
+        Kokkos::parallel_for(Kokkos::TeamThreadRange(team, npack), set_fields);
+        team.team_barrier();
+      };
+      Kokkos::parallel_for(util::ExeSpaceUtils<ExeSpace>::get_default_team_policy(1, npack),
+                           init_fields);
+
+      const auto sflux = scalarize(flux[1]);
+      for (Int time_step = 0; time_step < 2*nk; ++time_step) {
+        // Take one upwind step.
+        const auto step = KOKKOS_LAMBDA (const MemberType& team, Int& nerr) {
+          // Gather diagnostics: total mass and extremal mixing ratio values.
+          const auto sr = scalarize(r[1]), srho = scalarize(rho), sinv_dz = scalarize(inv_dz);
+          const auto sr0 = scalarize(r[0]);
+
+          const auto gather_diagnostics = [&] (Scalar& mass, Scalar& r_min, Scalar& r_max) {
+            mass = 0;
+            const auto sum_mass = [&] (const Int& k, Scalar& mass) {
+              mass += srho(k)*sr(k)/sinv_dz(k);
+            };
+            Kokkos::parallel_reduce(Kokkos::TeamThreadRange(team, nk), sum_mass, mass);
+
+            const auto find_max_r = [&] (const Int& k, Scalar& r_max) {
+              // The background rho is is not advected. We advect the initially
+              // uniform mixing ratio r[0] to capture the true advected
+              // background rho_true = r[0]*rho. Then the true mixing ratio
+              // corresponding to r[1] is
+              //     r_true = (r[1]*rho)/(rho_true)
+              //            = (r[1]*rho)/(r[0]*rho) = r[1]/r[0].
+              // This mixing ratio should not violate the previous time step's
+              // global extrema.
+              const auto mixing_ratio_true = sr(k)/sr0(k);
+              r_max = util::max(mixing_ratio_true, r_max);
+            };
+            Kokkos::parallel_reduce(Kokkos::TeamThreadRange(team, nk), find_max_r,
+                                    Kokkos::Max<Scalar>(r_max));
+
+            const auto find_min_r = [&] (const Int& k, Scalar& r_min) {
+              const auto mixing_ratio_true = sr(k)/sr0(k);
+              r_min = util::min(mixing_ratio_true, r_min);
+            };
+            Kokkos::parallel_reduce(Kokkos::TeamThreadRange(team, nk), find_min_r,
+                                    Kokkos::Min<Scalar>(r_min));
+          };
+
+          Scalar mass0, r_min0, r_max0;
+          gather_diagnostics(mass0, r_min0, r_max0);
+          team.team_barrier();
+
+          // Compute.
+          Int k_bot_lcl = k_bot, k_top_lcl = k_top;
+          if (time_step == 0) {
+            // On the first step, the ICs are such that we can test restricting
+            // the interval.
+            k_bot_lcl += kdir;
+            k_top_lcl -= kdir;
+          }
+          Functions::template calc_first_order_upwind_step<nfield>(
+            lrho, linv_rho, linv_dz, team, nk, k_bot_lcl, k_top_lcl, kdir, dt,
+          {&lflux[0], &lflux[1]}, {&lV[0], &lV[1]}, {&lr[0], &lr[1]});
+          team.team_barrier();
+
+          // Check diagnostics.
+          Scalar mass1, r_min1, r_max1;
+          gather_diagnostics(mass1, r_min1, r_max1);
+          // Include mass flowing out of the boundary.
+          if (time_step > 1) mass1 += sflux(kdir == 1 ? 0 : nk-1)*dt;
+          team.team_barrier();
+          // Check for conservation of mass.
+          if (util::reldif(mass0, mass1) > 1e1*eps) ++nerr;
+          // Check for non-violation of global extrema.
+          if (r_min1 < r_min0 - 10*eps) ++nerr;
+          if (r_max1 > r_max0 + 10*eps) ++nerr;
+        };
+        Int lnerr;
+        Kokkos::parallel_reduce(util::ExeSpaceUtils<ExeSpace>::get_default_team_policy(1, npack),
+                                step, lnerr);
+        nerr += lnerr;
+      }
+    }
   }
 
   return nerr;
@@ -603,17 +746,24 @@ int main (int argc, char** argv) {
     ;
 
   int lower = 1, upper=N, increment=1; // defaults
+  bool brief = false;
   for (int i = 0; i < argc; ++i) {
 #ifdef KOKKOS_ENABLE_OPENMP
     if (util::eq(argv[i], "-l", "--lower")) { expect_another_arg(i, argc); lower     = std::atoi(argv[++i]); }
     if (util::eq(argv[i], "-u", "--upper")) { expect_another_arg(i, argc); upper     = std::atoi(argv[++i]); }
     if (util::eq(argv[i], "-i", "--inc"))   { expect_another_arg(i, argc); increment = std::atoi(argv[++i]); }
+    if (util::eq(argv[i], "-b", "--brief")) brief = true;
 #endif
   }
 
   p3::micro_sed::p3_init_cpp<Real>();
 
   int out = 0; // running error count
+
+  const auto wrap_test = [&] (const std::string& name, const Int& ne) {
+    if (ne) std::cout << name << " failed with nerr " << ne << "\n";
+    out += ne;
+  };
 
   // NOTE: Kokkos does not tolerate changing num_threads post-kokkos-initialization
   for (int nt = lower; nt <= upper; nt+=increment) { // #threads sweep
@@ -622,21 +772,25 @@ int main (int argc, char** argv) {
 #endif
     Kokkos::initialize(argc, argv); {
       // thread-insensitive tests
-      if (nt == lower) {
-        out += UnitTest<>::unittest_pack();
-      }
+      if (nt == lower)
+        wrap_test("pack", UnitTest<>::unittest_pack());
 
+      if (brief && nt == upper)
+        wrap_test("workspace", UnitTest<>::unittest_workspace());
+      
       // thread-sensitive tests
       {
-        out += UnitTest<>::unittest_team_policy();
-        out += UnitTest<>::unittest_workspace();
-        out += UnitTest<>::unittest_p3(nt);
-        out += UnitTest<HostDevice>::unittest_team_utils();
+        wrap_test("upwind", UnitTest<>::unittest_upwind());
+        wrap_test("team_policy", UnitTest<>::unittest_team_policy());
+        if ( ! brief) wrap_test("workspace", UnitTest<>::unittest_workspace());
+        wrap_test("find_top/bottom", UnitTest<>::unittest_find_top_bottom(nt));
+        wrap_test("table3", UnitTest<>::unittest_table3(nt));
+        wrap_test("team_utils", UnitTest<HostDevice>::unittest_team_utils());
 
 #ifdef KOKKOS_ENABLE_CUDA
         // Force host testing on CUDA
-        out += UnitTest<HostDevice>::unittest_team_policy();
-        out += UnitTest<HostDevice>::unittest_workspace();
+        wrap_test("team_policy on host", UnitTest<HostDevice>::unittest_team_policy());
+        wrap_test("workspace on host", UnitTest<HostDevice>::unittest_workspace());
 #endif
       }
     } Kokkos::finalize();

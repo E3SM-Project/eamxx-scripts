@@ -264,15 +264,15 @@ contains
 
     implicit none
 
-    integer, intent(in) :: ni, nk, ts, kdir, repeat
-    real, intent(in) :: dt
+    integer(kind=c_int), intent(in) :: ni, nk, ts, kdir, repeat
+    real(kind=c_real), intent(in) :: dt
 
     integer, parameter :: chunksize = CHUNKSIZE
     real, dimension(:,:), allocatable, target :: qr, nr, th, dzq, pres
     real, dimension(ni), target :: prt_liq, prt_liq_i
     real, dimension(nk), target :: qr_i, nr_i, th_i, dzq_i, pres_i
     real(8) :: start, finish
-    integer :: ti, ci, nchunk, i, r, k
+    integer :: ti, ci, i, r, k
     logical :: ok
 
     character (kind=c_char, len=*), parameter :: filename = c_char_"fortran"//char(0)

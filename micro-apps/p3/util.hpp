@@ -134,6 +134,10 @@ void dump_to_file(const char* filename,
   write(prt_liq, ni, fid);
 }
 
+template <typename T> KOKKOS_INLINE_FUNCTION T reldif (const T& a, const T& b) {
+  return std::abs((b - a)/a);
+}
+
 } // namespace util
 
 #endif
