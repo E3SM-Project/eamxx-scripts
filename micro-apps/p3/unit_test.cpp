@@ -118,10 +118,6 @@ static Int unittest_pack () {
 static int unittest_find_top_bottom(int max_threads)
 {
   using Functions = p3::micro_sed::Functions<Real, Device>;
-  using view_1d_table = typename Functions::view_1d_table;
-  using view_2d_table = typename Functions::view_2d_table;
-  using Smask = typename Functions::Smask;
-  using Spack = typename Functions::Spack;
 
   int nerr = 0;
 
@@ -232,6 +228,7 @@ static int unittest_table3(int max_threads)
   
   return nerr;
 #endif
+  return 0;
 }
 
 static int unittest_upwind () {
@@ -761,7 +758,7 @@ int main (int argc, char** argv) {
 
   p3::micro_sed::p3_init_cpp<Real>();
 
-  int ne, out = 0; // running error count
+  int out = 0; // running error count
 
   const auto wrap_test = [&] (const std::string& name, const Int& ne) {
     if (ne) std::cout << name << " failed with nerr " << ne << "\n";
