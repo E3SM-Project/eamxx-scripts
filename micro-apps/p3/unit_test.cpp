@@ -384,7 +384,7 @@ static int unittest_upwind () {
           // Check diagnostics.
           //   1. Check for conservation of mass.
           if (util::reldif(mass0, mass1) > 1e1*eps) ++nerr;
-          //   2.Check for non-violation of global extrema.
+          //   2. Check for non-violation of global extrema.
           if (r_min1 < r_min0 - 10*eps) ++nerr;
           if (r_max1 > r_max0 + 10*eps) ++nerr;
         };

@@ -101,9 +101,7 @@ public:
     inv_dzq("inv_dzq", num_horz, num_vert),
     rho("rho", num_horz, num_vert),
     inv_rho("inv_rho", num_horz, num_vert),
-    t("t", num_horz, num_vert),
-    vn_table("VN_TABLE"), vm_table("VM_TABLE"),
-    mu_r_table("MU_R_TABLE")
+    t("t", num_horz, num_vert)
   {
     Functions<Scalar, D>::init_kokkos_tables(vn_table, vm_table, mu_r_table);
   }

@@ -68,7 +68,7 @@ struct Functions
 
   // Call from host
   static void init_kokkos_tables(
-    const view_2d_table& vn_table, const view_2d_table& vm_table, const view_1d_table& mu_r_table);
+    view_2d_table& vn_table, view_2d_table& vm_table, view_1d_table& mu_r_table);
 
   KOKKOS_FUNCTION
   static void lookup(const Smask& qr_gt_small, Table3& t,

@@ -76,29 +76,40 @@ typename Functions<S,D>::Spack Functions<S,D>
 
 template <typename S, typename D>
 void Functions<S,D>
-::init_kokkos_tables(const view_2d_table& vn_table, const view_2d_table& vm_table, const view_1d_table& mu_r_table)
+::init_kokkos_tables(view_2d_table& vn_table, view_2d_table& vm_table, view_1d_table& mu_r_table)
 {
   // initialize on host
 
-  auto mirror_vn_table = Kokkos::create_mirror_view(vn_table);
-  auto mirror_vm_table = Kokkos::create_mirror_view(vm_table);
-  auto mirror_mu_table = Kokkos::create_mirror_view(mu_r_table);
+  typedef typename view_1d_table::non_const_type DeviceTable1;
+  typedef typename view_2d_table::non_const_type DeviceTable2;
+  typedef typename view_1d_table::non_const_type::HostMirror HostTable1;
+  typedef typename view_2d_table::non_const_type::HostMirror HostTable2;
+
+  const auto vn_table_d = DeviceTable2("vn_table");
+  const auto vm_table_d = DeviceTable2("vm_table");
+  const auto mu_r_table_d = DeviceTable1("mu_r_table");
+  const auto vn_table_h = HostTable2(vn_table_d);
+  const auto vm_table_h = HostTable2(vm_table_d);
+  const auto mu_table_h = HostTable1(mu_r_table_d);
 
   for (int i = 0; i < 300; ++i) {
     for (int k = 0; k < 10; ++k) {
-      mirror_vn_table(i, k) = Globals<Scalar>::VN_TABLE[i][k];
-      mirror_vm_table(i, k) = Globals<Scalar>::VM_TABLE[i][k];
+      vn_table_h(i, k) = Globals<Scalar>::VN_TABLE[i][k];
+      vm_table_h(i, k) = Globals<Scalar>::VM_TABLE[i][k];
     }
   }
 
   for (int i = 0; i < 150; ++i) {
-    mirror_mu_table(i) = Globals<Scalar>::MU_R_TABLE[i];
+    mu_table_h(i) = Globals<Scalar>::MU_R_TABLE[i];
   }
 
   // deep copy to device
-  Kokkos::deep_copy(vn_table, mirror_vn_table);
-  Kokkos::deep_copy(vm_table, mirror_vm_table);
-  Kokkos::deep_copy(mu_r_table, mirror_mu_table);
+  Kokkos::deep_copy(vn_table_d, vn_table_h);
+  Kokkos::deep_copy(vm_table_d, vm_table_h);
+  Kokkos::deep_copy(mu_r_table_d, mu_table_h);
+  vn_table = vn_table_d;
+  vm_table = vm_table_d;
+  mu_r_table = mu_r_table_d;
 }
 
 } // namespace micro_sed

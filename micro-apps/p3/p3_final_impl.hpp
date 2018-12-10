@@ -79,8 +79,6 @@ public:
   Impl(int num_horz_, int num_vert_) :
     num_horz(num_horz_), num_vert(num_vert_),
     num_pack(scream::pack::npack<Pack>(num_vert_)),
-    vn_table("VN_TABLE"), vm_table("VM_TABLE"),
-    mu_r_table("MU_R_TABLE"),
     policy(util::ExeSpaceUtils<ExeSpace>::get_default_team_policy(num_horz, num_pack)),
     workspace_mgr(num_pack, 11, policy) // rain sed's high-water is 11 spaces for any team
   {

@@ -81,10 +81,10 @@ struct KokkosTypes
   using view_1d = view<Scalar*>;
 
   template <typename Scalar, int X, int Y>
-  using view_2d_table = view<Scalar[X][Y]>;
+  using view_2d_table = view<const Scalar[X][Y]>;
 
   template <typename Scalar, int X>
-  using view_1d_table = view<Scalar[X]>;
+  using view_1d_table = view<const Scalar[X]>;
 
   // Our workspace implementation makes this a useful type
   template <typename Scalar, int N>
