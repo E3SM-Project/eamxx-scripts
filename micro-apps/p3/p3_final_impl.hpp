@@ -266,7 +266,7 @@ public:
       const auto m2 = qr_gt_small && (inv_dum >= 282.e-6) && (inv_dum < 502.e-6);
       if (m2.any()) {
         scream_masked_loop(m2, s) {
-          // interpolate
+          // Linearly interpolate mu_r.
           Scalar rdumiis = (inv_dum[s] - 250.e-6)*0.5e6;
           rdumiis = util::max<Scalar>(rdumiis, 1.0);
           rdumiis = util::min<Scalar>(rdumiis, 150.0);

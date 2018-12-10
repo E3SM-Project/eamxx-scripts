@@ -75,7 +75,9 @@ struct Functions
   static void lookup(const Smask& qr_gt_small, const Spack& mu_r, const Spack& lamr,
                      Table3& t);
 
-  // Apply Table3 data to the table to return a value.
+  // Apply Table3 data to the table to return a value. This performs bilinear
+  // interpolation within the quad given by {t.dumii, t.dumjj} x {t.dumii+1,
+  // t.dumjj+1}.
   KOKKOS_FUNCTION
   static Spack apply_table(const Smask& qr_gt_small, const view_2d_table& table,
                            const Table3& t);
