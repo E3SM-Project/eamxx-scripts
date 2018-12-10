@@ -177,10 +177,10 @@ public:
                   olnr(pk).set(qr_gt_small, max(olnr(pk), nsmall));
                   typename Fun::Table3 table;
                   Spack tmp1, tmp2;
-                  get_rain_dsd2_kokkos(msfk.mu_r_table,
-                                       qr_gt_small, olqr(pk), olnr(pk), lmu_r(pk),
-                                       table.rdumii, table.dumii, llamr(pk),
-                                       tmp1, tmp2);
+                  get_rain_dsd2(msfk.mu_r_table,
+                                qr_gt_small, olqr(pk), olnr(pk), lmu_r(pk),
+                                table.rdumii, table.dumii, llamr(pk),
+                                tmp1, tmp2);
                   Fun::lookup(qr_gt_small, lmu_r(pk), llamr(pk), table);
                   // mass-weighted fall speed:
                   lV_qr(pk).set(qr_gt_small,
@@ -233,7 +233,7 @@ public:
 
   // Computes and returns rain size distribution parameters
   KOKKOS_INLINE_FUNCTION
-  static void get_rain_dsd2_kokkos (
+  static void get_rain_dsd2 (
     const view_1d_table& mu_r_table,
     const SmallMask<Scalar>& qr_gt_small, const Spack& qr, Spack& nr, Spack& mu_r,
     Spack& rdumii, IntSmallPack& dumii, Spack& lamr,
