@@ -89,6 +89,10 @@ struct Functions
   // ratio. That is because the background density rho is assumed to be static;
   // rho does not get advected. Thus, there is an inconsistency between rho and
   // r*rho at the level of |r|.
+
+  // Evolve nfield mixing ratios simultaneously. nfield is a compile-time
+  // parameter so the loops over nfield are compiled efficiently. So far the use
+  // cases have no need of a runtime version.
   template <int nfield>
   KOKKOS_FUNCTION
   static void calc_first_order_upwind_step(
@@ -97,10 +101,24 @@ struct Functions
     const Unmanaged<view_1d<const Spack> >& inv_dzq,
     const MemberType& team,
     const Int& nk, const Int& k_bot, const Int& k_top, const Int& kdir, const Scalar& dt_sub,
-    const view_1d_ptr_array<Spack, nfield>& flux,
-    const view_1d_ptr_array<Spack, nfield>& V,
-    const view_1d_ptr_array<Spack, nfield>& r);
+    const view_1d_ptr_array<Spack, nfield>& flux, // workspace
+    const view_1d_ptr_array<Spack, nfield>& V,    // (behaviorally const)
+    const view_1d_ptr_array<Spack, nfield>& r);   // in/out
 
+  // Evolve 1 mixing ratio. This is a syntax-convenience version of the above.
+  KOKKOS_FUNCTION
+  static void calc_first_order_upwind_step(
+    const Unmanaged<view_1d<const Spack> >& rho,
+    const Unmanaged<view_1d<const Spack> >& inv_rho, // 1/rho
+    const Unmanaged<view_1d<const Spack> >& inv_dzq,
+    const MemberType& team,
+    const Int& nk, const Int& k_bot, const Int& k_top, const Int& kdir, const Scalar& dt_sub,
+    const Unmanaged<view_1d<Spack> >& flux,
+    const Unmanaged<view_1d<const Spack> >& V,
+    const Unmanaged<view_1d<Spack> >& r);
+
+  // This is the main routine. It can be called by the user if kdir is known at
+  // compile time. So far it is not, so the above versions are called instead.
   template <Int kdir, int nfield>
   KOKKOS_FUNCTION
   static void calc_first_order_upwind_step(
@@ -110,7 +128,7 @@ struct Functions
     const MemberType& team,
     const Int& nk, const Int& k_bot, const Int& k_top, const Scalar& dt_sub,
     const view_1d_ptr_array<Spack, nfield>& flux,
-    const view_1d_ptr_array<Spack, nfield>& V,
+    const view_1d_ptr_array<Spack, nfield>& V, // (behaviorally const)
     const view_1d_ptr_array<Spack, nfield>& r);
 
   // -- Find layers
