@@ -9,8 +9,8 @@ namespace micro_sed {
 template <typename S, typename D>
 KOKKOS_FUNCTION
 void Functions<S,D>
-::lookup (const Smask& qr_gt_small, Table3& t, const Spack& mu_r,
-          const Spack& lamr) {
+::lookup (const Smask& qr_gt_small, const Spack& mu_r,
+          const Spack& lamr, Table3& t) {
   // find location in scaled mean size space
   const auto dum1 = (mu_r+1.) / lamr;
   const auto dum1_lt = qr_gt_small && (dum1 <= 195.e-6);

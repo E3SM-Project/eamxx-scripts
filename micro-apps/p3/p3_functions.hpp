@@ -66,14 +66,16 @@ struct Functions
     Spack rdumii, rdumjj, inv_dum3;
   };
 
-  // Call from host
+  // Call from host to initialize the static table entries.
   static void init_kokkos_tables(
     view_2d_table& vn_table, view_2d_table& vm_table, view_1d_table& mu_r_table);
 
+  // Map (mu_r, lamr) to Table3 data.
   KOKKOS_FUNCTION
-  static void lookup(const Smask& qr_gt_small, Table3& t,
-                     const Spack& mu_r, const Spack& lamr);
+  static void lookup(const Smask& qr_gt_small, const Spack& mu_r, const Spack& lamr,
+                     Table3& t);
 
+  // Apply Table3 data to the table to return a value.
   KOKKOS_FUNCTION
   static Spack apply_table(const Smask& qr_gt_small, const view_2d_table& table,
                            const Table3& t);

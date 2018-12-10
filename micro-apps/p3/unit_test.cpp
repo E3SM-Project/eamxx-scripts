@@ -222,7 +222,7 @@ static int unittest_table3(int max_threads)
     lamr[p] = p+1;
   }
 
-  Functions::lookup(qr_gt_small, test_table, mu_r, lamr);
+  Functions::lookup(qr_gt_small, mu_r, lamr, test_table);
 
   Spack at(qr_gt_small, Functions::apply_table(qr_gt_small, vm_table, test_table));
   

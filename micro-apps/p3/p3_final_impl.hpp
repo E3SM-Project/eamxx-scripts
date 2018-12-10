@@ -181,7 +181,7 @@ public:
                                        qr_gt_small, olqr(pk), olnr(pk), lmu_r(pk),
                                        table.rdumii, table.dumii, llamr(pk),
                                        tmp1, tmp2);
-                  Fun::lookup(qr_gt_small, table, lmu_r(pk), llamr(pk));
+                  Fun::lookup(qr_gt_small, lmu_r(pk), llamr(pk), table);
                   // mass-weighted fall speed:
                   lV_qr(pk).set(qr_gt_small,
                                 Fun::apply_table(qr_gt_small, msfk.vm_table, table) * lrhofacr(pk));
