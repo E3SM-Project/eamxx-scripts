@@ -191,44 +191,57 @@ static int unittest_find_top_bottom(int max_threads)
   return nerr;
 }
 
-//
-// Test lookup/apply_table
-//
+/* Derive rough bounds on table domain:
+
+   First, mu_r is in [0,9].
+
+   Second, start with
+       dum1 = (1 + mu_r)/lamr
+   Let's get the lower limit on lamr as a function of mu first. So
+       1 = rdumii = (dum1 1e6 + 5) inv_dum3, inv_dum3 = 0.1
+         = ((mu_r+1)/lamr 1e6 + 5) 0.1
+       (1/0.1 - 5) 1e-6 lamr = 1 + mu_r
+       lamr = 0.2e6 (1 + mu_r).
+   Now the upper limit:
+       300 = (dum1 1e6 + 5) inv_dum3, inv_dum3 = 1/30
+           = ((mu_r+1)/lamr 1e6 - 195) 1/30 + 20
+       => lamr = 1e6 (1 + mu_r) / (30 (300 - 20) + 195)
+               ~ 116.3 (1 + mu_r)
+ */
 static int unittest_table3(int max_threads)
 {
-#if 0
   using Functions = p3::micro_sed::Functions<Real, Device>;
   using view_1d_table = typename Functions::view_1d_table;
   using view_2d_table = typename Functions::view_2d_table;
+  using Scalar = typename Functions::Scalar;
   using Smask = typename Functions::Smask;
   using Spack = typename Functions::Spack;
   using Table3 = typename Functions::Table3;
 
   int nerr = 0;
 
-  view_1d_table mu_r_table("mu_r_table");
-  view_2d_table vn_table("vn_table"), vm_table("vm_table");
+  view_1d_table mu_r_table;
+  view_2d_table vn_table, vm_table;
   Functions::init_kokkos_tables(vn_table, vm_table, mu_r_table);
 
-  Table3 test_table;
-  test_table.dumii = 1;
-  test_table.rdumii = 1.;
-
-  Smask qr_gt_small(true);
-
-  Spack mu_r, lamr;
-  for (int p = 0; p < Spack::n; ++p) {
-    mu_r[p] = p;
-    lamr[p] = p+1;
+  const auto fid = fopen("table3dat.hy", "w");
+  fprintf(fid, "(setv v [\n");
+  const Int nmu_r = 1, nlamr = 1000;
+  for (Int imu_r = 0; imu_r < nmu_r; ++imu_r) {
+    const Scalar mu_r = 7.5;
+    for (Int ilamr = 0; ilamr < nlamr; ++ilamr) {
+      const Scalar lamr = (0.1 + (double(ilamr)/nlamr)*(0.25e6 - 116.3)) * (1 + mu_r);
+      Smask qr_gt_small(true);
+      Spack mu_r_p(mu_r), lamr_p(lamr);
+      Table3 t3;
+      Functions::lookup(qr_gt_small, mu_r_p, lamr_p, t3);
+      Spack val(qr_gt_small, Functions::apply_table(qr_gt_small, vm_table, t3));
+      fprintf(fid, "%1.15e\n", val[0]);
+    }
   }
-
-  Functions::lookup(qr_gt_small, mu_r, lamr, test_table);
-
-  Spack at(qr_gt_small, Functions::apply_table(qr_gt_small, vm_table, test_table));
+  fprintf(fid, "])");
   
   return nerr;
-#endif
-  return 0;
 }
 
 // r[1] is a mixing ratio field. The test advects r[1] some number of time
@@ -800,8 +813,10 @@ int main (int argc, char** argv) {
 #endif
     Kokkos::initialize(argc, argv); {
       // thread-insensitive tests
-      if (nt == lower)
+      if (nt == lower) {
         wrap_test("pack", UnitTest<>::unittest_pack());
+        wrap_test("table3", UnitTest<>::unittest_table3(nt));
+      }
 
       if (brief && nt == upper)
         wrap_test("workspace", UnitTest<>::unittest_workspace());
@@ -812,7 +827,6 @@ int main (int argc, char** argv) {
         wrap_test("team_policy", UnitTest<>::unittest_team_policy());
         if ( ! brief) wrap_test("workspace", UnitTest<>::unittest_workspace());
         wrap_test("find_top/bottom", UnitTest<>::unittest_find_top_bottom(nt));
-        wrap_test("table3", UnitTest<>::unittest_table3(nt));
         wrap_test("team_utils", UnitTest<HostDevice>::unittest_team_utils());
 
 #ifdef KOKKOS_ENABLE_CUDA

@@ -64,12 +64,13 @@ KOKKOS_FUNCTION
 typename Functions<S,D>::Spack Functions<S,D>
 ::apply_table (const Smask& qr_gt_small, const view_2d_table& table,
                const Table3& t) {
+  const auto fac = t.inv_dum3;
   const auto rdumii_m_dumii = t.rdumii - Spack(t.dumii);
   const auto t_im1_jm1 = index(table, t.dumii-1, t.dumjj-1);
-  const auto dum1 = (t_im1_jm1 + rdumii_m_dumii * t.inv_dum3 *
+  const auto dum1 = (t_im1_jm1 + rdumii_m_dumii * fac *
                      (index(table, t.dumii, t.dumjj-1) - t_im1_jm1));
   const auto t_im1_j = index(table, t.dumii-1, t.dumjj);
-  const auto dum2 = (t_im1_j + rdumii_m_dumii * t.inv_dum3 *
+  const auto dum2 = (t_im1_j + rdumii_m_dumii * fac *
                      (index(table, t.dumii, t.dumjj) - t_im1_j));
   return dum1 + (t.rdumjj - Spack(t.dumjj)) * (dum2 - dum1);
 }
