@@ -16,8 +16,11 @@ namespace micro_sed {
     const view_1d_ptr_array<Spack, nfield>& flux,                       \
     const view_1d_ptr_array<Spack, nfield>& V,                          \
     const view_1d_ptr_array<Spack, nfield>& r);
+ETI_UPWIND(1)
 ETI_UPWIND(2)
 #undef ETI_UPWIND
+
+template struct Functions<Real,DefaultDevice>;
 
 } // namespace micro_sed
 } // namespace p3

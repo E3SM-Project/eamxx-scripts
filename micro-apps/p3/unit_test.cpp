@@ -222,7 +222,7 @@ static int unittest_table3(int max_threads)
     lamr[p] = p+1;
   }
 
-  Functions::lookup(qr_gt_small, test_table, mu_r, lamr);
+  Functions::lookup(qr_gt_small, mu_r, lamr, test_table);
 
   Spack at(qr_gt_small, Functions::apply_table(qr_gt_small, vm_table, test_table));
   
@@ -231,6 +231,18 @@ static int unittest_table3(int max_threads)
   return 0;
 }
 
+// r[1] is a mixing ratio field. The test advects r[1] some number of time
+// steps. The test checks global mass conservation and extrema non-violation at
+// each step. B/c of the consistency issue noted in the
+// calc_first_order_upwind_step doc, r[0] = 1 initially so that r[0]*rho is the
+// true, i.e. correctly advected, total density. Note that r[0] will not remain
+// uniformly 1. Extrema of r[1]/r[0], the true mixing ratio, at time step n+1
+// must be within the min and max of r[1]/r[0] at time step n. Mass conservation
+// includes the material fluxed out of the domain. r[1] must be initialized with
+// an initial condition. The details of the IC are not important except that the
+// profile should be nontrivial. Also, it is initialized so the first and last
+// cells in the domain are 0. This lets us check the restricted-domain usage of
+// the upwind routine in the first time step.
 static int unittest_upwind () {
   static const Int nfield = 2;
   
@@ -298,10 +310,10 @@ static int unittest_upwind () {
       for (Int time_step = 0; time_step < 2*nk; ++time_step) {
         // Take one upwind step.
         const auto step = KOKKOS_LAMBDA (const MemberType& team, Int& nerr) {
-          // Gather diagnostics: total mass and extremal mixing ratio values.
           const auto sr = scalarize(r[1]), srho = scalarize(rho), sinv_dz = scalarize(inv_dz);
           const auto sr0 = scalarize(r[0]);
 
+          // Gather diagnostics: total mass and extremal mixing ratio values.
           const auto gather_diagnostics = [&] (Scalar& mass, Scalar& r_min, Scalar& r_max) {
             mass = 0;
             const auto sum_mass = [&] (const Int& k, Scalar& mass) {
@@ -310,14 +322,14 @@ static int unittest_upwind () {
             Kokkos::parallel_reduce(Kokkos::TeamThreadRange(team, nk), sum_mass, mass);
 
             const auto find_max_r = [&] (const Int& k, Scalar& r_max) {
-              // The background rho is is not advected. We advect the initially
-              // uniform mixing ratio r[0] to capture the true advected
-              // background rho_true = r[0]*rho. Then the true mixing ratio
-              // corresponding to r[1] is
+              // The background rho is is not advected in P3. Thus, here we
+              // advect the initially uniform mixing ratio r[0] to capture the
+              // true advected background rho_true = r[0]*rho. Then the true
+              // mixing ratio corresponding to r[1] is
               //     r_true = (r[1]*rho)/(rho_true)
               //            = (r[1]*rho)/(r[0]*rho) = r[1]/r[0].
-              // This mixing ratio should not violate the previous time step's
-              // global extrema.
+              // This mixing ratio is tested to show that it does not violate
+              // the previous time step's global extrema.
               const auto mixing_ratio_true = sr(k)/sr0(k);
               r_max = util::max(mixing_ratio_true, r_max);
             };
@@ -332,6 +344,7 @@ static int unittest_upwind () {
                                     Kokkos::Min<Scalar>(r_min));
           };
 
+          // Gather diagnostics before the step.
           Scalar mass0, r_min0, r_max0;
           gather_diagnostics(mass0, r_min0, r_max0);
           team.team_barrier();
@@ -339,25 +352,39 @@ static int unittest_upwind () {
           // Compute.
           Int k_bot_lcl = k_bot, k_top_lcl = k_top;
           if (time_step == 0) {
-            // On the first step, the ICs are such that we can test restricting
-            // the interval.
+            // In the first step, the IC for r[1] is such that we can test
+            // restricting the interval. But the IC for r[0] does not permit
+            // it. Thus, make two calls to the upwind routine:
+            //   1. Full domain for r[0].
+            Functions::calc_first_order_upwind_step(
+              lrho, linv_rho, linv_dz, team, nk, k_bot, k_top, kdir, dt,
+              lflux[0], lV[0], lr[0]);
             k_bot_lcl += kdir;
             k_top_lcl -= kdir;
+            //   2. Restricted domain for r[1] in first time step only. Note
+            // that the restriction is unnecesary but just here to test the
+            // restriction code.
+            Functions::calc_first_order_upwind_step(
+              lrho, linv_rho, linv_dz, team, nk, k_bot_lcl, k_top_lcl, kdir, dt,
+              lflux[1], lV[1], lr[1]);
+          } else {
+            Functions::template calc_first_order_upwind_step<nfield>(
+              lrho, linv_rho, linv_dz, team, nk, k_bot_lcl, k_top_lcl, kdir, dt,
+              {&lflux[0], &lflux[1]}, {&lV[0], &lV[1]}, {&lr[0], &lr[1]});
           }
-          Functions::template calc_first_order_upwind_step<nfield>(
-            lrho, linv_rho, linv_dz, team, nk, k_bot_lcl, k_top_lcl, kdir, dt,
-          {&lflux[0], &lflux[1]}, {&lV[0], &lV[1]}, {&lr[0], &lr[1]});
           team.team_barrier();
 
-          // Check diagnostics.
+          // Gather diagnostics after the step.
           Scalar mass1, r_min1, r_max1;
           gather_diagnostics(mass1, r_min1, r_max1);
           // Include mass flowing out of the boundary.
           if (time_step > 1) mass1 += sflux(kdir == 1 ? 0 : nk-1)*dt;
           team.team_barrier();
-          // Check for conservation of mass.
+
+          // Check diagnostics.
+          //   1. Check for conservation of mass.
           if (util::reldif(mass0, mass1) > 1e1*eps) ++nerr;
-          // Check for non-violation of global extrema.
+          //   2. Check for non-violation of global extrema.
           if (r_min1 < r_min0 - 10*eps) ++nerr;
           if (r_max1 > r_max0 + 10*eps) ++nerr;
         };
@@ -365,6 +392,7 @@ static int unittest_upwind () {
         Kokkos::parallel_reduce(util::ExeSpaceUtils<ExeSpace>::get_default_team_policy(1, npack),
                                 step, lnerr);
         nerr += lnerr;
+        Kokkos::fence();
       }
     }
   }

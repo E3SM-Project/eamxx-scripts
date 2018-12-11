@@ -9,8 +9,8 @@ namespace micro_sed {
 template <typename S, typename D>
 KOKKOS_FUNCTION
 void Functions<S,D>
-::lookup (const Smask& qr_gt_small, Table3& t, const Spack& mu_r,
-          const Spack& lamr) {
+::lookup (const Smask& qr_gt_small, const Spack& mu_r,
+          const Spack& lamr, Table3& t) {
   // find location in scaled mean size space
   const auto dum1 = (mu_r+1.) / lamr;
   const auto dum1_lt = qr_gt_small && (dum1 <= 195.e-6);
@@ -76,29 +76,38 @@ typename Functions<S,D>::Spack Functions<S,D>
 
 template <typename S, typename D>
 void Functions<S,D>
-::init_kokkos_tables(const view_2d_table& vn_table, const view_2d_table& vm_table, const view_1d_table& mu_r_table)
+::init_kokkos_tables(view_2d_table& vn_table, view_2d_table& vm_table, view_1d_table& mu_r_table)
 {
   // initialize on host
 
-  auto mirror_vn_table = Kokkos::create_mirror_view(vn_table);
-  auto mirror_vm_table = Kokkos::create_mirror_view(vm_table);
-  auto mirror_mu_table = Kokkos::create_mirror_view(mu_r_table);
+  using DeviceTable1 = typename view_1d_table::non_const_type;
+  using DeviceTable2 = typename view_2d_table::non_const_type;
+
+  const auto vn_table_d = DeviceTable2("vn_table");
+  const auto vm_table_d = DeviceTable2("vm_table");
+  const auto mu_r_table_d = DeviceTable1("mu_r_table");
+  const auto vn_table_h = Kokkos::create_mirror_view(vn_table_d);
+  const auto vm_table_h = Kokkos::create_mirror_view(vm_table_d);
+  const auto mu_table_h = Kokkos::create_mirror_view(mu_r_table_d);
 
   for (int i = 0; i < 300; ++i) {
     for (int k = 0; k < 10; ++k) {
-      mirror_vn_table(i, k) = Globals<Scalar>::VN_TABLE[i][k];
-      mirror_vm_table(i, k) = Globals<Scalar>::VM_TABLE[i][k];
+      vn_table_h(i, k) = Globals<Scalar>::VN_TABLE[i][k];
+      vm_table_h(i, k) = Globals<Scalar>::VM_TABLE[i][k];
     }
   }
 
   for (int i = 0; i < 150; ++i) {
-    mirror_mu_table(i) = Globals<Scalar>::MU_R_TABLE[i];
+    mu_table_h(i) = Globals<Scalar>::MU_R_TABLE[i];
   }
 
   // deep copy to device
-  Kokkos::deep_copy(vn_table, mirror_vn_table);
-  Kokkos::deep_copy(vm_table, mirror_vm_table);
-  Kokkos::deep_copy(mu_r_table, mirror_mu_table);
+  Kokkos::deep_copy(vn_table_d, vn_table_h);
+  Kokkos::deep_copy(vm_table_d, vm_table_h);
+  Kokkos::deep_copy(mu_r_table_d, mu_table_h);
+  vn_table = vn_table_d;
+  vm_table = vm_table_d;
+  mu_r_table = mu_r_table_d;
 }
 
 } // namespace micro_sed

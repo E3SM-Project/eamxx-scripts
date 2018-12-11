@@ -79,8 +79,6 @@ public:
   Impl(int num_horz_, int num_vert_) :
     num_horz(num_horz_), num_vert(num_vert_),
     num_pack(scream::pack::npack<Pack>(num_vert_)),
-    vn_table("VN_TABLE"), vm_table("VM_TABLE"),
-    mu_r_table("MU_R_TABLE"),
     policy(util::ExeSpaceUtils<ExeSpace>::get_default_team_policy(num_horz, num_pack)),
     workspace_mgr(num_pack, 11, policy) // rain sed's high-water is 11 spaces for any team
   {
@@ -179,11 +177,11 @@ public:
                   olnr(pk).set(qr_gt_small, max(olnr(pk), nsmall));
                   typename Fun::Table3 table;
                   Spack tmp1, tmp2;
-                  get_rain_dsd2_kokkos(msfk.mu_r_table,
-                                       qr_gt_small, olqr(pk), olnr(pk), lmu_r(pk),
-                                       table.rdumii, table.dumii, llamr(pk),
-                                       tmp1, tmp2);
-                  Fun::lookup(qr_gt_small, table, lmu_r(pk), llamr(pk));
+                  get_rain_dsd2(msfk.mu_r_table,
+                                qr_gt_small, olqr(pk), olnr(pk), lmu_r(pk),
+                                table.rdumii, table.dumii, llamr(pk),
+                                tmp1, tmp2);
+                  Fun::lookup(qr_gt_small, lmu_r(pk), llamr(pk), table);
                   // mass-weighted fall speed:
                   lV_qr(pk).set(qr_gt_small,
                                 Fun::apply_table(qr_gt_small, msfk.vm_table, table) * lrhofacr(pk));
@@ -235,7 +233,7 @@ public:
 
   // Computes and returns rain size distribution parameters
   KOKKOS_INLINE_FUNCTION
-  static void get_rain_dsd2_kokkos (
+  static void get_rain_dsd2 (
     const view_1d_table& mu_r_table,
     const SmallMask<Scalar>& qr_gt_small, const Spack& qr, Spack& nr, Spack& mu_r,
     Spack& rdumii, IntSmallPack& dumii, Spack& lamr,
@@ -268,7 +266,7 @@ public:
       const auto m2 = qr_gt_small && (inv_dum >= 282.e-6) && (inv_dum < 502.e-6);
       if (m2.any()) {
         scream_masked_loop(m2, s) {
-          // interpolate
+          // Linearly interpolate mu_r.
           Scalar rdumiis = (inv_dum[s] - 250.e-6)*0.5e6;
           rdumiis = util::max<Scalar>(rdumiis, 1.0);
           rdumiis = util::min<Scalar>(rdumiis, 150.0);

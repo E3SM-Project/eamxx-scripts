@@ -98,6 +98,37 @@ void Functions<S,D>
       rho, inv_rho, inv_dzq, team, nk, k_bot, k_top, dt_sub, flux, V, r);
 }
 
+template <typename S, typename D>
+KOKKOS_FUNCTION
+void Functions<S,D>
+::calc_first_order_upwind_step (
+  const Unmanaged<view_1d<const Spack> >& rho,
+  const Unmanaged<view_1d<const Spack> >& inv_rho,
+  const Unmanaged<view_1d<const Spack> >& inv_dzq,
+  const MemberType& team,
+  const Int& nk, const Int& k_bot, const Int& k_top, const Int& kdir, const Scalar& dt_sub,
+  const Unmanaged<view_1d<Spack> >& flux,
+  const Unmanaged<view_1d<const Spack> >& V,
+  const Unmanaged<view_1d<Spack> >& r)
+{
+  // B/c automatic casting to const does not work in the nested data
+  // view_1d_ptr_array (C++ does not provide all legal const casts automatically
+  // in nested data structures), we are not enforcing const in the array
+  // versions of this function, as doing so would be a burden to the caller. But
+  // in this version, we can. Thus, to call through to the impl, we explicitly
+  // cast here.
+  const auto V_nonconst = Unmanaged<view_1d<Spack> >(const_cast<Spack*>(V.data()),
+                                                     V.extent_int(0));
+  if (kdir == 1)
+    calc_first_order_upwind_step< 1, 1>(
+      rho, inv_rho, inv_dzq, team, nk, k_bot, k_top, dt_sub,
+      {&flux}, {&V_nonconst}, {&r});
+  else
+    calc_first_order_upwind_step<-1, 1>(
+      rho, inv_rho, inv_dzq, team, nk, k_bot, k_top, dt_sub,
+      {&flux}, {&V_nonconst}, {&r});
+}
+
 } // namespace micro_sed
 } // namespace p3
 
