@@ -82,15 +82,13 @@ void Functions<S,D>
 
   typedef typename view_1d_table::non_const_type DeviceTable1;
   typedef typename view_2d_table::non_const_type DeviceTable2;
-  typedef typename view_1d_table::non_const_type::HostMirror HostTable1;
-  typedef typename view_2d_table::non_const_type::HostMirror HostTable2;
 
   const auto vn_table_d = DeviceTable2("vn_table");
   const auto vm_table_d = DeviceTable2("vm_table");
   const auto mu_r_table_d = DeviceTable1("mu_r_table");
-  const auto vn_table_h = HostTable2(vn_table_d);
-  const auto vm_table_h = HostTable2(vm_table_d);
-  const auto mu_table_h = HostTable1(mu_r_table_d);
+  const auto vn_table_h = Kokkos::create_mirror_view(vn_table_d);
+  const auto vm_table_h = Kokkos::create_mirror_view(vm_table_d);
+  const auto mu_table_h = Kokkos::create_mirror_view(mu_r_table_d);
 
   for (int i = 0; i < 300; ++i) {
     for (int k = 0; k < 10; ++k) {

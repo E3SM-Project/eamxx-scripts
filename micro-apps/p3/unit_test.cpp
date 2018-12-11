@@ -356,7 +356,7 @@ static int unittest_upwind () {
             // restricting the interval. But the IC for r[0] does not permit
             // it. Thus, make two calls to the upwind routine:
             //   1. Full domain for r[0].
-            Functions::template calc_first_order_upwind_step(
+            Functions::calc_first_order_upwind_step(
               lrho, linv_rho, linv_dz, team, nk, k_bot, k_top, kdir, dt,
               lflux[0], lV[0], lr[0]);
             k_bot_lcl += kdir;
@@ -364,7 +364,7 @@ static int unittest_upwind () {
             //   2. Restricted domain for r[1] in first time step only. Note
             // that the restriction is unnecesary but just here to test the
             // restriction code.
-            Functions::template calc_first_order_upwind_step(
+            Functions::calc_first_order_upwind_step(
               lrho, linv_rho, linv_dz, team, nk, k_bot_lcl, k_top_lcl, kdir, dt,
               lflux[1], lV[1], lr[1]);
           } else {
