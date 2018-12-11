@@ -80,8 +80,8 @@ void Functions<S,D>
 {
   // initialize on host
 
-  typedef typename view_1d_table::non_const_type DeviceTable1;
-  typedef typename view_2d_table::non_const_type DeviceTable2;
+  using DeviceTable1 = typename view_1d_table::non_const_type;
+  using DeviceTable2 = typename view_2d_table::non_const_type;
 
   const auto vn_table_d = DeviceTable2("vn_table");
   const auto vm_table_d = DeviceTable2("vm_table");
