@@ -9,9 +9,6 @@
 #include <array>
 #include <algorithm>
 
-#define AMB_NO_MPI
-#include "/home/ambrad/repo/sik/hommexx/dbg.hpp"
-
 namespace unit_test {
 
 struct UnitWrap {
@@ -864,6 +861,8 @@ int main (int argc, char** argv) {
     if (util::eq(argv[i], "-b", "--brief")) brief = true;
 #endif
   }
+  // Don't exceed what the environement variable permits:
+  upper = std::min(upper, N);
 
   p3::micro_sed::p3_init_cpp<Real>();
 
