@@ -227,6 +227,10 @@ static int unittest_table3 (int max_threads) {
 
   Int nerr = 0;
 
+  // This test doesn't use mu_r_table, as that is not a table3 type. It doesn't
+  // matter whether we use vm_table or vn_table, as the table values don't
+  // matter in what we are testing; we are testing interpolation procedures that
+  // are indepennt of particular table values.
   view_1d_table mu_r_table;
   view_2d_table vn_table, vm_table;
   Functions::init_kokkos_tables(vn_table, vm_table, mu_r_table);
@@ -255,6 +259,11 @@ static int unittest_table3 (int max_threads) {
   Real slopes[2];
   const Int nslopes = sizeof(slopes)/sizeof(*slopes);
   Int N = 1000;
+
+  // Study the mu_r direction.
+  
+
+  // Study the (1 + mu_r)/lamr direction.
   // For a sequence of refined meshes:
   for (Int refine = 0; refine < nslopes; ++refine) {
     // Number of cells in the mesh.
