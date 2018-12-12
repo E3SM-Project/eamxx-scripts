@@ -240,6 +240,10 @@ static int unittest_table3 (int max_threads) {
     return (lamr_lo + alpha*(lamr_hi - lamr_lo))*(1 + mu_r);
   };
 
+  const auto calc_mu_r = [&] (const Scalar& alpha) {
+    return alpha*10;
+  };
+
   // Perform the table lookup and interpolation operations for (mu_r, lamr).
   const auto interp = [&] (const Scalar& mu_r, const Scalar& lamr) {
     // Init the pack to all the same value, and compute in every pack slot.
@@ -255,13 +259,11 @@ static int unittest_table3 (int max_threads) {
   // refined w.r.t. the first.
   Real slopes[2];
   const Int nslopes = sizeof(slopes)/sizeof(*slopes);
-  Int N = 1000;
+  Int N;
 
   // Study the mu_r direction.
-  
-
-  // Study the (1 + mu_r)/lamr direction.
   // For a sequence of refined meshes:
+  N = 1000;
   for (Int refine = 0; refine < nslopes; ++refine) {
     // Number of cells in the mesh.
     N *= 10;
@@ -269,20 +271,18 @@ static int unittest_table3 (int max_threads) {
     const Scalar delta = 1.0/N;
 
     // Interpolate at a specific (mu_r, lamr).
-    const Scalar mu_r = 3.5;
+    const Scalar lamr = calc_lamr(4.5, 0.5);
     const auto eval = KOKKOS_LAMBDA (const Int& i) {
       const auto alpha = double(i)/N;
-      const auto lamr = calc_lamr(mu_r, alpha);
+      const auto mu_r = calc_mu_r(alpha);
       const auto val = interp(mu_r, lamr);
       return std::log(val[0]);
     };
 
-    // Compute the slope magnitude at a specific (mu_r, lamr) in the (1 +
-    // mu_r)/lamr direction.
+    // Compute the slope magnitude at a specific (mu_r, lamr) in the mu_r
+    // direction.
     const auto get_max_slope = KOKKOS_LAMBDA (const Int& i, Scalar& slope) {
-      const auto y = eval(i);
-      const auto yp1 = eval(i+1);
-      slope = util::max(slope, std::abs((yp1 - y)/delta));
+      slope = util::max(slope, std::abs((eval(i+1) - eval(i))/delta));
     };
 
     Scalar max_slope;
@@ -298,13 +298,45 @@ static int unittest_table3 (int max_threads) {
   // a discontinuity, which is a bug.
   //   In detail, for a 10x mesh refinement, a good slope growth rate is right
   // around 1, and a bad one is is roughly 10. We set the threshold at 1.1.
-  const auto growth = slopes[1]/slopes[0];
-  if (growth > 1.1) {
-    std::cout << "Table3 FAIL: Slopes are " << slopes[0] << " and " << slopes[1]
-              << ", which grows by factor " << growth
-              << ". Near 1 is good; near 10 is bad.\n";
-    ++nerr;
+  const auto check_growth = [&] (const std::string& label, const Scalar& growth) {
+    if (growth > 1.1) {
+      std::cout << "Table3 FAIL: Slopes in the " << label << " direction are "
+      << slopes[0] << " and " << slopes[1]
+      << ", which grows by factor " << growth
+      << ". Near 1 is good; near 10 is bad.\n";
+      ++nerr;
+    }
+  };
+  check_growth("mu_r", slopes[1]/slopes[0]);
+
+  // Study the lamr direction.
+  N = 1000;
+  for (Int refine = 0; refine < nslopes; ++refine) {
+    N *= 10;
+    const Scalar delta = 1.0/N;
+
+    // Interpolate at a specific (mu_r, lamr).
+    const Scalar mu_r = 3.5;
+    const auto eval = KOKKOS_LAMBDA (const Int& i) {
+      const auto alpha = double(i)/N;
+      const auto lamr = calc_lamr(mu_r, alpha);
+      const auto val = interp(mu_r, lamr);
+      return std::log(val[0]);
+    };
+
+    // Compute the slope magnitude at a specific (mu_r, lamr) in the lamr
+    // direction.
+    const auto get_max_slope = KOKKOS_LAMBDA (const Int& i, Scalar& slope) {
+      slope = util::max(slope, std::abs((eval(i+1) - eval(i))/delta));
+    };
+
+    Scalar max_slope;
+    Kokkos::parallel_reduce(RangePolicy(0, N), get_max_slope,
+                            Kokkos::Max<Scalar>(max_slope));
+    Kokkos::fence();
+    slopes[refine] = max_slope;
   }
+  check_growth("lamr", slopes[1]/slopes[0]);
   
   return nerr;
 }
@@ -882,11 +914,12 @@ int main (int argc, char** argv) {
       // thread-insensitive tests
       if (nt == lower) {
         wrap_test("pack", UnitTest<>::unittest_pack());
-        wrap_test("table3", UnitTest<>::unittest_table3(nt));
       }
 
-      if (brief && nt == upper)
+      if (brief && nt == upper) {
         wrap_test("workspace", UnitTest<>::unittest_workspace());
+        wrap_test("table3", UnitTest<>::unittest_table3(nt));
+      }
       
       // thread-sensitive tests
       {
