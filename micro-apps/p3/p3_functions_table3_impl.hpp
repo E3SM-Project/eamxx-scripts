@@ -24,7 +24,6 @@ void Functions<S,D>
       Int dumii = rdumii;
       dumii = util::max(dumii,  1);
       dumii = util::min(dumii, 20);
-      t.inv_dum3[s] = inv_dum3;
       t.rdumii[s] = rdumii;
       t.dumii[s] = dumii;
     }
@@ -39,7 +38,6 @@ void Functions<S,D>
       Int dumii = rdumii;
       dumii = util::max(dumii, 20);
       dumii = util::min(dumii,299);
-      t.inv_dum3[s] = inv_dum3;
       t.rdumii[s] = rdumii;
       t.dumii[s] = dumii;
     }

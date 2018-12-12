@@ -63,7 +63,7 @@ struct Functions
 
   struct Table3 {
     IntSmallPack dumii, dumjj;
-    Spack rdumii, rdumjj, inv_dum3;
+    Spack rdumii, rdumjj;
   };
 
   // Call from host to initialize the static table entries.
