@@ -308,17 +308,17 @@ public:
                 find_lookupTable_indices_3_kokkos(dumii, dumjj, rdumii, rdumjj, inv_dum3, msvk.mu_r(i, k), msvk.lamr(i, k));
 
                 // mass-weighted fall speed:
-                Scalar dum1 = msvk.vm_table(dumii-1, dumjj-1) + (rdumii-dumii) * inv_dum3 *
+                Scalar dum1 = msvk.vm_table(dumii-1, dumjj-1) + (rdumii-dumii) *
                   (msvk.vm_table(dumii, dumjj-1) - msvk.vm_table(dumii-1, dumjj-1));
-                Scalar dum2 = msvk.vm_table(dumii-1, dumjj) + (rdumii-dumii) * inv_dum3 *
+                Scalar dum2 = msvk.vm_table(dumii-1, dumjj) + (rdumii-dumii) *
                   (msvk.vm_table(dumii, dumjj) - msvk.vm_table(dumii-1, dumjj));
 
                 msvk.V_qr(i, k) = (dum1 + (rdumjj - dumjj) * (dum2 - dum1)) * msvk.rhofacr(i, k);
 
                 // number-weighted fall speed:
-                dum1 = msvk.vn_table(dumii-1, dumjj-1) + (rdumii-dumii) * inv_dum3 *
+                dum1 = msvk.vn_table(dumii-1, dumjj-1) + (rdumii-dumii) *
                   (msvk.vn_table(dumii, dumjj-1) - msvk.vn_table(dumii-1, dumjj-1));
-                dum2 = msvk.vn_table(dumii-1, dumjj) + (rdumii-dumii) * inv_dum3 *
+                dum2 = msvk.vn_table(dumii-1, dumjj) + (rdumii-dumii) *
                   (msvk.vn_table(dumii, dumjj) - msvk.vn_table(dumii-1, dumjj));
 
                 msvk.V_nr(i, k) = (dum1 + (rdumjj - dumjj) * (dum2 - dum1)) * msvk.rhofacr(i, k);
