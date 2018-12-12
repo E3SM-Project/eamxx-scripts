@@ -278,7 +278,7 @@ struct TestTable3 {
       const Scalar lamr = calc_lamr(4.5, 0.5);
       const auto get_max_slope = KOKKOS_LAMBDA (const Int& i, Scalar& slope) {
         // Interpolate at a specific (mu_r, lamr).
-        const auto eval = KOKKOS_LAMBDA (const Int& i) {
+        const auto eval = [&] (const Int& i) {
           const auto alpha = double(i)/N;
           const auto mu_r = calc_mu_r(alpha);
           const auto val = interp(vm_table, mu_r, lamr);
@@ -322,7 +322,7 @@ struct TestTable3 {
       const Scalar mu_r = 3.5;
       const auto get_max_slope = KOKKOS_LAMBDA (const Int& i, Scalar& slope) {
         // Interpolate at a specific (mu_r, lamr).
-        const auto eval = KOKKOS_LAMBDA (const Int& i) {
+        const auto eval = [&] (const Int& i) {
           const auto alpha = double(i)/N;
           const auto lamr = calc_lamr(mu_r, alpha);
           const auto val = interp(vm_table, mu_r, lamr);
