@@ -511,7 +511,7 @@ int main (int argc, char** argv) {
   using Device = DefaultDevice; // change device here
 
   bool generate = false, verbose=false;
-  Real tol = util::OnGpu<typename KokkosTypes<Device>::ExeSpace>::value ? 1e-13 : 0.0;
+  Real tol = util::OnGpu<typename KokkosTypes<Device>::ExeSpace>::value ? 5e-13 : 0.0;
 
   for (Int i = 1; i < argc-1; ++i) {
     if (util::eq(argv[i], "-g", "--generate")) generate = true;

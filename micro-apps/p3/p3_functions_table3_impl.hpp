@@ -24,7 +24,6 @@ void Functions<S,D>
       Int dumii = rdumii;
       dumii = util::max(dumii,  1);
       dumii = util::min(dumii, 20);
-      t.inv_dum3[s] = inv_dum3;
       t.rdumii[s] = rdumii;
       t.dumii[s] = dumii;
     }
@@ -39,7 +38,6 @@ void Functions<S,D>
       Int dumii = rdumii;
       dumii = util::max(dumii, 20);
       dumii = util::min(dumii,299);
-      t.inv_dum3[s] = inv_dum3;
       t.rdumii[s] = rdumii;
       t.dumii[s] = dumii;
     }
@@ -66,18 +64,20 @@ typename Functions<S,D>::Spack Functions<S,D>
                const Table3& t) {
   const auto rdumii_m_dumii = t.rdumii - Spack(t.dumii);
   const auto t_im1_jm1 = index(table, t.dumii-1, t.dumjj-1);
-  const auto dum1 = (t_im1_jm1 + rdumii_m_dumii * t.inv_dum3 *
+  // Linear interpolant.
+  const auto dum1 = (t_im1_jm1 + rdumii_m_dumii *
                      (index(table, t.dumii, t.dumjj-1) - t_im1_jm1));
   const auto t_im1_j = index(table, t.dumii-1, t.dumjj);
-  const auto dum2 = (t_im1_j + rdumii_m_dumii * t.inv_dum3 *
+  // Linear interpolant.
+  const auto dum2 = (t_im1_j + rdumii_m_dumii *
                      (index(table, t.dumii, t.dumjj) - t_im1_j));
+  // Linear interpolation in other direction to complete bilinear interpolant.
   return dum1 + (t.rdumjj - Spack(t.dumjj)) * (dum2 - dum1);
 }
 
 template <typename S, typename D>
 void Functions<S,D>
-::init_kokkos_tables(view_2d_table& vn_table, view_2d_table& vm_table, view_1d_table& mu_r_table)
-{
+::init_kokkos_tables (view_2d_table& vn_table, view_2d_table& vm_table, view_1d_table& mu_r_table) {
   // initialize on host
 
   using DeviceTable1 = typename view_1d_table::non_const_type;

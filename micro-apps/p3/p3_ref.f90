@@ -515,19 +515,19 @@ contains
                    call find_lookupTable_indices_3(dumii,dumjj,dum1,rdumii,rdumjj,inv_dum3, &
                         mu_r(i,k),lamr(i,k))
                    !mass-weighted fall speed:
-                   dum1 = VM_TABLE(dumii,dumjj)+(rdumii-real(dumii))*inv_dum3*              &
+                   dum1 = VM_TABLE(dumii,dumjj)+(rdumii-real(dumii))*                       &
                         (VM_TABLE(dumii+1,dumjj)-VM_TABLE(dumii,dumjj))         !at mu_r
-                   dum2 = VM_TABLE(dumii,dumjj+1)+(rdumii-real(dumii))*inv_dum3*            &
+                   dum2 = VM_TABLE(dumii,dumjj+1)+(rdumii-real(dumii))*                     &
                         (VM_TABLE(dumii+1,dumjj+1)-VM_TABLE(dumii,dumjj+1))   !at mu_r+1
                    V_qr(k) = dum1 + (rdumjj-real(dumjj))*(dum2-dum1)         !interpolated
                    V_qr(k) = V_qr(k)*rhofacr(i,k)               !corrected for air density
                    trace_data("    V_qr", 1, k, V_qr(k))
 
                    ! number-weighted fall speed:
-                   dum1 = VN_TABLE(dumii,dumjj)+(rdumii-real(dumii))*inv_dum3*              &
+                   dum1 = VN_TABLE(dumii,dumjj)+(rdumii-real(dumii))*                       &
                         (VN_TABLE(dumii+1,dumjj)-VN_TABLE(dumii,dumjj)         ) !at mu_r
 
-                   dum2 = VN_TABLE(dumii,dumjj+1)+(rdumii-real(dumii))*inv_dum3*            &
+                   dum2 = VN_TABLE(dumii,dumjj+1)+(rdumii-real(dumii))*                     &
                         (VN_TABLE(dumii+1,dumjj+1)-VN_TABLE(dumii,dumjj+1))    !at mu_r+1
                    V_nr(k) = dum1+(rdumjj-real(dumjj))*(dum2-dum1)            !interpolated
                    V_nr(k) = V_nr(k)*rhofacr(i,k)                !corrected for air density
