@@ -343,8 +343,8 @@ struct TestTable3 {
   }
 };
 
-  // r[1] is a mixing ratio field. The test advects r[1] some number of time
-  // steps. The test checks global mass conservation and extrema non-violation at
+// r[1] is a mixing ratio field. The test advects r[1] some number of time
+// steps. The test checks global mass conservation and extrema non-violation at
 // each step. B/c of the consistency issue noted in the
 // calc_first_order_upwind_step doc, r[0] = 1 initially so that r[0]*rho is the
 // true, i.e. correctly advected, total density. Note that r[0] will not remain
