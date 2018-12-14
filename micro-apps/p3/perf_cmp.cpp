@@ -7,6 +7,12 @@
 #include <iostream>
 #include <exception>
 
+/*
+ * A small command-line utility for comparing two sets of results (in the form
+ * of a binary file) from two rain-sed runs. This is used in our ctests to make
+ * sure all the implementations are producing similar results.
+ */
+
 static void expect_another_arg (Int i, Int argc) {
   if (i == argc-1)
     throw std::runtime_error("Expected another cmd-line arg.");

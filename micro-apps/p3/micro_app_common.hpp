@@ -1,5 +1,5 @@
-#ifndef P3_COMMON_HPP
-#define P3_COMMON_HPP
+#ifndef MICRO_APP_COMMON_HPP
+#define MICRO_APP_COMMON_HPP
 
 #include "initial_conditions.hpp"
 #include "types.hpp"
@@ -21,26 +21,15 @@ Real* c_get_mu_r_table();
 namespace p3 {
 namespace micro_sed {
 
+/*
+ * Contains common infrasture for driving all micro-app rain-sed implementaions.
+ */
+
 using scream::pack::scalarize;
 using scream::pack::BigPack;
 
-template <typename Scalar>
 struct Globals
 {
-  static constexpr Scalar INV_RHOW = 1.e-3;
-  static constexpr Scalar RHOW     = 997.0;
-  static constexpr Scalar THRD     = 1.0/3.0;
-  static constexpr Scalar SXTH     = 1.0/6.0;
-  static constexpr Scalar PI       = 3.14159265;
-  static constexpr Scalar PIOV6    = PI*SXTH;
-  static constexpr Scalar CONS1    = PIOV6*RHOW;
-  static constexpr Scalar QSMALL   = 1.e-14;
-  static constexpr Scalar NSMALL   = 1.e-16;
-  static constexpr Scalar RD       = 287.15;
-  static constexpr Scalar RHOSUR   = 100000.0/(RD*273.15);
-  static constexpr Scalar CP       = 1005.0;
-  static constexpr Scalar INV_CP   = 1.0/CP;
-
   static vector_2d_t<Scalar> VN_TABLE, VM_TABLE;
   static std::vector<Scalar> MU_R_TABLE;
 };
@@ -53,9 +42,6 @@ vector_2d_t<Scalar> Globals<Scalar>::VM_TABLE;
 
 template <typename Scalar>
 std::vector<Scalar> Globals<Scalar>::MU_R_TABLE;
-
-template <typename Scalar>
-constexpr Scalar Globals<Scalar>::NSMALL;
 
 template <typename Scalar>
 void populate_input(const int nk, const int kdir,
@@ -107,6 +93,32 @@ void p3_init_cpp()
   for (int i = 0; i < 150; ++i) {
     Globals<Scalar>::MU_R_TABLE[i] = mu_r_table[i];
   }
+}
+
+template <typename Scalar>
+void dump_to_file(const char* filename,
+                  const Scalar* qr, const Scalar* nr, const Scalar* th, const Scalar* dzq, const Scalar* pres, const Scalar* prt_liq,
+                  const int ni, const int nk, const Scalar dt, const int ts, int ldk = -1)
+{
+  if (ldk < 0) ldk = nk;
+
+  std::string full_fn(filename);
+  full_fn += "_perf_run.dat" + std::to_string(sizeof(Scalar));
+
+  FILEPtr fid(fopen(full_fn.c_str(), "w"));
+  micro_require_msg( fid, "dump_to_file can't write " << filename);
+
+  write(&ni, 1, fid);
+  write(&nk, 1, fid);
+  write(&dt, 1, fid);
+  write(&ts, 1, fid);
+  // Account for possible alignment padding.
+  for (int i = 0; i < ni; ++i) util::write(qr + ldk*i, nk, fid);
+  for (int i = 0; i < ni; ++i) util::write(nr + ldk*i, nk, fid);
+  for (int i = 0; i < ni; ++i) util::write(th + ldk*i, nk, fid);
+  for (int i = 0; i < ni; ++i) util::write(dzq + ldk*i, nk, fid);
+  for (int i = 0; i < ni; ++i) util::write(pres + ldk*i, nk, fid);
+  write(prt_liq, ni, fid);
 }
 
 template <typename Scalar, typename D=DefaultDevice>
@@ -201,6 +213,9 @@ void populate_kokkos_from_vec(const int num_vert, std::vector<Scalar> const& vec
   Kokkos::deep_copy(device, mirror);
 }
 
+/*
+ * This is the driver function for all rain-sed implementations.
+ */
 template <typename Scalar, typename MSK>
 void micro_sed_func_kokkos_wrap(const int ni, const int nk, const Scalar dt, const int ts, const int kdir, const int repeat)
 {
@@ -212,12 +227,16 @@ void micro_sed_func_kokkos_wrap(const int ni, const int nk, const Scalar dt, con
   MSK msk(ni, nk);
 
   const int num_vert = msk.get_num_vert();
+
+  // Views for results
   typename MSK::template view_2d<typename MSK::Pack> qr("qr", ni, num_vert),
     nr("nr", ni, num_vert),
     th("th", ni, num_vert),
     dzq("dzq", ni, num_vert),
     pres("pres", ni, num_vert);
 
+  // Views to store initial state, we use these to reset the above view backs to
+  // their initial state. This is necessary for repeating runs.
   typename MSK::template view_1d<typename MSK::Pack> qr_i("qr_i", num_vert),
     nr_i("nr_i", num_vert),
     th_i("th_i", num_vert),
@@ -226,6 +245,7 @@ void micro_sed_func_kokkos_wrap(const int ni, const int nk, const Scalar dt, con
 
   typename MSK::template view_1d<Scalar> prt_liq("prt_liq", ni), prt_liq_i("prt_liq", ni);
 
+  // Populate initial state and copy to initial-state-only (*_i) views.
   {
     std::vector<Scalar> qr_v(nk), nr_v(nk), th_v(nk), dzq_v(nk), pres_v(nk);
 
@@ -240,6 +260,8 @@ void micro_sed_func_kokkos_wrap(const int ni, const int nk, const Scalar dt, con
   // This time is thrown out, I just wanted to be able to use auto
   auto start = std::chrono::steady_clock::now();
 
+  // Repeat loop. Increasing repeats gives us a more accurate performance measurements.
+  // The first iteration is always thrown out since it tends to be slower due to "cold" memory.
   for (int r = 0; r < repeat+1; ++r) {
     Kokkos::parallel_for("Re-init",
                          util::ExeSpaceUtils<typename MSK::ExeSpace>::get_default_team_policy(ni, num_vert),
@@ -273,6 +295,8 @@ void micro_sed_func_kokkos_wrap(const int ni, const int nk, const Scalar dt, con
 
   printf("Time = %1.3e seconds\n", report_time);
 
+  // Dump the results to a file. This will allow us to do result comparisons between
+  // other runs.
   dump_to_file_k(MSK::NAME, qr, nr, th, dzq, pres, prt_liq, ni, nk, dt, ts);
 }
 

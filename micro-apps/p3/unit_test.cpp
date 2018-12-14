@@ -11,6 +11,10 @@
 
 namespace unit_test {
 
+/*
+ * Unit-tests for important (going to be used in scream) things.
+ */
+
 struct UnitWrap {
 
 template <typename D=DefaultDevice>
@@ -338,7 +342,7 @@ struct TestTable3 {
       slopes[refine] = max_slope;
     }
     check_growth("lamr", slopes[1]/slopes[0]);
-  
+
     return nerr;
   }
 };
@@ -357,7 +361,7 @@ struct TestTable3 {
 // the upwind routine in the first time step.
 static int unittest_upwind () {
   static const Int nfield = 2;
-  
+
   using Functions = p3::micro_sed::Functions<Real, Device>;
   using Scalar = typename Functions::Scalar;
   using Pack = typename Functions::Pack;
@@ -922,7 +926,7 @@ int main (int argc, char** argv) {
         wrap_test("workspace", UnitTest<>::unittest_workspace());
         wrap_test("table3", UnitTest<>::TestTable3::run());
       }
-      
+
       // thread-sensitive tests
       {
         wrap_test("upwind", UnitTest<>::unittest_upwind());

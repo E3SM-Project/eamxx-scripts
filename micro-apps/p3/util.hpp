@@ -108,32 +108,6 @@ void set_min_max (const Integer& lim0, const Integer& lim1,
   max = util::max(lim0, lim1) / vector_size;
 }
 
-template <typename Scalar>
-void dump_to_file(const char* filename,
-                  const Scalar* qr, const Scalar* nr, const Scalar* th, const Scalar* dzq, const Scalar* pres, const Scalar* prt_liq,
-                  const int ni, const int nk, const Scalar dt, const int ts, int ldk = -1)
-{
-  if (ldk < 0) ldk = nk;
-
-  std::string full_fn(filename);
-  full_fn += "_perf_run.dat" + std::to_string(sizeof(Scalar));
-
-  FILEPtr fid(fopen(full_fn.c_str(), "w"));
-  micro_require_msg( fid, "dump_to_file can't write " << filename);
-
-  write(&ni, 1, fid);
-  write(&nk, 1, fid);
-  write(&dt, 1, fid);
-  write(&ts, 1, fid);
-  // Account for possible alignment padding.
-  for (int i = 0; i < ni; ++i) util::write(qr + ldk*i, nk, fid);
-  for (int i = 0; i < ni; ++i) util::write(nr + ldk*i, nk, fid);
-  for (int i = 0; i < ni; ++i) util::write(th + ldk*i, nk, fid);
-  for (int i = 0; i < ni; ++i) util::write(dzq + ldk*i, nk, fid);
-  for (int i = 0; i < ni; ++i) util::write(pres + ldk*i, nk, fid);
-  write(prt_liq, ni, fid);
-}
-
 template <typename T> KOKKOS_INLINE_FUNCTION T reldif (const T& a, const T& b) {
   return std::abs((b - a)/a);
 }

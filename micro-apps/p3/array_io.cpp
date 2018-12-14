@@ -7,6 +7,10 @@
 #include <iostream>
 #include <vector>
 
+/*
+ * This file contains implementations for the functions declared in array_io.hpp
+ */
+
 namespace array_io {
 
 template <typename Scalar>

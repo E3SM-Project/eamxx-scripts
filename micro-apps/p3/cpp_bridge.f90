@@ -1,5 +1,10 @@
 #include "types.f.h"
 
+!
+! This bridge file makes it possible for fortran to call C functions
+! with matching names to those listed in the module below.
+!
+
 module cpp_bridge
   interface
      function array_io_file_exists(filename) result(exists) bind(c)

@@ -10,9 +10,14 @@
 #include <iostream>
 #include <exception>
 
-// Nothing in this file is intended to be indicative of the eventual perf
-// portable impl. E.g., Kokkos is not used here. The objective is simply to test
-// for input/output regression errors.
+/*
+ * This is used to do baseline testing of our various rain-sed implemetations
+ * against a fortran baseline.
+ *
+ * Nothing in this file is intended to be indicative of the eventual perf
+ * portable impl. E.g., Kokkos is not used here. The objective is simply to test
+ * for input/output regression errors.
+ */
 
 extern "C" {
   void p3_init();

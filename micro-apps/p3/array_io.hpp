@@ -3,6 +3,14 @@
 
 #include "types.hpp"
 
+/*
+ * This file contains interfaces for some simple routines for reading
+ * and writing data arrays to files. They are intended to be
+ * compatible with fortran and are used in the micro-app for storing
+ * tables and recording rain-sed results from the fortran baseline
+ * code.
+ */
+
 extern "C" {
 
 bool array_io_file_exists(const char* filename);

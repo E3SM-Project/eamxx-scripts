@@ -12,12 +12,14 @@ namespace util {
 
 /*
  * Kokkos-related utilities.
- *
- * ExeSpaceUtils is essentially a TeamPolicy factory.
- *
- * TeamUtils contains utilities for thread teams
  */
 
+/*
+ * ExeSpaceUtils is essentially a TeamPolicy factory. TeamPolicy objects
+ * are what kokkos uses to define a thread layout (num teams, threads/team)
+ * for a parallel kernel. On non-GPU archictures, we will generally have
+ * thread teams of 1.
+ */
 template <typename ExeSpace = Kokkos::DefaultExecutionSpace>
 struct ExeSpaceUtils {
   using TeamPolicy = Kokkos::TeamPolicy<ExeSpace>;
@@ -37,6 +39,11 @@ struct ExeSpaceUtils {
   }
 };
 
+/*
+ * Many GPU architectures can support a great number of threads, so we'll
+ * need to expose additional parallelism by having many threads per team.
+ * This is due to having more threads than the main kernel loop has indices.
+ */
 #ifdef KOKKOS_ENABLE_CUDA
 template <>
 struct ExeSpaceUtils<Kokkos::Cuda> {
@@ -52,6 +59,10 @@ struct ExeSpaceUtils<Kokkos::Cuda> {
 };
 #endif
 
+/*
+ * TeamUtils contains utilities for getting concurrency info for
+ * thread teams.
+ */
 template <typename ExeSpace = Kokkos::DefaultExecutionSpace>
 class TeamUtils
 {
@@ -67,8 +78,13 @@ public:
     _team_size = max_threads / _num_teams;
   }
 
+  // How many thread teams can run concurrently
   int get_num_concurrent_teams() const { return _num_teams; }
 
+  /*
+   * Of the C concurrently running teams, which "slot" is open
+   * for the given team.
+   */
   template <typename MemberType>
   KOKKOS_INLINE_FUNCTION
   int get_workspace_idx(const MemberType& team_member) const
@@ -77,6 +93,9 @@ public:
   }
 };
 
+/*
+ * On GPU, we expect all teams to run at once.
+ */
 #ifdef KOKKOS_ENABLE_CUDA
 template <>
 class TeamUtils<Kokkos::Cuda>

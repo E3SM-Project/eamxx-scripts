@@ -8,6 +8,12 @@
 #include <cmath>
 #include <string>
 
+/*
+ * A couple micro-app routines for doing comparisons between data arrays. The
+ * compare function is the core low-level routine for result comparison between
+ * rain-sed implementations.
+ */
+
 namespace cmp {
 
 struct TransposeDirection {

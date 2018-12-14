@@ -1,5 +1,9 @@
 #include "types.f.h"
 
+!
+! The fortran reference implemetion of p3's rain-sedimentation routine.
+!
+
 module micro_sed_mod
 
   implicit none

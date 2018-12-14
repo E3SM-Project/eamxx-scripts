@@ -20,6 +20,12 @@
 namespace p3 {
 namespace micro_sed {
 
+/*
+ * Implementation of MicroSedFuncFinalKokkos, it implements things that were only
+ * declared in p3_final.hpp. Clients should NOT #include this file, #include p3_final.hpp
+ * instead.
+ */
+
 using scream::pack::IntPack;
 using scream::pack::IntSmallPack;
 using scream::pack::smallize;

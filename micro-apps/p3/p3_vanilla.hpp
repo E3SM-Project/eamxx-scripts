@@ -16,6 +16,16 @@
 namespace p3 {
 namespace micro_sed {
 
+/*
+ * This is the "vanilla" Kokkos implemention of the p3 rain-sedimentation
+ * routine. It's the result of a direct, nearly 1:1 tranlation of the fortran
+ * implemetion to C++ with the C++ using Kokkos views in place of fortran's native
+ * MD arrays.
+ *
+ * Since this will NOT be moved into the main scream repo, we don't bother with
+ * ETI here.
+ */
+
 /**
  * Finds indices in rain lookup table (3)
  */

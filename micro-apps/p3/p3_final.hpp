@@ -23,6 +23,8 @@ namespace micro_sed {
  *     msfk.micro_sed_func(*args*);
  *
  * In order to support ETI, this class follows the PIMPL pattern.
+ * This file contains (mostly) only declarations in order to speed-up
+ * compilation and reduce translation-unit size.
  */
 
 template <typename Scalar, typename D=DefaultDevice>
@@ -94,6 +96,8 @@ struct MicroSedFuncFinalKokkos
 } // namespace micro_sed
 } // namespace p3
 
+// If a GPU build, make all code available to the translation unit; otherwise,
+// ETI is used.
 #ifdef KOKKOS_ENABLE_CUDA
 # include "p3_final_impl.hpp"
 #endif

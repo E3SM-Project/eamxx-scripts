@@ -10,6 +10,12 @@
 namespace scream {
 namespace pack {
 
+/*
+ * API for using "packed" data in scream. Packs are just bundles of N
+ * scalars wthin a single object. Using packed data makes it much easier
+ * to get good vectorization with C++.
+ */
+
 template <int PACKN>
 struct Mask {
   // One tends to think a short boolean type would be useful here, but that is

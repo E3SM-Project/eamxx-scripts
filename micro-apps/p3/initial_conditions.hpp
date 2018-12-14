@@ -9,6 +9,11 @@
 
 namespace ic {
 
+/*
+ * This file contains functions and data structures for initializing and
+ * storing rain-sed data.
+ */
+
 struct consts {
   static constexpr Real
     pres_surface = 1e5, // Pa
@@ -73,7 +78,10 @@ static void set_rain (const Int nk, const Scalar* const dz,
   }
 }
 
-/* MicroSedData holds data packed by column. */
+/*
+ * MicroSedData holds data packed by column. This data structure is used
+ * in the micro-app to store a full set of data/results for a rain-sed run.
+ */
 template <typename Scalar>
 struct MicroSedData {
   const Int ni, nk;

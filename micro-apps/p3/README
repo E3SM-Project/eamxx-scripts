@@ -13,7 +13,7 @@ We settled on three implementations of rain sedimentation:
         modification was to add openmp threading so that we could get meaningful
         comparisons with C++ Kokkos implementations.
 "vanilla" : This implementation was made by porting "ref" to C++ using Kokkos Views
-            as the MD-array data structure. We made to effort to do any improvements
+            as the MD-array data structure. We made no effort to do any improvements
             besides the language change, so this is a direct, naive translation of the
             fortran.
 "final" : This implementation represents what we think a good C++ rain sedimentaion

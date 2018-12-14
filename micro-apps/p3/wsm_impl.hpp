@@ -1,10 +1,14 @@
 #ifndef WSM_IMPL_HPP
 #define WSM_IMPL_HPP
 
-#include "wsm.hpp"
 #include "util.hpp"
 
 namespace util {
+
+/*
+ * An implementation header for wsm.hpp, this helps keep wsm.hpp clean by avoiding
+ * mixing interface and implementation. Clients should NOT even include this file.
+ */
 
 template <typename T, typename D>
 WorkspaceManager<T, D>::WorkspaceManager(int size, int max_used, TeamPolicy policy) :

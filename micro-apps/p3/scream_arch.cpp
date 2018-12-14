@@ -10,6 +10,10 @@
 
 extern "C" { void dump_arch_f90() { util::dump_arch(); } }
 
+/*
+ * Implementations of scream_arch.hpp functions.
+ */
+
 namespace util {
 
 std::string active_avx_string () {

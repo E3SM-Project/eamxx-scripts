@@ -10,7 +10,9 @@ namespace micro_sed {
 
 /*
  * Functions is a stateless struct used to encapsulate a
- * number of functions for p3.
+ * number of functions for p3. We use the ETI pattern for
+ * these functions.
+ *
  * TODO: Need a bit more documentation in this file.
  */
 

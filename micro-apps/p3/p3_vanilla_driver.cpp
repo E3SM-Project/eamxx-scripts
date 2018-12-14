@@ -2,6 +2,10 @@
 #include "types.hpp"
 #include "micro_util.hpp"
 
+/*
+ * This is the exe driver for the vanilla kokkos rain-sed implementation.
+ */
+
 int main(int argc, char** argv)
 {
   common_main("p3_vanilla");

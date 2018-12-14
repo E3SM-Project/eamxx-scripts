@@ -1,3 +1,5 @@
+! unit-test some of the micro-app infrastrucutre
+
 module unit_test_mod
   implicit none
 contains

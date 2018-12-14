@@ -4,9 +4,14 @@
 
 extern "C" {
 
+// This will link to the fortran reference implementation
 void micro_sed_func_wrap(const int* ni, const int* nk, const Real* dt, const int* ts, const int* kdir, const int* repeat);
 
 };
+
+/*
+ * This is the exe driver for the fortran reference rain-sed implementation.
+ */
 
 int main(int argc, char** argv)
 {
