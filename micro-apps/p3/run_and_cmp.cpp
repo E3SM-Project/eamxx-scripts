@@ -4,6 +4,7 @@
 #include "p3_vanilla.hpp"
 #include "p3_final.hpp"
 #include "micro_kokkos.hpp"
+#include "micro_app_common.hpp"
 #include "cmp.hpp"
 
 #include <vector>
@@ -27,6 +28,7 @@ extern "C" {
     Real* prt_liq);
 }
 
+using scream::pack::scalarize;
 
 template <cmp::TransposeDirection::Enum direction, typename Scalar>
 void transpose_layout (const ic::MicroSedData<Scalar>& s,
@@ -206,8 +208,6 @@ public:
 
   void sync_from(const ic::MicroSedData<Scalar>& d)
   {
-    using p3::micro_sed::scalarize;
-
     const auto
       qr_m = Kokkos::create_mirror_view(qr),
       nr_m = Kokkos::create_mirror_view(nr),
@@ -244,8 +244,6 @@ public:
 
   void sync_to(ic::MicroSedData<Scalar>& d) const
   {
-    using p3::micro_sed::scalarize;
-
     const auto
       qr_m = Kokkos::create_mirror_view(qr),
       nr_m = Kokkos::create_mirror_view(nr),

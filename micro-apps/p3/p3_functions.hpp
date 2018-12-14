@@ -3,7 +3,6 @@
 
 #include "types.hpp"
 #include "scream_pack.hpp"
-#include "p3_common.hpp"
 
 namespace p3 {
 namespace micro_sed {

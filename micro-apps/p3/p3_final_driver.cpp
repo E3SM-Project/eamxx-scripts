@@ -1,6 +1,6 @@
 #include "p3_final.hpp"
 #include "types.hpp"
-#include "micro_util.hpp"
+#include "micro_app_common.hpp"
 
 /*
  * This is the exe driver for the final rain-sed implementation.

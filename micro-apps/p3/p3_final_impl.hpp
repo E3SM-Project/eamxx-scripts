@@ -8,7 +8,7 @@
 #include "wsm.hpp"
 #include "initial_conditions.hpp"
 #include "micro_kokkos.hpp"
-#include "p3_common.hpp"
+#include "p3_constants.hpp"
 #include "scream_pack.hpp"
 #include "p3_functions.hpp"
 
@@ -102,11 +102,11 @@ public:
   {
     // constants
     const Scalar odt = 1.0 / dt;
-    constexpr auto nsmall = Globals<Scalar>::NSMALL;
-    constexpr auto rd = Globals<Scalar>::RD;
-    constexpr auto rd_inv_cp = Globals<Scalar>::RD * Globals<Scalar>::INV_CP;
-    constexpr auto rhosur = Globals<Scalar>::RHOSUR;
-    constexpr auto qsmall = Globals<Scalar>::QSMALL;
+    constexpr auto nsmall = Constants<Scalar>::NSMALL;
+    constexpr auto rd = Constants<Scalar>::RD;
+    constexpr auto rd_inv_cp = Constants<Scalar>::RD * Constants<Scalar>::INV_CP;
+    constexpr auto rhosur = Constants<Scalar>::RHOSUR;
+    constexpr auto qsmall = Constants<Scalar>::QSMALL;
 
     // direction of vertical leveling
     const Int kbot = (kts < kte) ? 0 : msfk.num_vert-1;
@@ -115,6 +115,8 @@ public:
 
     const auto lqr = smallize(qr), lnr = smallize(nr);
     const auto sqr = scalarize(qr);
+
+    // TODO: Need more implementation comments in this function
 
     // Rain sedimentation:  (adaptive substepping)
     Kokkos::parallel_for(
@@ -229,7 +231,7 @@ public:
 
           Kokkos::single(
             Kokkos::PerTeam(team), [&] () {
-              prt_liq(i) += prt_accum * Globals<Scalar>::INV_RHOW * odt;
+              prt_liq(i) += prt_accum * Constants<Scalar>::INV_RHOW * odt;
             });
         }
       });
@@ -245,9 +247,9 @@ public:
     Spack& rdumii, IntSmallPack& dumii, Spack& lamr,
     Spack& cdistr, Spack& logn0r)
   {
-    constexpr auto nsmall = Globals<Scalar>::NSMALL;
-    constexpr auto thrd = Globals<Scalar>::THRD;
-    constexpr auto cons1 = Globals<Scalar>::CONS1;
+    constexpr auto nsmall = Constants<Scalar>::NSMALL;
+    constexpr auto thrd = Constants<Scalar>::THRD;
+    constexpr auto cons1 = Constants<Scalar>::CONS1;
 
     lamr = 0;
     cdistr = 0;

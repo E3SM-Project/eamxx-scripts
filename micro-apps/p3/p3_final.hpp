@@ -2,11 +2,12 @@
 #define MICRO_SED_PACKNOIWS_KOKKOS_HPP
 
 #include "micro_kokkos.hpp"
-#include "p3_common.hpp"
 #include "scream_pack.hpp"
 
 namespace p3 {
 namespace micro_sed {
+
+using scream::pack::BigPack;
 
 /*
  * MicroSedFuncFinalKokkos is the implementation of the rain
@@ -75,6 +76,7 @@ struct MicroSedFuncFinalKokkos
 
   int get_num_vert() const;
 
+  // TODO: Move out, micro-app only code
   static std::string custom_msg () {
     std::ostringstream out;
     out << " packn=" << SCREAM_PACKN << " small_pack_factor=" << SCREAM_SMALL_PACK_FACTOR;

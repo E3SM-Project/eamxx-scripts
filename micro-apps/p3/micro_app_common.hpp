@@ -5,6 +5,7 @@
 #include "types.hpp"
 #include "scream_pack.hpp"
 #include "kokkos_util.hpp"
+#include "p3_constants.hpp"
 
 #include <vector>
 
@@ -22,26 +23,11 @@ namespace p3 {
 namespace micro_sed {
 
 /*
- * Contains common infrasture for driving all micro-app rain-sed implementaions.
+ * Contains common infrastructure for driving all micro-app rain-sed implementaions.
  */
 
 using scream::pack::scalarize;
 using scream::pack::BigPack;
-
-struct Globals
-{
-  static vector_2d_t<Scalar> VN_TABLE, VM_TABLE;
-  static std::vector<Scalar> MU_R_TABLE;
-};
-
-template <typename Scalar>
-vector_2d_t<Scalar> Globals<Scalar>::VN_TABLE;
-
-template <typename Scalar>
-vector_2d_t<Scalar> Globals<Scalar>::VM_TABLE;
-
-template <typename Scalar>
-std::vector<Scalar> Globals<Scalar>::MU_R_TABLE;
 
 template <typename Scalar>
 void populate_input(const int nk, const int kdir,
@@ -105,20 +91,20 @@ void dump_to_file(const char* filename,
   std::string full_fn(filename);
   full_fn += "_perf_run.dat" + std::to_string(sizeof(Scalar));
 
-  FILEPtr fid(fopen(full_fn.c_str(), "w"));
+  util::FILEPtr fid(fopen(full_fn.c_str(), "w"));
   micro_require_msg( fid, "dump_to_file can't write " << filename);
 
-  write(&ni, 1, fid);
-  write(&nk, 1, fid);
-  write(&dt, 1, fid);
-  write(&ts, 1, fid);
+  util::write(&ni, 1, fid);
+  util::write(&nk, 1, fid);
+  util::write(&dt, 1, fid);
+  util::write(&ts, 1, fid);
   // Account for possible alignment padding.
   for (int i = 0; i < ni; ++i) util::write(qr + ldk*i, nk, fid);
   for (int i = 0; i < ni; ++i) util::write(nr + ldk*i, nk, fid);
   for (int i = 0; i < ni; ++i) util::write(th + ldk*i, nk, fid);
   for (int i = 0; i < ni; ++i) util::write(dzq + ldk*i, nk, fid);
   for (int i = 0; i < ni; ++i) util::write(pres + ldk*i, nk, fid);
-  write(prt_liq, ni, fid);
+  util::write(prt_liq, ni, fid);
 }
 
 template <typename Scalar, typename D=DefaultDevice>
@@ -151,7 +137,7 @@ void dump_to_file_k(const char* basename,
   const Scalar* dzq_md  = reinterpret_cast<const Scalar*>(dzq_m.data());
   const Scalar* pres_md = reinterpret_cast<const Scalar*>(pres_m.data());
 
-  util::dump_to_file(
+  dump_to_file(
     basename, qr_md, nr_md, th_md, dzq_md, pres_md, prt_liq_m.data(),
     ni, nk, dt, ts);
 }
@@ -195,7 +181,7 @@ void dump_to_file_k (
   const Scalar* dzq_md  = reinterpret_cast<const Scalar*>(sdzq.data());
   const Scalar* pres_md = reinterpret_cast<const Scalar*>(spres.data());
 
-  util::dump_to_file(
+  dump_to_file(
     basename, qr_md, nr_md, th_md, dzq_md, pres_md, prt_liq_m.data(),
     ni, nk, dt, ts, ldk);
 }
@@ -302,5 +288,13 @@ void micro_sed_func_kokkos_wrap(const int ni, const int nk, const Scalar dt, con
 
 } // namespace p3
 } // namespace micro_sed
+
+#define common_main(exename)                                            \
+  util::initialize();                                                   \
+  micro_require_msg(argc == 7, "Usage: " #exename " ni nk time_step_len num_steps kdir repeat"); \
+  int ni(atoi(argv[1])), nk(atoi(argv[2])), ts(atoi(argv[4])), kdir(atoi(argv[5])), repeat(atoi(argv[6])); \
+  Real dt(atof(argv[3]));                                               \
+  micro_require_msg(kdir == -1 || kdir == 1, "kdir must be -1 or 1");   \
+  p3::micro_sed::p3_init_cpp<Real>()
 
 #endif

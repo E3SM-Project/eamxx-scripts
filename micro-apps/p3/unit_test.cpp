@@ -1,9 +1,10 @@
 #include "types.hpp"
 #include "util.hpp"
-#include "wsm_impl.hpp"
+#include "wsm.hpp"
 #include "micro_kokkos.hpp"
 #include "scream_pack.hpp"
 #include "p3_functions.hpp"
+#include "micro_app_common.hpp"
 
 #include <thread>
 #include <array>

@@ -2,10 +2,10 @@
 #define MICRO_SED_VANILLA_KOKKOS_HPP
 
 #include "util.hpp"
-#include "initial_conditions.hpp"
 #include "micro_kokkos.hpp"
-#include "p3_common.hpp"
+#include "p3_constants.hpp"
 #include "p3_functions.hpp"
+#include "kokkos_util.hpp"
 
 #include <vector>
 #include <cmath>
@@ -45,7 +45,7 @@ void find_lookupTable_indices_3_kokkos(int& dumii, int& dumjj, Scalar& rdumii, S
     dumii  = util::min(dumii,20);
   }
   else {
-    inv_dum3  = Globals<Scalar>::THRD*0.1;           // i.e. 1/30
+    inv_dum3  = Constants<Scalar>::THRD*0.1;           // i.e. 1/30
     rdumii = (dum1*1.e+6-195.)*inv_dum3 + 20.;
     rdumii = util::max<Scalar>(rdumii, 20.);
     rdumii = util::min<Scalar>(rdumii,300.);
@@ -155,15 +155,15 @@ public:
     const Scalar qr, Scalar& nr, Scalar& mu_r, Scalar& rdumii, int& dumii, Scalar& lamr,
     Scalar& cdistr, Scalar& logn0r)
   {
-    constexpr Scalar nsmall = Globals<Scalar>::NSMALL;
-    if (qr >= Globals<Scalar>::QSMALL) {
+    constexpr Scalar nsmall = Constants<Scalar>::NSMALL;
+    if (qr >= Constants<Scalar>::QSMALL) {
       // use lookup table to get mu
       // mu-lambda relationship is from Cao et al. (2008), eq. (7)
 
       // find spot in lookup table
       // (scaled N/q for lookup table parameter space_
       nr = util::max(nr, nsmall);
-      Scalar inv_dum = std::pow(qr / (Globals<Scalar>::CONS1 * nr * 6.0), Globals<Scalar>::THRD);
+      Scalar inv_dum = std::pow(qr / (Constants<Scalar>::CONS1 * nr * 6.0), Constants<Scalar>::THRD);
 
       if (inv_dum < 282.e-6) {
         mu_r = 8.282;
@@ -181,18 +181,18 @@ public:
         mu_r = 0.0;
       }
 
-      lamr   = std::pow((Globals<Scalar>::CONS1 *nr *(mu_r+3.0) * (mu_r+2) * (mu_r+1.)/(qr)), Globals<Scalar>::THRD); // recalculate slope based on mu_r
+      lamr   = std::pow((Constants<Scalar>::CONS1 *nr *(mu_r+3.0) * (mu_r+2) * (mu_r+1.)/(qr)), Constants<Scalar>::THRD); // recalculate slope based on mu_r
       Scalar lammax = (mu_r+1.)*1.e+5;  // check for slope
       Scalar lammin = (mu_r+1.)*1250.0; // set to small value since breakup is explicitly included (mean size 0.8 mm)
 
       // apply lambda limiters for rain
       if (lamr < lammin) {
         lamr = lammin;
-        nr   = std::exp(3.*std::log(lamr) + std::log(qr) + std::log(std::tgamma(mu_r+1.)) - std::log(std::tgamma(mu_r+4.)))/(Globals<Scalar>::CONS1);
+        nr   = std::exp(3.*std::log(lamr) + std::log(qr) + std::log(std::tgamma(mu_r+1.)) - std::log(std::tgamma(mu_r+4.)))/(Constants<Scalar>::CONS1);
       }
       else if (lamr > lammax) {
         lamr = lammax;
-        nr   = std::exp(3.*std::log(lamr) + std::log(qr) + std::log(std::tgamma(mu_r+1.)) - log(std::tgamma(mu_r+4.)))/(Globals<Scalar>::CONS1);
+        nr   = std::exp(3.*std::log(lamr) + std::log(qr) + std::log(std::tgamma(mu_r+1.)) - log(std::tgamma(mu_r+4.)))/(Constants<Scalar>::CONS1);
       }
 
       cdistr  = 0; //nr/std::tgamma(mu_r+1.);
@@ -240,7 +240,7 @@ public:
   {
     // constants
     const Scalar odt = 1.0 / dt;
-    constexpr Scalar nsmall = Globals<Scalar>::NSMALL;
+    constexpr Scalar nsmall = Constants<Scalar>::NSMALL;
 
     // direction of vertical leveling
     ConstExceptGnu int kbot = (kts < kte) ? 0: msvk.num_vert-1;
@@ -256,10 +256,10 @@ public:
         Kokkos::parallel_for(Kokkos::TeamThreadRange(team_member, msvk.num_vert), [=] (int k) {
           // inverse of thickness of layers
           msvk.inv_dzq(i, k) = 1 / dzq(i, k);
-          msvk.t(i, k) = std::pow(pres(i, k) * 1.e-5, Globals<Scalar>::RD * Globals<Scalar>::INV_CP) * th(i, k);
-          msvk.rho(i, k) = pres(i, k) / (Globals<Scalar>::RD * msvk.t(i, k));
+          msvk.t(i, k) = std::pow(pres(i, k) * 1.e-5, Constants<Scalar>::RD * Constants<Scalar>::INV_CP) * th(i, k);
+          msvk.rho(i, k) = pres(i, k) / (Constants<Scalar>::RD * msvk.t(i, k));
           msvk.inv_rho(i, k) = 1.0 / msvk.rho(i, k);
-          msvk.rhofacr(i, k) = std::pow(Globals<Scalar>::RHOSUR * msvk.inv_rho(i, k), 0.54);
+          msvk.rhofacr(i, k) = std::pow(Constants<Scalar>::RHOSUR * msvk.inv_rho(i, k), 0.54);
         });
         team_member.team_barrier();
 
@@ -270,7 +270,7 @@ public:
 
         // find top, determine qxpresent
         Kokkos::parallel_reduce(Kokkos::TeamThreadRange(team_member, msvk.num_vert), [=] (int k, int& lmax) {
-          if (qr(i, k) >= Globals<Scalar>::QSMALL && k*kdir > lmax) {
+          if (qr(i, k) >= Constants<Scalar>::QSMALL && k*kdir > lmax) {
             lmax = k*kdir;
           }
         }, Kokkos::Max<int>(k_qxtop));
@@ -289,7 +289,7 @@ public:
 
           // find bottom
           Kokkos::parallel_reduce(Kokkos::TeamThreadRange(team_member, msvk.num_vert), [=] (int k, int& lmin) {
-            if (qr(i, k) >= Globals<Scalar>::QSMALL && k*kdir < lmin) {
+            if (qr(i, k) >= Constants<Scalar>::QSMALL && k*kdir < lmin) {
               lmin = k*kdir;
             }
           }, Kokkos::Min<int>(k_qxbot));
@@ -309,7 +309,7 @@ public:
             util::set_min_max(k_qxtop, k_qxbot, kmin, kmax);
             Kokkos::parallel_reduce(Kokkos::TeamThreadRange(team_member, kmax-kmin+1), [=] (int k_, Scalar& lmax) {
               const int k = kmin + k_;
-              if (qr(i, k) > Globals<Scalar>::QSMALL) {
+              if (qr(i, k) > Constants<Scalar>::QSMALL) {
                 // Compute Vq, Vn:
                 nr(i, k) = util::max(nr(i, k), nsmall);
                 Scalar rdumii=0.0, tmp1=0.0, tmp2=0.0, rdumjj=0.0, inv_dum3=0.0;
@@ -392,7 +392,7 @@ public:
           }
 
           Kokkos::single(Kokkos::PerTeam(team_member), [&]() {
-            prt_liq(i) += prt_accum * Globals<Scalar>::INV_RHOW * odt;
+            prt_liq(i) += prt_accum * Constants<Scalar>::INV_RHOW * odt;
           });
         }
       });

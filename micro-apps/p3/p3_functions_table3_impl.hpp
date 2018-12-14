@@ -2,6 +2,7 @@
 #define MICRO_SED_P3_FUNCTIONS_TABLE3_IMPL_HPP
 
 #include "p3_functions.hpp"
+#include "p3_constants.hpp"
 
 namespace p3 {
 namespace micro_sed {
@@ -36,7 +37,7 @@ void Functions<S,D>
   const auto dum1_gte = qr_gt_small && ! dum1_lt;
   if (dum1_gte.any()) {
     scream_masked_loop(dum1_gte, s) {
-      const auto inv_dum3 = Globals<Scalar>::THRD*0.1;
+      const auto inv_dum3 = Constants<Scalar>::THRD*0.1;
       auto rdumii = (dum1[s]*1.e+6-195.)*inv_dum3 + 20.;
       rdumii = util::max<Scalar>(rdumii, 20.);
       rdumii = util::min<Scalar>(rdumii,300.);
