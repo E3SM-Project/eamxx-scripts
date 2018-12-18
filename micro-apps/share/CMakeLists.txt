@@ -6,7 +6,7 @@ set(SHARE_SRCS
 add_library(share ${SHARE_SRCS})
 target_include_directories (share PUBLIC ${SCREAM_MICRO_APPS_INCLUDES})
 
-add_executable(share_unit_test unit_test.cpp)
+add_executable(share_unit_test share_unit_test.cpp)
 
 set(exes share_unit_test)
 

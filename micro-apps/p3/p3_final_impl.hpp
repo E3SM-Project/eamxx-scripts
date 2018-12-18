@@ -6,7 +6,6 @@
 #include "util.hpp"
 #include "kokkos_util.hpp"
 #include "wsm.hpp"
-#include "initial_conditions.hpp"
 #include "micro_kokkos.hpp"
 #include "p3_constants.hpp"
 #include "scream_pack.hpp"
