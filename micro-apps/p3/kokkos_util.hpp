@@ -40,9 +40,10 @@ struct ExeSpaceUtils {
 };
 
 /*
- * Many GPU architectures can support a great number of threads, so we'll
- * need to expose additional parallelism by having many threads per team.
- * This is due to having more threads than the main kernel loop has indices.
+ * Specialization of above for Cuda execution space. Many GPU architectures can
+ * support a great number of threads, so we'll need to expose additional
+ * parallelism by having many threads per team.  This is due to having more
+ * threads than the main kernel loop has indices.
  */
 #ifdef KOKKOS_ENABLE_CUDA
 template <>
@@ -94,7 +95,8 @@ public:
 };
 
 /*
- * On GPU, we expect all teams to run at once.
+ * Specialization for Cuda execution space. On GPU, we expect all teams to run
+ * at once.
  */
 #ifdef KOKKOS_ENABLE_CUDA
 template <>

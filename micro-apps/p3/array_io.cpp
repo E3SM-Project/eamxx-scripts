@@ -12,6 +12,7 @@
  * This file contains implementations for the functions declared in array_io.hpp
  */
 
+// These are implementation helpers.
 namespace array_io {
 
 template <typename Scalar>
@@ -34,6 +35,8 @@ void read (const char* filename, Scalar* a, const int n) {
 
 } // namespace array_io
 
+
+// extern "C" makes these functions callable from Fortran.
 extern "C" {
 
 bool array_io_file_exists (const char* filename) {
@@ -83,5 +86,4 @@ bool dump_all(const char* filename,
   }
 }
 
-
-}
+} // extern "C"

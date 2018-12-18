@@ -1,6 +1,11 @@
 #ifndef MICRO_APP_COMMON_HPP
 #define MICRO_APP_COMMON_HPP
 
+/*
+ * A bunch of utilities for the rain-sed micro-app drivers. These are of no
+ * interest to the general P3 reader; they just get used to drive the micro-app.
+ */
+
 #include "initial_conditions.hpp"
 #include "types.hpp"
 #include "scream_pack.hpp"

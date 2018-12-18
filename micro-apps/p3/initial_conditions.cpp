@@ -8,7 +8,9 @@
 
 extern "C" {
 
-// This is for Fortran only, so pack in Fortran order.
+// This is a wrapper to the initial condition factory that can be called from
+// Fortran, in this case p3_ref.f90. This is for Fortran only, so pack in
+// Fortran order.
 void populate_input_from_fortran(Int nk, Int kdir, Real** qr, Real** nr, Real** th, Real** dzq, Real** pres)
 {
   ic::MicroSedData<Real> data(1, nk);

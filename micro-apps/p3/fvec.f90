@@ -1,5 +1,5 @@
 !
-! Fortran code used by the nano-app.
+! Fortran code used by the nano-app. See vec.cpp for more.
 !
 
 module vec

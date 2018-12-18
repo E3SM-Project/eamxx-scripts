@@ -1,7 +1,13 @@
-/* Investigate different vectorization approaches while still getting maximum
-   performance on GPU.
+/* Nano-app (smaller than micro-app): vec.cpp, fvec.f90.
+
+   Investigate different vectorization approaches while still getting maximum
+   performance on GPU. Use the nano-app to mitigate risk faster than we can in
+   the micro-app.
 
    Use 1D advection with a source term to model P3-sedimentation-like code.
+
+   Most readers can ignore this file. Only readers interested in the deep
+   details of vectorization approaches will be interested in this file.
 
    ws: (KH=/ascldap/users/ambradl/lib/kokkos/cpu-dbg; gfortran -g -c -cpp -fopenmp fvec.f90; g++ -std=c++11 vec.cpp fvec.o -I$KH/include -L$KH/lib -lkokkos -ldl -fopenmp)
    blake (SKX): (dp=1; sz=16; KH=/home/ambradl/lib/kokkos/blake; ifort -DVEC_DP=$dp -xcore-avx2 -O3 -fopenmp -cpp -c fvec.f90; icpc -DVEC_PACKN=$sz -DVEC_DP=$dp -DVEC_DEMOTE_M512D -restrict -std=c++11 -xcore-avx2 -O3 vec.cpp fvec.o -I$KH/include -L$KH/lib -lkokkos -ldl -fopenmp -o blake.out)

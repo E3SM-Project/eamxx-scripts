@@ -1,8 +1,9 @@
 #include "types.f.h"
 
 !
-! This bridge file makes it possible for fortran to call C functions
-! with matching names to those listed in the module below.
+! This interface makes it possible for Fortran to call C functions with matching
+! names to those listed in the module below. The C++ implementations are in
+! array_io.cpp, initial_conditions.cpp, and scream_arch.cpp.
 !
 
 module cpp_bridge

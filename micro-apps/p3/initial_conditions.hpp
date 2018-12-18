@@ -10,8 +10,10 @@
 namespace ic {
 
 /*
- * This file contains functions and data structures for initializing and
- * storing rain-sed data.
+ * This file contains functions and data structures for initializing and storing
+ * rain-sed data. It develops a plausible but synthetic rain profile. The only
+ * important objective is to exercise all lines of code and initialize a fairly
+ * lengthy computation before the rain is gone.
  */
 
 struct consts {

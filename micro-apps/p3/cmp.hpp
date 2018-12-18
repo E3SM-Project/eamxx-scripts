@@ -20,6 +20,8 @@ struct TransposeDirection {
   enum Enum { c2f, f2c };
 };
 
+// Switch whether i (column index) or k (level index) is the fast
+// index. TransposeDirection::c2f makes i faster; f2c makes k faster.
 template <TransposeDirection::Enum direction, typename Scalar>
 void transpose(const Scalar* sv, Scalar* dv, Int ni, Int nk) {
   for (Int k = 0; k < nk; ++k)
@@ -31,8 +33,13 @@ void transpose(const Scalar* sv, Scalar* dv, Int ni, Int nk) {
 };
 
 template <typename Scalar>
-static Int compare (const std::string& label, const Scalar* a,
-                    const Scalar* b, const Int& n, const Scalar& tol, bool verbose=false) {
+static Int compare (const std::string& label, // Label of compared quantities, for use in output
+                    // a(1:n) and b(1:n) are compared component-wise.
+                    const Scalar* a, const Scalar* b, const Int& n,
+                    // The relative error |a(i)-b(i)|/max_i(|a_i|) must be <= tol for success.
+                    const Scalar& tol,
+                    // If verbose, output to stdout. In any case, return the number of failed components.
+                    bool verbose=false) {
   Int nerr = 0;
   Scalar den = 0;
   for (Int i = 0; i < n; ++i)
