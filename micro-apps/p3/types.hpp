@@ -27,7 +27,7 @@ typedef float Real;
 #endif
 
 // Turn a View's MemoryTraits (traits::memory_traits) into the equivalent
-// unsigned int mask.
+// unsigned int mask. This is an implementation detail for Unmanaged; see next.
 template <typename View>
 struct MemoryTraitsMask {
   enum : unsigned int {
@@ -55,6 +55,7 @@ using Unmanaged =
                  // already there.
                  Kokkos::Unmanaged> >;
 
+// The default device we use.
 using DefaultDevice = Kokkos::Device<Kokkos::DefaultExecutionSpace, Kokkos::DefaultExecutionSpace::memory_space>;
 
 // Struct for getting useful Kokkos types based on the device

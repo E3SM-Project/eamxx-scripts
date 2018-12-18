@@ -12,12 +12,17 @@
 #include <exception>
 
 /*
- * This is used to do baseline testing of our various rain-sed implemetations
- * against a fortran baseline.
+ * This program is used to do baseline testing of our various rain-sed
+ * implemetations against a fortran baseline.
  *
  * Nothing in this file is intended to be indicative of the eventual perf
  * portable impl. E.g., Kokkos is not used here. The objective is simply to test
- * for input/output regression errors.
+ * for input/output regression errors as we develop various rain-sed
+ * implementations.
+ *
+ * Now that the implementations are done and trimmed down in number, this
+ * baseline tester exists simply to verify that the three final implementations
+ * agree in output.
  */
 
 extern "C" {
