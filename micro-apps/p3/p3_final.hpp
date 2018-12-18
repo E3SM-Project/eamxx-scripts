@@ -55,7 +55,7 @@ struct MicroSedFuncFinalKokkos
 
   MicroSedFuncFinalKokkos(int num_horz, int num_vert);
 
-  // Rain sed calculation. TODO: more documentation needed
+  // Rain sed calculation.
   //
   // kts: vertical array bound (top)
   // kte: vertical array bound (bottom)
@@ -75,13 +75,6 @@ struct MicroSedFuncFinalKokkos
     const view_1d<Scalar>& prt_liq);
 
   int get_num_vert() const;
-
-  // TODO: Move out, micro-app only code
-  static std::string custom_msg () {
-    std::ostringstream out;
-    out << " packn=" << SCREAM_PACKN << " small_pack_factor=" << SCREAM_SMALL_PACK_FACTOR;
-    return out.str();
-  }
 
   //
   // ---------- Private --------------

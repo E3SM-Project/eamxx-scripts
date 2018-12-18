@@ -116,9 +116,12 @@ public:
     const auto lqr = smallize(qr), lnr = smallize(nr);
     const auto sqr = scalarize(qr);
 
-    // TODO: Need more implementation comments in this function
-
     // Rain sedimentation:  (adaptive substepping)
+    // This parallel dispatch will give each vertical column to a thread team.
+    // GPU architectures may have more threads than there are columns; in this
+    // case, thread teams will contain multiple threads so that multiple threads
+    // will be used to speed up inner (vertical over single-column) loops. The
+    // TeamThreadRange dispatches below perform the intra-team parallelism.
     Kokkos::parallel_for(
       "main rain sed loop",
       msfk.policy,
@@ -127,11 +130,14 @@ public:
 
         auto workspace = msfk.workspace_mgr.get_workspace(team);
 
+        // Get temporary workspaces needed for the rain-sed calculation
         Unmanaged<view_1d<Pack> > inv_dzq, rho, inv_rho, rhofacr, t, V_qr, V_nr, flux_qx, flux_nx, mu_r, lamr;
         workspace.template take_many_and_reset<11>(
           {"inv_dzq", "rho", "inv_rho", "rhofacr", "t", "V_qr", "V_nr", "flux_qx", "flux_nx", "mu_r", "lamr"},
           {&inv_dzq, &rho, &inv_rho, &rhofacr, &t, &V_qr, &V_nr, &flux_qx, &flux_nx, &mu_r, &lamr});
 
+        // Get single-column subviews of all inputs, shouldn't need any i-indexing
+        // after this.
         const auto olqr = util::subview(lqr, i), olnr = util::subview(lnr, i);
         const auto osqr = util::subview(sqr, i);
         const auto odzq = util::subview(dzq, i), oth = util::subview(th, i), opres = util::subview(pres, i);

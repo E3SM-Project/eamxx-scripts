@@ -116,11 +116,6 @@ public:
     Functions<Scalar, D>::init_kokkos_tables(vn_table, vm_table, mu_r_table);
   }
 
-  static std::string custom_msg()
-  {
-    return "";
-  }
-
   int get_num_vert() const { return num_vert; }
 
   static void reset(const MicroSedFuncVanillaKokkos<Scalar, D>& msvk)

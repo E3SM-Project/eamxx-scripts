@@ -6,6 +6,7 @@
 #include "scream_pack.hpp"
 #include "kokkos_util.hpp"
 #include "p3_constants.hpp"
+#include "p3_final.hpp"
 
 #include <vector>
 
@@ -43,6 +44,17 @@ void populate_input(const int nk, const int kdir,
     dzq[k]  = data.dzq[k];
     pres[k] = data.pres[k];
   }
+}
+
+template <typename T>
+std::string custom_msg(const T&) { return ""; }
+
+template <typename Scalar, typename Device>
+std::string custom_msg(const MicroSedFuncFinalKokkos<Scalar, Device>&)
+{
+  std::ostringstream out;
+  out << " packn=" << SCREAM_PACKN << " small_pack_factor=" << SCREAM_SMALL_PACK_FACTOR;
+  return out.str();
 }
 
 /**
@@ -207,10 +219,10 @@ void micro_sed_func_kokkos_wrap(const int ni, const int nk, const Scalar dt, con
 {
   util::dump_arch();
 
-  std::cout << "Running " << MSK::NAME <<  " with ni=" << ni << ", nk=" << nk
-            << ", dt=" << dt << ", ts=" << ts << ", kdir=" << kdir << MSK::custom_msg() << std::endl;
-
   MSK msk(ni, nk);
+
+  std::cout << "Running " << MSK::NAME <<  " with ni=" << ni << ", nk=" << nk
+            << ", dt=" << dt << ", ts=" << ts << ", kdir=" << kdir << custom_msg(msk) << std::endl;
 
   const int num_vert = msk.get_num_vert();
 
