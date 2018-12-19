@@ -452,8 +452,6 @@ static void expect_another_arg (Int i, Int argc) {
 int main (int argc, char** argv) {
   util::initialize();
 
-  using HostDevice = Kokkos::Device<Kokkos::DefaultHostExecutionSpace, Kokkos::DefaultHostExecutionSpace::memory_space>;
-
   const auto N =
 #ifdef KOKKOS_ENABLE_OPENMP
     omp_get_max_threads() // naturally configurable by machine since env var
