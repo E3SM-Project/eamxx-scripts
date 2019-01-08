@@ -34,18 +34,22 @@ constexpr Scalar Constants<Scalar>::NSMALL;
 template <typename Scalar>
 struct Globals
 {
+  static constexpr int VTABLE_DIM0 = 300;
+  static constexpr int VTABLE_DIM1 = 10;
+  static constexpr int MU_R_TABLE_DIM = 150;
+
   static vector_2d_t<Scalar> VN_TABLE, VM_TABLE;
   static std::vector<Scalar> MU_R_TABLE;
 };
 
 template <typename Scalar>
-vector_2d_t<Scalar> Globals<Scalar>::VN_TABLE;
+vector_2d_t<Scalar> Globals<Scalar>::VN_TABLE(VTABLE_DIM0, std::vector<Scalar>(VTABLE_DIM1));
 
 template <typename Scalar>
-vector_2d_t<Scalar> Globals<Scalar>::VM_TABLE;
+vector_2d_t<Scalar> Globals<Scalar>::VM_TABLE(VTABLE_DIM0, std::vector<Scalar>(VTABLE_DIM1));
 
 template <typename Scalar>
-std::vector<Scalar> Globals<Scalar>::MU_R_TABLE;
+std::vector<Scalar> Globals<Scalar>::MU_R_TABLE(MU_R_TABLE_DIM);
 
 } // namespace p3
 } // namespace micro_sed

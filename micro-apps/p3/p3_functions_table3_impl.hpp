@@ -96,14 +96,20 @@ void Functions<S,D>
   const auto vm_table_h = Kokkos::create_mirror_view(vm_table_d);
   const auto mu_table_h = Kokkos::create_mirror_view(mu_r_table_d);
 
-  for (int i = 0; i < 300; ++i) {
-    for (int k = 0; k < 10; ++k) {
+  micro_require(Globals<Scalar>::VN_TABLE.size() == vn_table_h.extent(0) && Globals<Scalar>::VN_TABLE.size() > 0);
+  micro_require(Globals<Scalar>::VN_TABLE[0].size() == vn_table_h.extent(1));
+  micro_require(Globals<Scalar>::VM_TABLE.size() == vm_table_h.extent(0) && Globals<Scalar>::VM_TABLE.size() > 0);
+  micro_require(Globals<Scalar>::VM_TABLE[0].size() == vm_table_h.extent(1));
+  micro_require(Globals<Scalar>::MU_R_TABLE.size() == mu_table_h.extent(0));
+
+  for (size_t i = 0; i < vn_table_h.extent(0); ++i) {
+    for (size_t k = 0; k < vn_table_h.extent(1); ++k) {
       vn_table_h(i, k) = Globals<Scalar>::VN_TABLE[i][k];
       vm_table_h(i, k) = Globals<Scalar>::VM_TABLE[i][k];
     }
   }
 
-  for (int i = 0; i < 150; ++i) {
+  for (size_t i = 0; i < mu_table_h.extent(0); ++i) {
     mu_table_h(i) = Globals<Scalar>::MU_R_TABLE[i];
   }
 

@@ -76,24 +76,21 @@ void p3_init_cpp()
   }
   is_init = true;
 
-  Globals<Scalar>::VN_TABLE.resize(300, std::vector<Scalar>(10));
-  Globals<Scalar>::VM_TABLE.resize(300, std::vector<Scalar>(10));
-  Globals<Scalar>::MU_R_TABLE.resize(150);
-
   p3_init();
 
   Scalar* vn_table   = c_get_vn_table();
   Scalar* vm_table   = c_get_vm_table();
   Scalar* mu_r_table = c_get_mu_r_table();
 
-  for (int i = 0; i < 300; ++i) {
-    for (int k = 0; k < 10; ++k) {
-      Globals<Scalar>::VN_TABLE[i][k] = vn_table[300*k + i];
-      Globals<Scalar>::VM_TABLE[i][k] = vm_table[300*k + i];
+  const size_t vn_table_dim0 = Globals<Scalar>::VN_TABLE.size();
+  for (size_t i = 0; i < vn_table_dim0; ++i) {
+    for (size_t k = 0; k < Globals<Scalar>::VN_TABLE[0].size(); ++k) {
+      Globals<Scalar>::VN_TABLE[i][k] = vn_table[vn_table_dim0*k + i];
+      Globals<Scalar>::VM_TABLE[i][k] = vm_table[vn_table_dim0*k + i];
     }
   }
 
-  for (int i = 0; i < 150; ++i) {
+  for (size_t i = 0; i < Globals<Scalar>::MU_R_TABLE.size(); ++i) {
     Globals<Scalar>::MU_R_TABLE[i] = mu_r_table[i];
   }
 }
