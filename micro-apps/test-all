@@ -33,6 +33,6 @@ make -j8
 /bin/rm -rf *
 cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=$cpp_compiler -DKokkos_DIR=$kokkos_dir ..
 make -j8
-./p3/p3_ref 10000 128 300 30 1 1
-./p3/p3_vanilla 10000 128 300 30 1 1
-./p3/p3_final 10000 128 300 30 1 1
+./micro-sed/p3_ref 10000 128 300 30 1 1
+./micro-sed/p3_vanilla 10000 128 300 30 1 1
+./micro-sed/p3_final 10000 128 300 30 1 1

@@ -3,6 +3,7 @@
 
 #include "types.hpp"
 #include "scream_pack.hpp"
+#include "p3_constants.hpp"
 
 namespace p3 {
 namespace micro_sed {
@@ -46,8 +47,8 @@ struct Functions
   template <typename S>
   using view_2d = typename KT::template view_2d<S>;
 
-  using view_1d_table = typename KT::template view_1d_table<Scalar, 150>;
-  using view_2d_table = typename KT::template view_2d_table<Scalar, 300, 10>;
+  using view_1d_table = typename KT::template view_1d_table<Scalar, Globals<Scalar>::MU_R_TABLE_DIM>;
+  using view_2d_table = typename KT::template view_2d_table<Scalar, Globals<ScalarT>::VTABLE_DIM0, Globals<ScalarT>::VTABLE_DIM1>;
 
   template <typename S, int N>
   using view_1d_ptr_array = typename KT::template view_1d_ptr_carray<S, N>;

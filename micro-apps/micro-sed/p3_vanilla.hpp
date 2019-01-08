@@ -80,8 +80,8 @@ struct MicroSedFuncVanillaKokkos
   using ExeSpace    = typename KokkosTypes<D>::ExeSpace;
   using MemberType  = typename KokkosTypes<D>::MemberType;
 
-  using view_1d_table = typename KokkosTypes<D>::template view_1d_table<Scalar, 150>;
-  using view_2d_table = typename KokkosTypes<D>::template view_2d_table<Scalar, 300, 10>;
+  using view_1d_table = typename KokkosTypes<D>::template view_1d_table<Scalar, Globals<Scalar>::MU_R_TABLE_DIM>;
+  using view_2d_table = typename KokkosTypes<D>::template view_2d_table<Scalar, Globals<Scalar>::VTABLE_DIM0, Globals<Scalar>::VTABLE_DIM1>;
 
   //
   // members
