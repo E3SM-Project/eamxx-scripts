@@ -473,8 +473,18 @@ int main (int argc, char** argv) {
   // Don't exceed what the environement variable permits:
   upper = std::min(upper, N);
 
-  // This is a bit of a problem since it ties us to micro-app stuff
-  //p3::micro_sed::p3_init_cpp<Real>();
+  // Populate tables with contrived values, don't need realistic values
+  // for unit testing
+  using Globals = p3::micro_sed::Globals<Real>;
+  for (size_t i = 0; i < Globals::VN_TABLE.size(); ++i) {
+    for (size_t j = 0; j < Globals::VN_TABLE[0].size(); ++j) {
+      Globals::VN_TABLE[i][j] = i + j;
+      Globals::VM_TABLE[i][j] = i * j;
+    }
+  }
+  for (size_t i = 0; i < Globals::MU_R_TABLE.size(); ++i) {
+    Globals::MU_R_TABLE[i] = i;
+  }
 
   int out = 0; // running error count
 
