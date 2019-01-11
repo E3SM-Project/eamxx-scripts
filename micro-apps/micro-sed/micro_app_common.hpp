@@ -3,7 +3,7 @@
 
 /*
  * A bunch of utilities for the rain-sed micro-app drivers. These are of no
- * interest to the general P3 reader; they just get used to drive the micro-app.
+ * relevance to the actual P3 code; they just get used to drive the micro-app.
  */
 
 #include "initial_conditions.hpp"
