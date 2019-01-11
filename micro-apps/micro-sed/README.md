@@ -1,10 +1,10 @@
-#micro-sed
+# micro-sed
+===============================================================================
 This directory contains the code needed to run/test the micro-sed micro-app
 in standalone mode. The actual micro app code which will eventually be migrated
 to p3 is in the ../p3/ directory.
 
-===============================================================================
-Implementations:
+## Implementations:
 ===============================================================================
 We created three implementations of rain sedimentation in this micro-app:
 
@@ -34,13 +34,8 @@ For each implementation above (not including "ref" which just dives into fortran
 * A p3_${impl}_impl.hpp file, this has the definitions for the above class
 * A p3_${impl}.cpp which has the explicit template instatiation for the above class.
 
+## How the driver works:
 ===============================================================================
-Code flow:
-===============================================================================
-
-
-How the driver works:
-------------------------------------------
 * ../test_all calls the exe for each impl in order to do a timing comparison.
 * That exe comes from p3_${impl}_driver.cpp, which calls common_main (which initializes
   stuff like dt and tables) and micro_sed_func_kokkos_wrap (which is templated on impl type).
@@ -50,17 +45,8 @@ How the driver works:
   and handles timing and output stuff.
 * micro_app_common.hpp accesses micro_sed_func by including p3_final.hpp
 
-How micro_sed_func works:
-------------------------------------------
-* p3_final.hpp declares/points to (rather than defines) the MicroSedFinalKokkos class
-  which contains micro_sed_func. If using GPUs, Micro_SedFinalKokkos also defines micro_sed_func
-  by including pe_final_impl.hpp. Otherwise ETI is used. WHY IS ETI USED FOR NON-GPU ONLY?
-* p3_final.cpp instantiates MicroSedKokkos and defines it by including p3_final_impl.hpp. I
-  STILL DON'T UNDERSTAND THE CIRCUMSTANCES UNDER WHICH P3_FINAL.CPP WOULD BE CALLED.
-* p3_final_impl.hpp is the main code implementing the micro app. Note that it uses the Functions
-  class included via p3_functions.hpp which itself uses find, upwind, and table functions
-  handled via ETI.
-
+Discussion of micro_sed_func differs a bit between implementations and is described
+in ../p3/README.md.
 
 
   
