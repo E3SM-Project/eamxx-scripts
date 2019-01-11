@@ -1,5 +1,5 @@
 # p3
-==========================
+---------------------------
 This directory contains p3 code from micro-apps which we intend to migrate to
 (the scream fork of) the E3SM repo. In its current location, this code is used
 by driver code which is in ../micro-sed/.

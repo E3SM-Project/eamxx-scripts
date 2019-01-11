@@ -1,11 +1,10 @@
 # micro-sed
-===============================================================================
+--------------------------------------------------
 This directory contains the code needed to run/test the micro-sed micro-app
 in standalone mode. The actual micro app code which will eventually be migrated
 to p3 is in the ../p3/ directory.
 
 ## Implementations:
-===============================================================================
 We created three implementations of rain sedimentation in this micro-app:
 
 "ref" : The reference fortran implementation taken from p3. We took as little
@@ -35,7 +34,7 @@ For each implementation above (not including "ref" which just dives into fortran
 * A p3_${impl}.cpp which has the explicit template instatiation for the above class.
 
 ## How the driver works:
-===============================================================================
+--------------------------------------------------
 * ../test_all calls the exe for each impl in order to do a timing comparison.
 * That exe comes from p3_${impl}_driver.cpp, which calls common_main (which initializes
   stuff like dt and tables) and micro_sed_func_kokkos_wrap (which is templated on impl type).
