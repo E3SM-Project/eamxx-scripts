@@ -7,10 +7,10 @@ by driver code which is in ../micro-sed/.
 ## Code Structure:
 --------------------------
 * p3_final.hpp declares/points to (rather than defines) the MicroSedFinalKokkos class
-  which contains micro_sed_func. If using GPUs, Micro_SedFinalKokkos also defines micro_sed_func
-  by including pe_final_impl.hpp. Otherwise ETI is used. WHY IS ETI USED FOR NON-GPU ONLY?
-* p3_final.cpp instantiates MicroSedKokkos and defines it by including p3_final_impl.hpp. I
-  STILL DON'T UNDERSTAND THE CIRCUMSTANCES UNDER WHICH P3_FINAL.CPP WOULD BE CALLED.
+  which contains micro_sed_func. If using GPUs (which require template definitions to 
+  be available for each translation unit), Micro_SedFinalKokkos also defines micro_sed_func
+  by including pe_final_impl.hpp. Otherwise ETI is used. 
+* p3_final.cpp instantiates MicroSedKokkos and defines it by including p3_final_impl.hpp. 
 * p3_final_impl.hpp is the main code implementing the micro app. Note that it uses the Functions
   class included via p3_functions.hpp which itself uses find, upwind, and table functions
   handled via ETI.
