@@ -119,4 +119,7 @@ add_definitions(-DSCREAM_SMALL_PACK_FACTOR=${SMALLPACKFACTOR})
 
 enable_testing()
 
+add_subdirectory(nano)
+add_subdirectory(share)
 add_subdirectory(p3)
+add_subdirectory(micro-sed)

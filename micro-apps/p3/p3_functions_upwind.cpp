@@ -4,6 +4,11 @@
 namespace p3 {
 namespace micro_sed {
 
+/*
+ * Explicit instatiation for doing p3 upwind functions on Reals using the
+ * default device.
+ */
+
 #define ETI_UPWIND(nfield)                                              \
   template void Functions<Real,DefaultDevice>                           \
   ::calc_first_order_upwind_step<nfield>(                               \

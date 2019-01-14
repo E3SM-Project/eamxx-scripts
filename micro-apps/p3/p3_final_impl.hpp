@@ -6,9 +6,8 @@
 #include "util.hpp"
 #include "kokkos_util.hpp"
 #include "wsm.hpp"
-#include "initial_conditions.hpp"
 #include "micro_kokkos.hpp"
-#include "p3_common.hpp"
+#include "p3_constants.hpp"
 #include "scream_pack.hpp"
 #include "p3_functions.hpp"
 
@@ -19,6 +18,12 @@
 
 namespace p3 {
 namespace micro_sed {
+
+/*
+ * Implementation of MicroSedFuncFinalKokkos, it implements things that were only
+ * declared in p3_final.hpp. Clients should NOT #include this file, #include p3_final.hpp
+ * instead.
+ */
 
 using scream::pack::IntPack;
 using scream::pack::IntSmallPack;
@@ -48,8 +53,8 @@ struct MicroSedFuncFinalKokkos<ScalarT,DeviceT>::Impl
   template <typename S>
   using view_2d = typename KT::template view_2d<S>;
 
-  using view_1d_table = typename KT::template view_1d_table<Scalar, 150>;
-  using view_2d_table = typename KT::template view_2d_table<Scalar, 300, 10>;
+  using view_1d_table = typename KT::template view_1d_table<Scalar, Globals<ScalarT>::MU_R_TABLE_DIM>;
+  using view_2d_table = typename KT::template view_2d_table<Scalar, Globals<ScalarT>::VTABLE_DIM0,Globals<ScalarT>::VTABLE_DIM1>;
 
   template <typename S, int N>
   using view_1d_ptr_array = typename KT::template view_1d_ptr_carray<S, N>;
@@ -96,11 +101,11 @@ public:
   {
     // constants
     const Scalar odt = 1.0 / dt;
-    constexpr auto nsmall = Globals<Scalar>::NSMALL;
-    constexpr auto rd = Globals<Scalar>::RD;
-    constexpr auto rd_inv_cp = Globals<Scalar>::RD * Globals<Scalar>::INV_CP;
-    constexpr auto rhosur = Globals<Scalar>::RHOSUR;
-    constexpr auto qsmall = Globals<Scalar>::QSMALL;
+    constexpr auto nsmall = Constants<Scalar>::NSMALL;
+    constexpr auto rd = Constants<Scalar>::RD;
+    constexpr auto rd_inv_cp = Constants<Scalar>::RD * Constants<Scalar>::INV_CP;
+    constexpr auto rhosur = Constants<Scalar>::RHOSUR;
+    constexpr auto qsmall = Constants<Scalar>::QSMALL;
 
     // direction of vertical leveling
     const Int kbot = (kts < kte) ? 0 : msfk.num_vert-1;
@@ -111,6 +116,11 @@ public:
     const auto sqr = scalarize(qr);
 
     // Rain sedimentation:  (adaptive substepping)
+    // This parallel dispatch will give each vertical column to a thread team.
+    // GPU architectures may have more threads than there are columns; in this
+    // case, thread teams will contain multiple threads so that multiple threads
+    // will be used to speed up inner (vertical over single-column) loops. The
+    // TeamThreadRange dispatches below perform the intra-team parallelism.
     Kokkos::parallel_for(
       "main rain sed loop",
       msfk.policy,
@@ -119,11 +129,14 @@ public:
 
         auto workspace = msfk.workspace_mgr.get_workspace(team);
 
+        // Get temporary workspaces needed for the rain-sed calculation
         Unmanaged<view_1d<Pack> > inv_dzq, rho, inv_rho, rhofacr, t, V_qr, V_nr, flux_qx, flux_nx, mu_r, lamr;
         workspace.template take_many_and_reset<11>(
           {"inv_dzq", "rho", "inv_rho", "rhofacr", "t", "V_qr", "V_nr", "flux_qx", "flux_nx", "mu_r", "lamr"},
           {&inv_dzq, &rho, &inv_rho, &rhofacr, &t, &V_qr, &V_nr, &flux_qx, &flux_nx, &mu_r, &lamr});
 
+        // Get single-column subviews of all inputs, shouldn't need any i-indexing
+        // after this.
         const auto olqr = util::subview(lqr, i), olnr = util::subview(lnr, i);
         const auto osqr = util::subview(sqr, i);
         const auto odzq = util::subview(dzq, i), oth = util::subview(th, i), opres = util::subview(pres, i);
@@ -223,7 +236,7 @@ public:
 
           Kokkos::single(
             Kokkos::PerTeam(team), [&] () {
-              prt_liq(i) += prt_accum * Globals<Scalar>::INV_RHOW * odt;
+              prt_liq(i) += prt_accum * Constants<Scalar>::INV_RHOW * odt;
             });
         }
       });
@@ -239,9 +252,9 @@ public:
     Spack& rdumii, IntSmallPack& dumii, Spack& lamr,
     Spack& cdistr, Spack& logn0r)
   {
-    constexpr auto nsmall = Globals<Scalar>::NSMALL;
-    constexpr auto thrd = Globals<Scalar>::THRD;
-    constexpr auto cons1 = Globals<Scalar>::CONS1;
+    constexpr auto nsmall = Constants<Scalar>::NSMALL;
+    constexpr auto thrd = Constants<Scalar>::THRD;
+    constexpr auto cons1 = Constants<Scalar>::CONS1;
 
     lamr = 0;
     cdistr = 0;

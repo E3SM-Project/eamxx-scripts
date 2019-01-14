@@ -6,6 +6,11 @@
 namespace p3 {
 namespace micro_sed {
 
+/*
+ * Implementation of p3 find functions. Clients should NOT #include
+ * this file, #include p3_functions.hpp instead.
+ */
+
 template <typename S, typename D>
 KOKKOS_FUNCTION
 Int Functions<S,D>

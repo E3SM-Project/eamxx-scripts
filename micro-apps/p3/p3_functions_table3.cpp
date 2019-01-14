@@ -4,6 +4,11 @@
 namespace p3 {
 namespace micro_sed {
 
+/*
+ * Explicit instatiation for doing p3 table functions on Reals using the
+ * default device.
+ */
+
 template struct Functions<Real,DefaultDevice>;
 
 } // namespace micro_sed

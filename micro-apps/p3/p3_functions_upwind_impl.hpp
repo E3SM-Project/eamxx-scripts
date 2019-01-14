@@ -6,6 +6,11 @@
 namespace p3 {
 namespace micro_sed {
 
+/*
+ * Implementation of p3 upwind functions. Clients should NOT #include
+ * this file, #include p3_functions.hpp instead.
+ */
+
 template <typename S, typename D>
 template <Int kdir, int nfield>
 KOKKOS_FUNCTION

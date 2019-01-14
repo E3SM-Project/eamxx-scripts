@@ -2,11 +2,12 @@
 #define MICRO_SED_PACKNOIWS_KOKKOS_HPP
 
 #include "micro_kokkos.hpp"
-#include "p3_common.hpp"
 #include "scream_pack.hpp"
 
 namespace p3 {
 namespace micro_sed {
+
+using scream::pack::BigPack;
 
 /*
  * MicroSedFuncFinalKokkos is the implementation of the rain
@@ -23,6 +24,8 @@ namespace micro_sed {
  *     msfk.micro_sed_func(*args*);
  *
  * In order to support ETI, this class follows the PIMPL pattern.
+ * This file contains (mostly) only declarations in order to speed-up
+ * compilation and reduce translation-unit size.
  */
 
 template <typename Scalar, typename D=DefaultDevice>
@@ -52,7 +55,7 @@ struct MicroSedFuncFinalKokkos
 
   MicroSedFuncFinalKokkos(int num_horz, int num_vert);
 
-  // Rain sed calculation. TODO: more documentation needed
+  // Rain sed calculation.
   //
   // kts: vertical array bound (top)
   // kte: vertical array bound (bottom)
@@ -73,12 +76,6 @@ struct MicroSedFuncFinalKokkos
 
   int get_num_vert() const;
 
-  static std::string custom_msg () {
-    std::ostringstream out;
-    out << " packn=" << SCREAM_PACKN << " small_pack_factor=" << SCREAM_SMALL_PACK_FACTOR;
-    return out.str();
-  }
-
   //
   // ---------- Private --------------
   //
@@ -94,6 +91,8 @@ struct MicroSedFuncFinalKokkos
 } // namespace micro_sed
 } // namespace p3
 
+// If a GPU build, make all code available to the translation unit; otherwise,
+// ETI is used.
 #ifdef KOKKOS_ENABLE_CUDA
 # include "p3_final_impl.hpp"
 #endif
