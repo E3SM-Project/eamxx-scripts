@@ -58,7 +58,7 @@ template <typename Scalar, typename Device>
 std::string custom_msg(const MicroSedFuncFinalKokkos<Scalar, Device>&)
 {
   std::ostringstream out;
-  out << " packn=" << SCREAM_PACKN << " small_pack_factor=" << SCREAM_SMALL_PACK_FACTOR;
+  out << " packn=" << SCREAM_PACKN << " small_packn=" << SCREAM_SMALL_PACKN;
   return out.str();
 }
 

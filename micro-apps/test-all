@@ -26,7 +26,7 @@ make baseline
 OMP_NUM_THREADS=17 make test
 
 /bin/rm -rf *
-cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_COMPILER=$cpp_compiler -DKokkos_DIR=$kokkos_dir -DDOUBLE_PRECISION=FALSE ..
+cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_COMPILER=$cpp_compiler -DKokkos_DIR=$kokkos_dir -DSCREAM_DOUBLE_PRECISION=FALSE ..
 make -j8
 # no run
 

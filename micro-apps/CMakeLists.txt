@@ -10,13 +10,21 @@ endfunction ()
 
 include(CTest)
 
-set(DOUBLE_PRECISION TRUE CACHE LOGICAL "Set to double precision (default True)")
-set(ENABLE_TRACING FALSE CACHE LOGICAL "Enable detailed tracing")
-set(MIMIC_GPU FALSE CACHE LOGICAL "Mimic GPU to correctness test inter-column parallelism on non-GPU platform")
-set(ENABLE_FPE FALSE CACHE LOGICAL "Enable floating point error exception")
+# Scream configuration options
+set(SCREAM_DOUBLE_PRECISION TRUE CACHE LOGICAL "Set to double precision (default True)")
+set(SCREAM_MIMIC_GPU FALSE CACHE LOGICAL "Mimic GPU to correctness test inter-column parallelism on non-GPU platform")
+set(SCREAM_ENABLE_FPE FALSE CACHE LOGICAL "Enable floating point error exception")
 set(CHUNKSIZE 0 CACHE INTEGER "Chunk size for impls that want it")
-set(PACKSIZE 16 CACHE INTEGER "Vector pack size")
-set(SMALLPACKFACTOR 1 CACHE INTEGER "A small pack is this factor smaller than a regular pack; e.g., with PACKSIZE 16 and SMALLPACKFACTOR 2, a small pack has size 8.")
+set(SCREAM_PACK_SIZE 16 CACHE INTEGER
+  "The number of scalars in a scream::pack::Pack and Mask. Larger packs have good performance on conditional-free loops due to improved caching.")
+set(SCREAM_SMALL_PACK_SIZE 16 CACHE INTEGER
+  "The number of scalars in a scream::pack::SmallPack and SmallMask. Smaller packs can have better performance in loops with conditionals since more of the packs will have masks with uniform value.")
+
+# Check for valid pack sizes
+math(EXPR PACK_MODULO "${SCREAM_PACK_SIZE} % ${SCREAM_SMALL_PACK_SIZE}")
+if ( (SCREAM_SMALL_PACK_SIZE GREATER SCREAM_PACK_SIZE) OR (NOT PACK_MODULO EQUAL 0) )
+  message(FATAL_ERROR "Invalid small pack size. Needs to be <= pack_size and be a factor of it")
+endif()
 
 if (Kokkos_DIR)
   include (${Kokkos_DIR}/kokkos_generated_settings.cmake)
@@ -47,7 +55,7 @@ set (SCREAM_MICRO_APPS_LIBRARIES ${KOKKOS_LIBS})
 set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -cpp -fopenmp")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SCREAM_MICRO_APPS_COMPILE_FLAGS} -Wall -fopenmp")
 
-if (${DOUBLE_PRECISION})
+if (${SCREAM_DOUBLE_PRECISION})
   set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -DDOUBLE_PRECISION")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DDOUBLE_PRECISION")
   if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel")
@@ -83,10 +91,10 @@ endif()
 
 STRING(TOLOWER "${CMAKE_BUILD_TYPE}" CMAKE_BUILD_TYPE_ci)
 if (CMAKE_BUILD_TYPE_ci STREQUAL "debug")
-  if (${PACKSIZE} EQUAL 1)
-    set(ENABLE_FPE TRUE)
+  if (${SCREAM_PACK_SIZE} EQUAL 1)
+    set(SCREAM_ENABLE_FPE TRUE)
   endif ()
-  set(MIMIC_GPU TRUE)
+  set(SCREAM_MIMIC_GPU TRUE)
   if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel")
     message("Disabling vectorization in this DEBUG build.")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -no-vec -fp-model strict")
@@ -94,12 +102,12 @@ if (CMAKE_BUILD_TYPE_ci STREQUAL "debug")
   endif ()
 endif ()
 
-if (${ENABLE_FPE})
+if (${SCREAM_ENABLE_FPE})
   message("Enabling FPE.")
   add_definitions(-DFPE)
 endif()
 
-if (${MIMIC_GPU})
+if (${SCREAM_MIMIC_GPU})
   if (CUDA_BUILD)
     message("On GPU, so ignore MIMIC_GPU.")
   else ()
@@ -109,13 +117,13 @@ if (${MIMIC_GPU})
 endif()
 
 if (CUDA_BUILD)
-  set(PACKSIZE 1)
-  set(SMALLPACKFACTOR 1)
+  set(SCREAM_PACK_SIZE 1)
+  set(SCREAM_SMALL_PACK_SIZE 1)
 endif()
 
 add_definitions(-DCHUNKSIZE=${CHUNKSIZE})
-add_definitions(-DSCREAM_PACKN=${PACKSIZE})
-add_definitions(-DSCREAM_SMALL_PACK_FACTOR=${SMALLPACKFACTOR})
+add_definitions(-DSCREAM_PACKN=${SCREAM_PACK_SIZE})
+add_definitions(-DSCREAM_SMALL_PACKN=${SCREAM_SMALL_PACK_SIZE})
 
 enable_testing()
 
