@@ -16,7 +16,7 @@ add_executable(p3_unit_test p3_unit_test.cpp)
 set(exes p3_unit_test)
 
 foreach (exe ${exes})
-  target_include_directories (${exe} PUBLIC ${SCREAM_MICRO_APPS_INCLUDES})
+  target_include_directories (${exe} PUBLIC ${SCREAM_MICRO_APPS_INCLUDES} ${SCREAM_MICRO_APPS_SOURCE_DIR}/share)
   target_link_libraries (${exe} share ${SCREAM_MICRO_APPS_LIBRARIES})
   if (NOT CUDA_BUILD)
     target_link_libraries (${exe} p3 ${SCREAM_MICRO_APPS_LIBRARIES})
