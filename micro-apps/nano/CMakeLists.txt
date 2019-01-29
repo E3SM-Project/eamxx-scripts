@@ -2,7 +2,7 @@ add_executable (nanoapp vec.cpp fvec.f90)
 # Use a pack size that does not divide 128 to test correctness in that case.
 target_compile_definitions (nanoapp PRIVATE -DVEC_PACKN=13)
 set (NANOAPP_DP 0)
-if (${DOUBLE_PRECISION})
+if (${SCREAM_DOUBLE_PRECISION})
   set (NANOAPP_DP 1)
 endif ()
 target_compile_definitions (nanoapp PRIVATE -DVEC_PACKN=13 -DVEC_DP=${NANOAPP_DP})
