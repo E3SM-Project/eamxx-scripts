@@ -22,10 +22,10 @@ import concurrent.futures as threading3
 
 # MACHINE -> (modules, repo-loc, kokkos-install-loc, compiler, batch submit prefix)
 MACHINE_METADATA = {
-    "bowman"   : (["intel/compilers/18.2.199", "git/2.8.2",  "cmake/3.5.2"], "~/scream-docs-perf-bowman",    "$HOME/kokkos-install-bowman/install", "$(which icpc)",                    "srun"),
-    "blake"    : (["intel/compilers/18.1.163", "git/2.9.4",  "cmake/3.9.0"], "~/scream-docs-perf-blake",     "$HOME/kokkos-install-blake/install",  "$(which icpc)",                    "srun"),
-    "waterman" : (["gcc/7.2.0", "cuda/9.2.88", "git/2.10.1", "cmake/3.9.6"], "~/scream-docs-perf-waterman",  "$HOME/kokkos-install/install",        "$kokkos_install/bin/nvcc_wrapper", "bsub -I -q rhel7W"),
-    "white"    : (["gcc/7.2.0", "cuda/9.2.88", "git/2.10.1", "cmake/3.9.6"], "~/scream-docs-perf-white",     "$HOME/kokkos-install-white/install",  "$kokkos_install/bin/nvcc_wrapper", "bsub -I -q rhel7G"),
+    "bowman"   : (["openmpi/1.10.6/intel/17.2.174", "git/2.8.2",  "cmake/3.5.2"],                        "$HOME/kokkos-install-bowman/install", "$(which mpicxx)", "srun"),
+    "blake"    : (["openmpi/2.1.5/intel/19.1.144", "git/2.9.4",  "cmake/3.9.0"],                         "$HOME/kokkos-install-blake/install",  "$(which mpicxx)", "srun"),
+    "waterman" : (["devpack/latest/openmpi/2.1.2/gcc/7.2.0/cuda/9.2.88", "git/2.10.1", "cmake/3.9.6"],   "$HOME/kokkos-install/install",        "$(which mpicxx)", "bsub -I -q rhel7W"),
+    "white"    : (["devpack/20181011/openmpi/2.1.2/gcc/7.2.0/cuda/9.2.88", "git/2.10.1", "cmake/3.9.6"], "$HOME/kokkos-install-white/install",  "$(which mpicxx)", "bsub -I -q rhel7G"),
 }
 
 ###############################################################################
@@ -61,31 +61,47 @@ OR
 
     parser.add_argument("-t", "--test-all", action="store_true", help="Run test-all instead of performance gathering")
 
-    expect(os.path.basename(os.getcwd()) == "micro-apps", "Please run from micro-apps directory")
+    parser.add_argument("-s", "--scream", action="store_true", help="Test scream instead of scream-docs. Implies --test-all")
 
     args = parser.parse_args(args[1:])
+
+    if args.scream:
+        expect(os.path.basename(os.getcwd()) == "scream", "Please run from components/scream directory")
+    else:
+        expect(os.path.basename(os.getcwd()) == "micro-apps", "Please run from micro-apps directory")
 
     if not args.machine:
         args.machine = MACHINE_METADATA.keys()
 
-    return args.perf_analysis_args, args.commit, args.machine, args.test_all
+    if args.scream:
+        args.test_all = True
+
+    return args.perf_analysis_args, args.commit, args.machine, args.test_all, args.scream
 
 ###############################################################################
-def formulate_command(machine, perf_analysis_args, commit, test_all):
+def formulate_command(machine, perf_analysis_args, commit, test_all, scream):
 ###############################################################################
-    modules, repo, kokkos, compiler, batch = MACHINE_METADATA[machine]
+    modules, kokkos, compiler, batch = MACHINE_METADATA[machine]
 
-    local_cmd = "./test-all {} {}".format(compiler, kokkos) if test_all else "../perf-scripts/perf_analysis {} -p".format(perf_analysis_args)
+    scream_docs_repo = "~/scream-docs-perf-{}/micro-apps".format(machine)
+    repo             = "~/scream-perf-{}/components/scream".format(machine) if scream else scream_docs_repo
+
+    local_cmd = "{}/test-all {} {}".format(scream_docs_repo, compiler, kokkos) if test_all else "../perf-scripts/perf_analysis {} -p".format(perf_analysis_args)
     local_cmd = local_cmd.replace("$compiler", compiler).replace("$kokkos_install", kokkos)
 
-    cmd = "cd {} && module load {} && git fetch && git checkout {} && {} {}".format(os.path.join(repo, "micro-apps"), " ".join(modules), commit, batch, local_cmd)
+    setup = "cd {} && git fetch && git reset --hard origin/master && ".format(scream_docs_repo) if scream else ""
+    extra_env = ""
+    if machine in ["waterman", "white"]:
+        extra_env = "OMPI_CXX={}/bin/nvcc_wrapper ".format(kokkos)
+
+    cmd = "{}cd {} && module load {} && git fetch && git checkout {} && {}{} {}".format(setup, repo, " ".join(modules), commit, extra_env, batch, local_cmd)
 
     return cmd
 
 ###############################################################################
-def run_on_machine(machine, perf_analysis_args, commit, test_all):
+def run_on_machine(machine, perf_analysis_args, commit, test_all, scream):
 ###############################################################################
-    cmd = formulate_command(machine, perf_analysis_args, commit, test_all)
+    cmd = formulate_command(machine, perf_analysis_args, commit, test_all, scream)
     print("Starting {} analysis on {} with cmd: {}".format("test-all" if test_all else "performance", machine, cmd))
 
     output = run_cmd_no_fail("ssh -o StrictHostKeyChecking=no {} '{}'".format(machine, cmd), exc_type=RuntimeError)
@@ -95,14 +111,14 @@ def run_on_machine(machine, perf_analysis_args, commit, test_all):
     print ("Completed {} analysis on {}".format("test-all" if test_all else "performance", machine))
 
 ###############################################################################
-def gather_all_data(perf_analysis_args, commit, machines, test_all):
+def gather_all_data(perf_analysis_args, commit, machines, test_all, scream):
 ###############################################################################
     os.makedirs(os.path.join("test-all-results" if test_all else "perf-results", commit))
 
     success = True
 
     with threading3.ThreadPoolExecutor(max_workers=len(machines)) as executor:
-        future_to_machine = {executor.submit(run_on_machine, machine, perf_analysis_args, commit, test_all): machine for machine in machines}
+        future_to_machine = {executor.submit(run_on_machine, machine, perf_analysis_args, commit, test_all, scream): machine for machine in machines}
         for future in threading3.as_completed(future_to_machine):
             machine = future_to_machine[future]
             try:
@@ -116,9 +132,9 @@ def gather_all_data(perf_analysis_args, commit, machines, test_all):
 ###############################################################################
 def _main_func(description):
 ###############################################################################
-    perf_analysis_args, commit, machines, test_all = parse_command_line(sys.argv, description)
+    perf_analysis_args, commit, machines, test_all, scream = parse_command_line(sys.argv, description)
 
-    success = gather_all_data(perf_analysis_args, commit, machines, test_all)
+    success = gather_all_data(perf_analysis_args, commit, machines, test_all, scream)
 
     sys.exit(0 if success else 1)
 
