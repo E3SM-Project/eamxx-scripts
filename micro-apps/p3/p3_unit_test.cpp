@@ -170,7 +170,6 @@ struct TestTable3 {
 
   static int run () {
     Int nerr = 0;
-    return nerr; // TODO: remove once we can test this code without needing micro-app
 
     // This test doesn't use mu_r_table, as that is not a table3 type. It
     // doesn't matter whether we use vm_table or vn_table, as the table values
