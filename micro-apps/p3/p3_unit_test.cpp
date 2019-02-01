@@ -499,7 +499,7 @@ int main (int argc, char** argv) {
 #endif
     Kokkos::initialize(argc, argv); {
       // thread-insensitive tests
-      if (brief && nt == upper) {
+      if (nt == upper) {
         wrap_test("table3", UnitTest<>::TestTable3::run());
       }
 
