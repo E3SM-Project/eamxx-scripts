@@ -387,6 +387,12 @@ static int unittest_team_utils()
   int nerr = 0;
 #ifdef KOKKOS_ENABLE_OPENMP
   const int n = omp_get_max_threads();
+  // test will not work with more than 16 threads
+  if (n > 16) {
+    std::cout << "WARN: Skipped because this test doesn't support more than 16 threads" << std::endl;
+    return 0;
+  }
+
   const int ni = n*5;
   for (int s = 1; s <= n; ++s) {
     const auto p = util::ExeSpaceUtils<ExeSpace>::get_team_policy_force_team_size(ni, s);
