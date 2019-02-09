@@ -8,7 +8,7 @@ Run from $scream-repo/components/scream
 """
 
 from utils import run_cmd, expect, check_minimum_python_version
-check_minimum_python_version(3, 5)
+check_minimum_python_version(2, 7)
 
 import argparse, sys, os, shutil
 
