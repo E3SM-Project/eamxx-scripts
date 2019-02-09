@@ -68,7 +68,7 @@ OR
 
     parser.add_argument("-k", "--kokkos", help="Use to select specific kokkos installation.")
 
-    parser.add_argument("--submit", help="Submit results to dashboard (scream-only).")
+    parser.add_argument("--submit", action="store_true", help="Submit results to dashboard (scream-only).")
 
     args = parser.parse_args(args[1:])
 
@@ -105,10 +105,10 @@ def formulate_command(machine, perf_analysis_args, commit, test_all, scream, loc
         scream_docs_repo = "~/scream-docs-perf-{}/micro-apps".format(machine)
         repo             = "~/scream-perf-{}/components/scream".format(machine) if scream else scream_docs_repo
 
-    test_all_script = "../perf-scripts/scream-test-all" if scream else "test-all"
+    test_all_script = "../perf-scripts/test-all-scream" if scream else "test-all"
     submit_args = "-s {}".format(machine) if submit else ""
 
-    local_cmd = "{}/{} {} {} {}".format(test_all_script, scream_docs_repo, compiler, kokkos, submit_args) if test_all else "../perf-scripts/perf_analysis {} -p".format(perf_analysis_args)
+    local_cmd = "{}/{} {} {} {}".format(scream_docs_repo, test_all_script, compiler, kokkos, submit_args) if test_all else "../perf-scripts/perf_analysis {} -p".format(perf_analysis_args)
     local_cmd = local_cmd.replace("$compiler", compiler).replace("$kokkos_install", kokkos)
 
     setup = "cd {} && git fetch && git reset --hard origin/master && ".format(scream_docs_repo) if (scream and not local) else ""
