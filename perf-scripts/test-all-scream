@@ -1,0 +1,118 @@
+#!/usr/bin/env python3
+
+"""
+Drive ctest testing of scream for a complete set of tests. This will be our
+gold standard to determine if the code is working or not on the current platform.
+
+Run from $scream-repo/components/scream
+"""
+
+from utils import run_cmd, expect, check_minimum_python_version
+check_minimum_python_version(3, 5)
+
+import argparse, sys, os, shutil
+
+###############################################################################
+def parse_command_line(args, description):
+###############################################################################
+    parser = argparse.ArgumentParser(
+        usage="""\n{0} <ARGS> [--verbose]
+OR
+{0} --help
+
+\033[1mEXAMPLES:\033[0m
+    \033[1;32m# Run all tests on current machine \033[0m
+    > cd $scream_repo/components/scream
+    > ~/scream-docs/perf-scripts/test-all-scream $(which mpicxx) /home/jgfouca/kokkos-install/install
+
+    \033[1;32m# Run all tests on current machine and submit to dashboard \033[0m
+    > cd $scream_repo/components/scream
+    > ~/scream-docs/perf-scripts/test-all-scream $(which mpicxx) /home/jgfouca/kokkos-install/install -s melvin
+""".format(os.path.basename(args[0])),
+        description=description,
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+
+    parser.add_argument("cxx", help="C++ compiler")
+
+    parser.add_argument("kokkos", help="Kokkos installation to use")
+
+    parser.add_argument("-s", "--submit", help="Submit results to dashboad with this machine name")
+
+    args = parser.parse_args(args[1:])
+
+    expect(os.getcwd().endswith("components/scream"), "Run from $scream_repo/components/scream")
+
+    return args.cxx, args.kokkos, args.submit
+
+###############################################################################
+def generate_cmake_config(cxx, kokkos, extra_configs):
+###############################################################################
+    result = "cmake -DCMAKE_CXX_COMPILER={} -DKokkos_DIR={}".format(cxx, kokkos)
+    for key, value in extra_configs:
+        result += " -D{}={}".format(key, value)
+
+    return result
+
+###############################################################################
+def generate_ctest_config(cmake_config, extra_configs, build_name, submit):
+###############################################################################
+    result = ""
+    if submit:
+        result += "CIME_MACHINE={} ".format(submit)
+
+    result += "ctest "
+
+    if not submit:
+        result += "-DNO_SUBMIT=True "
+
+    for key, value in extra_configs:
+        result += "-D{}={} ".format(key, value)
+
+    result += "-DBUILD_NAME_MOD=_{} ".format(build_name)
+
+    result += '-S ../cmake/ctest_script.cmake -DCMAKE_COMMAND="{}" '.format(cmake_config)
+
+    return result
+
+###############################################################################
+def run_test(cxx, kokkos, extra_cmake_configs, extra_ctest_configs, build_name, submit):
+###############################################################################
+    cmake_config = generate_cmake_config(cxx, kokkos, extra_cmake_configs)
+    ctest_config = generate_ctest_config(cmake_config, extra_ctest_configs, build_name, submit)
+
+    return run_cmd(ctest_config, arg_stdout=None, arg_stderr=None, verbose=True) == 0
+
+###############################################################################
+def test_all_scream(cxx, kokkos, submit):
+###############################################################################
+    if os.path.exists("ctest-build"):
+        shutil.rmtree("ctest-build")
+
+    os.mkdir("ctest-build")
+    os.chdir("ctest-build")
+
+    success = True
+
+    # A full debug test
+    success &= run_test(cxx, kokkos, [("CMAKE_BUILD_TYPE", "Debug")], [], "full_debug", submit)
+
+    # A single precision build
+    success &= run_test(cxx, kokkos, [("CMAKE_BUILD_TYPE", "Debug"), ("SCREAM_DOUBLE_PRECISION", "False")],
+                        [("BUILD_ONLY", "True")], "debug_sp_bld", submit)
+
+    return success
+
+###############################################################################
+def _main_func(description):
+###############################################################################
+    cxx, kokkos, submit = parse_command_line(sys.argv, description)
+
+    success = test_all_scream(cxx, kokkos, submit)
+
+    sys.exit(0 if success else 1)
+
+###############################################################################
+
+if (__name__ == "__main__"):
+    _main_func(__doc__)

@@ -68,6 +68,8 @@ OR
 
     parser.add_argument("-k", "--kokkos", help="Use to select specific kokkos installation.")
 
+    parser.add_argument("--submit", help="Submit results to dashboard (scream-only).")
+
     args = parser.parse_args(args[1:])
 
     expect(not (args.local and len(args.machine) > 1),
@@ -79,14 +81,17 @@ OR
     if args.scream:
         args.test_all = True
 
+    if args.submit:
+        expect(args.scream, "Dashboard sumbission is only supported for scream")
+
     if not args.commit:
         expect(args.local, "Could not determine commit")
         args.commit = get_current_commit(short=True, repo="./scream") if args.scream else get_current_commit(short=True, repo="./scream-docs")
 
-    return args.perf_analysis_args, args.commit, args.machine, args.test_all, args.scream, args.local, args.kokkos
+    return args.perf_analysis_args, args.commit, args.machine, args.test_all, args.scream, args.local, args.kokkos, args.submit
 
 ###############################################################################
-def formulate_command(machine, perf_analysis_args, commit, test_all, scream, local, arg_kokkos):
+def formulate_command(machine, perf_analysis_args, commit, test_all, scream, local, arg_kokkos, submit):
 ###############################################################################
     modules, kokkos, compiler, batch = MACHINE_METADATA[machine]
 
@@ -100,7 +105,10 @@ def formulate_command(machine, perf_analysis_args, commit, test_all, scream, loc
         scream_docs_repo = "~/scream-docs-perf-{}/micro-apps".format(machine)
         repo             = "~/scream-perf-{}/components/scream".format(machine) if scream else scream_docs_repo
 
-    local_cmd = "{}/test-all {} {}".format(scream_docs_repo, compiler, kokkos) if test_all else "../perf-scripts/perf_analysis {} -p".format(perf_analysis_args)
+    test_all_script = "../perf-scripts/scream-test-all" if scream else "test-all"
+    submit_args = "-s {}".format(machine) if submit else ""
+
+    local_cmd = "{}/{} {} {} {}".format(test_all_script, scream_docs_repo, compiler, kokkos, submit_args) if test_all else "../perf-scripts/perf_analysis {} -p".format(perf_analysis_args)
     local_cmd = local_cmd.replace("$compiler", compiler).replace("$kokkos_install", kokkos)
 
     setup = "cd {} && git fetch && git reset --hard origin/master && ".format(scream_docs_repo) if (scream and not local) else ""
@@ -117,9 +125,9 @@ def formulate_command(machine, perf_analysis_args, commit, test_all, scream, loc
     return cmd
 
 ###############################################################################
-def run_on_machine(machine, perf_analysis_args, commit, test_all, scream, local, kokkos):
+def run_on_machine(machine, perf_analysis_args, commit, test_all, scream, local, kokkos, submit):
 ###############################################################################
-    cmd = formulate_command(machine, perf_analysis_args, commit, test_all, scream, local, kokkos)
+    cmd = formulate_command(machine, perf_analysis_args, commit, test_all, scream, local, kokkos, submit)
     print("Starting {} analysis on {} with cmd: {}".format("test-all" if test_all else "performance", machine, cmd))
 
     if local:
@@ -132,7 +140,7 @@ def run_on_machine(machine, perf_analysis_args, commit, test_all, scream, local,
     print ("Completed {} analysis on {}".format("test-all" if test_all else "performance", machine))
 
 ###############################################################################
-def gather_all_data(perf_analysis_args, commit, machines, test_all, scream, local, kokkos):
+def gather_all_data(perf_analysis_args, commit, machines, test_all, scream, local, kokkos, submit):
 ###############################################################################
     if not local:
         os.makedirs(os.path.join("test-all-results" if test_all else "perf-results", commit))
@@ -140,7 +148,7 @@ def gather_all_data(perf_analysis_args, commit, machines, test_all, scream, loca
     success = True
 
     with threading3.ThreadPoolExecutor(max_workers=len(machines)) as executor:
-        future_to_machine = {executor.submit(run_on_machine, machine, perf_analysis_args, commit, test_all, scream, local, kokkos): machine for machine in machines}
+        future_to_machine = {executor.submit(run_on_machine, machine, perf_analysis_args, commit, test_all, scream, local, kokkos, submit): machine for machine in machines}
         for future in threading3.as_completed(future_to_machine):
             machine = future_to_machine[future]
             try:
@@ -154,9 +162,9 @@ def gather_all_data(perf_analysis_args, commit, machines, test_all, scream, loca
 ###############################################################################
 def _main_func(description):
 ###############################################################################
-    perf_analysis_args, commit, machines, test_all, scream, local, kokkos = parse_command_line(sys.argv, description)
+    perf_analysis_args, commit, machines, test_all, scream, local, kokkos, submit = parse_command_line(sys.argv, description)
 
-    success = gather_all_data(perf_analysis_args, commit, machines, test_all, scream, local, kokkos)
+    success = gather_all_data(perf_analysis_args, commit, machines, test_all, scream, local, kokkos, submit)
 
     sys.exit(0 if success else 1)
 
