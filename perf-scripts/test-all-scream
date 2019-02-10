@@ -81,7 +81,7 @@ def run_test(cxx, kokkos, extra_cmake_configs, extra_ctest_configs, build_name, 
     cmake_config = generate_cmake_config(cxx, kokkos, extra_cmake_configs)
     ctest_config = generate_ctest_config(cmake_config, extra_ctest_configs, build_name, submit)
 
-    return run_cmd(ctest_config, arg_stdout=None, arg_stderr=None, verbose=True) == 0
+    return run_cmd(ctest_config, arg_stdout=None, arg_stderr=None, verbose=True)[0] == 0
 
 ###############################################################################
 def test_all_scream(cxx, kokkos, submit):
