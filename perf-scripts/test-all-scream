@@ -104,9 +104,13 @@ def run_test(cxx, kokkos, extra_cmake_configs, extra_ctest_configs, build_name, 
 ###############################################################################
     cmake_config = generate_cmake_config(cxx, kokkos, extra_cmake_configs)
 
+    # Clean out whatever might have been left in the build area from
+    # previous tests
+    run_cmd_no_fail("/bin/rm -rf *")
+
     if ("BUILD_ONLY", "True") not in extra_ctest_configs:
         filepaths, datas = generate_baselines(cmake_config, git_head, baseline)
-        run_cmd_no_fail("/bin/rm -rf *")
+        run_cmd_no_fail("/bin/rm -rf *") # Clean out baseline build
         for filepath, data in zip(filepaths, datas):
             run_cmd_no_fail("install -D /dev/null {}".format(filepath))
             with open(filepath, "wb") as fd:
