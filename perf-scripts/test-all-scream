@@ -7,7 +7,7 @@ gold standard to determine if the code is working or not on the current platform
 Run from $scream-repo/components/scream
 """
 
-from utils import run_cmd, expect, check_minimum_python_version
+from utils import run_cmd, expect, check_minimum_python_version, is_repo_clean, get_current_head, run_cmd_no_fail
 check_minimum_python_version(2, 7)
 
 import argparse, sys, os, shutil
@@ -39,11 +39,15 @@ OR
 
     parser.add_argument("-s", "--submit", help="Submit results to dashboad with this machine name")
 
+    parser.add_argument("-b", "--baseline", default="origin/master",
+                        help="What commit to use to generate baselines")
+
     args = parser.parse_args(args[1:])
 
     expect(os.getcwd().endswith("components/scream"), "Run from $scream_repo/components/scream")
+    expect(is_repo_clean(), "Repo must be clean before running")
 
-    return args.cxx, args.kokkos, args.submit
+    return args.cxx, args.kokkos, args.submit, args.baseline
 
 ###############################################################################
 def generate_cmake_config(cxx, kokkos, extra_configs):
@@ -76,39 +80,76 @@ def generate_ctest_config(cmake_config, extra_configs, build_name, submit):
     return result
 
 ###############################################################################
-def run_test(cxx, kokkos, extra_cmake_configs, extra_ctest_configs, build_name, submit):
+def generate_baselines(cmake_config, git_head, baseline):
+###############################################################################
+    print("Generating baseline for {} with config '{}'".format(baseline, cmake_config))
+
+    run_cmd_no_fail("git checkout {}".format(baseline))
+
+    run_cmd_no_fail("{} ..".format(cmake_config))
+    run_cmd_no_fail("make -j8 && make baseline")
+
+    baseline_files = run_cmd_no_fail('find . -name "*baseline*" -type f').split()
+    datas = []
+    for baseline_file in baseline_files:
+        with open(baseline_file, "rb") as fd:
+            datas.append(fd.read())
+
+    run_cmd_no_fail("git checkout {}".format(git_head))
+
+    return baseline_files, datas
+
+###############################################################################
+def run_test(cxx, kokkos, extra_cmake_configs, extra_ctest_configs, build_name, submit, git_head, baseline):
 ###############################################################################
     cmake_config = generate_cmake_config(cxx, kokkos, extra_cmake_configs)
+
+    # Clean out whatever might have been left in the build area from
+    # previous tests
+    run_cmd_no_fail("/bin/rm -rf *")
+
+    if ("BUILD_ONLY", "True") not in extra_ctest_configs:
+        filepaths, datas = generate_baselines(cmake_config, git_head, baseline)
+        run_cmd_no_fail("/bin/rm -rf *") # Clean out baseline build
+        for filepath, data in zip(filepaths, datas):
+            run_cmd_no_fail("install -D /dev/null {}".format(filepath))
+            with open(filepath, "wb") as fd:
+                fd.write(data)
+
     ctest_config = generate_ctest_config(cmake_config, extra_ctest_configs, build_name, submit)
 
     return run_cmd(ctest_config, arg_stdout=None, arg_stderr=None, verbose=True)[0] == 0
 
 ###############################################################################
-def test_all_scream(cxx, kokkos, submit):
+def test_all_scream(cxx, kokkos, submit, baseline):
 ###############################################################################
-    if os.path.exists("ctest-build"):
-        shutil.rmtree("ctest-build")
-
-    os.mkdir("ctest-build")
-    os.chdir("ctest-build")
+    git_head = get_current_head()
 
     success = True
+    try:
+        if os.path.exists("ctest-build"):
+            shutil.rmtree("ctest-build")
 
-    # A full debug test
-    success &= run_test(cxx, kokkos, [("CMAKE_BUILD_TYPE", "Debug")], [], "full_debug", submit)
+        os.mkdir("ctest-build")
+        os.chdir("ctest-build")
 
-    # A single precision build
-    success &= run_test(cxx, kokkos, [("CMAKE_BUILD_TYPE", "Debug"), ("SCREAM_DOUBLE_PRECISION", "False")],
-                        [("BUILD_ONLY", "True")], "debug_sp_bld", submit)
+        # A full debug test
+        success &= run_test(cxx, kokkos, [("CMAKE_BUILD_TYPE", "Debug")], [], "full_debug", submit, git_head, baseline)
+
+        # A single precision build
+        success &= run_test(cxx, kokkos, [("CMAKE_BUILD_TYPE", "Debug"), ("SCREAM_DOUBLE_PRECISION", "False")],
+                            [("BUILD_ONLY", "True")], "debug_sp_bld", submit, git_head, baseline)
+    finally:
+        run_cmd_no_fail("git checkout {}".format(git_head))
 
     return success
 
 ###############################################################################
 def _main_func(description):
 ###############################################################################
-    cxx, kokkos, submit = parse_command_line(sys.argv, description)
+    cxx, kokkos, submit, baseline = parse_command_line(sys.argv, description)
 
-    success = test_all_scream(cxx, kokkos, submit)
+    success = test_all_scream(cxx, kokkos, submit, baseline)
 
     sys.exit(0 if success else 1)
 

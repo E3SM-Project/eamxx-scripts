@@ -277,6 +277,32 @@ def median(items):
         quotient, remainder = divmod(len(items), 2)
         return sorted(items)[quotient] if remainder else sum(sorted(items)[quotient - 1:quotient + 1]) / 2.
 
+def get_current_branch(repo=None):
+    """
+    Return the name of the current branch for a repository
+
+    >>> if "GIT_BRANCH" in os.environ:
+    ...     get_current_branch() is not None
+    ... else:
+    ...     os.environ["GIT_BRANCH"] = "foo"
+    ...     get_current_branch() == "foo"
+    True
+    """
+    if ("GIT_BRANCH" in os.environ):
+        # This approach works better for Jenkins jobs because the Jenkins
+        # git plugin does not use local tracking branches, it just checks out
+        # to a commit
+        branch = os.environ["GIT_BRANCH"]
+        if (branch.startswith("origin/")):
+            branch = branch.replace("origin/", "", 1)
+        return branch
+    else:
+        stat, output, _ = run_cmd("git symbolic-ref HEAD", from_dir=repo)
+        if (stat != 0):
+            return None
+        else:
+            return output.replace("refs/heads/", "")
+
 def get_current_commit(short=False, repo=None, tag=False):
     """
     Return the sha1 of the current HEAD commit
@@ -290,3 +316,17 @@ def get_current_commit(short=False, repo=None, tag=False):
         rc, output, _ = run_cmd("git rev-parse {} HEAD".format("--short" if short else ""), from_dir=repo)
 
     return output if rc == 0 else None
+
+def get_current_head(repo=None):
+    """
+    Return current head, preferring branch name if possible
+    """
+    branch = get_current_branch(repo=repo)
+    if not branch:
+        return get_current_commit(repo=repo)
+    else:
+        return branch
+
+def is_repo_clean(repo=None):
+    rc, output, _ = run_cmd("git status --porcelain --untracked-files=no", combine_output=True, from_dir=repo)
+    return rc == 0 and output == ""
