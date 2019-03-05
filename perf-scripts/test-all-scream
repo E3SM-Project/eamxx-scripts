@@ -41,7 +41,7 @@ OR
 
     parser.add_argument("-m", "--machine", help="Provide machine name. This is required for internal kokkos builds and dashboard submission")
 
-    parser.add_argument("-b", "--baseline", default="origin/master",
+    parser.add_argument("-b", "--baseline", default="HEAD",
                         help="What commit to use to generate baselines")
 
     args = parser.parse_args(args[1:])
