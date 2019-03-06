@@ -122,7 +122,7 @@ def formulate_command(machine, perf_analysis_args, commit, test_all, scream, loc
     else:
         extra_env = "OMP_PROC_BIND=FALSE "
 
-    repo_setup = "true" if (local or not commit) else "git fetch && git checkout {}".format(commit)
+    repo_setup = "true" if (local or not commit) else "git fetch && git checkout {} && git submodule update --init".format(commit)
 
     cmd = "{}cd {} && {} && {} && {}{} {}".format(setup, repo, " && ".join(env_setup), repo_setup, extra_env, batch, local_cmd)
 
