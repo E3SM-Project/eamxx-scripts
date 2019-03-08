@@ -7,7 +7,7 @@ gold standard to determine if the code is working or not on the current platform
 Run from $scream-repo/components/scream
 """
 
-from utils import run_cmd, expect, check_minimum_python_version, is_repo_clean, get_current_head, run_cmd_no_fail
+from utils import run_cmd, expect, check_minimum_python_version, is_repo_clean, get_current_head, run_cmd_no_fail, get_current_commit
 check_minimum_python_version(3, 4)
 
 import argparse, sys, os, shutil
@@ -102,6 +102,7 @@ def generate_baselines(cmake_config, git_head, baseline):
     print("Generating baseline for {} with config '{}'".format(baseline, cmake_config))
 
     run_cmd_no_fail("git checkout {}".format(baseline))
+    print("  Switched to {}".format(get_current_commit()))
 
     run_cmd_no_fail("{} ..".format(cmake_config), arg_stdout=None, arg_stderr=None, verbose=True)
     run_cmd_no_fail("make -j8 && make baseline", arg_stdout=None, arg_stderr=None, verbose=True)
@@ -113,6 +114,7 @@ def generate_baselines(cmake_config, git_head, baseline):
             datas.append(fd.read())
 
     run_cmd_no_fail("git checkout {}".format(git_head))
+    print("  Switched back to {}".format(get_current_commit()))
 
     return baseline_files, datas
 
@@ -140,7 +142,9 @@ def run_test(cxx, kokkos, extra_cmake_configs, extra_ctest_configs, build_name, 
 ###############################################################################
 def test_all_scream(cxx, kokkos, submit, baseline, machine, custom_cmake_opts):
 ###############################################################################
+    git_head_commit = get_current_commit()
     git_head = get_current_head()
+    print("Testing {} ({})".format(git_head, git_head_commit))
 
     success = True
     try:
