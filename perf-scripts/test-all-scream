@@ -167,7 +167,7 @@ def test_all_scream(cxx, kokkos, submit, baseline, machine, custom_cmake_opts):
         # A full debug test with packsize=1 and FPE
         if machine not in ["waterman", "white"]:
             success &= run_test(cxx, kokkos, [("CMAKE_BUILD_TYPE", "Debug"), ("SCREAM_PACK_SIZE", "1"), ("SCREAM_SMALL_PACK_SIZE", "1")],
-                                [], "full_debug_nopack_fpe", submit, git_head, baseline, machine, custom_cmake_opts)
+                                [], "debug_nopack_fpe", submit, git_head, baseline, machine, custom_cmake_opts)
 
         # A single precision build
         success &= run_test(cxx, kokkos, [("CMAKE_BUILD_TYPE", "Debug"), ("SCREAM_DOUBLE_PRECISION", "False")],
