@@ -85,7 +85,7 @@ contains
 
     print '("Time = ",E20.3," seconds.")', (finish - start) / repeat
 
-    ok = dump_all_li(filename, c_loc(y2), ncol, km2)
+    ok = dump_all_li(filename, c_loc(y2), ncol, km1, km2, minthresh)
 
     deallocate(x1, y1, x2, y2)
 

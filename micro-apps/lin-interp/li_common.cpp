@@ -1,4 +1,5 @@
 #include "li_common.hpp"
+#include "../micro-sed/cmp.hpp"
 
 extern "C" {
 
@@ -11,6 +12,10 @@ bool dump_all_li(const char* filename,
                  const Real** y2,
                  const int ncol, const int km1, const int km2, const Real minthresh)
 {
+  const int size = ncol * km2;
+  std::vector<Real> y2_cpp(size);
+  cmp::transpose<cmp::TransposeDirection::f2c>(*y2, y2_cpp.data(), ncol, km2);
+  li::dump_to_file_li(filename, y2_cpp.data(), ncol, km1, km2, minthresh);
   return true;
 }
 

@@ -3,11 +3,12 @@
 module li_cpp_bridge
   interface
 
-     function dump_all_li(filename, y2, ncol, km2) result(ok) bind(c)
+     function dump_all_li(filename, y2, ncol, km1, km2, minthresh) result(ok) bind(c)
        use iso_c_binding
        character(kind=c_char), intent(in) :: filename(*)
        type(c_ptr), intent(in) :: y2
-       integer(kind=c_int), intent(in), value :: ncol, km2
+       integer(kind=c_int), intent(in), value :: ncol, km1, km2
+       real(kind=c_real), intent(in), value :: minthresh
        logical(kind=c_bool) :: ok
      end function dump_all_li
 

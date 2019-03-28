@@ -64,7 +64,8 @@ static Int compare (const std::string& label, // Label of compared quantities, f
   return nerr;
 }
 
-static void expect_another_arg (Int i, Int argc) {
+inline
+void expect_another_arg (Int i, Int argc) {
   if (i == argc-1)
     throw std::runtime_error("Expected another cmd-line arg.");
 }

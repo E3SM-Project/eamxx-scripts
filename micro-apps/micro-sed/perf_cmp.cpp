@@ -80,5 +80,5 @@ int main (int argc, char** argv) {
     std::cout << file1_fn << " and " << file2_fn << " do not match" << std::endl;
   }
 
-  return rv;
+  return rv == 0 ? 0 : 1;
 }
