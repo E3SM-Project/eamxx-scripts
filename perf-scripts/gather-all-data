@@ -52,7 +52,7 @@ OR
     default_commit = get_current_commit(short=True)
     parser.add_argument("-c", "--commit", default=default_commit, help="Commit to test")
 
-    parser.add_argument("-m", "--machine", action="append", choices=MACHINE_METADATA.keys(),
+    parser.add_argument("-m", "--machine", dest="machines", action="append", choices=MACHINE_METADATA.keys(),
                         help="Select which machines to run on, default is all")
 
     parser.add_argument("-t", "--test-all", action="store_true", help="Run test-all instead of performance gathering")
@@ -71,8 +71,8 @@ OR
     expect(not (args.local and len(args.machine) > 1),
            "Cannot run on multiple machines if local")
 
-    if not args.machine:
-        args.machine = MACHINE_METADATA.keys()
+    if not args.machines:
+        args.machines = MACHINE_METADATA.keys()
 
     if args.scream:
         args.test_all = True
@@ -84,12 +84,12 @@ OR
         expect(args.local, "Could not determine commit")
         args.commit = get_current_commit(short=True, repo="./scream") if args.scream else get_current_commit(short=True, repo="./scream-docs")
 
-    return tuple([getattr(args, item) for item in vars(args)])
+    return args
 
 ###############################################################################
 def _main_func(description):
 ###############################################################################
-    gad = GatherAllData(*parse_command_line(sys.argv, description))
+    gad = GatherAllData(**vars(parse_command_line(sys.argv, description)))
 
     success = gad.gather_all_data()
 
