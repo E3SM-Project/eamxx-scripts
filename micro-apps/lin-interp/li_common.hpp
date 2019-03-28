@@ -20,13 +20,14 @@ namespace li {
 template <typename Scalar>
 void populate_li_input(int km1, int km2, Scalar* x1_i, Scalar* y1_i, Scalar* x2_i)
 {
-  // JGFTODO
+  Scalar ratio = km1 / static_cast<Scalar>(km2);
+  // y is a simple linear function
   for (int k = 0; k < km1; ++k) {
-    x1_i[k] = 0;
-    y1_i[k] = 0;
+    x1_i[k] = k;
+    y1_i[k] = k;
   }
   for (int k = 0; k < km2; ++k) {
-    x2_i[k] = 0;
+    x2_i[k] = k * ratio;
   }
 }
 

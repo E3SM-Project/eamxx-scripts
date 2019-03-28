@@ -18,6 +18,7 @@ struct LiVanilla
     m_minthresh(minthresh)
   {}
 
+  // Linearly interpolate y(x1) onto coordinates x2
   void lin_interp(const vector_2d_t<Scalar>& x1, const vector_2d_t<Scalar>& x2, const vector_2d_t<Scalar>& y1,
                   vector_2d_t<Scalar>& y2) const
   {
