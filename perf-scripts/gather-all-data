@@ -55,14 +55,12 @@ OR
     parser.add_argument("-m", "--machine", action="append", choices=MACHINE_METADATA.keys(),
                         help="Select which machines to run on, default is all")
 
-    parser.add_argument("-l", "--local", action="store_true",
-                        help="Run tests on local machine")
-
     parser.add_argument("-t", "--test-all", action="store_true", help="Run test-all instead of performance gathering")
 
     parser.add_argument("-s", "--scream", action="store_true", help="Test scream instead of scream-docs. Implies --test-all")
 
-    parser.add_argument("-s", "--scream", action="store_true", help="Test scream instead of scream-docs. Implies --test-all")
+    parser.add_argument("-l", "--local", action="store_true",
+                        help="Run tests on local machine")
 
     parser.add_argument("-k", "--kokkos", help="Use to select specific kokkos installation.")
 
@@ -86,7 +84,7 @@ OR
         expect(args.local, "Could not determine commit")
         args.commit = get_current_commit(short=True, repo="./scream") if args.scream else get_current_commit(short=True, repo="./scream-docs")
 
-    return args.perf_analysis_args, args.commit, args.machine, args.test_all, args.scream, args.local, args.kokkos, args.submit
+    return tuple([getattr(args, item) for item in vars(args)])
 
 ###############################################################################
 def _main_func(description):
