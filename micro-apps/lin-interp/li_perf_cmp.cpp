@@ -49,7 +49,13 @@ int main (int argc, char** argv) {
 
   // When performance testing, we're using optimized flags, etc., so
   // even in double precision we have to accept *some* diffs.
-  Real tol = util::is_single_precision<Real>::value ? 2e-5 : 1e-14;
+  Real tol = util::is_single_precision<Real>::value ? 2e-5 :
+#ifndef NDEBUG
+    0.0;
+#else
+    1e-14;
+#endif
+
   bool verbose = false;
   for (Int i = 1; i < argc-1; ++i) {
     if (util::eq(argv[i], "-v", "--verbose")) verbose = true;
@@ -64,6 +70,8 @@ int main (int argc, char** argv) {
   std::string file1_fn(argv[argc-2]), file2_fn(argv[argc-1]);
   file1_fn += std::to_string(sizeof(Real));
   file2_fn += std::to_string(sizeof(Real));
+
+  std::cout << "Comparing " << file1_fn << " against " << file2_fn << " with tol " << tol << std::endl;
 
   int rv = compare_files(file1_fn, file2_fn, tol, verbose);
 

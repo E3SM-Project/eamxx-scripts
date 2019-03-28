@@ -35,7 +35,7 @@ endforeach ()
 
 # add_test(run_unit_test_f90 unit_test_f90)
 # add_test(p3_func_regression run_and_cmp run_and_cmp.baseline)
-set(PERF_ARGS 10 128 128 1 10) # ncol km1 km2 minthresh repeat
+set(PERF_ARGS 10 128 256 0.01 10) # ncol km1 km2 minthresh repeat
 foreach (li_impl ${li_impls})
    add_test(run_li_${li_impl} li_${li_impl} ${PERF_ARGS})
    if (NOT ${li_impl} STREQUAL "ref")
