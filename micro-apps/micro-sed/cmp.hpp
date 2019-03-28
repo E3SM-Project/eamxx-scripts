@@ -64,6 +64,29 @@ static Int compare (const std::string& label, // Label of compared quantities, f
   return nerr;
 }
 
+static void expect_another_arg (Int i, Int argc) {
+  if (i == argc-1)
+    throw std::runtime_error("Expected another cmd-line arg.");
+}
+
+template <typename Scalar>
+Scalar compare_property(const std::string& file1_fn, const std::string& file2_fn,
+                        const util::FILEPtr& fid1, const util::FILEPtr& fid2, const char* name,
+                        bool verbose)
+{
+  Scalar item1, item2;
+
+  util::read(&item1, 1, fid1);
+  util::read(&item2, 1, fid2);
+
+  micro_require_msg(item1 == item2, "Files " << file1_fn << " and " << file2_fn <<
+                    " have mismatch in basic property '" << name << "', " << item1 << " != " << item2);
+
+  if (verbose) std::cout << name << " matches, = " << item1 << std::endl;
+
+  return item1;
+}
+
 } // namespace cmp
 
 #endif
