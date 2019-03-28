@@ -112,6 +112,20 @@ template <typename T> KOKKOS_INLINE_FUNCTION T reldif (const T& a, const T& b) {
   return std::abs((b - a)/a);
 }
 
+template <typename T>
+const T* flatten(const vector_2d_t<T>& data)
+{
+  const size_t dim0 = data.size();
+  const size_t dim1 = data[0].size();
+  T* result = new T[dim0 * dim1];
+
+  for (size_t i = 0; i < dim0; ++i) {
+    std::copy(data[i].begin(), data[i].end(), result + dim1 * i);
+  }
+
+  return result;
+}
+
 } // namespace util
 
 #endif

@@ -498,11 +498,6 @@ static Int run_and_cmp (const std::string& bfn, const Real& tol, bool verbose) {
   return nerr;
 }
 
-static void expect_another_arg (Int i, Int argc) {
-  if (i == argc-1)
-    throw std::runtime_error("Expected another cmd-line arg.");
-}
-
 int main (int argc, char** argv) {
   util::initialize();
 
@@ -525,7 +520,7 @@ int main (int argc, char** argv) {
     if (util::eq(argv[i], "-g", "--generate")) generate = true;
     if (util::eq(argv[i], "-v", "--verbose")) verbose = true;
     if (util::eq(argv[i], "-t", "--tol")) {
-      expect_another_arg(i, argc);
+      cmp::expect_another_arg(i, argc);
       ++i;
       tol = std::atof(argv[i]);
     }
