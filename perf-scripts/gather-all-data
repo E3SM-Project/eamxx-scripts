@@ -2,7 +2,8 @@
 
 """
 Gather results from a generic command distributed to known machines and
-known environments.
+known environments. You can use --local if you only want the environment
+management (used for Jenkins for example).
 
 It is expected that you are able to do a passwordless ssh to all
 machines and that the given repo on the target machines are clean.
@@ -40,7 +41,7 @@ o
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
 
-    parser.add_argument("run", help="What to run on the machine, exe path relative to scream-docs/micro-apps, ccwd will be either scream/components/scream or scream-docs/micro-apps depending on if --scream was provided")
+    parser.add_argument("run", help="What to run on the machine, exe path relative to scream-docs/micro-apps, cwd will be either scream/components/scream or scream-docs/micro-apps depending on if --scream was provided")
 
     default_commit = get_current_commit(short=True)
     parser.add_argument("-c", "--commit", default=default_commit, help="Commit to test")
@@ -57,11 +58,16 @@ o
 
     args = parser.parse_args(args[1:])
 
+    if not args.machines:
+        args.machines = MACHINE_METADATA.keys()
+
     expect(not (args.local and len(args.machines) > 1),
            "Cannot run on multiple machines if local")
 
-    if not args.machines:
-        args.machines = MACHINE_METADATA.keys()
+    if args.local:
+        expect(os.path.isdir("scream-docs"), "Expected to see ./scream-docs")
+        if args.scream:
+            expect(os.path.isdir("scream"), "Expected to see ./scream")
 
     if not args.commit:
         expect(args.local, "Could not determine commit")
