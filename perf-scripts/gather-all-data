@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 
 """
-Gather all performance data on all platforms of interest and store
-them in a git branch.
+Gather results from a generic command distributed to known machines and
+known environments.
 
 It is expected that you are able to do a passwordless ssh to all
 machines and that the given repo on the target machines are clean.
@@ -30,24 +30,17 @@ OR
 {0} --help
 
 \033[1mEXAMPLES:\033[0m
-    \033[1;32m# Gather data \033[0m
-    > {0} '64 128 300 30 10 $kokkos_install --cxx=$compiler -s "ni:2.0:16384" -n 10'
-    # NOTE: leave the variables in the args unresolved so the script can resolve them
-
-    \033[1;32m# Gather data for specific tests and specific machines \033[0m
-    > {0} '64 128 300 30 10 $kokkos_install --cxx=$compiler -t ref -t final -s "ni:2.0:16384" -n 10' -m waterman -m bowman
-
-    \033[1;32m# Do correctness testing instead of performance testing \033[0m
-    > {0} -t
-
+    \033[1;32m# Test scream on all platforms \033[0m
+    > {0} '../perf-scripts/test-all-scream $compiler -m $machine' -s
+o
     \033[1;32m# Do correctness testing locally for SCREAM (expects ./scream and ./scream-docs) \033[0m
-    > {0} -l -s -m $machine
+    > {0} '../perf-scripts/test-all-scream $compiler -m $machine' -l -s -m $machine
 """.format(os.path.basename(args[0])),
         description=description,
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
 
-    parser.add_argument("perf_analysis_args", nargs="?", help="Args to pass to perf_analysis")
+    parser.add_argument("run", help="What to run on the machine, exe path relative to scream-docs/micro-apps, ccwd will be either scream/components/scream or scream-docs/micro-apps depending on if --scream was provided")
 
     default_commit = get_current_commit(short=True)
     parser.add_argument("-c", "--commit", default=default_commit, help="Commit to test")
@@ -55,30 +48,20 @@ OR
     parser.add_argument("-m", "--machine", dest="machines", action="append", choices=MACHINE_METADATA.keys(),
                         help="Select which machines to run on, default is all")
 
-    parser.add_argument("-t", "--test-all", action="store_true", help="Run test-all instead of performance gathering")
-
-    parser.add_argument("-s", "--scream", action="store_true", help="Test scream instead of scream-docs. Implies --test-all")
+    parser.add_argument("-s", "--scream", action="store_true", help="Test scream instead of scream-docs. Scream-docs will be update to latest master if not local")
 
     parser.add_argument("-l", "--local", action="store_true",
                         help="Run tests on local machine")
 
-    parser.add_argument("-k", "--kokkos", help="Use to select specific kokkos installation.")
-
-    parser.add_argument("--submit", action="store_true", help="Submit results to dashboard (scream-only).")
+    parser.add_argument("-k", "--kokkos", help="Use to select specific kokkos installation. Can refer to this in run cmd with $kokkos")
 
     args = parser.parse_args(args[1:])
 
-    expect(not (args.local and len(args.machine) > 1),
+    expect(not (args.local and len(args.machines) > 1),
            "Cannot run on multiple machines if local")
 
     if not args.machines:
         args.machines = MACHINE_METADATA.keys()
-
-    if args.scream:
-        args.test_all = True
-
-    if args.submit:
-        expect(args.scream, "Dashboard sumbission is only supported for scream")
 
     if not args.commit:
         expect(args.local, "Could not determine commit")

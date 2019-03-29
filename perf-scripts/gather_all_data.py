@@ -18,16 +18,14 @@ class GatherAllData(object):
 ###############################################################################
 
     ###########################################################################
-    def __init__(self, perf_analysis_args, commit, machines, test_all, scream, local, kokkos, submit):
+    def __init__(self, run, commit, machines, scream, local, kokkos):
     ###########################################################################
-        self._perf_analysis_args = perf_analysis_args
-        self._commit             = commit
-        self._machines           = machines
-        self._test_all           = test_all
-        self._scream             = scream
-        self._local              = local
-        self._kokkos             = kokkos
-        self._submit             = submit
+        self._run       = run
+        self._commit    = commit
+        self._machines  = machines
+        self._scream    = scream
+        self._local     = local
+        self._kokkos    = kokkos
 
     ###########################################################################
     def formulate_command(self, machine):
@@ -36,19 +34,19 @@ class GatherAllData(object):
 
         if self._local:
             scream_docs_repo = os.path.abspath("./scream-docs/micro-apps")
-            repo             = os.path.abspath("./scream/components/scream") if self._scream else scream_docs_repo
+            scream_repo      = os.path.abspath("./scream/components/scream")
+            repo             = scream_repo if self._scream else scream_docs_repo
         else:
             scream_docs_repo = "~/scream-docs-perf-{}/micro-apps".format(machine)
-            repo             = "~/scream-perf-{}/components/scream".format(machine) if self._scream else scream_docs_repo
+            scream_repo      = "~/scream-perf-{}/components/scream".format(machine)
+            repo             = scream_repo if self._scream else scream_docs_repo
 
-        test_all_script = "../perf-scripts/test-all-scream" if self._scream else "test-all"
-        submit_args = "-s" if self._submit else ""
+        # Need to know kokkos location in order to set up OMPI_CXX
+        kokkos_loc = self._kokkos if self._kokkos else os.path.join(os.path.dirname(os.path.dirname(scream_repo)), "externals", "kokkos")
 
-        kokkos_arg = "-k {}".format(self._kokkos) if self._kokkos else ""
-        kokkos_loc = self._kokkos if self._kokkos else os.path.join(os.path.dirname(os.path.dirname(repo)), "externals", "kokkos")
-
-        local_cmd = "{}/{} {} {} {} -m {}".format(scream_docs_repo, test_all_script, compiler, kokkos_arg, submit_args, machine) if self._test_all else "../perf-scripts/perf_analysis {} -p".format(self._perf_analysis_args)
-        local_cmd = local_cmd.replace("$compiler", compiler)
+        local_cmd = os.path.join(scream_docs_repo, self._run)
+        # Do magic replacements here
+        local_cmd = local_cmd.replace("$compiler", compiler).replace("$kokkos", kokkos_loc).replace("$machine", machine)
 
         setup = "cd {} && git fetch && git reset --hard origin/master && ".format(scream_docs_repo) if (self._scream and not self._local) else ""
         extra_env = ""
@@ -67,7 +65,7 @@ class GatherAllData(object):
     def run_on_machine(self, machine):
     ###########################################################################
         cmd = self.formulate_command(machine)
-        print("Starting {} analysis on {} with cmd: {}".format("test-all" if self._test_all else "performance", machine, cmd))
+        print("Starting analysis on {} with cmd: {}".format(machine, cmd))
 
         if self._local:
             run_cmd_no_fail(cmd, arg_stdout=None, arg_stderr=None, verbose=True, exc_type=RuntimeError)
@@ -78,16 +76,16 @@ class GatherAllData(object):
                 output = str(e)
                 raise
             finally:
-                with open(os.path.join("test-all-results" if self._test_all else "perf-results", self._commit, machine), "w") as fd:
+                with open(os.path.join("gather-all-results", self._commit, machine), "w") as fd:
                     fd.write(output)
 
-        print ("Completed {} analysis on {}".format("test-all" if self._test_all else "performance", machine))
+        print("Completed analysis on {}".format(machine))
 
     ###########################################################################
     def gather_all_data(self):
     ###########################################################################
         if not self._local:
-            os.makedirs(os.path.join("test-all-results" if self._test_all else "perf-results", self._commit))
+            os.makedirs(os.path.join("gather-all-results", self._commit))
 
         success = True
 
