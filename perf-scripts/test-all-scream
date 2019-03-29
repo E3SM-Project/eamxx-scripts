@@ -7,10 +7,12 @@ gold standard to determine if the code is working or not on the current platform
 Run from $scream-repo/components/scream
 """
 
-from utils import run_cmd, expect, check_minimum_python_version, is_repo_clean, get_current_head, run_cmd_no_fail, get_current_commit
+from utils import expect, check_minimum_python_version, is_repo_clean
 check_minimum_python_version(3, 4)
 
-import argparse, sys, os, shutil
+import argparse, sys, os
+
+from test_all_scream import TestAllScream
 
 ###############################################################################
 def parse_command_line(args, description):
@@ -22,12 +24,12 @@ OR
 
 \033[1mEXAMPLES:\033[0m
     \033[1;32m# Run all tests on current machine \033[0m
-    > cd $scream_repo/components/scream
+    > cd $scream_repo/components/scream -m melvin
     > ~/scream-docs/perf-scripts/test-all-scream $(which mpicxx)
 
     \033[1;32m# Run all tests on current machine and submit to dashboard \033[0m
     > cd $scream_repo/components/scream
-    > ~/scream-docs/perf-scripts/test-all-scream $(which mpicxx) -s melvin
+    > ~/scream-docs/perf-scripts/test-all-scream $(which mpicxx) -m melvin -s
 """.format(os.path.basename(args[0])),
         description=description,
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
@@ -39,11 +41,11 @@ OR
 
     parser.add_argument("-s", "--submit", action="store_true", help="Submit results to dashboad, requires machine")
 
-    parser.add_argument("-m", "--machine", help="Provide machine name. This is required for internal kokkos builds and dashboard submission")
-
     default_baseline = "HEAD" if "JENKINS_HOME" in os.environ else "origin/master"
     parser.add_argument("-b", "--baseline", default=default_baseline,
                         help="What commit to use to generate baselines")
+
+    parser.add_argument("-m", "--machine", help="Provide machine name. This is required for internal kokkos builds and dashboard submission")
 
     parser.add_argument("-c", "--custom-cmake-opts",
                         help="Extra custom options to pass to cmake")
@@ -57,133 +59,14 @@ OR
     if args.submit:
         expect(args.machine, "If dashboard submit request, must provide machine name")
 
-    return args.cxx, args.kokkos, args.submit, args.baseline, args.machine, args.custom_cmake_opts
-
-###############################################################################
-def generate_cmake_config(cxx, kokkos, extra_configs, machine, custom_cmake_opts):
-###############################################################################
-    if kokkos:
-        kokkos_cmake = "-DKokkos_DIR={}".format(kokkos)
-    else:
-        kokkos_cmake = "-C ../cmake/machine-files/{}.cmake".format(machine)
-
-    result = "cmake -DCMAKE_CXX_COMPILER={} {}".format(cxx, kokkos_cmake)
-    for key, value in extra_configs:
-        result += " -D{}={}".format(key, value)
-
-    if custom_cmake_opts:
-        result += " {}".format(custom_cmake_opts)
-
-    return result
-
-###############################################################################
-def generate_ctest_config(cmake_config, extra_configs, build_name, submit, machine):
-###############################################################################
-    result = ""
-    if submit:
-        result += "CIME_MACHINE={} ".format(machine)
-
-    result += "ctest "
-
-    if not submit:
-        result += "-DNO_SUBMIT=True "
-
-    for key, value in extra_configs:
-        result += "-D{}={} ".format(key, value)
-
-    result += "-DBUILD_NAME_MOD=_{} ".format(build_name)
-
-    result += '-S ../cmake/ctest_script.cmake -DCMAKE_COMMAND="{}" '.format(cmake_config)
-
-    return result
-
-###############################################################################
-def generate_baselines(cmake_config, git_head, baseline):
-###############################################################################
-    print("Generating baseline for {} with config '{}'".format("HEAD" if baseline is None else baseline, cmake_config))
-
-    if baseline is not None:
-        run_cmd_no_fail("git checkout {}".format(baseline))
-        print("  Switched to {}".format(get_current_commit()))
-
-    run_cmd_no_fail("{} ..".format(cmake_config), arg_stdout=None, arg_stderr=None, verbose=True)
-    run_cmd_no_fail("make -j8 && make baseline", arg_stdout=None, arg_stderr=None, verbose=True)
-
-    baseline_files = run_cmd_no_fail('find . -name "*baseline*" -type f').split()
-    datas = []
-    for baseline_file in baseline_files:
-        with open(baseline_file, "rb") as fd:
-            datas.append(fd.read())
-
-    if baseline is not None:
-        run_cmd_no_fail("git checkout {}".format(git_head))
-        print("  Switched back to {}".format(get_current_commit()))
-
-    return baseline_files, datas
-
-###############################################################################
-def run_test(cxx, kokkos, extra_cmake_configs, extra_ctest_configs, build_name, submit, git_head, baseline, machine, custom_cmake_opts):
-###############################################################################
-    cmake_config = generate_cmake_config(cxx, kokkos, extra_cmake_configs, machine, custom_cmake_opts)
-
-    # Clean out whatever might have been left in the build area from
-    # previous tests
-    run_cmd_no_fail("/bin/rm -rf *")
-
-    if ("BUILD_ONLY", "True") not in extra_ctest_configs:
-        filepaths, datas = generate_baselines(cmake_config, git_head, baseline)
-        run_cmd_no_fail("/bin/rm -rf *") # Clean out baseline build
-        for filepath, data in zip(filepaths, datas):
-            run_cmd_no_fail("install -D /dev/null {}".format(filepath))
-            with open(filepath, "wb") as fd:
-                fd.write(data)
-
-    ctest_config = generate_ctest_config(cmake_config, extra_ctest_configs, build_name, submit, machine)
-
-    return run_cmd(ctest_config, arg_stdout=None, arg_stderr=None, verbose=True)[0] == 0
-
-###############################################################################
-def test_all_scream(cxx, kokkos, submit, baseline, machine, custom_cmake_opts):
-###############################################################################
-    git_head_commit = get_current_commit()
-    git_baseline_commit = get_current_commit(commit=baseline)
-    git_head = get_current_head()
-    print("Testing {} ({})".format(git_head, git_head_commit))
-    if git_baseline_commit == git_head_commit:
-        baseline = None
-        print("WARNING: baseline commit is same as current HEAD")
-
-    success = True
-    try:
-        if os.path.exists("ctest-build"):
-            shutil.rmtree("ctest-build")
-
-        os.mkdir("ctest-build")
-        os.chdir("ctest-build")
-
-        # A full debug test
-        success &= run_test(cxx, kokkos, [("CMAKE_BUILD_TYPE", "Debug")], [], "full_debug", submit, git_head, baseline, machine, custom_cmake_opts)
-
-        # A full debug test with packsize=1 and FPE
-        if machine not in ["waterman", "white"]:
-            success &= run_test(cxx, kokkos, [("CMAKE_BUILD_TYPE", "Debug"), ("SCREAM_PACK_SIZE", "1"), ("SCREAM_SMALL_PACK_SIZE", "1")],
-                                [], "debug_nopack_fpe", submit, git_head, baseline, machine, custom_cmake_opts)
-
-        # A single precision build
-        success &= run_test(cxx, kokkos, [("CMAKE_BUILD_TYPE", "Debug"), ("SCREAM_DOUBLE_PRECISION", "False")],
-                            [("BUILD_ONLY", "True")], "debug_sp_bld", submit, git_head, baseline, machine, custom_cmake_opts)
-    finally:
-        if baseline is not None:
-            run_cmd_no_fail("git checkout {}".format(git_head))
-
-    return success
+    return args
 
 ###############################################################################
 def _main_func(description):
 ###############################################################################
-    cxx, kokkos, submit, baseline, machine, custom_cmake_opts = parse_command_line(sys.argv, description)
+    tas = TestAllScream(**vars(parse_command_line(sys.argv, description)))
 
-    success = test_all_scream(cxx, kokkos, submit, baseline, machine, custom_cmake_opts)
+    success = tas.test_all_scream()
 
     sys.exit(0 if success else 1)
 

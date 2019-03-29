@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 """
 Run different versions of p3 micro app and compare performance. It is
@@ -6,7 +6,7 @@ expected that this will be run from micro-apps directory.
 """
 
 from utils import run_cmd_no_fail, run_cmd, expect, check_minimum_python_version, median
-check_minimum_python_version(2, 7)
+check_minimum_python_version(3, 4)
 
 import argparse, sys, os, tempfile, re, socket
 
@@ -45,14 +45,14 @@ class ScalingExp(object):
 
         st, out, _ = run_cmd("git rev-parse --short HEAD")
         git_commit = out if st == 0 else "Unknown"
-        print "{} machine={} commit={}".format(prov_msg, socket.gethostname().split(".")[0], git_commit)
+        print("{} machine={} commit={}".format(prov_msg, socket.gethostname().split(".")[0], git_commit))
 
         for test_name, test_results in results.iteritems():
-            print test_name, self.varname
+            print(test_name, self.varname)
             for test_result in test_results:
                 ni, nk, dt, ts, threads, med_time = test_result
                 cols_sec = float(ni) / med_time
-                print "{}, {:.2f}".format(locals()[self.varname], cols_sec)
+                print("{}, {:.2f}".format(locals()[self.varname], cols_sec))
 
 ###############################################################################
 def parse_command_line(args, description):
@@ -207,7 +207,7 @@ def user_explain(test, med_time, reference, ni):
 
     msg +=", {:.2f} cols/sec".format(ni / med_time)
 
-    print msg
+    print(msg)
 
 ###############################################################################
 def perf_analysis(ni, nk, dt, ts, repeat, force_threads, num_runs, tests, cmake_options, use_existing, scaling_exp, plot_friendly):
@@ -223,15 +223,15 @@ def perf_analysis(ni, nk, dt, ts, repeat, force_threads, num_runs, tests, cmake_
         os.chdir(tmpdir)
 
         if not plot_friendly:
-            print "BUILDING"
+            print("BUILDING")
 
         build_p3(cmake_options)
 
     results = {}
     while (scaling_exp.should_continue(ni, nk, dt, ts, force_threads)):
         if not plot_friendly:
-            print
-            print "RUNNING NI", ni, "NK", nk, "DT", dt, "TS", ts, "THREADS {}".format(force_threads) if force_threads else ""
+            print()
+            print("RUNNING NI", ni, "NK", nk, "DT", dt, "TS", ts, "THREADS {}".format(force_threads) if force_threads else "")
 
         reference = None
         for test in tests:

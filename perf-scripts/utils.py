@@ -16,10 +16,7 @@ def expect(condition, error_msg, exc_type=SystemExit, error_prefix="ERROR:"):
     SystemExit: ERROR: error2
     """
     if not condition:
-        try:
-            msg = str(error_prefix + " " + error_msg)
-        except UnicodeEncodeError:
-            msg = (error_prefix + " " + error_msg).encode('utf-8')
+        msg = error_prefix + " " + error_msg
         raise exc_type(msg)
 
 _hack=object()
@@ -54,17 +51,18 @@ def run_cmd(cmd, input_str=None, from_dir=None, verbose=None,
                             stderr=arg_stderr,
                             stdin=stdin,
                             cwd=from_dir,
-                            env=env)
+                            env=env,
+                            text=True)
 
     output, errput = proc.communicate(input_str)
     if output is not None:
         try:
-            output = output.decode('utf-8', errors='ignore').strip()
+            output = output.strip()
         except AttributeError:
             pass
     if errput is not None:
         try:
-            errput = errput.decode('utf-8', errors='ignore').strip()
+            errput = errput.strip()
         except AttributeError:
             pass
 
@@ -98,7 +96,7 @@ def run_cmd_no_fail(cmd, input_str=None, from_dir=None, verbose=None,
         if errput is None:
             errput = ""
 
-        expect(False, "Command: '{}' failed with error '{}' from dir '{}'".format(cmd, errput.encode('utf-8'), os.getcwd() if from_dir is None else from_dir), exc_type=exc_type)
+        expect(False, "Command: '{}' failed with error '{}' from dir '{}'".format(cmd, errput, os.getcwd() if from_dir is None else from_dir), exc_type=exc_type)
 
     return output
 
@@ -252,12 +250,6 @@ class Timeout(object):
     def __exit__(self, *_):
         if self._seconds is not None:
             signal.alarm(0)
-
-def filter_unicode(unistr):
-    """
-    Sometimes unicode chars can cause problems
-    """
-    return "".join([i if ord(i) < 128 else ' ' for i in unistr])
 
 def median(items):
     """
