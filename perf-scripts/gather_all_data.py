@@ -3,14 +3,28 @@ from utils import run_cmd_no_fail
 import os
 import concurrent.futures as threading3
 
-# MACHINE -> (env_setup, repo-loc, kokkos-install-loc, compiler, batch submit prefix)
+# MACHINE -> (env_setup, compiler, kokkos-install-loc, batch submit prefix)
 MACHINE_METADATA = {
-    "melvin"   : (["module purge && module load sems-env && module load sems-gcc/7.3.0 sems-openmpi/1.10.1 sems-gcc/7.3.0 sems-git/2.10.1 sems-cmake/3.10.3 sems-python/3.5.2"], "$(which mpicxx)", ""),
-    "bowman"   : (["module load openmpi/1.10.6/intel/17.2.174 git/2.8.2 cmake/3.12.3", "export PATH=/ascldap/users/jgfouca/packages/Python-3.6.8-bowman/bin:$PATH"], "$(which mpicxx)", "srun"),
-    "blake"    : (["module load openmpi/2.1.5/intel/19.1.144 git/2.9.4 cmake/3.12.3", "export PATH=/ascldap/users/jgfouca/packages/Python-3.6.8-blake/bin:$PATH"],  "$(which mpicxx)", "srun"),
+    "melvin"   : (["module purge && module load sems-env && module load sems-gcc/7.3.0 sems-openmpi/1.10.1 sems-gcc/7.3.0 sems-git/2.10.1 sems-cmake/3.10.3 sems-python/3.5.2"],
+                  "$(which mpicxx)",
+                  "/home/jgfouca/kokkos-install/install",
+                  ""),
+    "bowman"   : (["module load openmpi/1.10.6/intel/17.2.174 git/2.8.2 cmake/3.12.3", "export PATH=/ascldap/users/jgfouca/packages/Python-3.6.8-bowman/bin:$PATH"],
+                  "$(which mpicxx)",
+                  "/ascldap/users/jgfouca/kokkos-install-bowman",
+                  "srun"),
+    "blake"    : (["module load openmpi/2.1.5/intel/19.1.144 git/2.9.4 cmake/3.12.3", "export PATH=/ascldap/users/jgfouca/packages/Python-3.6.8-blake/bin:$PATH"],
+                  "$(which mpicxx)",
+                  "/ascldap/users/jgfouca/kokkos-install-blake",
+                  "srun"),
     "waterman" : (["module load devpack/latest/openmpi/2.1.2/gcc/7.2.0/cuda/9.2.88 git/2.10.1", "module switch cmake/3.12.3", "export PATH=/ascldap/users/jgfouca/packages/Python-3.6.8-waterman/bin:$PATH"],
-                  "$(which mpicxx)", "bsub -I -q rhel7W"),
-    "white"    : (["module load devpack/20181011/openmpi/2.1.2/gcc/7.2.0/cuda/9.2.88 git/2.10.1 cmake/3.12.3", "export PATH=/ascldap/users/jgfouca/packages/Python-3.6.8-white/bin:$PATH"], "$(which mpicxx)", "bsub -I -q rhel7G"),
+                  "$(which mpicxx)",
+                  "/ascldap/users/jgfouca/kokkos-install/install",
+                  "bsub -I -q rhel7W"),
+    "white"    : (["module load devpack/20181011/openmpi/2.1.2/gcc/7.2.0/cuda/9.2.88 git/2.10.1 cmake/3.12.3", "export PATH=/ascldap/users/jgfouca/packages/Python-3.6.8-white/bin:$PATH"],
+                  "$(which mpicxx)",
+                  "/ascldap/users/jgfouca/kokkos-install-white",
+                  "bsub -I -q rhel7G"),
 }
 
 ###############################################################################
@@ -30,7 +44,7 @@ class GatherAllData(object):
     ###########################################################################
     def formulate_command(self, machine):
     ###########################################################################
-        env_setup, compiler, batch = MACHINE_METADATA[machine]
+        env_setup, compiler, kokkos_meta, batch = MACHINE_METADATA[machine]
 
         if self._local:
             scream_docs_repo = os.path.abspath("./scream-docs/micro-apps")
@@ -42,7 +56,13 @@ class GatherAllData(object):
             repo             = scream_repo if self._scream else scream_docs_repo
 
         # Need to know kokkos location in order to set up OMPI_CXX
-        kokkos_loc = self._kokkos if self._kokkos else os.path.join(os.path.dirname(os.path.dirname(scream_repo)), "externals", "kokkos")
+        if self._kokkos:
+            kokkos_loc = self._kokkos.replace("$machine", machine).replace("$compiler", compiler)
+        else:
+            if self._scream:
+                kokkos_loc = os.path.join(os.path.dirname(os.path.dirname(scream_repo)), "externals", "kokkos")
+            else:
+                kokkos_loc = kokkos_meta
 
         local_cmd = os.path.join(scream_docs_repo, self._run)
         # Do magic replacements here
