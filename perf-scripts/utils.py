@@ -52,7 +52,7 @@ def run_cmd(cmd, input_str=None, from_dir=None, verbose=None,
                             stdin=stdin,
                             cwd=from_dir,
                             env=env,
-                            text=True)
+                            universal_newlines=True)
 
     output, errput = proc.communicate(input_str)
     if output is not None:

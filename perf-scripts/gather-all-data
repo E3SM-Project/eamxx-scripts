@@ -37,7 +37,7 @@ OR
     \033[1;32m# Do correctness testing locally for SCREAM (expects ./scream and ./scream-docs) \033[0m
     > {0} '../perf-scripts/test-all-scream $compiler -m $machine' -l -s -m $machine
 
-    \033[1;32m# Do correctness testing for scream-docs micro apps
+    \033[1;32m# Do correctness testing for scream-docs micro apps \033[0m
     > {0} './test-all $compiler $kokkos'
 """.format(os.path.basename(args[0])),
         description=description,
