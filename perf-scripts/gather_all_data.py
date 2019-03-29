@@ -11,11 +11,11 @@ MACHINE_METADATA = {
                   ""),
     "bowman"   : (["module load openmpi/1.10.6/intel/17.2.174 git/2.8.2 cmake/3.12.3", "export PATH=/ascldap/users/jgfouca/packages/Python-3.6.8-bowman/bin:$PATH"],
                   "$(which mpicxx)",
-                  "/ascldap/users/jgfouca/kokkos-install-bowman",
+                  "/ascldap/users/jgfouca/kokkos-install-bowman/install",
                   "srun"),
     "blake"    : (["module load openmpi/2.1.5/intel/19.1.144 git/2.9.4 cmake/3.12.3", "export PATH=/ascldap/users/jgfouca/packages/Python-3.6.8-blake/bin:$PATH"],
                   "$(which mpicxx)",
-                  "/ascldap/users/jgfouca/kokkos-install-blake",
+                  "/ascldap/users/jgfouca/kokkos-install-blake/install",
                   "srun"),
     "waterman" : (["module load devpack/latest/openmpi/2.1.2/gcc/7.2.0/cuda/9.2.88 git/2.10.1", "module switch cmake/3.12.3", "export PATH=/ascldap/users/jgfouca/packages/Python-3.6.8-waterman/bin:$PATH"],
                   "$(which mpicxx)",
@@ -23,7 +23,7 @@ MACHINE_METADATA = {
                   "bsub -I -q rhel7W"),
     "white"    : (["module load devpack/20181011/openmpi/2.1.2/gcc/7.2.0/cuda/9.2.88 git/2.10.1 cmake/3.12.3", "export PATH=/ascldap/users/jgfouca/packages/Python-3.6.8-white/bin:$PATH"],
                   "$(which mpicxx)",
-                  "/ascldap/users/jgfouca/kokkos-install-white",
+                  "/ascldap/users/jgfouca/kokkos-install-white/install",
                   "bsub -I -q rhel7G"),
 }
 
