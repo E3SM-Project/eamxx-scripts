@@ -1,0 +1,4 @@
+KOKKOS = $(HOME)/lib/kokkos/white
+CXX = $(KOKKOS)/bin/nvcc_wrapper
+CXXFLAGS = -O3 -std=c++11 --expt-extended-lambda -isystem $(KOKKOS)/include -DHAVE_CUSPARSE -DWHITE -DNDEBUG
+LDFLAGS = -L$(KOKKOS)/lib -lkokkos -ldl -lcusparse
