@@ -1,4 +1,4 @@
 KOKKOS = $(HOME)/lib/waterman-kokkos/gpu
 CXX = $(KOKKOS)/bin/nvcc_wrapper
-CXXFLAGS = -O3 -std=c++11 --expt-extended-lambda -I$(KOKKOS)/include -DNDEBUG -DHAVE_CUSPARSE
-LDFLAGS = -L$(KOKKOS)/lib -lkokkos -ldl
+CXXFLAGS = -arch=sm_70 -O3 -std=c++11 --expt-extended-lambda -I$(KOKKOS)/include -DHAVE_CUSPARSE -DNDEBUG
+LDFLAGS = -L$(KOKKOS)/lib -lkokkos -ldl -lcusparse

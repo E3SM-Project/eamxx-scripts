@@ -138,18 +138,13 @@ get_default_team_policy<Kokkos::Cuda> (const int nprob, const int nrow, const in
   const int nwarp_per_gpu = 2560;
   const int tpw = 32;
   const int nwarp_per_team =
-    std::min(// max warp/team
-#ifdef WHITE
-      16,
-#else
-      32,
-#endif
-      std::max(1,
-      std::max((nrow + tpw - 1)/tpw,
-      (nwarp_per_gpu + nprob - 1)/nprob)));
-      // switch to (nprob, nwarp_per_gpu, tpw) to test vec
-      return Kokkos::TeamPolicy<Kokkos::Cuda>(nprob, tpw*nwarp_per_team, 1);
-      }
+    std::min(16, // max warp/team
+             std::max(1,
+                      std::max((nrow + tpw - 1)/tpw,
+                               (nwarp_per_gpu + nprob - 1)/nprob)));
+  // switch to (nprob, nwarp_per_gpu, tpw) to test vec
+  return Kokkos::TeamPolicy<Kokkos::Cuda>(nprob, tpw*nwarp_per_team, 1);
+}
 #endif
 
 // NB: The caller must provide the team_barrier after this function
@@ -215,9 +210,9 @@ void cr_a1xm (const TeamMember& team,
   const bool team_lead = tid % team_size == 0;
   int os = 1, stride;
   while ((stride = (os << 1)) < nrow) {
-    const int sub_nrow = (nrow + stride - 1) / stride;
-    const int nit = (sub_nrow + nteam - 1) / nteam;
-    for (int i = stride*team_id, it = 0; it < nit; i += stride*nteam, ++it) {
+    const int inc = stride*nteam;
+    const int nit = (nrow + inc - 1)/inc;
+    for (int i = stride*team_id, it = 0; it < nit; i += inc, ++it) {
       int im = i - os;
       int ip = i + os;
       Scalar f1 = 0, f2 = 0;
@@ -261,9 +256,10 @@ void cr_a1xm (const TeamMember& team,
   os >>= 1;
   assert(os < nrow);
   while (os) {
-    stride = os << 1;
     if (team_id < nteam) {
-      for (int i = stride*team_id + os; i < nrow; i += stride*nteam) {
+      stride = os << 1;
+      const int inc = stride*nteam;
+      for (int i = stride*team_id + os; i < nrow; i += inc) {
         const int im = i - os;
         const int ip = i + os;
         assert(im >= 0 || ip < nrow);
@@ -303,14 +299,11 @@ void cr_amxm (const TeamMember& team,
   const int team_tid = tid % team_size;
   int os = 1, stride;
   while ((stride = (os << 1)) < nrow) {
-    const int sub_nrow = (nrow + stride - 1) / stride;
-    const int nit = (sub_nrow + nteam - 1) / nteam;
-    for (int i = stride*team_id, it = 0; it < nit; i += stride*nteam, ++it) {
-      const int im = i - os;
-      const int ip = i + os;
-      const bool run = team_id < nteam && i < nrow;
-      assert(team_id != 0 || run);
-      if (run) {
+    if (team_id < nteam) {
+      const int inc = stride*nteam;
+      for (int i = stride*team_id; i < nrow; i += inc) {
+        const int im = i - os;
+        const int ip = i + os;
         if (im < 0) {
           assert(ip < nrow);
           for (int j = team_tid; j < nrhs; j += team_size) {
@@ -360,9 +353,10 @@ void cr_amxm (const TeamMember& team,
   os >>= 1;
   assert(os < nrow);
   while (os) {
-    stride = os << 1;
     if (team_id < nteam) {
-      for (int i = stride*team_id + os; i < nrow; i += stride*nteam) {
+      stride = os << 1;
+      const int inc = stride*nteam;
+      for (int i = stride*team_id + os; i < nrow; i += inc) {
         const int im = i - os;
         const int ip = i + os;
         if (im < 0) {
@@ -406,28 +400,23 @@ void cr_a1x1 (const TeamMember& team,
   int os = 1, stride;
   // Go down reduction.
   while ((stride = (os << 1)) < nrow) {
-    const int sub_nrow = (nrow + stride - 1) / stride;
-    const int nit = (sub_nrow + nteam - 1) / nteam;
-    for (int i = stride*team_id, it = 0; it < nit; i += stride*nteam, ++it) {
+    const int inc = stride*nteam;
+    for (int i = stride*team_id; i < nrow; i += inc) {
       int im = i - os;
       int ip = i + os;
-      const bool run = i < nrow;
-      assert(team_id != 0 || run);
-      if (run) {
-        // GPU does well with ternary ?: op. Use it throughout this
-        // impl. It requires the trick noted in a few lines.
-        const auto f1 = im >= 0   ? -dl(i)/d(im) : 0;
-        const auto f2 = ip < nrow ? -du(i)/d(ip) : 0;
-        // Trick to keep im, ip in bounds; the index is modified only
-        // when the corresponding f is 0, so the resulting invalid
-        // value is multipled by 0.
-        im = im >= 0   ? im : i;
-        ip = ip < nrow ? ip : i;
-        dl(i)  = f1*dl(im);
-        du(i)  = f2*du(ip);
-        d (i) += f1*du(im) + f2*dl(ip);
-        X (i) += f1*X (im) + f2*X (ip);
-      }
+      // GPU does well with ternary ?: op. Use it throughout this
+      // impl. It requires the trick noted in a few lines.
+      const auto f1 = im >= 0   ? -dl(i)/d(im) : 0;
+      const auto f2 = ip < nrow ? -du(i)/d(ip) : 0;
+      // Trick to keep im, ip in bounds; the index is modified only
+      // when the corresponding f is 0, so the resulting invalid
+      // value is multipled by 0.
+      im = im >= 0   ? im : i;
+      ip = ip < nrow ? ip : i;
+      dl(i)  = f1*dl(im);
+      du(i)  = f2*du(ip);
+      d (i) += f1*du(im) + f2*dl(ip);
+      X (i) += f1*X (im) + f2*X (ip);
     }
     os <<= 1;
     // Go down in cyclic reduction level only when this level is complete.
@@ -453,7 +442,8 @@ void cr_a1x1 (const TeamMember& team,
   // Go up reduction.
   while (os) {
     stride = os << 1;
-    for (int i = stride*team_id + os; i < nrow; i += stride*nteam) {
+    const int inc = stride*nteam;
+    for (int i = stride*team_id + os; i < nrow; i += inc) {
       const int im = i - os;
       const int ip = i + os;
       assert(im >= 0 || ip < nrow);
@@ -473,7 +463,7 @@ void cr_a1x1 (const TeamMember& team,
 // overhead.
 #ifdef KOKKOS_ENABLE_CUDA
 template <typename Scalar>
-__device__
+inline __device__
 void cr_a1x1p (const int nrow,
                Scalar* const dl, Scalar* const d, Scalar* const du,
                Scalar* const X) {
@@ -481,23 +471,18 @@ void cr_a1x1p (const int nrow,
   const int nteam = blockDim.x;
   int os = 1, stride;
   while ((stride = (os << 1)) < nrow) {
-    const int sub_nrow = (nrow + stride - 1) / stride;
-    const int nit = (sub_nrow + nteam - 1) / nteam;
-    for (int i = stride*team_id, it = 0; it < nit; i += stride*nteam, ++it) {
+    const int inc = stride*nteam;
+    for (int i = stride*team_id; i < nrow; i += inc) {
       int im = i - os;
       int ip = i + os;
-      const bool run = i < nrow;
-      assert(team_id != 0 || run);
-      if (run) {
-        const auto f1 = im >= 0   ? -dl[i]/d[im] : 0;
-        const auto f2 = ip < nrow ? -du[i]/d[ip] : 0;
-        im = im >= 0   ? im : i;
-        ip = ip < nrow ? ip : i;
-        dl[i]  = f1*dl[im];
-        du[i]  = f2*du[ip];
-        d [i] += f1*du[im] + f2*dl[ip];
-        X [i] += f1*X [im] + f2*X [ip];
-      }
+      const auto f1 = im >= 0   ? -dl[i]/d[im] : 0;
+      const auto f2 = ip < nrow ? -du[i]/d[ip] : 0;
+      im = im >= 0   ? im : i;
+      ip = ip < nrow ? ip : i;
+      dl[i]  = f1*dl[im];
+      du[i]  = f2*du[ip];
+      d [i] += f1*du[im] + f2*dl[ip];
+      X [i] += f1*X [im] + f2*X [ip];
     }
     os <<= 1;
     __syncthreads();
@@ -1053,6 +1038,7 @@ double dispatch_cr_a1x1p (const Input& in, AT& A, XT& X) {
   const int nrow = in.nrow;
   Real* const Adata = A.data();
   Real* const Xdata = X.data();
+  cudaFuncSetCacheConfig(call_cr_a1x1p<Real>, cudaFuncCachePreferL1);
   call_cr_a1x1p<<<in.nprob,32*in.nwarp>>>(nrow, Adata, Xdata);
   Kokkos::fence();
   double t1 = util::gettime();
@@ -1186,7 +1172,7 @@ static void run (const Input& in) {
       const auto dl = Kokkos::subview(A, ip, 0, Kokkos::ALL());
       const auto d  = Kokkos::subview(A, ip, 1, Kokkos::ALL());
       const auto du = Kokkos::subview(A, ip, 2, Kokkos::ALL());
-      pcr(team, dl, d, du, subview(X, ip, ALL(), 0));
+      pcr(team, dl, d, du, subview(X, ip, ALL(), ALL()));
     };
     Kokkos::parallel_for(policy, f);
     Kokkos::fence();
