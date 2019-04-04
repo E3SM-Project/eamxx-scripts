@@ -63,17 +63,14 @@ struct LiAlg
     for (int k2 = 0; k2 < m_km2; ++k2) {
       if( x2[k2] <= x1[0] ) { // x2[k2] comes before x1[0]
         m_indx_map_dbg[k2] = 0;
-        //std::cout << "n2[" << k2 << "] = " << 0 << " (1)" << std::endl;
       }
       else if( x2[k2] >= x1[m_km1-1] ) { // x2[k2] comes after x1[-1]
         m_indx_map_dbg[k2] = m_km1-1;
-        //std::cout << "n2[" << k2 << "] = " << m_km1-1 << " (2)" << std::endl;
       }
       else {
         for (int k1 = 1; k1 < m_km1; ++k1) { // scan over x1
           if( (x2[k2]>=x1[k1-1]) && (x2[k2]<x1[k1]) ) { // check if x2[k2] lies within x1[k1-1] and x1[k1]
             m_indx_map_dbg[k2] = k1-1;
-            //std::cout << "n2[" << k2 << "] = " << k1-1 << " (3)" << std::endl;
           }
         }
       }
@@ -93,7 +90,6 @@ struct LiAlg
         --x1_idx;
       }
       m_indx_map[i] = x1_idx;
-      //std::cout << "nlogn[" << i << "] = " << x1_idx << std::endl;
       current = ub;
     }
   }
@@ -112,8 +108,3 @@ struct LiAlg
 } //namespace li
 
 #endif
-
-
-          // y2[i][k2] = y1[i][thing] + (y1[i][thing+1]-y1[i][thing])*  (x2[i][k2]-x1[i][thing])/(x1[i][thing+1]-x1[i][thing]);
-
-          // y2[i][k2] = y1[i][thing] + (y1[i][thing+1]-y1[i][thing])*  (x2[i][k2]-x1[i][thing])/(x1[i][thing+1]-x1[i][thing]);
