@@ -7,12 +7,11 @@ set(LI_SRCS
 add_library(li ${LI_SRCS})
 target_include_directories (li PUBLIC ${SCREAM_MICRO_APPS_INCLUDES} ${SCREAM_MICRO_APPS_SOURCE_DIR}/share)
 
-#add_executable(unit_test_f90 unit_test.f90)
-#set_target_properties(unit_test_f90 PROPERTIES LINKER_LANGUAGE Fortran)
+add_executable(li_unit_test li_unit_test.cpp)
 add_executable(li_perf_cmp li_perf_cmp.cpp)
 
-set(exes li_perf_cmp)
-set(li_impls ref vanilla)
+set(exes li_perf_cmp li_unit_test)
+set(li_impls ref vanilla alg)
 
 foreach (li_impl ${li_impls})
   set(exe li_${li_impl})
@@ -33,7 +32,7 @@ endforeach ()
 # add_custom_target(baseline
 #   COMMAND $<TARGET_FILE:run_and_cmp> -g run_and_cmp.baseline)
 
-# add_test(run_unit_test_f90 unit_test_f90)
+add_test(run_li_unit_test_f90 li_unit_test)
 # add_test(p3_func_regression run_and_cmp run_and_cmp.baseline)
 set(PERF_ARGS 10 128 256 0.01 10) # ncol km1 km2 minthresh repeat
 foreach (li_impl ${li_impls})
