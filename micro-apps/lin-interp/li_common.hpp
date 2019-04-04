@@ -51,6 +51,19 @@ void dump_to_file_li(const char* filename, const Scalar* y2, const int ncol, con
   for (int i = 0; i < ncol; ++i) util::write(y2 + ldk*i, km2, fid);
 }
 
+template <typename T, typename Scalar, typename D=DefaultDevice>
+void populate_kokkos_from_vec(const int num_vert, std::vector<Scalar> const& vec,
+                              typename KokkosTypes<D>::template view_1d<T>& device)
+{
+  const auto mirror = Kokkos::create_mirror_view(device);
+
+  for (int k = 0; k < num_vert; ++k) {
+    reinterpret_cast<Scalar*>(mirror.data())[k] = vec[k];
+  }
+
+  Kokkos::deep_copy(device, mirror);
+}
+
 template <typename Scalar, typename LIK>
 void lin_interp_func_wrap(const int ncol, const int km1, const int km2, const Scalar minthresh, const int repeat)
 {
@@ -65,9 +78,21 @@ void lin_interp_func_wrap(const int ncol, const int km1, const int km2, const Sc
   x2.resize(ncol, std::vector<Scalar>(km2));
   y2.resize(ncol, std::vector<Scalar>(km2));
 
-  std::vector<Scalar> x1_i(km1), y1_i(km1), x2_i(km2), y2_i(km2);
+  std::vector<Scalar> x1_i(km1), y1_i(km1), x2_i(km2);
 
   populate_li_input(km1, km2, x1_i.data(), y1_i.data(), x2_i.data());
+
+  // init
+  for (int i = 0; i < ncol; ++i) {
+    for (int k = 0; k < km1; ++k) {
+      x1[i][k] = x1_i[k];
+      y1[i][k] = y1_i[k];
+    }
+    for (int k = 0; k < km2; ++k) {
+      x2[i][k] = x2_i[k];
+      y2[i][k] = 0.0;
+    }
+  }
 
   // This time is thrown out, I just wanted to be able to use auto
   auto start = std::chrono::steady_clock::now();
@@ -76,13 +101,8 @@ void lin_interp_func_wrap(const int ncol, const int km1, const int km2, const Sc
 
     // re-init
     for (int i = 0; i < ncol; ++i) {
-      for (int k = 0; k < km1; ++k) {
-        x1[i][k] = x1_i[k];
-        y1[i][k] = y1_i[k];
-      }
       for (int k = 0; k < km2; ++k) {
-        x2[i][k] = x2_i[k];
-        y2[i][k] = y2_i[k];
+        y2[i][k] = 0.0;
       }
     }
 
@@ -105,6 +125,86 @@ void lin_interp_func_wrap(const int ncol, const int km1, const int km2, const Sc
   const Scalar* flat_y2 = util::flatten(y2);
   dump_to_file_li(LIK::NAME, flat_y2, ncol, km1, km2, minthresh);
   delete[] flat_y2;
+}
+
+template <typename Scalar, typename LIK>
+void lin_interp_func_wrap_kokkos(const int ncol, const int km1, const int km2, const Scalar minthresh, const int repeat)
+{
+  util::dump_arch();
+
+  LIK lik(ncol, km1, km2, minthresh);
+
+  typename LIK::template view_2d<Scalar>
+    x1("x1", ncol, km1),
+    y1("y1", ncol, km1),
+    x2("x2", ncol, km2),
+    y2("y2", ncol, km2);
+
+  typename LIK::template view_2d<Scalar>
+    x1_i("x1_i", km1),
+    y1_i("y1_i", km1),
+    x2_i("x2_i", km2)
+
+  {
+    std::vector<Scalar> x1_iv(km1), y1_iv(km1), x2_iv(km2);
+    populate_li_input(km1, km2, x1_iv.data(), y1_iv.data(), x2_iv.data());
+
+    for (auto item : { std::make_pair(&x1_iv, &x1_i), std::make_pair(&y1_iv, &y1_i), std::make_pair(&x2_iv, &x2_i) }) {
+      populate_kokkos_from_vec<typename MSK::Pack, Scalar>(item.first->size(), *(item.first), *(item.second));
+    }
+  }
+
+  int max = std::max(km1, km2);
+  Kokkos::parallel_for("init",
+                       util::ExeSpaceUtils<typename MSK::ExeSpace>::get_default_team_policy(ncol, max),
+                       KOKKOS_LAMBDA(typename MSK::MemberType team_member) {
+      const int i = team_member.league_rank();
+      Kokkos::parallel_for(Kokkos::TeamThreadRange(team_member, max), [=] (int k) {
+        if (k < km1) {
+          x1(i, k) = x1_i(k);
+          y1(i, k) = y1_i(k);
+        }
+        if (k < km2) {
+          x2(i, k) = x2_i(k);
+          y2(i, k) = 0.0;
+        }
+      });
+    });
+
+  // This time is thrown out, I just wanted to be able to use auto
+  auto start = std::chrono::steady_clock::now();
+
+  for (int r = 0; r < repeat+1; ++r) {
+
+    // re-init
+    Kokkos::parallel_for("Re-init",
+                         util::ExeSpaceUtils<typename MSK::ExeSpace>::get_default_team_policy(ncol, km2),
+                         KOKKOS_LAMBDA(typename MSK::MemberType team_member) {
+      const int i = team_member.league_rank();
+      Kokkos::parallel_for(Kokkos::TeamThreadRange(team_member, km2), [=] (int k) {
+        y2(i, k) = 0.0;
+      });
+    });
+
+    lik.lin_interp(x1, x2, y1, y2);
+
+    if (r == 0) {
+      start = std::chrono::steady_clock::now();
+    }
+  }
+
+  auto finish = std::chrono::steady_clock::now();
+  auto duration = std::chrono::duration_cast<std::chrono::microseconds>(finish - start);
+
+  const double report_time = (1e-6*duration.count()) / repeat;
+
+  printf("Time = %1.3e seconds\n", report_time);
+
+  // Dump the results to a file. This will allow us to do result comparisons between
+  // other runs.
+  const auto mirror_y2 = Kokkos::create_mirror_view(y2);
+  const Scalar* flat_y2 = mirror_y2.data();
+  dump_to_file_li(LIK::NAME, flat_y2, ncol, km1, km2, minthresh);
 }
 
 } // namespace li
