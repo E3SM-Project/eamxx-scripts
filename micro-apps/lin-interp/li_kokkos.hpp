@@ -31,6 +31,8 @@ struct LiKokkos
   using MemberType  = typename KT::MemberType;
   using TeamPolicy  = typename KT::TeamPolicy;
 
+  using Pack = Scalar;
+
   //
   // ------ public API -------
   //
@@ -50,6 +52,9 @@ struct LiKokkos
 #endif
   {}
 
+  int km1_pack() const { return m_km1; }
+  int km2_pack() const { return m_km2; }
+
   // Linearly interpolate y(x1) onto coordinates x2
   void lin_interp(const view_2d<const Scalar>& x1, const view_2d<const Scalar>& x2, const view_2d<const Scalar>& y1,
                   const view_2d<Scalar>& y2)
@@ -64,7 +69,7 @@ struct LiKokkos
     Kokkos::parallel_for("lin_interp", m_policy, KOKKOS_LAMBDA(const MemberType& team) {
       const int i = team.league_rank();
       Kokkos::parallel_for(Kokkos::TeamThreadRange(team, m_km2), [&] (Int k2) {
-        micro_kassert(m_indx_map[k2] == m_indx_map_dbg[k2]);
+        micro_kassert(m_indx_map(k2) == m_indx_map_dbg(k2));
         const int k1 = m_indx_map(k2);
         if (k1+1 == m_km1) {
           y2(i,k2) = y1(i,k1) + (y1(i,k1)-y1(i,k1-1))*(x2(i,k2)-x1(i,k1))/(x1(i,k1)-x1(i,k1-1));
