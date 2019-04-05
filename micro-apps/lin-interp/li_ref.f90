@@ -49,6 +49,16 @@ contains
 
     call populate_li_input(km1, km2, x1_i, y1_i, x2_i)
 
+    do i = 1, ncol
+       do k = 1, km1
+          x1(i, k) = x1_i(k)
+          y1(i, k) = y1_i(k)
+       end do
+       do k = 1, km2
+          x2(i, k) = x2_i(k)
+       end do
+    end do
+
     y2_i(:) = 0
 
     !$OMP PARALLEL DEFAULT(SHARED) PRIVATE(i, k)
@@ -56,13 +66,7 @@ contains
 
        !$OMP DO
        do i = 1, ncol
-          do k = 1, km1
-             x1(i, k) = x1_i(k)
-             y1(i, k) = y1_i(k)
-          end do
-
           do k = 1, km2
-             x2(i, k) = x2_i(k)
              y2(i, k) = y2_i(k)
           end do
        end do
