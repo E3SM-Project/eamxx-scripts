@@ -11,7 +11,7 @@ add_executable(li_unit_test li_unit_test.cpp)
 add_executable(li_perf_cmp li_perf_cmp.cpp)
 
 set(exes li_perf_cmp li_unit_test)
-set(li_impls ref vanilla alg kokkos)
+set(li_impls ref vanilla alg kokkos vect)
 
 foreach (li_impl ${li_impls})
   set(exe li_${li_impl})

@@ -135,42 +135,47 @@ void lin_interp_func_wrap_kokkos(const int ncol, const int km1, const int km2, c
 
   LIK lik(ncol, km1, km2, minthresh);
 
-  typename LIK::template view_2d<Scalar>
-    x1("x1", ncol, km1),
-    y1("y1", ncol, km1),
-    x2("x2", ncol, km2),
-    y2("y2", ncol, km2);
+  using Pack = typename LIK::Pack;
 
-  typename LIK::template view_1d<Scalar>
-    x1_i("x1_i", km1),
-    y1_i("y1_i", km1),
-    x2_i("x2_i", km2);
+  const int km1_pack = lik.km1_pack();
+  const int km2_pack = lik.km2_pack();
+
+  typename LIK::template view_2d<Pack>
+    x1("x1", ncol, km1_pack),
+    y1("y1", ncol, km1_pack),
+    x2("x2", ncol, km2_pack),
+    y2("y2", ncol, km2_pack);
+
+  typename LIK::template view_1d<Pack>
+    x1_i("x1_i", km1_pack),
+    y1_i("y1_i", km1_pack),
+    x2_i("x2_i", km2_pack);
 
   {
     std::vector<Scalar> x1_iv(km1), y1_iv(km1), x2_iv(km2);
     populate_li_input(km1, km2, x1_iv.data(), y1_iv.data(), x2_iv.data());
 
     for (auto item : { std::make_pair(&x1_iv, &x1_i), std::make_pair(&y1_iv, &y1_i), std::make_pair(&x2_iv, &x2_i) }) {
-      populate_kokkos_from_vec<Scalar, Scalar>(item.first->size(), *(item.first), *(item.second));
+      populate_kokkos_from_vec<Pack, Scalar>(item.first->size(), *(item.first), *(item.second));
     }
   }
 
-  int max = std::max(km1, km2);
+  int max = std::max(km1_pack, km2_pack);
   Kokkos::parallel_for("init",
                        util::ExeSpaceUtils<typename LIK::ExeSpace>::get_default_team_policy(ncol, max),
                        KOKKOS_LAMBDA(typename LIK::MemberType team_member) {
-      const int i = team_member.league_rank();
-      Kokkos::parallel_for(Kokkos::TeamThreadRange(team_member, max), [=] (int k) {
-        if (k < km1) {
-          x1(i, k) = x1_i(k);
-          y1(i, k) = y1_i(k);
-        }
-        if (k < km2) {
-          x2(i, k) = x2_i(k);
-          y2(i, k) = 0.0;
-        }
-      });
+    const int i = team_member.league_rank();
+    Kokkos::parallel_for(Kokkos::TeamThreadRange(team_member, max), [=] (int k) {
+      if (k < km1_pack) {
+        x1(i, k) = x1_i(k);
+        y1(i, k) = y1_i(k);
+      }
+      if (k < km2_pack) {
+        x2(i, k) = x2_i(k);
+        y2(i, k) = 0.0;
+      }
     });
+  });
 
   // This time is thrown out, I just wanted to be able to use auto
   auto start = std::chrono::steady_clock::now();
@@ -179,10 +184,10 @@ void lin_interp_func_wrap_kokkos(const int ncol, const int km1, const int km2, c
 
     // re-init
     Kokkos::parallel_for("Re-init",
-                         util::ExeSpaceUtils<typename LIK::ExeSpace>::get_default_team_policy(ncol, km2),
+                         util::ExeSpaceUtils<typename LIK::ExeSpace>::get_default_team_policy(ncol, km2_pack),
                          KOKKOS_LAMBDA(typename LIK::MemberType team_member) {
       const int i = team_member.league_rank();
-      Kokkos::parallel_for(Kokkos::TeamThreadRange(team_member, km2), [=] (int k) {
+      Kokkos::parallel_for(Kokkos::TeamThreadRange(team_member, km2_pack), [=] (int k) {
         y2(i, k) = 0.0;
       });
     });
@@ -204,7 +209,7 @@ void lin_interp_func_wrap_kokkos(const int ncol, const int km1, const int km2, c
   // Dump the results to a file. This will allow us to do result comparisons between
   // other runs.
   const auto mirror_y2 = Kokkos::create_mirror_view(y2);
-  const Scalar* flat_y2 = mirror_y2.data();
+  const Scalar* flat_y2 = reinterpret_cast<Scalar*>(mirror_y2.data());
   dump_to_file_li(LIK::NAME, flat_y2, ncol, km1, km2, minthresh);
 }
 
