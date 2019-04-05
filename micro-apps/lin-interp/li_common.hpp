@@ -4,6 +4,7 @@
 #include "types.hpp"
 #include "util.hpp"
 #include "scream_arch.hpp"
+#include "kokkos_util.hpp"
 
 extern "C" {
 
@@ -140,24 +141,24 @@ void lin_interp_func_wrap_kokkos(const int ncol, const int km1, const int km2, c
     x2("x2", ncol, km2),
     y2("y2", ncol, km2);
 
-  typename LIK::template view_2d<Scalar>
+  typename LIK::template view_1d<Scalar>
     x1_i("x1_i", km1),
     y1_i("y1_i", km1),
-    x2_i("x2_i", km2)
+    x2_i("x2_i", km2);
 
   {
     std::vector<Scalar> x1_iv(km1), y1_iv(km1), x2_iv(km2);
     populate_li_input(km1, km2, x1_iv.data(), y1_iv.data(), x2_iv.data());
 
     for (auto item : { std::make_pair(&x1_iv, &x1_i), std::make_pair(&y1_iv, &y1_i), std::make_pair(&x2_iv, &x2_i) }) {
-      populate_kokkos_from_vec<typename MSK::Pack, Scalar>(item.first->size(), *(item.first), *(item.second));
+      populate_kokkos_from_vec<Scalar, Scalar>(item.first->size(), *(item.first), *(item.second));
     }
   }
 
   int max = std::max(km1, km2);
   Kokkos::parallel_for("init",
-                       util::ExeSpaceUtils<typename MSK::ExeSpace>::get_default_team_policy(ncol, max),
-                       KOKKOS_LAMBDA(typename MSK::MemberType team_member) {
+                       util::ExeSpaceUtils<typename LIK::ExeSpace>::get_default_team_policy(ncol, max),
+                       KOKKOS_LAMBDA(typename LIK::MemberType team_member) {
       const int i = team_member.league_rank();
       Kokkos::parallel_for(Kokkos::TeamThreadRange(team_member, max), [=] (int k) {
         if (k < km1) {
@@ -178,8 +179,8 @@ void lin_interp_func_wrap_kokkos(const int ncol, const int km1, const int km2, c
 
     // re-init
     Kokkos::parallel_for("Re-init",
-                         util::ExeSpaceUtils<typename MSK::ExeSpace>::get_default_team_policy(ncol, km2),
-                         KOKKOS_LAMBDA(typename MSK::MemberType team_member) {
+                         util::ExeSpaceUtils<typename LIK::ExeSpace>::get_default_team_policy(ncol, km2),
+                         KOKKOS_LAMBDA(typename LIK::MemberType team_member) {
       const int i = team_member.league_rank();
       Kokkos::parallel_for(Kokkos::TeamThreadRange(team_member, km2), [=] (int k) {
         y2(i, k) = 0.0;

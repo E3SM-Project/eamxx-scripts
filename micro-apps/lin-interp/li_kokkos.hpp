@@ -4,12 +4,13 @@
 #include "types.hpp"
 #include "util.hpp"
 #include "scream_assert.hpp"
+#include "kokkos_util.hpp"
 
 #include <algorithm>
 
 namespace li {
 
-template <typename ScalarT, typename DeviceT>
+template <typename ScalarT, typename DeviceT=DefaultDevice>
 struct LiKokkos
 {
   //
@@ -43,9 +44,9 @@ struct LiKokkos
     m_minthresh(minthresh),
     m_init(false),
     m_policy(util::ExeSpaceUtils<ExeSpace>::get_default_team_policy(ncol, km2)),
-    m_indx_map(km2)
+    m_indx_map("m_indx_map", km2)
 #ifndef NDEBUG
-    , m_indx_map_dbg(km2)
+    , m_indx_map_dbg("m_indx_map_dbg", km2)
 #endif
   {}
 
@@ -54,13 +55,13 @@ struct LiKokkos
                   const view_2d<Scalar>& y2)
   {
     if (!m_init) {
-      setup_nlogn(x1[0], x2[0]);
+      setup_nlogn(util::subview(x1, 0), util::subview(x2, 0));
 #ifndef NDEBUG
-      setup_n2(x1[0], x2[0]);
+      setup_n2(util::subview(x1, 0), util::subview(x2, 0));
 #endif
     }
 
-    Kokkos::parallel_for("lin_interp", policy, KOKKOS_LAMBDA(const MemberType& team) {
+    Kokkos::parallel_for("lin_interp", m_policy, KOKKOS_LAMBDA(const MemberType& team) {
       const int i = team.league_rank();
       Kokkos::parallel_for(Kokkos::TeamThreadRange(team, m_km2), [&] (Int k2) {
         micro_kassert(m_indx_map[k2] == m_indx_map_dbg[k2]);
