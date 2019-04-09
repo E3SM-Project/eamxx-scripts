@@ -96,7 +96,7 @@ const T* upper_bound(const T* first, const T* last, const T& value)
     it = first;
     step = count / 2;
     it += step;
-    if (value < *it) {
+    if (value >= *it) {
       first = ++it;
       count -= step + 1;
     }

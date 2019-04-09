@@ -77,7 +77,6 @@ struct LiKokkos
     Kokkos::parallel_for("lin_interp", lik.m_policy, KOKKOS_LAMBDA(const MemberType& team) {
       const int i = team.league_rank();
       Kokkos::parallel_for(Kokkos::TeamThreadRange(team, lik.m_km2), [&] (Int k2) {
-        printf("%d %d\n", lik.m_indx_map(k2), lik.m_indx_map_dbg(k2));
         micro_kassert(lik.m_indx_map(k2) == lik.m_indx_map_dbg(k2));
         const int k1 = lik.m_indx_map(k2);
         if (k1+1 == lik.m_km1) {
