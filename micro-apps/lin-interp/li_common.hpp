@@ -209,6 +209,7 @@ void lin_interp_func_wrap_kokkos(const int ncol, const int km1, const int km2, c
   // Dump the results to a file. This will allow us to do result comparisons between
   // other runs.
   const auto mirror_y2 = Kokkos::create_mirror_view(y2);
+  Kokkos::deep_copy(mirror_y2, y2);
   const Scalar* flat_y2 = reinterpret_cast<Scalar*>(mirror_y2.data());
   dump_to_file_li(LIK::NAME, flat_y2, ncol, km1, km2, minthresh);
 }
