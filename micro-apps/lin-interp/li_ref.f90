@@ -47,6 +47,9 @@ contains
     allocate(x2(ncol, km2))
     allocate(y2(ncol, km2))
 
+    call dump_arch_f90()
+    print '("Running with ncol=",I0," km1=",I0," km2=",I0)', ncol, km1, km2
+
     call populate_li_input(km1, km2, x1_i, y1_i, x2_i)
 
     do i = 1, ncol

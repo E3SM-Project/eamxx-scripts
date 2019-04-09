@@ -94,6 +94,7 @@ struct LiKokkos
     });
   }
 
+#ifndef NDEBUG
   static void setup_n2(LiKokkos& lik, const view_1d<const Scalar>& x1, const view_1d<const Scalar>& x2)
   {
     TeamPolicy policy(util::ExeSpaceUtils<ExeSpace>::get_default_team_policy(lik.m_km2, lik.m_km1-1));
@@ -118,6 +119,7 @@ struct LiKokkos
       }
     });
   }
+#endif
 
   static void setup_nlogn(LiKokkos& lik, const view_1d<const Scalar>& x1, const view_1d<const Scalar>& x2)
   {

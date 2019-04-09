@@ -18,5 +18,9 @@ module li_cpp_bridge
        integer(kind=c_int), intent(in), value :: km1, km2
      end subroutine populate_li_input_from_fortran
 
+     subroutine dump_arch_f90() bind(c)
+       use iso_c_binding
+     end subroutine dump_arch_f90
+
   end interface
 end module li_cpp_bridge

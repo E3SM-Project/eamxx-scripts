@@ -118,6 +118,7 @@ struct LiVect
     });
   }
 
+#ifndef NDEBUG
   static void setup_n2(LiVect& liv, const view_1d<const Pack>& x1, const view_1d<const Pack>& x2)
   {
     TeamPolicy policy(util::ExeSpaceUtils<ExeSpace>::get_default_team_policy(liv.m_km2, liv.m_km1-1));
@@ -146,6 +147,7 @@ struct LiVect
       }
     });
   }
+#endif
 
   static void setup_nlogn(LiVect& liv, const view_1d<const Pack>& x1, const view_1d<const Pack>& x2)
   {
