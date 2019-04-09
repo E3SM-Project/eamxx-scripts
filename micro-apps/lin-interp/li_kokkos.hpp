@@ -55,80 +55,86 @@ struct LiKokkos
   int km1_pack() const { return m_km1; }
   int km2_pack() const { return m_km2; }
 
-  // Linearly interpolate y(x1) onto coordinates x2
   void lin_interp(const view_2d<const Scalar>& x1, const view_2d<const Scalar>& x2, const view_2d<const Scalar>& y1,
                   const view_2d<Scalar>& y2)
   {
-    if (!m_init) {
-      setup_nlogn(util::subview(x1, 0), util::subview(x2, 0));
+    lin_interp_impl(*this, x1, x2, y1, y2);
+  }
+
+  // Linearly interpolate y(x1) onto coordinates x2
+  static void lin_interp_impl(
+    LiKokkos& lik,
+    const view_2d<const Scalar>& x1, const view_2d<const Scalar>& x2, const view_2d<const Scalar>& y1,
+    const view_2d<Scalar>& y2)
+  {
+    if (!lik.m_init) {
+      setup_nlogn(lik, util::subview(x1, 0), util::subview(x2, 0));
 #ifndef NDEBUG
-      setup_n2(util::subview(x1, 0), util::subview(x2, 0));
+      setup_n2(lik, util::subview(x1, 0), util::subview(x2, 0));
 #endif
     }
 
-    Kokkos::parallel_for("lin_interp", m_policy, KOKKOS_LAMBDA(const MemberType& team) {
+    Kokkos::parallel_for("lin_interp", lik.m_policy, KOKKOS_LAMBDA(const MemberType& team) {
       const int i = team.league_rank();
-      Kokkos::parallel_for(Kokkos::TeamThreadRange(team, m_km2), [&] (Int k2) {
-        micro_kassert(m_indx_map(k2) == m_indx_map_dbg(k2));
-        const int k1 = m_indx_map(k2);
-        if (k1+1 == m_km1) {
+      Kokkos::parallel_for(Kokkos::TeamThreadRange(team, lik.m_km2), [&] (Int k2) {
+        micro_kassert(lik.m_indx_map(k2) == lik.m_indx_map_dbg(k2));
+        const int k1 = lik.m_indx_map(k2);
+        if (k1+1 == lik.m_km1) {
           y2(i,k2) = y1(i,k1) + (y1(i,k1)-y1(i,k1-1))*(x2(i,k2)-x1(i,k1))/(x1(i,k1)-x1(i,k1-1));
         }
         else {
           y2(i,k2) = y1(i,k1) + (y1(i,k1+1)-y1(i,k1))*(x2(i,k2)-x1(i,k1))/(x1(i,k1+1)-x1(i,k1));
         }
 
-        if (y2(i,k2) < m_minthresh) {
-          y2(i,k2) = m_minthresh;
+        if (y2(i,k2) < lik.m_minthresh) {
+          y2(i,k2) = lik.m_minthresh;
         }
 
       });
     });
   }
 
- private:
-
-  void setup_n2(const view_1d<const Scalar>& x1, const view_1d<const Scalar>& x2)
+  static void setup_n2(LiKokkos& lik, const view_1d<const Scalar>& x1, const view_1d<const Scalar>& x2)
   {
-    TeamPolicy policy(util::ExeSpaceUtils<ExeSpace>::get_default_team_policy(m_km2, m_km1-1));
+    TeamPolicy policy(util::ExeSpaceUtils<ExeSpace>::get_default_team_policy(lik.m_km2, lik.m_km1-1));
 
     Kokkos::parallel_for("setup_n2", policy, KOKKOS_LAMBDA(const MemberType& team) {
       const int k2 = team.league_rank();
       if( x2(k2) <= x1(0) ) { // x2[k2] comes before x1[0]
-        m_indx_map_dbg(k2) = 0;
+        lik.m_indx_map_dbg(k2) = 0;
       }
-      else if( x2(k2) >= x1(m_km1-1) ) { // x2[k2] comes after x1[-1]
-        m_indx_map_dbg(k2) = m_km1-1;
+      else if( x2(k2) >= x1(lik.m_km1-1) ) { // x2[k2] comes after x1[-1]
+        lik.m_indx_map_dbg(k2) = lik.m_km1-1;
       }
       else {
         int k1_max = 0;
-        Kokkos::parallel_reduce(Kokkos::TeamThreadRange(team, m_km1), [&] (int k1_arg, int& k1_max) {
+        Kokkos::parallel_reduce(Kokkos::TeamThreadRange(team, lik.m_km1), [&] (int k1_arg, int& k1_max) {
           const int k1 = k1_arg + 1;
           if( (x2(k2)>=x1(k1-1)) && (x2(k2)<x1(k1)) ) { // check if x2[k2] lies within x1[k1-1] and x1[k1]
             k1_max = k1-1;
           }
         }, Kokkos::Max<int>(k1_max));
-        m_indx_map_dbg(k2) = k1_max;
+        lik.m_indx_map_dbg(k2) = k1_max;
       }
     });
   }
 
-  void setup_nlogn(const view_1d<const Scalar>& x1, const view_1d<const Scalar>& x2)
+  static void setup_nlogn(LiKokkos& lik, const view_1d<const Scalar>& x1, const view_1d<const Scalar>& x2)
   {
-    TeamPolicy policy(util::ExeSpaceUtils<ExeSpace>::get_default_team_policy(m_km2, 1));
+    TeamPolicy policy(util::ExeSpaceUtils<ExeSpace>::get_default_team_policy(lik.m_km2, 1));
 
     Kokkos::parallel_for("setup_nlogn", policy, KOKKOS_LAMBDA(const MemberType& team) {
       const int k2 = team.league_rank();
       const Scalar x1_indv = x2(k2);
       auto begin = &x1(0);
-      auto upper = begin + m_km1;
+      auto upper = begin + lik.m_km1;
 
-      auto ub = std::upper_bound(begin, upper, x1_indv);
+      auto ub = util::upper_bound(begin, upper, x1_indv);
       int x1_idx = ub - begin;
       if (x1_idx > 0) {
         --x1_idx;
       }
-      m_indx_map(k2) = x1_idx;
+      lik.m_indx_map(k2) = x1_idx;
     });
   }
 

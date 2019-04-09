@@ -103,6 +103,8 @@ int main (int argc, char** argv) {
 
     auto y2km  = Kokkos::create_mirror_view(y2k);
     auto y2kvm = Kokkos::create_mirror_view(y2kv);
+    Kokkos::deep_copy(y2km, y2k);
+    Kokkos::deep_copy(y2kvm, y2kv);
     for (int j = 0; j < km2; ++j) {
       micro_require(y2_base[0][j] == y2_cmp[0][j]);
       micro_require(y2_base[0][j] == y2km(0, j));

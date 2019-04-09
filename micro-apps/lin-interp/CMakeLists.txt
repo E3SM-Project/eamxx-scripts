@@ -32,7 +32,7 @@ endforeach ()
 # add_custom_target(baseline
 #   COMMAND $<TARGET_FILE:run_and_cmp> -g run_and_cmp.baseline)
 
-add_test(run_li_unit_test_f90 li_unit_test)
+add_test(run_li_unit_test li_unit_test)
 # add_test(p3_func_regression run_and_cmp run_and_cmp.baseline)
 set(PERF_ARGS 10 128 256 0.01 10) # ncol km1 km2 minthresh repeat
 foreach (li_impl ${li_impls})

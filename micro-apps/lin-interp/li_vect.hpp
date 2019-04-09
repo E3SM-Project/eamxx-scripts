@@ -69,25 +69,32 @@ struct LiVect
   void lin_interp(const view_2d<const Pack>& x1, const view_2d<const Pack>& x2, const view_2d<const Pack>& y1,
                   const view_2d<Pack>& y2)
   {
-    if (!m_init) {
+    lin_interp_impl(*this, x1, x2, y1, y2);
+  }
+
+  static void lin_interp_impl(LiVect& liv,
+                              const view_2d<const Pack>& x1, const view_2d<const Pack>& x2, const view_2d<const Pack>& y1,
+                              const view_2d<Pack>& y2)
+  {
+    if (!liv.m_init) {
       // assumes all cols have the same coords
-      setup_nlogn(util::subview(x1, 0), util::subview(x2, 0));
+      setup_nlogn(liv, util::subview(x1, 0), util::subview(x2, 0));
 #ifndef NDEBUG
-      setup_n2(util::subview(x1, 0), util::subview(x2, 0));
+      setup_n2(liv, util::subview(x1, 0), util::subview(x2, 0));
 #endif
     }
 
-    Kokkos::parallel_for("lin_interp", m_policy, KOKKOS_LAMBDA(const MemberType& team) {
+    Kokkos::parallel_for("lin_interp", liv.m_policy, KOKKOS_LAMBDA(const MemberType& team) {
       const int i = team.league_rank();
       auto x1s = scalarize(util::subview(x1, i));
       auto x2s = util::subview(x2, i);
       auto y1s = scalarize(util::subview(y1, i));
       auto y2s = util::subview(y2, i);
 
-      Kokkos::parallel_for(Kokkos::TeamThreadRange(team, m_km2_pack), [&] (Int k2) {
-        const auto indx_pk = m_indx_map(k2);
-        micro_kassert((indx_pk == m_indx_map_dbg(k2)).all());
-        const auto end_mask = indx_pk == m_km1 - 1;
+      Kokkos::parallel_for(Kokkos::TeamThreadRange(team, liv.m_km2_pack), [&] (Int k2) {
+        const auto indx_pk = liv.m_indx_map(k2);
+        micro_kassert((indx_pk == liv.m_indx_map_dbg(k2)).all());
+        const auto end_mask = indx_pk == liv.m_km1 - 1;
         const auto not_end = !end_mask;
         if (end_mask.any()) {
           scream_masked_loop(end_mask, s) {
@@ -106,32 +113,30 @@ struct LiVect
           }
         }
 
-        y2s(k2).set(y2s(k2) < m_minthresh, m_minthresh);
+        y2s(k2).set(y2s(k2) < liv.m_minthresh, liv.m_minthresh);
       });
     });
   }
 
- private:
-
-  void setup_n2(const view_1d<const Pack>& x1, const view_1d<const Pack>& x2)
+  static void setup_n2(LiVect& liv, const view_1d<const Pack>& x1, const view_1d<const Pack>& x2)
   {
-    TeamPolicy policy(util::ExeSpaceUtils<ExeSpace>::get_default_team_policy(m_km2, m_km1-1));
+    TeamPolicy policy(util::ExeSpaceUtils<ExeSpace>::get_default_team_policy(liv.m_km2, liv.m_km1-1));
 
     auto x1s = scalarize(x1);
     auto x2s = scalarize(x2);
-    auto idxs = scalarize(m_indx_map_dbg);
+    auto idxs = scalarize(liv.m_indx_map_dbg);
 
     Kokkos::parallel_for("setup_n2", policy, KOKKOS_LAMBDA(const MemberType& team) {
       const int k2 = team.league_rank();
       if( x2s(k2) <= x1s(0) ) { // x2[k2] comes before x1[0]
         idxs(k2) = 0;
       }
-      else if( x2s(k2) >= x1s(m_km1-1) ) { // x2[k2] comes after x1[-1]
-        idxs(k2) = m_km1-1;
+      else if( x2s(k2) >= x1s(liv.m_km1-1) ) { // x2[k2] comes after x1[-1]
+        idxs(k2) = liv.m_km1-1;
       }
       else {
         int k1_max = 0;
-        Kokkos::parallel_reduce(Kokkos::TeamThreadRange(team, m_km1), [&] (int k1_arg, int& k1_max) {
+        Kokkos::parallel_reduce(Kokkos::TeamThreadRange(team, liv.m_km1), [&] (int k1_arg, int& k1_max) {
           const int k1 = k1_arg + 1;
           if( (x2s(k2)>=x1s(k1-1)) && (x2s(k2)<x1s(k1)) ) { // check if x2[k2] lies within x1[k1-1] and x1[k1]
             k1_max = k1-1;
@@ -142,20 +147,20 @@ struct LiVect
     });
   }
 
-  void setup_nlogn(const view_1d<const Pack>& x1, const view_1d<const Pack>& x2)
+  static void setup_nlogn(LiVect& liv, const view_1d<const Pack>& x1, const view_1d<const Pack>& x2)
   {
-    TeamPolicy policy(util::ExeSpaceUtils<ExeSpace>::get_default_team_policy(m_km2, 1));
+    TeamPolicy policy(util::ExeSpaceUtils<ExeSpace>::get_default_team_policy(liv.m_km2, 1));
     auto x1s = scalarize(x1);
     auto x2s = scalarize(x2);
-    auto idxs = scalarize(m_indx_map);
+    auto idxs = scalarize(liv.m_indx_map);
 
     Kokkos::parallel_for("setup_nlogn", policy, KOKKOS_LAMBDA(const MemberType& team) {
       const int k2 = team.league_rank();
       const Scalar x1_indv = x2s(k2);
       auto begin = &x1s(0);
-      auto upper = begin + m_km1;
+      auto upper = begin + liv.m_km1;
 
-      auto ub = std::upper_bound(begin, upper, x1_indv);
+      auto ub = util::upper_bound(begin, upper, x1_indv);
       int x1_idx = ub - begin;
       if (x1_idx > 0) {
         --x1_idx;
