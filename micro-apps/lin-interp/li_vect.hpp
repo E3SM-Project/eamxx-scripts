@@ -111,8 +111,6 @@ struct LiVect
     });
   }
 
- private:
-
   void setup_n2(const view_1d<const Pack>& x1, const view_1d<const Pack>& x2)
   {
     TeamPolicy policy(util::ExeSpaceUtils<ExeSpace>::get_default_team_policy(m_km2, m_km1-1));
@@ -155,7 +153,7 @@ struct LiVect
       auto begin = &x1s(0);
       auto upper = begin + m_km1;
 
-      auto ub = std::upper_bound(begin, upper, x1_indv);
+      auto ub = util::upper_bound(begin, upper, x1_indv);
       int x1_idx = ub - begin;
       if (x1_idx > 0) {
         --x1_idx;
