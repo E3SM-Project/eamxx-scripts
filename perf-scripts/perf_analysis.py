@@ -1,0 +1,228 @@
+from utils import run_cmd_no_fail, run_cmd, expect, median
+
+import os, tempfile, re, socket
+
+###############################################################################
+class ScalingExp(object):
+###############################################################################
+
+    def __init__(self, argmap, threads, arg_str):
+        try:
+            self.varname, self.scale_factor, self.upper_limit = arg_str.split(":")
+            self.scale_factor = float(self.scale_factor)
+            self.upper_limit  = int(self.upper_limit)
+        except Exception:
+            expect(False, "Scaling experiment needs to be in format VARNAME:SCALE_FACTOR:MAX")
+
+        self.args = list(argmap.keys())
+        for name, val in argmap.items():
+            setattr(self, name, val)
+
+        self.threads = threads
+
+        expect(self.varname in dir(self), "Unknown varname '{}'".format(self.varname))
+
+    def should_continue(self):
+        return getattr(self, self.varname) <= self.upper_limit
+
+    def update_values(self):
+        """
+        >>> se = ScalingExp({'ni':10, 'nk:1'}, 1, 'ni:2:1000')
+        >>> se.update_values()
+        >>> se.ni
+        20
+        >>> se.nk
+        1
+        """
+        setattr(self, self.varname, int(getattr(self, self.varname) * self.scale_factor))
+
+    def values(self, incl_threads=True):
+        results = [getattr(self, name) for name in self.args]
+        if incl_threads:
+            results.append(self.threads)
+        return tuple(results)
+
+    def plot(self, results):
+        prov_msg = "Provenance: "
+        item_list = [(name, getattr(self, name)) for name in self.args]
+        item_list.append("threads", self.threads)
+        for name, val in item_list:
+            if name != self.varname:
+                prov_msg += " {}={}".format(name, val)
+
+        st, out, _ = run_cmd("git rev-parse --short HEAD")
+        git_commit = out if st == 0 else "Unknown"
+        print("{} machine={} commit={}".format(prov_msg, socket.gethostname().split(".")[0], git_commit))
+
+        for test_name, test_results in results.iteritems():
+            print(test_name, self.varname)
+            for test_result in test_results:
+                cols, med_time = test_result[0], test_result[-1]
+                cols_sec = float(cols) / med_time
+                print("{}, {:.2f}".format(getattr(self, self.varname), cols_sec))
+
+###############################################################################
+class PerfAnalysis(object):
+###############################################################################
+
+    ###########################################################################
+    def __init__(self, argmap, force_threads, num_runs, tests, cmake_options, use_existing, scaling_exp, plot_friendly):
+    ###########################################################################
+        self._argmap        = argmap
+        self._force_threads = force_threads
+        self._num_runs      = num_runs
+        self._tests         = tests
+        self._cmake_options = cmake_options
+        self._use_existing  = use_existing
+        self._scaling_exp   = scaling_exp
+        self._plot_friendly = plot_friendly
+
+    ###############################################################################
+    def build(self):
+    ###############################################################################
+        with open("build.perf.log", "w") as fd:
+            cmake_cmd = "cmake {} ..".format(self._cmake_options)
+            make_cmd  = "make -j8 VERBOSE=1"
+            fd.write(cmake_cmd + "\n")
+            fd.write(run_cmd_no_fail(cmake_cmd, combine_output=True) + "\n\n")
+            fd.write(make_cmd + "\n")
+            fd.write(run_cmd_no_fail(make_cmd, combine_output=True) + "\n")
+
+    ###############################################################################
+    def get_time(self, output):
+    ###############################################################################
+        r"""
+        >>> output = 'Foo\nTime = 0.047 seconds.\nbar'
+        >>> get_time(output)
+        0.047
+        >>> output = 'Foo\nTime = 1.732e+01 seconds.\nbar'
+        >>> get_time(output)
+        17.32
+        """
+        regex = re.compile(r'Time\s*=\s*([^\s]+)\s*seconds')
+        the_time = None
+        for line in output.splitlines():
+            m = regex.match(line)
+            if m:
+                expect(the_time is None, "Multiple matches!")
+                the_time = float(m.groups()[0])
+
+        return the_time
+
+    ###############################################################################
+    def get_threads(self, output):
+    ###############################################################################
+        r"""
+        >>> output = 'Foo\nARCH: dp 1 avx  FPE 0 nthread 48\nTime = 0.047 seconds.\nbar'
+        >>> get_threads(output)
+        48
+        """
+        for line in output.splitlines():
+            if "nthread" in line:
+                items = line.split()
+                threads = int(items[items.index("nthread") + 1])
+                return threads
+
+        expect(False, "Failed to find threads in:\n\n{}".format(output))
+
+    ###############################################################################
+    def run_test(self, exename):
+    ###############################################################################
+        self.machine_specific_init(self._scaling_exp.threads)
+        self.test_specific_init(exename, self._scaling_exp.threads)
+        prefix = "" if "NUMA_PREFIX" not in os.environ else "{} ".format(os.environ["NUMA_PREFIX"])
+        cmd = "{}./{} {}".format(prefix, exename, " ".join([str(item) for item in self._scaling_exp.values(incl_threads=False)]))
+        results = []
+        with open("{}.perf.log".format(exename), "w") as fd:
+            fd.write(cmd + "\n\n")
+            fd.write("ENV: \n{}\n\n".format(run_cmd_no_fail("env")))
+            for _ in range(self._num_runs):
+                output = run_cmd_no_fail(cmd, verbose=not self._plot_friendly)
+                fd.write(output + "\n\n")
+                results.append(self.get_time(output))
+
+            threads = self.get_threads(output)
+
+        return median(results), threads
+
+    ###############################################################################
+    def user_explain(self, test, med_time, reference, threads):
+    ###############################################################################
+        msg = "{} ran in {} seconds with {} threads".format(test, med_time, threads)
+        if reference:
+            speedup = (1.0 - (med_time / reference)) * 100
+            msg += ", speedup={:.2f}%".format(speedup)
+
+        print(msg)
+
+    ###############################################################################
+    def perf_analysis(self):
+    ###############################################################################
+        if self._use_existing:
+            expect(os.path.isdir("p3") and os.path.exists("CMakeCache.txt"),
+                   "{} doesn't look like a build directory".format(os.getcwd()))
+
+        else:
+            expect(os.path.basename(os.getcwd()) == "micro-apps", "Please run from micro-apps directory")
+
+            tmpdir = tempfile.mkdtemp(prefix="build", dir=os.getcwd())
+            os.chdir(tmpdir)
+
+            if not self._plot_friendly:
+                print("BUILDING")
+
+            self.build()
+
+        results = {}
+        while (self._scaling_exp.should_continue()):
+            if not self._plot_friendly:
+                print()
+                print("RUNNING {}".format(" ".join(["{}={}".format(name, val) for name, val in zip(self._argmap.keys(), self._scaling_exp.values(incl_threads=False))])))
+
+            reference = None
+            for test in self._tests:
+                med_time, threads = self.run_test(test)
+                self._scaling_exp.threads = threads
+
+                if self._plot_friendly:
+                    results.setdefault(test, []).append((*self._scaling_exp.values(), med_time))
+                else:
+                    self.user_explain(test, med_time, reference, threads)
+
+                reference = med_time if reference is None else reference
+
+            self._scaling_exp.update_values()
+
+        if self._plot_friendly:
+            self._scaling_exp.plot(results)
+
+        return True
+
+    ###############################################################################
+    def test_specific_init(self, exename, force_threads):
+    ###############################################################################
+        host = socket.gethostname()
+
+        # This appears to be slower with 48
+        #if "blake" in host and exename == "p3_ref":
+        #    os.environ["OMP_NUM_THREADS"] = "48"
+
+        if force_threads:
+            os.environ["OMP_NUM_THREADS"] = str(force_threads)
+
+    ###############################################################################
+    def machine_specific_init(self, force_threads=None):
+    ###############################################################################
+        host = socket.gethostname()
+        force_threads = self._force_threads if force_threads is None else force_threads
+
+        if "bowman" in host:
+            os.environ["KMP_AFFINITY"] = "balanced,granularity=fine"
+            os.environ["OMP_NUM_THREADS"] = "272"
+            os.environ["NUMA_PREFIX"] = "numactl -i 1"
+        elif "blake" in host:
+            os.environ["KMP_AFFINITY"] = "balanced,granularity=fine"
+            os.environ["OMP_NUM_THREADS"] = "96"
+
+        if force_threads:
+            os.environ["OMP_NUM_THREADS"] = str(force_threads)

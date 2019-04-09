@@ -58,6 +58,7 @@ struct LiAlg
 
  private:
 
+#ifndef NDEBUG
   void setup_n2(const std::vector<Scalar>& x1, const std::vector<Scalar>& x2)
   {
     for (int k2 = 0; k2 < m_km2; ++k2) {
@@ -76,6 +77,7 @@ struct LiAlg
       }
     }
   }
+#endif
 
   void setup_nlogn(const std::vector<Scalar>& x1, const std::vector<Scalar>& x2)
   {
