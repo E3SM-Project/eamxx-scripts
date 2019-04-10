@@ -1,4 +1,4 @@
-include make.inc
+include make.inc.$(machine)
 
 SOURCES = tridiag.cpp
 OBJECTS = $(SOURCES:.cpp=.o)
@@ -15,4 +15,4 @@ exe: $(OBJECTS)
 	$(CXX) $(OBJECTS) $(LDFLAGS) -o tridiag
 
 clean:
-	rm -f *.o *.so
+	rm -f *.o *.so tridiag

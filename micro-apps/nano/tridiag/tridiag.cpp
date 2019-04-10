@@ -6,8 +6,11 @@
 
 #include <Kokkos_Core.hpp>
 
-#ifdef HAVE_CUSPARSE
+#ifdef TRIDIAG_HAVE_CUSPARSE
 # include <cusparse.h>
+#endif
+#ifdef TRIDIAG_HAVE_MKL
+# include <mkl.h>
 #endif
 
 /*
@@ -30,14 +33,32 @@
     together. with this version, nrhs = 1 case should call homme version. then
     check perf against cusparse nrhs=1 case.
   x raw cuda
-  - perf test for cr_amxm vs cusparse
-  - then opt cr_amxm, following a1x?? examples
-  - make a blas perf test: dttrfb, dttrsb
-  - call thomas with pack
+  x perf test for cr_amxm vs cusparse
+  x then opt cr_amxm, following a1x?? examples
+  x call thomas with pack
+  x make a blas perf test: (gttrf, gttrs); (dttrfb, dttrsb) if available
+  x opt thomas
   - make an analysis routine that returns a small struct of POD indicating which
     alg and with what parms to run for a given set of prob parms. then make a
     top-level routine that switches based on the struct.
  */
+
+#if defined __INTEL_COMPILER
+# define vector_ivdep _Pragma("ivdep")
+# ifdef _OPENMP
+#  define vector_simd _Pragma("omp simd")
+# else
+#  define vector_simd _Pragma("simd")
+# endif
+#elif defined __GNUG__
+# define vector_ivdep _Pragma("GCC ivdep")
+# define vector_simd _Pragma("GCC ivdep")
+# define restrict __restrict__
+#else
+# define vector_ivdep
+# define vector_simd
+# define restrict
+#endif
 
 namespace util {
 static inline double gettime () {
@@ -70,14 +91,108 @@ void expect_another_arg (int i, int argc) {
   if (i == argc-1)
     throw std::runtime_error("Expected another cmd-line arg.");
 }
-}
+} // namespace util
 
 namespace ko {
 template <typename T> KOKKOS_INLINE_FUNCTION
 const T& min (const T& a, const T& b) { return a < b ? a : b; }
 template <typename T> KOKKOS_INLINE_FUNCTION
 const T& max (const T& a, const T& b) { return a > b ? a : b; }
-}
+} // namespace ko
+
+// Just the Pack goodies we need.
+namespace pack {
+#define scream_pack_gen_assign_op_p(op)                   \
+  KOKKOS_FORCEINLINE_FUNCTION                             \
+  Pack& operator op (const Pack& a) {                     \
+    vector_simd for (int i = 0; i < n; ++i) d[i] op a[i]; \
+    return *this;                                         \
+  }
+#define scream_pack_gen_assign_op_s(op)                 \
+  KOKKOS_FORCEINLINE_FUNCTION                           \
+  Pack& operator op (const scalar& a) {                 \
+    vector_simd for (int i = 0; i < n; ++i) d[i] op a;  \
+    return *this;                                       \
+  }
+#define scream_pack_gen_assign_op_all(op)       \
+  scream_pack_gen_assign_op_p(op)               \
+  scream_pack_gen_assign_op_s(op)               \
+
+template <typename SCALAR, int PACKN>
+struct Pack {
+  enum { packtag = true };
+  enum { n = PACKN };
+
+  typedef typename std::remove_const<SCALAR>::type scalar;
+
+  KOKKOS_FORCEINLINE_FUNCTION explicit Pack () {
+#ifndef KOKKOS_ENABLE_CUDA
+    // Quiet NaNs don't work on Cuda.
+    vector_simd for (int i = 0; i < n; ++i)
+      d[i] = std::numeric_limits<scalar>::quiet_NaN();
+#endif
+  }
+
+  KOKKOS_FORCEINLINE_FUNCTION explicit Pack (const scalar& v) {
+    vector_simd for (int i = 0; i < n; ++i) d[i] = v;
+  }
+
+  template <typename PackIn> KOKKOS_FORCEINLINE_FUNCTION explicit
+  Pack (const PackIn& v, typename std::enable_if<PackIn::packtag>::type* = nullptr) {
+    static_assert(static_cast<int>(PackIn::n) == static_cast<int>(n),
+                  "Pack::n must be the same.");
+    vector_simd for (int i = 0; i < n; ++i) d[i] = v[i];
+  }
+
+  KOKKOS_FORCEINLINE_FUNCTION const scalar& operator[] (const int& i) const { return d[i]; }
+  KOKKOS_FORCEINLINE_FUNCTION scalar& operator[] (const int& i) { return d[i]; }
+
+  scream_pack_gen_assign_op_all(=)
+  scream_pack_gen_assign_op_all(+=)
+  scream_pack_gen_assign_op_all(-=)
+  scream_pack_gen_assign_op_all(*=)
+  scream_pack_gen_assign_op_all(/=)
+
+private:
+  scalar d[n];
+};
+
+template <typename Pack>
+using OnlyPack = typename std::enable_if<Pack::packtag,Pack>::type;
+template <typename Pack, typename Return>
+using OnlyPackReturn = typename std::enable_if<Pack::packtag,Return>::type;
+
+#define scream_pack_gen_bin_op_pp(op)                                   \
+  template <typename Pack> KOKKOS_FORCEINLINE_FUNCTION                  \
+  OnlyPack<Pack> operator op (const Pack& a, const Pack& b) {           \
+    Pack c;                                                             \
+    vector_simd for (int i = 0; i < Pack::n; ++i) c[i] = a[i] op b[i];  \
+    return c;                                                           \
+  }
+#define scream_pack_gen_bin_op_ps(op)                                   \
+  template <typename Pack, typename Scalar> KOKKOS_FORCEINLINE_FUNCTION \
+  OnlyPack<Pack> operator op (const Pack& a, const Scalar& b) {         \
+    Pack c;                                                             \
+    vector_simd for (int i = 0; i < Pack::n; ++i) c[i] = a[i] op b;     \
+    return c;                                                           \
+  }
+#define scream_pack_gen_bin_op_sp(op)                                   \
+  template <typename Pack, typename Scalar> KOKKOS_FORCEINLINE_FUNCTION \
+  OnlyPack<Pack> operator op (const Scalar& a, const Pack& b) {         \
+    Pack c;                                                             \
+    vector_simd for (int i = 0; i < Pack::n; ++i) c[i] = a op b[i];     \
+    return c;                                                           \
+  }
+#define scream_pack_gen_bin_op_all(op)          \
+  scream_pack_gen_bin_op_pp(op)                 \
+  scream_pack_gen_bin_op_ps(op)                 \
+  scream_pack_gen_bin_op_sp(op)
+
+scream_pack_gen_bin_op_all(+)
+scream_pack_gen_bin_op_all(-)
+scream_pack_gen_bin_op_all(*)
+scream_pack_gen_bin_op_all(/)
+} // namespace pack
 
 template <typename TeamMember>
 KOKKOS_INLINE_FUNCTION
@@ -95,7 +210,7 @@ template <typename ExeSpace = Kokkos::DefaultExecutionSpace>
 Kokkos::TeamPolicy<ExeSpace>
 get_default_team_policy (const int nprob, const int nrow, const int nrhs) {
 #ifdef KOKKOS_ENABLE_OPENMP
-# ifdef MIMIC_GPU
+# ifdef TRIDIAG_MIMIC_GPU
   return Kokkos::TeamPolicy<ExeSpace>(nprob, omp_get_max_threads(), 1);
 # else
   const int per = (omp_get_max_threads() + nprob - 1)/nprob;
@@ -188,6 +303,144 @@ void thomas_solve (const TeamMember& team,
   Kokkos::parallel_for(Kokkos::TeamThreadRange(team, nrhs), f);
 }
 
+template <typename DT, typename XT>
+KOKKOS_INLINE_FUNCTION
+void thomas_a1x1 (DT* const restrict dl, DT* restrict d, DT* const restrict du,
+                  XT* restrict X, const int nrow) {
+  for (int i = 1; i < nrow; ++i) {
+    const auto dli = dl[i] / d[i-1];
+    d[i] -= dli * du[i-1];
+    X[i] -= dli * X[i-1];
+  }
+  X[nrow-1] /= d[nrow-1];
+  for (int i = nrow-1; i > 0; --i)
+    X[i-1] = (X[i-1] - du[i-1] * X[i]) / d[i-1];
+}
+
+template <typename DT, typename XT>
+KOKKOS_INLINE_FUNCTION
+void thomas_a1xm (DT* const restrict dl, DT* restrict d, DT* const restrict du,
+                  XT* restrict X, const int nrow, const int nrhs) {
+  for (int i = 1; i < nrow; ++i) {
+    const auto dli = dl[i] / d[i-1];
+    d[i] -= dli * du[i-1];
+    auto* const xim1 = X + (i-1)*nrhs;
+    auto* const xi = X + i*nrhs;
+    for (int j = 0; j < nrhs; ++j)
+      xi[j] -= dli * xim1[j];
+  }
+  {
+    auto* const xi = X + (nrow-1)*nrhs;
+    for (int j = 0; j < nrhs; ++j)
+      xi[j] /= d[nrow-1];
+  }
+  for (int i = nrow-1; i > 0; --i) {
+    auto* const xim1 = X + (i-1)*nrhs;
+    auto* const xi = X + i*nrhs;
+    for (int j = 0; j < nrhs; ++j)
+      xim1[j] = (xim1[j] - du[i-1] * xi[j]) / d[i-1];
+  }
+}
+
+template <typename DT, typename XT>
+KOKKOS_INLINE_FUNCTION
+void thomas_amxm (DT* const restrict dl, DT* restrict d, DT* const restrict du,
+                  XT* restrict X, const int nrow, const int nrhs) {
+  for (int i = 1; i < nrow; ++i) {
+    const int ios = i*nrhs;
+    const int im1os = (i-1)*nrhs;
+    auto* const dli = dl + ios;
+    auto* const di = d + ios;
+    auto* const dim1 = d + im1os;
+    auto* const duim1 = du + im1os;
+    auto* const xim1 = X + im1os;
+    auto* const xi = X + ios;
+    for (int j = 0; j < nrhs; ++j) {
+      const auto dlij = dli[j] / dim1[j];
+      di[j] -= dlij * duim1[j];
+      xi[j] -= dlij * xim1[j];
+    }
+  }
+  {
+    const int ios = (nrow-1)*nrhs;
+    auto* const di = d + ios;
+    auto* const xi = X + ios;
+    for (int j = 0; j < nrhs; ++j)
+      xi[j] /= di[j];
+  }
+  for (int i = nrow-1; i > 0; --i) {
+    const int ios = i*nrhs;
+    const int im1os = (i-1)*nrhs;
+    auto* const dim1 = d + im1os;
+    auto* const duim1 = du + im1os;
+    auto* const xim1 = X + im1os;
+    auto* const xi = X + ios;
+    for (int j = 0; j < nrhs; ++j)
+      xim1[j] = (xim1[j] - duim1[j] * xi[j]) / dim1[j];
+  }
+}
+
+template <typename TridiagDiag, typename DataArray>
+KOKKOS_INLINE_FUNCTION
+void thomas (TridiagDiag dl, TridiagDiag d, TridiagDiag du, DataArray X,
+             typename std::enable_if<TridiagDiag::rank == 1>::type* = 0,
+             typename std::enable_if<DataArray::rank == 1>::type* = 0,
+             typename std::enable_if<std::is_same<typename DataArray::array_layout,
+                                                  Kokkos::LayoutRight>::value ||
+                                     std::is_same<typename DataArray::array_layout,
+                                                  Kokkos::LayoutLeft>::value>::type* = 0) {
+  const int nrow = d.extent_int(0);
+  assert( X.extent_int(0) == nrow);
+  assert(dl.extent_int(0) == nrow);
+  assert(du.extent_int(0) == nrow);
+  thomas_a1x1(dl.data(), d.data(), du.data(), X.data(), nrow);
+}
+
+template <typename TridiagDiag, typename DataArray>
+KOKKOS_INLINE_FUNCTION
+void thomas (TridiagDiag dl, TridiagDiag d, TridiagDiag du, DataArray X,
+             typename std::enable_if<TridiagDiag::rank == 1>::type* = 0,
+             typename std::enable_if<DataArray::rank == 2>::type* = 0,
+             typename std::enable_if<std::is_same<typename DataArray::array_layout,
+                                                  Kokkos::LayoutRight>::value>::type* = 0) {
+  const int nrow = d.extent_int(0);
+  const int nrhs = X.extent_int(1);
+  assert( X.extent_int(0) == nrow);
+  assert(dl.extent_int(0) == nrow);
+  assert(du.extent_int(0) == nrow);
+  thomas_a1xm(dl.data(), d.data(), du.data(), X.data(), nrow, nrhs);
+}
+
+template <typename TridiagDiag, typename DataArray>
+KOKKOS_INLINE_FUNCTION
+void thomas (TridiagDiag dl, TridiagDiag d, TridiagDiag du, DataArray X,
+             typename std::enable_if<TridiagDiag::rank == 2>::type* = 0,
+             typename std::enable_if<DataArray::rank == 2>::type* = 0) {
+  const int nrow = d.extent_int(0);
+  const int nrhs = X.extent_int(1);
+  assert(X .extent_int(0) == nrow);
+  assert(dl.extent_int(0) == nrow);
+  assert(du.extent_int(0) == nrow);
+  assert(dl.extent_int(1) == nrhs);
+  assert(d .extent_int(1) == nrhs);
+  assert(du.extent_int(1) == nrhs);
+#if 0
+  thomas_amxm(dl.data(), d.data(), du.data(), X.data(), nrow, nrhs);
+#else
+  for (int i = 1; i < nrow; ++i)
+    for (int j = 0; j < nrhs; ++j) {
+      const auto dli = dl(i,j) / d(i-1,j);
+      d(i,j) -= dli * du(i-1,j);
+      X(i,j) -= dli * X(i-1,j);
+    }
+  for (int j = 0; j < nrhs; ++j)
+    X(nrow-1,j) /= d(nrow-1,j);
+  for (int i = nrow-1; i > 0; --i)
+    for (int j = 0; j < nrhs; ++j)
+      X(i-1,j) = (X(i-1,j) - du(i-1,j) * X(i,j)) / d(i-1,j);
+#endif
+}
+
 // Cyclic reduction at the Kokkos team level. Any (thread, vector)
 // parameterization is intended to work.
 template <typename TeamMember, typename TridiagDiag, typename DataArray>
@@ -235,7 +488,6 @@ void cr_a1xm (const TeamMember& team,
       }
     }
     os <<= 1;
-    // Go down in cyclic reduction level only when this level is complete.
     team.team_barrier();
   }
   if (team_id == 0) {
@@ -272,7 +524,6 @@ void cr_a1xm (const TeamMember& team,
       }
     }
     os >>= 1;
-    // Go up in cyclic reduction level only when this level is complete.
     team.team_barrier();
   }
 }
@@ -282,6 +533,7 @@ KOKKOS_INLINE_FUNCTION
 void cr_amxm (const TeamMember& team,
               TridiagDiag dl, TridiagDiag d, TridiagDiag du,
               DataArray X) {
+  using Scalar = typename TridiagDiag::non_const_value_type;
   const int nrow = d.extent_int(0);
   const int nrhs = X.extent_int(1);
   assert(dl.extent_int(1) == nrhs);
@@ -302,37 +554,23 @@ void cr_amxm (const TeamMember& team,
     if (team_id < nteam) {
       const int inc = stride*nteam;
       for (int i = stride*team_id; i < nrow; i += inc) {
-        const int im = i - os;
-        const int ip = i + os;
-        if (im < 0) {
-          assert(ip < nrow);
-          for (int j = team_tid; j < nrhs; j += team_size) {
-            const auto f = -du(i,j)/d(ip,j);
-            du(i,j)  = f*du(ip,j);
-            d (i,j) += f*dl(ip,j);
-            X (i,j) += f*X (ip,j);
-          }
-        } else if (ip >= nrow) {
-          for (int j = team_tid; j < nrhs; j += team_size) {
-            const auto f = -dl(i,j)/d(im,j);
-            dl(i,j)  = f*dl(im,j);
-            d (i,j) += f*du(im,j);
-            X (i,j) += f*X (im,j);
-          }
-        } else {
-          for (int j = team_tid; j < nrhs; j += team_size) {
-            const auto f1 = -dl(i,j)/d(im,j);
-            dl(i,j)  = f1*dl(im,j);
-            const auto f2 = -du(i,j)/d(ip,j);
-            du(i,j)  = f2*du(ip,j);
-            d (i,j) += f1*du(im,j) + f2*dl(ip,j);
-            X (i,j) += f1*X (im,j) + f2*X(ip,j);
-          }
+        int im = i - os;
+        int ip = i + os;
+        const bool im_ok = im >= 0;
+        const bool ip_ok = ip < nrow;
+        im = im_ok ? im : i;
+        ip = ip_ok ? ip : i;
+        for (int j = team_tid; j < nrhs; j += team_size) {
+          const auto f1 = im_ok ? -dl(i,j)/d(im,j) : 0;
+          const auto f2 = ip_ok ? -du(i,j)/d(ip,j) : 0;
+          dl(i,j)  = f1*dl(im,j);
+          du(i,j)  = f2*du(ip,j);
+          d (i,j) += f1*du(im,j) + f2*dl(ip,j);
+          X (i,j) += f1*X (im,j) + f2*X (ip,j);
         }
       }
     }
     os <<= 1;
-    // Go down in cyclic reduction level only when this level is complete.
     team.team_barrier();
   }
   if (team_id == 0) {
@@ -359,27 +597,18 @@ void cr_amxm (const TeamMember& team,
       for (int i = stride*team_id + os; i < nrow; i += inc) {
         const int im = i - os;
         const int ip = i + os;
-        if (im < 0) {
-          assert(ip < nrow);
-          for (int j = team_tid; j < nrhs; j += team_size) {
-            const auto f = du(i,j)*X(ip,j);
-            X(i,j) = (X(i,j) - f)/d(i,j);
-          }
-        } else if (ip >= nrow) {
-          for (int j = team_tid; j < nrhs; j += team_size) {
-            const auto f = dl(i,j)*X(im,j);
-            X(i,j) = (X(i,j) - f)/d(i,j);
-          }        
-        } else {
-          for (int j = team_tid; j < nrhs; j += team_size) {
-            const auto f = dl(i,j)*X(im,j) + du(i,j)*X(ip,j);
-            X(i,j) = (X(i,j) - f)/d(i,j);
-          }
+        assert(im >= 0 || ip < nrow);
+        const bool im_ok = im >= 0;
+        const bool ip_ok = ip < nrow;
+        for (int j = team_tid; j < nrhs; j += team_size) {
+          Scalar f = 0;
+          f += im_ok ? dl(i,j)*X(im,j) : 0;
+          f += ip_ok ? du(i,j)*X(ip,j) : 0;
+          X(i,j) = (X(i,j) - f)/d(i,j);
         }
       }
     }
     os >>= 1;
-    // Go up in cyclic reduction level only when this level is complete.
     team.team_barrier();
   }
 }
@@ -516,7 +745,7 @@ void cr_a1x1p (const int nrow,
     __syncthreads();
   }
 }
-#endif
+#endif // KOKKOS_ENABLE_CUDA
 
 template <typename TridiagDiag, typename XArray, typename YArray>
 KOKKOS_INLINE_FUNCTION
@@ -621,31 +850,7 @@ void pcr (const TeamMember& team,
   }
 }
 
-#ifdef HAVE_CUSPARSE
-/*
-  cusparseStatus_t cusparseCreate(cusparseHandle_t *handle)
-  cusparseStatus_t cusparseDestroy(cusparseHandle_t handle)
-  cusparseStatus_t cusparseDgtsv2StridedBatch_bufferSizeExt(
-    cusparseHandle_t handle,
-    int m,
-    const double *dl,
-    const double  *d,
-    const double *du,
-    const double *x,
-    int batchCount,
-    int batchStride,
-    size_t *bufferSizeInBytes)
-  cusparseStatus_t cusparseDgtsv2StridedBatch(
-    cusparseHandle_t handle,
-    int m,
-    const double *dl,
-    const double  *d,
-    const double *du,
-    double *x,
-    int batchCount,
-    int batchStride,
-    void *pBuffer)
- */
+#ifdef TRIDIAG_HAVE_CUSPARSE
 template <typename T>
 cusparseStatus_t cusparseTgtsv2StridedBatch_bufferSizeExt(
   cusparseHandle_t, int, const T*, const T*, const T*, const T*, int, int, size_t*);
@@ -775,7 +980,96 @@ public:
     Kokkos::parallel_for(nrow*nprob, f);
   }
 };
-#endif // HAVE_CUSPARSE
+#endif // TRIDIAG_HAVE_CUSPARSE
+
+#if defined TRIDIAG_HAVE_LAPACK || defined TRIDIAG_HAVE_MKL
+# ifndef TRIDIAG_HAVE_MKL
+extern "C" {
+void sgttrf_(int*, float*, float*, float*, float*, int*, int*);
+void sgttrs_(char*, int*, int*, float*, float*, float*, float*, int*, float*, int*, int*);
+void dgttrf_(int*, double*, double*, double*, double*, int*, int*);
+void dgttrs_(char*, int*, int*, double*, double*, double*, double*, int*, double*, int*, int*);
+}
+# endif // TRIDIAG_HAVE_MKL
+
+template <typename T>
+int gttrf(int n, T* dl, T* d, T* du, T* du2, int* ipiv);
+template <typename T>
+int gttrs(char dir, int n, int nrhs, T* dl, T* d, T* du, T* du2, int* ipiv,
+          T* x, int ldx);
+
+template <>
+inline int gttrf<float> (int n, float* dl, float* d, float* du, float* du2, int* ipiv) {
+  int info;
+  sgttrf_(&n, dl, d, du, du2, ipiv, &info);
+  return info;
+}
+template <>
+inline int gttrs<float> (char dir, int n, int nrhs, float* dl, float* d, float* du,
+                         float* du2, int* ipiv, float* x, int ldx) {
+  int info;
+  sgttrs_(&dir, &n, &nrhs, dl, d, du, du2, ipiv, x, &ldx, &info);
+  return info;
+}
+
+template <>
+inline int gttrf<double> (int n, double* dl, double* d, double* du, double* du2, int* ipiv) {
+  int info;
+  dgttrf_(&n, dl, d, du, du2, ipiv, &info);
+  return info;
+}
+template <>
+inline int gttrs<double> (char dir, int n, int nrhs, double* dl, double* d, double* du,
+                          double* du2, int* ipiv, double* x, int ldx) {
+  int info;
+  dgttrs_(&dir, &n, &nrhs, dl, d, du, du2, ipiv, x, &ldx, &info);
+  return info;
+}
+#endif // TRIDIAG_HAVE_LAPACK || defined TRIDIAG_HAVE_MKL
+
+#if defined TRIDIAG_HAVE_MKL
+# ifndef TRIDIAG_HAVE_MKL
+extern "C" {
+void sdttrfb_(int*, float*, float*, float*, int*);
+void sdttrsb_(char*, int*, int*, float*, float*, float*, float*, int*, int*);
+void ddttrfb_(int*, double*, double*, double*, int*);
+void ddttrsb_(char*, int*, int*, double*, double*, double*, double*, int*, int*);
+}
+#endif // TRIDIAG_HAVE_MKL
+
+template <typename T>
+int dttrfb(int n, T* dl, T* d, T* du);
+template <typename T>
+int dttrsb(char dir, int n, int nrhs, T* dl, T* d, T* du, T* x, int ldx);
+
+template <>
+inline int dttrfb<float> (int n, float* dl, float* d, float* du) {
+  int info;
+  sdttrfb_(&n, dl, d, du, &info);
+  return info;
+}
+template <>
+inline int dttrsb<float> (char dir, int n, int nrhs, float* dl, float* d, float* du,
+                          float* x, int ldx) {
+  int info;
+  sdttrsb_(&dir, &n, &nrhs, dl, d, du, x, &ldx, &info);
+  return info;
+}
+
+template <>
+inline int dttrfb<double> (int n, double* dl, double* d, double* du) {
+  int info;
+  ddttrfb_(&n, dl, d, du, &info);
+  return info;
+}
+template <>
+inline int dttrsb<double> (char dir, int n, int nrhs, double* dl, double* d, double* du,
+                           double* x, int ldx) {
+  int info;
+  ddttrsb_(&dir, &n, &nrhs, dl, d, du, x, &ldx, &info);
+  return info;
+}
+#endif // TRIDIAG_HAVE_MKL
 
 template <typename TridiagDiag>
 KOKKOS_INLINE_FUNCTION
@@ -822,10 +1116,16 @@ Real reldif (const Array& a, const Array& b) {
 }
 
 struct Solver {
-  enum Enum { thomas, cr_a1xm, cr_amxm, cr_a1x1, cr_a1x1p, pcr, cusparse, error };
+  enum Enum { thomas, thomas_pack_a1xm, thomas_pack_amxm, gttr, dttr,
+              cr_a1xm, cr_amxm, cr_a1x1, cr_a1x1p, pcr, cusparse,
+              error };
   static std::string convert (Enum e) {
     switch (e) {
     case thomas: return "thomas";
+    case thomas_pack_a1xm: return "thomas_pack_a1xm";
+    case thomas_pack_amxm: return "thomas_pack_amxm";
+    case gttr: return "gttr";
+    case dttr: return "dttr";
     case cr_a1xm: return "cr_a1xm";
     case cr_amxm: return "cr_amxm";
     case cr_a1x1: return "cr_a1x1";
@@ -839,6 +1139,10 @@ struct Solver {
   }
   static Enum convert (const std::string& s) {
     if (s == "thomas") return thomas;
+    if (s == "thomas_pack_a1xm") return thomas_pack_a1xm;
+    if (s == "thomas_pack_amxm") return thomas_pack_amxm;
+    if (s == "gttr") return gttr;
+    if (s == "dttr") return dttr;
     if (s == "cr_a1xm") return cr_a1xm;
     if (s == "cr_amxm") return cr_amxm;
     if (s == "cr_a1x1") return cr_a1x1;
@@ -852,7 +1156,7 @@ struct Solver {
 
 Solver::Enum Solver::all[] = {
   thomas, cr_a1xm, cr_amxm, cr_a1x1, pcr
-#ifdef HAVE_CUSPARSE
+#ifdef TRIDIAG_HAVE_CUSPARSE
   //, cusparse
 #endif
 };
@@ -860,8 +1164,8 @@ Solver::Enum Solver::all[] = {
 // LayoutStride has too much overhead to use it. Instead we use the
 // (dl,d,du) triple rather than a matrix A to get the layout
 // flexibility we need.
-//#define STRIDE
-#ifdef STRIDE
+//#define TRIDIAG_STRIDE
+#ifdef TRIDIAG_STRIDE
 using BulkLayout = Kokkos::LayoutStride;
 using TeamLayout = Kokkos::LayoutLeft;
 #else
@@ -953,9 +1257,11 @@ static void test1 () {
           };
           Kokkos::parallel_for(policy, f);
         } break;
+        default:
+          std::cout << "test1 does not support " << Solver::convert(solver)
+                    << "\n";
         }
-        Real re;
-        {
+        Real re; {
           auto Acopym = Kokkos::create_mirror_view(Acopy);
           const auto dl = Kokkos::subview(Acopym, Kokkos::ALL(), 0);
           const auto d  = Kokkos::subview(Acopym, Kokkos::ALL(), 1);
@@ -979,11 +1285,11 @@ static void test1 () {
 struct Input {
   Solver::Enum method;
   int nprob, nrow, nrhs, nwarp;
-  bool use_scratch;
+  bool use_scratch, gpu;
 
   Input ()
     : method(Solver::thomas), nprob(2048), nrow(128), nrhs(43), nwarp(-1),
-      use_scratch(false)
+      use_scratch(false), gpu(true)
   {}
 
   bool parse (int argc, char** argv) {
@@ -1011,6 +1317,8 @@ struct Input {
       } else if (util::eq(argv[i], "-s", "--scratch")) {
         use_scratch = true;
 #endif
+      } else if (util::eq(argv[i], "-ng", "--notgpu")) {
+        gpu = false;
       } else {
         std::cout << "Unexpected arg: " << argv[i] << "\n";
         return false;
@@ -1019,6 +1327,13 @@ struct Input {
     return true;
   }
 };
+
+std::string string (const Input& in) {
+  std::stringstream ss;
+  ss << "run: solver " << Solver::convert(in.method) << " nprob " << in.nprob
+     << " nrow " << in.nrow << " nrhs " << in.nrhs << "\n";
+  return ss.str();
+}
 
 #ifdef KOKKOS_ENABLE_CUDA
 template <typename Real>
@@ -1044,20 +1359,23 @@ double dispatch_cr_a1x1p (const Input& in, AT& A, XT& X) {
   double t1 = util::gettime();
   return t1 - t0;
 }
-#endif
+#endif // KOKKOS_ENABLE_CUDA
 
 template <typename ScalarType>
 using TridiagArrays = Kokkos::View<ScalarType***, BulkLayout>;
 template <typename ScalarType>
 using DataArrays = Kokkos::View<ScalarType***, BulkLayout>;
+template <typename ScalarType>
+using TridiagArraysUm = Kokkos::View<ScalarType***, BulkLayout, Kokkos::MemoryUnmanaged>;
+template <typename ScalarType>
+using DataArraysUm = Kokkos::View<ScalarType***, BulkLayout, Kokkos::MemoryUnmanaged>;
 
-static void run (const Input& in) {
+static void run_gpu (const Input& in) {
   using Kokkos::subview;
   using Kokkos::ALL;
   using TeamPolicy = Kokkos::TeamPolicy<Kokkos::DefaultExecutionSpace>;
-  std::cout << "run: solver " << Solver::convert(in.method) << " nprob " << in.nprob
-            << " nrow " << in.nrow << " nrhs " << in.nrhs << "\n";
-#ifdef STRIDE
+  std::cout << string(in);
+#ifdef TRIDIAG_STRIDE
   const int order[] = {2,0,1};
   const int Adim[] = {in.nprob, in.nrow, 3};
   const int Xdim[] = {in.nprob, in.nrow, in.nrhs};
@@ -1074,9 +1392,9 @@ static void run (const Input& in) {
   auto Am = Kokkos::create_mirror_view(A);
   auto Bm = Kokkos::create_mirror_view(B);
   for (int i = 0; i < in.nprob; ++i) {
-    const auto dl = Kokkos::subview(Am, i, 0, Kokkos::ALL());
-    const auto d  = Kokkos::subview(Am, i, 1, Kokkos::ALL());
-    const auto du = Kokkos::subview(Am, i, 2, Kokkos::ALL());
+    const auto dl = subview(Am, i, 0, ALL());
+    const auto d  = subview(Am, i, 1, ALL());
+    const auto du = subview(Am, i, 2, ALL());
     fill_tridiag_matrix(dl, d, du, i);
     fill_data_matrix(subview(Bm, i, ALL(), ALL()), i);
   }
@@ -1093,8 +1411,8 @@ static void run (const Input& in) {
        << " nrow " << in.nrow << " nrhs " << in.nrhs << "\n";
     throw std::runtime_error(ss.str());
   }
-  if ((in.method == Solver::cr_amxm || in.method == Solver::cr_a1x1) && in.nrhs != 1)
-    throw std::runtime_error("In this performance test, cr_amxm and cr_a1x1 require nrhs 1.");
+  if (in.method == Solver::cr_a1x1 && in.nrhs != 1)
+    throw std::runtime_error("In this performance test, cr_a1x1 require nrhs 1.");
   Kokkos::fence();
   double t0, t1;
   switch (in.method) {
@@ -1102,12 +1420,12 @@ static void run (const Input& in) {
     t0 = util::gettime();
     const auto f = KOKKOS_LAMBDA (const typename TeamPolicy::member_type& team) {
       const int ip = team.league_rank();
-      const auto dl = Kokkos::subview(A, ip, 0, Kokkos::ALL());
-      const auto d  = Kokkos::subview(A, ip, 1, Kokkos::ALL());
-      const auto du = Kokkos::subview(A, ip, 2, Kokkos::ALL());
+      const auto dl = subview(A, ip, 0, ALL());
+      const auto d  = subview(A, ip, 1, ALL());
+      const auto du = subview(A, ip, 2, ALL());
       thomas_factorize(team, dl, d, du);
       team.team_barrier();
-      thomas_solve(team, dl, d, du, subview(X, team.league_rank(), ALL(), ALL()));
+      thomas_solve(team, dl, d, du, subview(X, ip, ALL(), ALL()));
     };
     Kokkos::parallel_for(policy, f);
     Kokkos::fence();
@@ -1117,9 +1435,9 @@ static void run (const Input& in) {
     t0 = util::gettime();
     const auto f = KOKKOS_LAMBDA (const typename TeamPolicy::member_type& team) {
       const int ip = team.league_rank();
-      const auto dl = Kokkos::subview(A, ip, 0, Kokkos::ALL());
-      const auto d  = Kokkos::subview(A, ip, 1, Kokkos::ALL());
-      const auto du = Kokkos::subview(A, ip, 2, Kokkos::ALL());
+      const auto dl = subview(A, ip, 0, ALL());
+      const auto d  = subview(A, ip, 1, ALL());
+      const auto du = subview(A, ip, 2, ALL());
       cr_a1xm(team,
               dl, d, du,
               subview(X, ip, ALL(), ALL()));
@@ -1129,19 +1447,45 @@ static void run (const Input& in) {
     t1 = util::gettime();
   } break;
   case Solver::cr_amxm: {
-    t0 = util::gettime();
-    const auto f = KOKKOS_LAMBDA (const typename TeamPolicy::member_type& team) {
-      const int ip = team.league_rank();
-      Kokkos::View<Real***, TeamLayout, Kokkos::MemoryUnmanaged>
-        Am(&A(ip,0,0), 3, in.nrow, 1);
-      const auto dl = Kokkos::subview(Am, 0, Kokkos::ALL(), Kokkos::ALL());
-      const auto d  = Kokkos::subview(Am, 1, Kokkos::ALL(), Kokkos::ALL());
-      const auto du = Kokkos::subview(Am, 2, Kokkos::ALL(), Kokkos::ALL());
-      cr_amxm(team, dl, d, du, subview(X, ip, ALL(), ALL()));
-    };
-    Kokkos::parallel_for(policy, f);
-    Kokkos::fence();
-    t1 = util::gettime();
+    if (in.nrhs == 1) {
+      t0 = util::gettime();
+      const auto f = KOKKOS_LAMBDA (const typename TeamPolicy::member_type& team) {
+        const int ip = team.league_rank();
+        Kokkos::View<Real***, TeamLayout, Kokkos::MemoryUnmanaged>
+          Am(&A(ip,0,0), 3, in.nrow, 1);
+        const auto dl = subview(Am, 0, ALL(), ALL());
+        const auto d  = subview(Am, 1, ALL(), ALL());
+        const auto du = subview(Am, 2, ALL(), ALL());
+        cr_amxm(team, dl, d, du, subview(X, ip, ALL(), ALL()));
+      };
+      Kokkos::parallel_for(policy, f);
+      Kokkos::fence();
+      t1 = util::gettime();
+    } else {
+      Kokkos::View<Real****, Kokkos::LayoutRight> Arep("Arep", in.nprob, 3, in.nrow, in.nrhs);
+      const int nprob = in.nprob, nrow = in.nrow, nrhs = in.nrhs;
+      const int ncrr = 3*nrow*nrhs, nrr = nrow*nrhs;
+      auto convert = KOKKOS_LAMBDA (const int i) {
+        const int prob = i/ncrr;
+        const int c = (i % ncrr) / nrr;
+        const int row = (i % nrr) / nrhs;
+        const int rhs = i % nrhs;
+        Arep(prob,c,row,rhs) = A(prob,c,row);
+      };
+      Kokkos::parallel_for(nprob*3*nrow*nrhs, convert);
+      Kokkos::fence();
+      t0 = util::gettime();
+      const auto f = KOKKOS_LAMBDA (const typename TeamPolicy::member_type& team) {
+        const int ip = team.league_rank();
+        const auto dl = subview(Arep, ip, 0, ALL(), ALL());
+        const auto d  = subview(Arep, ip, 1, ALL(), ALL());
+        const auto du = subview(Arep, ip, 2, ALL(), ALL());
+        cr_amxm(team, dl, d, du, subview(X, ip, ALL(), ALL()));
+      };
+      Kokkos::parallel_for(policy, f);
+      Kokkos::fence();
+      t1 = util::gettime();      
+    }
   } break;
   case Solver::cr_a1x1: {
     t0 = util::gettime();
@@ -1149,9 +1493,9 @@ static void run (const Input& in) {
     Real* const Xdata = X.data();
     const auto f = KOKKOS_LAMBDA (const typename TeamPolicy::member_type& team) {
       const int ip = team.league_rank();
-      const auto dl = Kokkos::subview(A, ip, 0, Kokkos::ALL());
-      const auto d  = Kokkos::subview(A, ip, 1, Kokkos::ALL());
-      const auto du = Kokkos::subview(A, ip, 2, Kokkos::ALL());
+      const auto dl = subview(A, ip, 0, ALL());
+      const auto d  = subview(A, ip, 1, ALL());
+      const auto du = subview(A, ip, 2, ALL());
       const auto x = subview(X, ip, ALL(), 0);
       cr_a1x1(team, dl, d, du, x);
     };
@@ -1169,16 +1513,16 @@ static void run (const Input& in) {
     t0 = util::gettime();
     const auto f = KOKKOS_LAMBDA (const typename TeamPolicy::member_type& team) {
       const int ip = team.league_rank();
-      const auto dl = Kokkos::subview(A, ip, 0, Kokkos::ALL());
-      const auto d  = Kokkos::subview(A, ip, 1, Kokkos::ALL());
-      const auto du = Kokkos::subview(A, ip, 2, Kokkos::ALL());
+      const auto dl = subview(A, ip, 0, ALL());
+      const auto d  = subview(A, ip, 1, ALL());
+      const auto du = subview(A, ip, 2, ALL());
       pcr(team, dl, d, du, subview(X, ip, ALL(), ALL()));
     };
     Kokkos::parallel_for(policy, f);
     Kokkos::fence();
     t1 = util::gettime();
   } break;
-#ifdef HAVE_CUSPARSE
+#ifdef TRIDIAG_HAVE_CUSPARSE
   case Solver::cusparse: {
     Kokkos::View<Real***, Kokkos::LayoutRight> Acs("Acs", 3, in.nrhs*in.nprob, in.nrow);
     Kokkos::View<Real**, Kokkos::LayoutRight> Xcs("Xcs", in.nrhs*in.nprob, in.nrow);
@@ -1193,20 +1537,22 @@ static void run (const Input& in) {
     cs.from_data(Xcs, X);
   } break;
 #endif
+  default:
+    std::cout << "run_gpu does not support " << Solver::convert(in.method)
+              << "\n";
   }
   const auto et = t1 - t0;
-  printf("run: et %1.3e et/datum %1.3e\n", et, (et/(in.nprob*in.nrow*in.nrhs)));
-  Real re;
-  {
+  printf("run: et %1.3e et/datum %1.3e\n", et, et/(in.nprob*in.nrow*in.nrhs));
+  Real re; {
     auto Acopym = Kokkos::create_mirror_view(Acopy);
     auto Xm = Kokkos::create_mirror_view(X);
     auto Ym = Kokkos::create_mirror_view(Y);
     Kokkos::deep_copy(Acopym, Acopy);
     Kokkos::deep_copy(Xm, X);
-    const auto ip = in.nprob-1;
-    const auto dl = Kokkos::subview(Acopym, ip, 0, Kokkos::ALL());
-    const auto d  = Kokkos::subview(Acopym, ip, 1, Kokkos::ALL());
-    const auto du = Kokkos::subview(Acopym, ip, 2, Kokkos::ALL());
+    const auto ip = std::max(0, in.nprob-1);
+    const auto dl = subview(Acopym, ip, 0, ALL());
+    const auto d  = subview(Acopym, ip, 1, ALL());
+    const auto du = subview(Acopym, ip, 2, ALL());
     matvec(dl, d, du,
            subview(Xm, in.nprob-1, ALL(), ALL()),
            subview(Ym, in.nprob-1, ALL(), ALL()));
@@ -1218,14 +1564,299 @@ static void run (const Input& in) {
     std::cout << "run: " << " re " << re << "\n";
 }
 
+template <typename ST, typename DT>
+void transpose_data (const ST& a, DT b) {
+  const int np = a.extent_int(0);
+  const int m = a.extent_int(1), n = a.extent_int(2), mn = m*n;
+  assert(b.extent_int(0) == np);
+  assert(b.extent_int(1) == n);
+  assert(b.extent_int(2) == m);
+  auto f = KOKKOS_LAMBDA (const int i) {
+    const int prob = i / mn;
+    const int row = (i % mn) / n;
+    const int col = i % n;
+    b(prob,col,row) = a(prob,row,col);
+  };
+  Kokkos::parallel_for(np*m*n, f);
+}
+
+template <typename ST, typename DT>
+void pack_data (const ST& a, DT b) {
+  using Pack = typename DT::non_const_value_type;
+  static_assert(Pack::packtag, "DT value type must be Pack");
+  static_assert(std::is_same<typename ST::non_const_value_type,
+                             typename Pack::scalar>::value,
+                "ST value and DT::Pack::scalar types must be the same");
+  const int np = a.extent_int(0);
+  const int m = a.extent_int(1), n = a.extent_int(2), mn = m*n;
+  assert(b.extent_int(0) == np);
+  assert(b.extent_int(1) == m);
+  assert(b.extent_int(2) == (n + Pack::n - 1)/Pack::n);
+  auto f = KOKKOS_LAMBDA (const int i) {
+    const int prob = i / mn;
+    const int row = (i % mn) / n;
+    const int col = i % n;
+    b(prob, row, col / Pack::n)[col % Pack::n] = a(prob,row,col);
+  };
+  Kokkos::parallel_for(np*m*n, f);
+}
+
+template <typename ST, typename DT>
+void unpack_data (const ST& a, DT b) {
+  using Pack = typename ST::non_const_value_type;
+  static_assert(Pack::packtag, "ST value type must be Pack");
+  static_assert(std::is_same<typename DT::non_const_value_type,
+                             typename Pack::scalar>::value,
+                "DT value and ST::Pack::scalar types must be the same");
+  const int np = b.extent_int(0);
+  const int m = b.extent_int(1), n = b.extent_int(2), mn = m*n;
+  assert(a.extent_int(0) == np);
+  assert(a.extent_int(1) == m);
+  assert(a.extent_int(2) == (n + Pack::n - 1)/Pack::n);
+  auto f = KOKKOS_LAMBDA (const int i) {
+    const int prob = i / mn;
+    const int row = (i % mn) / n;
+    const int col = i % n;
+    b(prob,row,col) = a(prob, row, col / Pack::n)[col % Pack::n];
+  };
+  Kokkos::parallel_for(np*m*n, f);
+}
+
+template <typename ST, typename DT>
+void pack_matrix (const ST& a, DT b, const int nrhs) {
+  using Pack = typename DT::non_const_value_type;
+  static_assert(Pack::packtag, "DT value type must be Pack");
+  static_assert(std::is_same<typename ST::non_const_value_type,
+                             typename Pack::scalar>::value,
+                "ST value and DT::Pack::scalar types must be the same");
+  const int np = a.extent_int(0);
+  const int nrow = a.extent_int(2);
+  assert(b.extent_int(0) == np);
+  assert(b.extent_int(1) == 3);
+  assert(b.extent_int(2) == nrow);
+  assert(b.extent_int(3) == (nrhs + Pack::n - 1)/Pack::n);
+  auto f = KOKKOS_LAMBDA (const int i) {
+    const int prob = i / (3*nrow*nrhs);
+    const int c = (i % (3*nrow*nrhs)) / (nrow*nrhs);
+    const int row = (i % (nrow*nrhs)) / nrhs;
+    const int rhs = i % nrhs;
+    b(prob, c, row, rhs / Pack::n)[rhs % Pack::n] = a(prob,c,row);
+  };
+  Kokkos::parallel_for(np*3*nrow*nrhs, f);
+}
+
+static void run_cpu (const Input& in) {
+  using Pack = pack::Pack<Real,8>;
+  using Kokkos::subview;
+  using Kokkos::ALL;
+  using TeamPolicy = Kokkos::TeamPolicy<Kokkos::DefaultExecutionSpace>;
+  std::cout << string(in);
+  TridiagArrays<Real> A("A", in.nprob, 3, in.nrow),
+    Acopy("Acopy", A.extent(0), A.extent(1), A.extent(2));
+  DataArrays<Real> B("B", in.nprob, in.nrow, in.nrhs), Y("Y", in.nprob, in.nrow, in.nrhs),
+    X("X", in.nprob, in.nrow, in.nrhs);
+  Kokkos::View<Real***, BulkLayout> Xt("Xt", in.nprob, in.nrhs, in.nrow);
+# ifdef KOKKOS_ENABLE_OPENMP
+# pragma omp parallel for
+# endif
+  for (int i = 0; i < in.nprob; ++i) {
+    const auto dl = subview(A, i, 0, ALL());
+    const auto d  = subview(A, i, 1, ALL());
+    const auto du = subview(A, i, 2, ALL());
+    fill_tridiag_matrix(dl, d, du, i);
+    fill_data_matrix(subview(X, i, ALL(), ALL()), i);
+  }
+  Kokkos::deep_copy(Acopy, A);
+  Kokkos::deep_copy(B, X);
+  Kokkos::fence();
+  const auto policy = get_default_team_policy<>(in.nprob, in.nrow, in.nrhs);
+#ifdef TRIDIAG_HAVE_MKL
+  mkl_set_num_threads(1);
+#endif
+  double t0, t1;
+  switch (in.method) {
+  case Solver::thomas: {
+    for (int trial = 0; trial < 2; ++trial) {
+      Kokkos::deep_copy(A, Acopy);
+      // Kokkos::deep_copy was messing up the time for some reason. Do
+      // it manually.
+      const auto dc = KOKKOS_LAMBDA (const typename TeamPolicy::member_type& team) {
+        Kokkos::single(Kokkos::PerTeam(team), [&] () {
+          const int i = team.league_rank();
+          for (int r = 0; r < in.nrow; ++r)
+            for (int c = 0; c < in.nrhs; ++c)
+              X(i,r,c) = B(i,r,c);
+        });
+      };
+      Kokkos::parallel_for(policy, dc);
+      Kokkos::fence();
+      t0 = util::gettime();
+      if (in.nrhs == 1) {
+        const auto f = KOKKOS_LAMBDA (const typename TeamPolicy::member_type& team) {
+          Kokkos::single(Kokkos::PerTeam(team), [&] () {
+            const int ip = team.league_rank();
+            const auto dl = subview(A, ip, 0, ALL());
+            const auto d  = subview(A, ip, 1, ALL());
+            const auto du = subview(A, ip, 2, ALL());
+            thomas(dl, d, du,
+                   Kokkos::View<Real*, BulkLayout, Kokkos::MemoryUnmanaged>(
+                     X.data() + ip*in.nrow, in.nrow));
+          });
+        };
+        Kokkos::parallel_for(policy, f);
+      } else {
+        const auto f = KOKKOS_LAMBDA (const typename TeamPolicy::member_type& team) {
+          Kokkos::single(Kokkos::PerTeam(team), [&] () {
+            const int ip = team.league_rank();
+            const auto dl = subview(A, ip, 0, ALL());
+            const auto d  = subview(A, ip, 1, ALL());
+            const auto du = subview(A, ip, 2, ALL());
+            thomas(dl, d, du, subview(X, ip, ALL(), ALL()));
+          });
+        };
+        Kokkos::parallel_for(policy, f);
+      }
+      Kokkos::fence();
+      t1 = util::gettime();
+    }
+  } break;
+ case Solver::thomas_pack_a1xm: {
+   Kokkos::View<Pack***, BulkLayout> Xp("Xp", in.nprob, in.nrow, (in.nrhs + Pack::n - 1)/Pack::n);
+   for (int trial = 0; trial < 2; ++trial) {
+      Kokkos::deep_copy(A, Acopy);
+      pack_data(X, Xp);
+      Kokkos::fence();
+      t0 = util::gettime();
+      const auto f = KOKKOS_LAMBDA (const typename TeamPolicy::member_type& team) {
+        const int ip = team.league_rank();
+        const auto dl = subview(A, ip, 0, ALL());
+        const auto d  = subview(A, ip, 1, ALL());
+        const auto du = subview(A, ip, 2, ALL());
+        Kokkos::single(Kokkos::PerTeam(team), [&] () {
+          thomas(dl, d, du,
+                 Kokkos::View<Pack**, BulkLayout, Kokkos::MemoryUnmanaged>(
+                   Xp, ip, ALL(), ALL()));
+        });
+      };
+      Kokkos::parallel_for(policy, f);
+      Kokkos::fence();
+      t1 = util::gettime();
+    }
+    unpack_data(Xp, X);
+  } break;
+  case Solver::thomas_pack_amxm: {
+    Kokkos::View<Pack***> Xp("Xp", in.nprob, in.nrow, (in.nrhs + Pack::n - 1)/Pack::n);
+    Kokkos::View<Pack****> Ap("Ap", in.nprob, 3, in.nrow, (in.nrhs + Pack::n - 1)/Pack::n);
+    for (int trial = 0; trial < 2; ++trial) {
+      pack_matrix(A, Ap, in.nrhs);
+      pack_data(X, Xp);
+      Kokkos::fence();
+      t0 = util::gettime();
+      const auto f = KOKKOS_LAMBDA (const typename TeamPolicy::member_type& team) {
+        const int ip = team.league_rank();
+        const auto dl = subview(Ap, ip, 0, ALL(), ALL());
+        const auto d  = subview(Ap, ip, 1, ALL(), ALL());
+        const auto du = subview(Ap, ip, 2, ALL(), ALL());
+        Kokkos::single(Kokkos::PerTeam(team), [&] () {
+          thomas(dl, d, du, subview(Xp, ip, ALL(), ALL()));
+        });
+      };
+      Kokkos::parallel_for(policy, f);
+      Kokkos::fence();
+      t1 = util::gettime();
+    }
+    unpack_data(Xp, X);
+  } break;
+#if defined TRIDIAG_HAVE_LAPACK || defined TRIDIAG_HAVE_MKL
+  case Solver::gttr: {
+    static const int max_nrow = 512;
+    if (in.nrow > max_nrow) throw std::runtime_error("For gttr, run_cpu max nrow is 512.");
+    Kokkos::fence();
+    for (int trial = 0; trial < 2; ++trial) {
+      transpose_data(X, Xt);
+      Kokkos::deep_copy(A, Acopy);
+      Kokkos::fence();
+      t0 = util::gettime();
+#     ifdef KOKKOS_ENABLE_OPENMP
+#     pragma omp parallel for
+#     endif
+      for (int ip = 0; ip < in.nprob; ++ip) {
+        Real* const p = A.data() + ip*3*in.nrow;
+        Real* const dl = p + 1;
+        Real* const d  = p +   in.nrow;
+        Real* const du = p + 2*in.nrow;
+        Real* const x = Xt.data() + ip*in.nrhs*in.nrow;
+        int ipiv[max_nrow];
+        Real du2[max_nrow];
+        gttrf(in.nrow, dl, d, du, du2, ipiv);
+        gttrs('n', in.nrow, in.nrhs, dl, d, du, du2, ipiv, x, in.nrow);
+      }
+      t1 = util::gettime();
+    }
+    transpose_data(Xt, X);
+  } break;
+#endif
+#ifdef TRIDIAG_HAVE_MKL
+  case Solver::dttr: {
+    Kokkos::fence();
+    for (int trial = 0; trial < 2; ++trial) {
+      transpose_data(X, Xt);
+      Kokkos::deep_copy(A, Acopy);
+      Kokkos::fence();
+      t0 = util::gettime();
+#     ifdef KOKKOS_ENABLE_OPENMP
+#     pragma omp parallel for
+#     endif
+      for (int ip = 0; ip < in.nprob; ++ip) {
+        Real* const p = A.data() + ip*3*in.nrow;
+        Real* const dl = p + 1;
+        Real* const d  = p +   in.nrow;
+        Real* const du = p + 2*in.nrow;
+        Real* const x = Xt.data() + ip*in.nrhs*in.nrow;
+        dttrfb(in.nrow, dl, d, du);
+        dttrsb('n', in.nrow, in.nrhs, dl, d, du, x, in.nrow);
+      }
+      t1 = util::gettime();
+    }
+    transpose_data(Xt, X);        
+  } break;
+#endif
+  default:
+    std::cout << "run_cpu does not support " << Solver::convert(in.method)
+              << "\n";    
+  }
+  const auto et = t1 - t0;
+  printf("run: et %1.3e et/datum %1.3e\n", et, et/(in.nprob*in.nrow*in.nrhs));
+  Real re; {
+    const auto ip = std::max(0, in.nprob-1);
+    const auto dl = subview(Acopy, ip, 0, ALL());
+    const auto d  = subview(Acopy, ip, 1, ALL());
+    const auto du = subview(Acopy, ip, 2, ALL());
+    matvec(dl, d, du,
+           subview(X, in.nprob-1, ALL(), ALL()),
+           subview(Y, in.nprob-1, ALL(), ALL()));
+    re = reldif(
+      subview(B, in.nprob-1, ALL(), ALL()),
+      subview(Y, in.nprob-1, ALL(), ALL()));
+  }
+  if (re > 50*std::numeric_limits<Real>::epsilon())
+    std::cout << "run: " << " re " << re << "\n";
+}
+
 int main (int argc, char** argv) {
+  std::cout << "avx:" << util::active_avx_string() << "\n";
+#ifdef KOKKOS_ENABLE_OPENMP
+  std::cout << "omp: " << omp_get_max_threads() << "\n";
+#endif
   int stat = 0;
   Kokkos::initialize(argc, argv); {
     if (argc > 1) {
       Input in;
       stat = in.parse(argc, argv);
-      if (stat)
-        run(in);
+      if (stat) {
+        if (in.gpu) run_gpu(in);
+        else run_cpu(in);
+      }
     } else
       test1();  
   } Kokkos::finalize();
