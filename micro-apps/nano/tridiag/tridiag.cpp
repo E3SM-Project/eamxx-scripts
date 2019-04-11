@@ -303,10 +303,23 @@ void thomas_solve (const TeamMember& team,
   Kokkos::parallel_for(Kokkos::TeamThreadRange(team, nrhs), f);
 }
 
+template <typename TeamMember, typename TridiagDiag, typename DataArray>
+KOKKOS_INLINE_FUNCTION
+void thomas (const TeamMember& team,
+             TridiagDiag dl, TridiagDiag d, TridiagDiag du, DataArray X) {
+  const int nrow = d.extent_int(0);
+  const int nrhs = X.extent_int(1);
+  assert(X.extent_int(0) == nrow);
+  assert(dl.extent_int(0) == nrow);
+  assert(du.extent_int(0) == nrow);
+  thomas_factorize(team, dl, d, du);
+  team.team_barrier();
+  thomas_solve(team, dl, d, du, X);
+}
+
 template <typename DT, typename XT>
 KOKKOS_INLINE_FUNCTION
-void thomas_a1x1 (DT* const restrict dl, DT* restrict d, DT* const restrict du,
-                  XT* restrict X, const int nrow) {
+void thomas_a1x1 (DT* const dl, DT* d, DT* const du, XT* X, const int nrow) {
   for (int i = 1; i < nrow; ++i) {
     const auto dli = dl[i] / d[i-1];
     d[i] -= dli * du[i-1];
@@ -319,8 +332,8 @@ void thomas_a1x1 (DT* const restrict dl, DT* restrict d, DT* const restrict du,
 
 template <typename DT, typename XT>
 KOKKOS_INLINE_FUNCTION
-void thomas_a1xm (DT* const restrict dl, DT* restrict d, DT* const restrict du,
-                  XT* restrict X, const int nrow, const int nrhs) {
+void thomas_a1xm (DT* const dl, DT* d, DT* const du, XT* X,
+                  const int nrow, const int nrhs) {
   for (int i = 1; i < nrow; ++i) {
     const auto dli = dl[i] / d[i-1];
     d[i] -= dli * du[i-1];
@@ -344,8 +357,8 @@ void thomas_a1xm (DT* const restrict dl, DT* restrict d, DT* const restrict du,
 
 template <typename DT, typename XT>
 KOKKOS_INLINE_FUNCTION
-void thomas_amxm (DT* const restrict dl, DT* restrict d, DT* const restrict du,
-                  XT* restrict X, const int nrow, const int nrhs) {
+void thomas_amxm (DT* const dl, DT* d, DT* const du, XT* X,
+                  const int nrow, const int nrhs) {
   for (int i = 1; i < nrow; ++i) {
     const int ios = i*nrhs;
     const int im1os = (i-1)*nrhs;
@@ -424,30 +437,92 @@ void thomas (TridiagDiag dl, TridiagDiag d, TridiagDiag du, DataArray X,
   assert(dl.extent_int(1) == nrhs);
   assert(d .extent_int(1) == nrhs);
   assert(du.extent_int(1) == nrhs);
-#if 0
   thomas_amxm(dl.data(), d.data(), du.data(), X.data(), nrow, nrhs);
-#else
-  for (int i = 1; i < nrow; ++i)
-    for (int j = 0; j < nrhs; ++j) {
-      const auto dli = dl(i,j) / d(i-1,j);
-      d(i,j) -= dli * du(i-1,j);
-      X(i,j) -= dli * X(i-1,j);
-    }
-  for (int j = 0; j < nrhs; ++j)
-    X(nrow-1,j) /= d(nrow-1,j);
-  for (int i = nrow-1; i > 0; --i)
-    for (int j = 0; j < nrhs; ++j)
-      X(i-1,j) = (X(i-1,j) - du(i-1,j) * X(i,j)) / d(i-1,j);
-#endif
 }
 
 // Cyclic reduction at the Kokkos team level. Any (thread, vector)
 // parameterization is intended to work.
 template <typename TeamMember, typename TridiagDiag, typename DataArray>
 KOKKOS_INLINE_FUNCTION
-void cr_a1xm (const TeamMember& team,
-              TridiagDiag dl, TridiagDiag d, TridiagDiag du,
-              DataArray X) {
+void cr (const TeamMember& team,
+         TridiagDiag dl, TridiagDiag d, TridiagDiag du, DataArray X,
+         typename std::enable_if<TridiagDiag::rank == 1>::type* = 0,
+         typename std::enable_if<DataArray::rank == 1>::type* = 0) {
+  using Scalar = typename TridiagDiag::non_const_value_type;
+  const int nrow = d.extent_int(0);
+  assert(dl.extent_int(0) == nrow);
+  assert(d. extent_int(0) == nrow);
+  assert(du.extent_int(0) == nrow);
+  assert(X. extent_int(0) == nrow);
+  const int team_id = get_thread_id_within_team(team);
+  const int nteam = get_team_nthr(team);
+  int os = 1, stride;
+  // Go down reduction.
+  while ((stride = (os << 1)) < nrow) {
+    const int inc = stride*nteam;
+    for (int i = stride*team_id; i < nrow; i += inc) {
+      int im = i - os;
+      int ip = i + os;
+      // GPU does well with ternary ?: op. Use it throughout this
+      // impl. It requires the trick noted in a few lines.
+      const auto f1 = im >= 0   ? -dl(i)/d(im) : 0;
+      const auto f2 = ip < nrow ? -du(i)/d(ip) : 0;
+      // Trick to keep im, ip in bounds; the index is modified only
+      // when the corresponding f is 0, so the resulting invalid
+      // value is multipled by 0.
+      im = im >= 0   ? im : i;
+      ip = ip < nrow ? ip : i;
+      dl(i)  = f1*dl(im);
+      du(i)  = f2*du(ip);
+      d (i) += f1*du(im) + f2*dl(ip);
+      X (i) += f1*X (im) + f2*X (ip);
+    }
+    os <<= 1;
+    // Go down in cyclic reduction level only when this level is complete.
+    team.team_barrier();
+  }
+  // Bottom 1 or 2 levels of the reduction. This could be folded into
+  // the previous loop, but it's a slight opt to handle these cases
+  // separately.
+  if (team_id == 0) {
+    if (os >= nrow) {
+      X(0) /= d(0);
+    } else {
+      const auto
+        det = d(0)*d(os) - du(0)*dl(os),
+        x0 = X(0), x1 = X(os);
+      X( 0) = (d(os)*x0 - du( 0)*x1)/det;
+      X(os) = (d( 0)*x1 - dl(os)*x0)/det;
+    }
+  }
+  team.team_barrier();
+  os >>= 1;
+  assert(os < nrow);
+  // Go up reduction.
+  while (os) {
+    stride = os << 1;
+    const int inc = stride*nteam;
+    for (int i = stride*team_id + os; i < nrow; i += inc) {
+      const int im = i - os;
+      const int ip = i + os;
+      assert(im >= 0 || ip < nrow);
+      Scalar f = 0;
+      f += im >=   0 ? dl(i)*X(im) : 0;
+      f += ip < nrow ? du(i)*X(ip) : 0;
+      X(i) = (X(i) - f)/d(i);
+    }
+    os >>= 1;
+    // Go up in cyclic reduction level only when this level is complete.
+    team.team_barrier();
+  }
+}
+
+template <typename TeamMember, typename TridiagDiag, typename DataArray>
+KOKKOS_INLINE_FUNCTION
+void cr (const TeamMember& team,
+         TridiagDiag dl, TridiagDiag d, TridiagDiag du, DataArray X,
+         typename std::enable_if<TridiagDiag::rank == 1>::type* = 0,
+         typename std::enable_if<DataArray::rank == 2>::type* = 0) {
   using Scalar = typename TridiagDiag::non_const_value_type;
   const int nrow = d.extent_int(0);
   assert(X.extent_int(0) == nrow);
@@ -530,9 +605,10 @@ void cr_a1xm (const TeamMember& team,
 
 template <typename TeamMember, typename TridiagDiag, typename DataArray>
 KOKKOS_INLINE_FUNCTION
-void cr_amxm (const TeamMember& team,
-              TridiagDiag dl, TridiagDiag d, TridiagDiag du,
-              DataArray X) {
+void cr (const TeamMember& team,
+         TridiagDiag dl, TridiagDiag d, TridiagDiag du, DataArray X,
+         typename std::enable_if<TridiagDiag::rank == 2>::type* = 0,
+         typename std::enable_if<DataArray::rank == 2>::type* = 0) {
   using Scalar = typename TridiagDiag::non_const_value_type;
   const int nrow = d.extent_int(0);
   const int nrhs = X.extent_int(1);
@@ -609,80 +685,6 @@ void cr_amxm (const TeamMember& team,
       }
     }
     os >>= 1;
-    team.team_barrier();
-  }
-}
-
-template <typename TeamMember, typename TridiagDiag, typename DataArray>
-KOKKOS_INLINE_FUNCTION
-void cr_a1x1 (const TeamMember& team,
-              TridiagDiag dl, TridiagDiag d, TridiagDiag du,
-              DataArray X) {
-  using Scalar = typename TridiagDiag::non_const_value_type;
-  const int nrow = d.extent_int(0);
-  assert(dl.extent_int(0) == nrow);
-  assert(d. extent_int(0) == nrow);
-  assert(du.extent_int(0) == nrow);
-  assert(X. extent_int(0) == nrow);
-  const int team_id = get_thread_id_within_team(team);
-  const int nteam = get_team_nthr(team);
-  int os = 1, stride;
-  // Go down reduction.
-  while ((stride = (os << 1)) < nrow) {
-    const int inc = stride*nteam;
-    for (int i = stride*team_id; i < nrow; i += inc) {
-      int im = i - os;
-      int ip = i + os;
-      // GPU does well with ternary ?: op. Use it throughout this
-      // impl. It requires the trick noted in a few lines.
-      const auto f1 = im >= 0   ? -dl(i)/d(im) : 0;
-      const auto f2 = ip < nrow ? -du(i)/d(ip) : 0;
-      // Trick to keep im, ip in bounds; the index is modified only
-      // when the corresponding f is 0, so the resulting invalid
-      // value is multipled by 0.
-      im = im >= 0   ? im : i;
-      ip = ip < nrow ? ip : i;
-      dl(i)  = f1*dl(im);
-      du(i)  = f2*du(ip);
-      d (i) += f1*du(im) + f2*dl(ip);
-      X (i) += f1*X (im) + f2*X (ip);
-    }
-    os <<= 1;
-    // Go down in cyclic reduction level only when this level is complete.
-    team.team_barrier();
-  }
-  // Bottom 1 or 2 levels of the reduction. This could be folded into
-  // the previous loop, but it's a slight opt to handle these cases
-  // separately.
-  if (team_id == 0) {
-    if (os >= nrow) {
-      X(0) /= d(0);
-    } else {
-      const auto
-        det = d(0)*d(os) - du(0)*dl(os),
-        x0 = X(0), x1 = X(os);
-      X( 0) = (d(os)*x0 - du( 0)*x1)/det;
-      X(os) = (d( 0)*x1 - dl(os)*x0)/det;
-    }
-  }
-  team.team_barrier();
-  os >>= 1;
-  assert(os < nrow);
-  // Go up reduction.
-  while (os) {
-    stride = os << 1;
-    const int inc = stride*nteam;
-    for (int i = stride*team_id + os; i < nrow; i += inc) {
-      const int im = i - os;
-      const int ip = i + os;
-      assert(im >= 0 || ip < nrow);
-      Scalar f = 0;
-      f += im >=   0 ? dl(i)*X(im) : 0;
-      f += ip < nrow ? du(i)*X(ip) : 0;
-      X(i) = (X(i) - f)/d(i);
-    }
-    os >>= 1;
-    // Go up in cyclic reduction level only when this level is complete.
     team.team_barrier();
   }
 }
@@ -888,7 +890,6 @@ class CusparseSolver {
     if (nrow_ < 3) ok_ = false;
     auto status = cusparseCreate(&handle_);
     if (status != CUSPARSE_STATUS_SUCCESS) {
-      pr("cusparseCreate" pu(status));
       ok_ = false;
       return;
     }
@@ -896,7 +897,6 @@ class CusparseSolver {
     status = cusparseTgtsv2StridedBatch_bufferSizeExt<Scalar>(
       handle_, nrow_, nullptr, nullptr, nullptr, nullptr, nprob_, nrow_, &sz);
     if (status != CUSPARSE_STATUS_SUCCESS) {
-      pr("bufferSizeExt" pu(status));
       ok_ = false;
       return;
     }
@@ -904,7 +904,10 @@ class CusparseSolver {
   }
 
 public:
-  CusparseSolver (const int& nrow, const int& nprob) { init(nrow, nprob); }
+  CusparseSolver (const int& nrow, const int& nprob) {
+    init(nrow, nprob);
+    assert(ok_);
+  }
 
   ~CusparseSolver () {
     cusparseDestroy(handle_);
@@ -916,10 +919,7 @@ public:
     auto status = cusparseTgtsv2StridedBatch(
       handle_, nrow_, &A.impl_map().reference(0,0,0), &A.impl_map().reference(1,0,0),
       &A.impl_map().reference(2,0,0), X.data(), nprob_, nrow_, buffer_.data());
-    if (status != CUSPARSE_STATUS_SUCCESS) {
-      pr("solve" pu(status));
-    }
-    return status = CUSPARSE_STATUS_SUCCESS;
+    return status == CUSPARSE_STATUS_SUCCESS;
   }
 
   template <typename Astd, typename Acs>
@@ -1116,7 +1116,8 @@ Real reldif (const Array& a, const Array& b) {
 }
 
 struct Solver {
-  enum Enum { thomas, thomas_pack_a1xm, thomas_pack_amxm, gttr, dttr,
+  enum Enum { thomas, thomas_pack_a1xm, thomas_pack_amxm, thomas_amxm,
+              gttr, dttr,
               cr_a1xm, cr_amxm, cr_a1x1, cr_a1x1p, pcr, cusparse,
               error };
   static std::string convert (Enum e) {
@@ -1124,6 +1125,7 @@ struct Solver {
     case thomas: return "thomas";
     case thomas_pack_a1xm: return "thomas_pack_a1xm";
     case thomas_pack_amxm: return "thomas_pack_amxm";
+    case thomas_amxm: return "thomas_amxm";
     case gttr: return "gttr";
     case dttr: return "dttr";
     case cr_a1xm: return "cr_a1xm";
@@ -1141,6 +1143,7 @@ struct Solver {
     if (s == "thomas") return thomas;
     if (s == "thomas_pack_a1xm") return thomas_pack_a1xm;
     if (s == "thomas_pack_amxm") return thomas_pack_amxm;
+    if (s == "thomas_amxm") return thomas_amxm;
     if (s == "gttr") return gttr;
     if (s == "dttr") return dttr;
     if (s == "cr_a1xm") return cr_a1xm;
@@ -1214,9 +1217,7 @@ static void test1 () {
             const auto dl = Kokkos::subview(A, Kokkos::ALL(), 0);
             const auto d  = Kokkos::subview(A, Kokkos::ALL(), 1);
             const auto du = Kokkos::subview(A, Kokkos::ALL(), 2);
-            thomas_factorize(team, dl, d, du);
-            team.team_barrier();
-            thomas_solve(team, dl, d, du, X);
+            thomas(team, dl, d, du, X);
           };
           Kokkos::parallel_for(policy, f);
         } break;
@@ -1225,7 +1226,7 @@ static void test1 () {
             const auto dl = Kokkos::subview(A, Kokkos::ALL(), 0);
             const auto d  = Kokkos::subview(A, Kokkos::ALL(), 1);
             const auto du = Kokkos::subview(A, Kokkos::ALL(), 2);
-            cr_a1xm(team, dl, d, du, X);
+            cr(team, dl, d, du, X);
           };
           Kokkos::parallel_for(policy, f);
         } break;
@@ -1234,7 +1235,7 @@ static void test1 () {
           const auto dl = Kokkos::subview(Am, Kokkos::ALL(), 0, Kokkos::ALL());
           const auto d  = Kokkos::subview(Am, Kokkos::ALL(), 1, Kokkos::ALL());
           const auto du = Kokkos::subview(Am, Kokkos::ALL(), 2, Kokkos::ALL());
-          const auto f = KOKKOS_LAMBDA (const MT& team) { cr_amxm(team, dl, d, du, X); };
+          const auto f = KOKKOS_LAMBDA (const MT& team) { cr(team, dl, d, du, X); };
           Kokkos::parallel_for(policy, f);
         } break;
         case Solver::cr_a1x1: {
@@ -1243,7 +1244,7 @@ static void test1 () {
           const auto d  = Kokkos::subview(Am, Kokkos::ALL(), 1);
           const auto du = Kokkos::subview(Am, Kokkos::ALL(), 2);
           const auto f = KOKKOS_LAMBDA (const MT& team) {
-            cr_a1x1(team, dl, d, du, Kokkos::subview(X, Kokkos::ALL(), 0));
+            cr(team, dl, d, du, Kokkos::subview(X, Kokkos::ALL(), 0));
           };
           Kokkos::parallel_for(policy, f);
         } break;
@@ -1313,7 +1314,7 @@ struct Input {
       } else if (util::eq(argv[i], "-nw", "--nwarp")) {
         util::expect_another_arg(i, argc);
         nwarp = std::atoi(argv[++i]);
-#if 0
+#ifdef TRIDIAG_STRIDE
       } else if (util::eq(argv[i], "-s", "--scratch")) {
         use_scratch = true;
 #endif
@@ -1404,7 +1405,12 @@ static void run_gpu (const Input& in) {
   Kokkos::deep_copy(X, B);
   auto policy = in.nwarp < 0 ? get_default_team_policy<>(in.nprob, in.nrow, in.nrhs) :
     TeamPolicy(in.nprob, 32*in.nwarp, 1);
-  pr(puf(policy.league_size()) pu(policy.team_size()));
+  if (in.nwarp > 0) {
+    assert(policy.team_size() == 32*in.nwarp);
+  } else {
+    std::cout << "run_gpu: league " << policy.league_size() << " team "
+              << policy.team_size() << "\n";
+  }
   if (in.method == Solver::pcr && policy.team_size() < in.nrow*in.nrhs) {
     std::stringstream ss;
     ss << "PCR requires nthr >= nrow*nrhs but nthr " << policy.team_size()
@@ -1423,9 +1429,7 @@ static void run_gpu (const Input& in) {
       const auto dl = subview(A, ip, 0, ALL());
       const auto d  = subview(A, ip, 1, ALL());
       const auto du = subview(A, ip, 2, ALL());
-      thomas_factorize(team, dl, d, du);
-      team.team_barrier();
-      thomas_solve(team, dl, d, du, subview(X, ip, ALL(), ALL()));
+      thomas(team, dl, d, du, subview(X, ip, ALL(), ALL()));
     };
     Kokkos::parallel_for(policy, f);
     Kokkos::fence();
@@ -1438,9 +1442,7 @@ static void run_gpu (const Input& in) {
       const auto dl = subview(A, ip, 0, ALL());
       const auto d  = subview(A, ip, 1, ALL());
       const auto du = subview(A, ip, 2, ALL());
-      cr_a1xm(team,
-              dl, d, du,
-              subview(X, ip, ALL(), ALL()));
+      cr(team, dl, d, du, subview(X, ip, ALL(), ALL()));
     };
     Kokkos::parallel_for(policy, f);
     Kokkos::fence();
@@ -1456,7 +1458,7 @@ static void run_gpu (const Input& in) {
         const auto dl = subview(Am, 0, ALL(), ALL());
         const auto d  = subview(Am, 1, ALL(), ALL());
         const auto du = subview(Am, 2, ALL(), ALL());
-        cr_amxm(team, dl, d, du, subview(X, ip, ALL(), ALL()));
+        cr(team, dl, d, du, subview(X, ip, ALL(), ALL()));
       };
       Kokkos::parallel_for(policy, f);
       Kokkos::fence();
@@ -1480,7 +1482,7 @@ static void run_gpu (const Input& in) {
         const auto dl = subview(Arep, ip, 0, ALL(), ALL());
         const auto d  = subview(Arep, ip, 1, ALL(), ALL());
         const auto du = subview(Arep, ip, 2, ALL(), ALL());
-        cr_amxm(team, dl, d, du, subview(X, ip, ALL(), ALL()));
+        cr(team, dl, d, du, subview(X, ip, ALL(), ALL()));
       };
       Kokkos::parallel_for(policy, f);
       Kokkos::fence();
@@ -1497,7 +1499,7 @@ static void run_gpu (const Input& in) {
       const auto d  = subview(A, ip, 1, ALL());
       const auto du = subview(A, ip, 2, ALL());
       const auto x = subview(X, ip, ALL(), 0);
-      cr_a1x1(team, dl, d, du, x);
+      cr(team, dl, d, du, x);
     };
     Kokkos::parallel_for(policy, f);
     Kokkos::fence();
@@ -1645,6 +1647,24 @@ void pack_matrix (const ST& a, DT b, const int nrhs) {
   Kokkos::parallel_for(np*3*nrow*nrhs, f);
 }
 
+template <typename ST, typename DT>
+void pack_scalar_matrix (const ST& a, DT b, const int nrhs) {
+  const int np = a.extent_int(0);
+  const int nrow = a.extent_int(2);
+  assert(b.extent_int(0) == np);
+  assert(b.extent_int(1) == 3);
+  assert(b.extent_int(2) == nrow);
+  assert(b.extent_int(3) == nrhs);
+  auto f = KOKKOS_LAMBDA (const int i) {
+    const int prob = i / (3*nrow*nrhs);
+    const int c = (i % (3*nrow*nrhs)) / (nrow*nrhs);
+    const int row = (i % (nrow*nrhs)) / nrhs;
+    const int rhs = i % nrhs;
+    b(prob,c,row,rhs) = a(prob,c,row);
+  };
+  Kokkos::parallel_for(np*3*nrow*nrhs, f);
+}
+
 static void run_cpu (const Input& in) {
   using Pack = pack::Pack<Real,8>;
   using Kokkos::subview;
@@ -1743,6 +1763,36 @@ static void run_cpu (const Input& in) {
       t1 = util::gettime();
     }
     unpack_data(Xp, X);
+  } break;
+  case Solver::thomas_amxm: {
+    // Distinguish between thomas_amxm impls.
+    Kokkos::View<Real****> Ap("Ap", in.nprob, 3, in.nrow, in.nrhs);
+    for (int trial = 0; trial < 2; ++trial) {
+      pack_scalar_matrix(A, Ap, in.nrhs);
+      const auto dc = KOKKOS_LAMBDA (const typename TeamPolicy::member_type& team) {
+        Kokkos::single(Kokkos::PerTeam(team), [&] () {
+          const int i = team.league_rank();
+          for (int r = 0; r < in.nrow; ++r)
+            for (int c = 0; c < in.nrhs; ++c)
+              X(i,r,c) = B(i,r,c);
+        });
+      };
+      Kokkos::parallel_for(policy, dc);
+      Kokkos::fence();
+      t0 = util::gettime();
+      const auto f = KOKKOS_LAMBDA (const typename TeamPolicy::member_type& team) {
+        const int ip = team.league_rank();
+        const auto dl = subview(Ap, ip, 0, ALL(), ALL());
+        const auto d  = subview(Ap, ip, 1, ALL(), ALL());
+        const auto du = subview(Ap, ip, 2, ALL(), ALL());
+        Kokkos::single(Kokkos::PerTeam(team), [&] () {
+          thomas(dl, d, du, subview(X, ip, ALL(), ALL()));
+        });
+      };
+      Kokkos::parallel_for(policy, f);
+      Kokkos::fence();
+      t1 = util::gettime();
+    }
   } break;
   case Solver::thomas_pack_amxm: {
     Kokkos::View<Pack***> Xp("Xp", in.nprob, in.nrow, (in.nrhs + Pack::n - 1)/Pack::n);

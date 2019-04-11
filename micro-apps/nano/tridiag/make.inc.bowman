@@ -1,4 +1,4 @@
 KOKKOS = $(HOME)/lib/kokkos/knl
 CXX = icpc
-CXXFLAGS = -restrict -xmic-avx512 -O3 -std=c++11 -fopenmp -isystem $(KOKKOS)/include -DNDEBUG -DTRIDIAG_HAVE_MKL -mkl=sequential
+CXXFLAGS = -xmic-avx512 -O3 -std=c++11 -fopenmp -isystem $(KOKKOS)/include -DNDEBUG -DTRIDIAG_HAVE_MKL -mkl=sequential
 LDFLAGS = -L$(KOKKOS)/lib -fopenmp -lkokkos -ldl -mkl=sequential
