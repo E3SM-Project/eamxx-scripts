@@ -39,6 +39,9 @@ OR
 
     \033[1;32m# Do correctness testing for scream-docs micro apps \033[0m
     > {0} './test-all $compiler $kokkos'
+
+    \033[1;32m# Do a scaling performance test for lin-interp on blake \033[0m
+    > {0} '../perf-scripts/perf-analysis ncol:8000 km1:128 km2:256 minthresh:0.001 repeat:10 --kokkos=$kokkos --test=lin-interp/li_ref --test=lin-interp/li_kokkos --test=lin-interp/li_vect -s ncol:2:128000' -m blake
 """.format(os.path.basename(args[0])),
         description=description,
         formatter_class=argparse.ArgumentDefaultsHelpFormatter

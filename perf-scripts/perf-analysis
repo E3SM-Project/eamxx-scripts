@@ -27,6 +27,9 @@ OR
 
     \033[1;32m# Run p3 ref comparing against p3 vanilla with same params as above except scaling ni to 1024  \033[0m
     > {0} ni:1 nk:111 dt:30 ts:10 repeat:10 --kokkos=/home/jgfouca/kokkos-install/install --test=micro-sed/p3_ref --test=micro-sed/p3_vanilla -s ni:2:1024
+
+    \033[1;32m# Run lin-interp ref comparing against lin-interp vanilla scaling from ncol=1000 to 128,000 \033[0m
+    > {0} ncol:1000 km1:128 km2:256 minthresh:0.001 repeat:10 --kokkos=/home/jgfouca/kokkos-install/install --test=lin-interp/li_ref --test=lin-interp/li_vanilla -s ncol:2:128000
 """.format(os.path.basename(args[0])),
         description=description,
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
