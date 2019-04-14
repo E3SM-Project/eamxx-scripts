@@ -60,7 +60,8 @@ int main (int argc, char** argv) {
     Kokkos::deep_copy(x2k, x2km);
     Kokkos::deep_copy(y1k, y1km);
 
-    li::LiVect<Real> vect(ncol, km1, km2, minthresh);
+    using LIV = li::LiVect<Real>;
+    LIV vect(ncol, km1, km2, minthresh);
     const int km1_pack = vect.km1_pack();
     const int km2_pack = vect.km2_pack();
     using Pack = typename li::LiVect<Real>::Pack;
@@ -91,15 +92,39 @@ int main (int argc, char** argv) {
     Kokkos::deep_copy(y1kv, y1kvm);
 
     li::LiVanilla<Real> vanilla(ncol, km1, km2, minthresh);
-    vanilla.lin_interp(x1, x2, y1, y2_base);
-
     li::LiAlg<Real> alg(ncol, km1, km2, minthresh);
-    alg.lin_interp(x1, x2, y1, y2_cmp);
+    vanilla.setup(x1, x2);
+    alg.setup(x1, x2);
+    for (int i = 0; i < ncol; ++i) {
+      vanilla.lin_interp(x1[i], x2[i], y1[i], y2_base[i], i);
+      alg.lin_interp(x1[i], x2[i], y1[i], y2_cmp[i], i);
+    }
 
-    li::LiKokkos<Real> kokkos(ncol, km1, km2, minthresh);
-    kokkos.lin_interp(x1k, x2k, y1k, y2k);
+    using LIK = li::LiKokkos<Real>;
+    LIK kokkos(ncol, km1, km2, minthresh);
+    kokkos.setup(x1k, x2k);
+    Kokkos::parallel_for("lin-interp-ut-kokkos",
+                         kokkos.m_policy,
+                         KOKKOS_LAMBDA(typename LIK::MemberType team_member) {
+      const int i = team_member.league_rank();
+      kokkos.lin_interp(util::subview(x1k, i),
+                        util::subview(x2k, i),
+                        util::subview(y1k, i),
+                        util::subview(y2k, i),
+                        team_member);
+    });
 
-    vect.lin_interp(x1kv, x2kv, y1kv, y2kv);
+    vect.setup(x1kv, x2kv);
+    Kokkos::parallel_for("lin-interp-ut-vect",
+                         vect.m_policy,
+                         KOKKOS_LAMBDA(typename LIV::MemberType team_member) {
+      const int i = team_member.league_rank();
+      vect.lin_interp(util::subview(x1kv, i),
+                      util::subview(x2kv, i),
+                      util::subview(y1kv, i),
+                      util::subview(y2kv, i),
+                      team_member);
+    });
 
     auto y2km  = Kokkos::create_mirror_view(y2k);
     auto y2kvm = Kokkos::create_mirror_view(y2kv);

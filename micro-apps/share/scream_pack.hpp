@@ -428,6 +428,13 @@ scalarize (const Kokkos::View<Pack<T, pack_size>**, Parms...>& vp) {
 }
 
 template <typename T, typename ...Parms, int pack_size> KOKKOS_FORCEINLINE_FUNCTION
+Unmanaged<Kokkos::View<const T**, Parms...> >
+scalarize (const Kokkos::View<const Pack<T, pack_size>**, Parms...>& vp) {
+  return Unmanaged<Kokkos::View<const T**, Parms...> >(
+    reinterpret_cast<const T*>(vp.data()), vp.extent_int(0), pack_size * vp.extent_int(1));
+}
+
+template <typename T, typename ...Parms, int pack_size> KOKKOS_FORCEINLINE_FUNCTION
 Unmanaged<Kokkos::View<T*, Parms...> >
 scalarize (const Kokkos::View<Pack<T, pack_size>*, Parms...>& vp) {
   return Unmanaged<Kokkos::View<T*, Parms...> >(
