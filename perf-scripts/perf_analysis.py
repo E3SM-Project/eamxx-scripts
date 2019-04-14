@@ -23,7 +23,7 @@ class ScalingExp(object):
         expect(self.varname in dir(self), "Unknown varname '{}'".format(self.varname))
 
     def should_continue(self):
-        return getattr(self, self.varname) <= self.upper_limit
+        return self.get_scaling_var() <= self.upper_limit
 
     def update_values(self):
         """
@@ -34,7 +34,10 @@ class ScalingExp(object):
         >>> se.nk
         1
         """
-        setattr(self, self.varname, int(getattr(self, self.varname) * self.scale_factor))
+        setattr(self, self.varname, int(self.get_scaling_var() * self.scale_factor))
+
+    def get_scaling_var(self):
+        return getattr(self, self.varname)
 
     def values(self, incl_threads=True):
         results = [getattr(self, name) for name in self.args]
@@ -56,10 +59,9 @@ class ScalingExp(object):
 
         for test_name, test_results in results.items():
             print(test_name, self.varname)
-            for test_result in test_results:
-                cols, med_time = test_result[0], test_result[-1]
+            for cols, med_time, scaling_var in test_results:
                 cols_sec = float(cols) / med_time
-                print("{}, {:.2f}".format(getattr(self, self.varname), cols_sec))
+                print("{}, {:.2f}".format(scaling_var, cols_sec))
 
 ###############################################################################
 class PerfAnalysis(object):
@@ -185,7 +187,7 @@ class PerfAnalysis(object):
                 self._scaling_exp.threads = threads
 
                 if self._plot_friendly:
-                    results.setdefault(test, []).append((*self._scaling_exp.values(), med_time))
+                    results.setdefault(test, []).append((self._scaling_exp.values()[0], med_time, self._scaling_exp.get_scaling_var()))
                 else:
                     self.user_explain(test, med_time, reference, threads)
 
