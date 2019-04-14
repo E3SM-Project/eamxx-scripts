@@ -306,7 +306,6 @@ KOKKOS_INLINE_FUNCTION
 void thomas (const TeamMember& team,
              TridiagDiag dl, TridiagDiag d, TridiagDiag du, DataArray X) {
   const int nrow = d.extent_int(0);
-  const int nrhs = X.extent_int(1);
   assert(X.extent_int(0) == nrow);
   assert(dl.extent_int(0) == nrow);
   assert(du.extent_int(0) == nrow);
@@ -1096,7 +1095,14 @@ void fill_data_matrix (DataArray X, const int& seed) {
                 1.7 * ((17*(i - 19) + 13*(j - 11) + 5*(i - 5)*(j - 7) + seed) % 47));
 }
 
+#ifndef TRIDIAG_DOUBLE_PRECISION
+# define TRIDIAG_DOUBLE_PRECISION 1
+#endif
+#if TRIDIAG_DOUBLE_PRECISION
 typedef double Real;
+#else
+typedef float Real;
+#endif
 
 template <typename Array>
 Real reldif (const Array& a, const Array& b) {
@@ -1312,10 +1318,6 @@ struct Input {
       } else if (util::eq(argv[i], "-nw", "--nwarp")) {
         util::expect_another_arg(i, argc);
         nwarp = std::atoi(argv[++i]);
-#ifdef TRIDIAG_STRIDE
-      } else if (util::eq(argv[i], "-s", "--scratch")) {
-        use_scratch = true;
-#endif
       } else if (util::eq(argv[i], "-ng", "--notgpu")) {
         gpu = false;
       } else {
@@ -1489,8 +1491,6 @@ static void run_gpu (const Input& in) {
   } break;
   case Solver::cr_a1x1: {
     t0 = util::gettime();
-    Real* const Adata = A.data();
-    Real* const Xdata = X.data();
     const auto f = KOKKOS_LAMBDA (const typename TeamPolicy::member_type& team) {
       const int ip = team.league_rank();
       const auto dl = subview(A, ip, 0, ALL());
