@@ -54,7 +54,7 @@ class ScalingExp(object):
         git_commit = out if st == 0 else "Unknown"
         print("{} machine={} commit={}".format(prov_msg, socket.gethostname().split(".")[0], git_commit))
 
-        for test_name, test_results in results.iteritems():
+        for test_name, test_results in results.items():
             print(test_name, self.varname)
             for test_result in test_results:
                 cols, med_time = test_result[0], test_result[-1]
