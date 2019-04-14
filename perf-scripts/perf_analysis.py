@@ -45,7 +45,7 @@ class ScalingExp(object):
     def plot(self, results):
         prov_msg = "Provenance: "
         item_list = [(name, getattr(self, name)) for name in self.args]
-        item_list.append("threads", self.threads)
+        item_list.append(("threads", self.threads))
         for name, val in item_list:
             if name != self.varname:
                 prov_msg += " {}={}".format(name, val)
