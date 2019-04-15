@@ -148,9 +148,9 @@ class PerfAnalysis(object):
         return median(results), threads
 
     ###############################################################################
-    def user_explain(self, test, med_time, reference, threads):
+    def user_explain(self, test, cols, med_time, reference, threads):
     ###############################################################################
-        msg = "{} ran in {} seconds with {} threads".format(test, med_time, threads)
+        msg = "{} ran in {} seconds with {} threads, {:.2f} cols/sec".format(test, med_time, threads, float(cols)/med_time)
         if reference:
             speedup = (1.0 - (med_time / reference)) * 100
             msg += ", speedup={:.2f}%".format(speedup)
@@ -189,7 +189,7 @@ class PerfAnalysis(object):
                 if self._plot_friendly:
                     results.setdefault(test, []).append((self._scaling_exp.values()[0], med_time, self._scaling_exp.get_scaling_var()))
                 else:
-                    self.user_explain(test, med_time, reference, threads)
+                    self.user_explain(test, self._scaling_exp.values()[0], med_time, reference, threads)
 
                 reference = med_time if reference is None else reference
 
