@@ -5,7 +5,7 @@ Plot results from perf_analysis
 """
 
 from utils import expect, check_minimum_python_version
-check_minimum_python_version(2, 7)
+check_minimum_python_version(3, 5)
 
 import matplotlib.pyplot as plt
 
