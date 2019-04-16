@@ -101,7 +101,7 @@ int main (int argc, char** argv) {
     kokkos.setup(x1k, x2k);
     Kokkos::parallel_for("lin-interp-ut-kokkos",
                          kokkos.m_policy,
-                         KOKKOS_LAMBDA(typename LIK::MemberType team_member) {
+                         KOKKOS_LAMBDA(typename LIK::MemberType const& team_member) {
       const int i = team_member.league_rank();
       kokkos.lin_interp(util::subview(x1k, i),
                         util::subview(x2k, i),
@@ -113,7 +113,7 @@ int main (int argc, char** argv) {
     vect.setup(x1kv, x2kv);
     Kokkos::parallel_for("lin-interp-ut-vect",
                          vect.m_policy,
-                         KOKKOS_LAMBDA(typename LIV::MemberType team_member) {
+                         KOKKOS_LAMBDA(typename LIV::MemberType const& team_member) {
       const int i = team_member.league_rank();
       vect.lin_interp(util::subview(x1kv, i),
                       util::subview(x2kv, i),
