@@ -115,13 +115,6 @@ void lin_interp_func_wrap(const int ncol, const int km1, const int km2, const Sc
 
   for (int r = 0; r < repeat+1; ++r) {
 
-    // re-init
-    for (int i = 0; i < ncol; ++i) {
-      for (int k = 0; k < km2; ++k) {
-        y2[i][k] = 0.0;
-      }
-    }
-
     for (int i = 0; i < ncol; ++i) {
       lik.lin_interp(x1[i], x2[i], y1[i], y2[i], i);
     }
@@ -200,16 +193,6 @@ void lin_interp_func_wrap_kokkos(const int ncol, const int km1, const int km2, c
   auto start = std::chrono::steady_clock::now();
 
   for (int r = 0; r < repeat+1; ++r) {
-
-    // re-init
-    Kokkos::parallel_for("Re-init",
-                         lik.m_policy,
-                         KOKKOS_LAMBDA(typename LIK::MemberType team_member) {
-      const int i = team_member.league_rank();
-      Kokkos::parallel_for(Kokkos::TeamThreadRange(team_member, km2_pack), [=] (int k) {
-        y2(i, k) = 0.0;
-      });
-    });
 
     Kokkos::parallel_for("lin-interp",
                          lik.m_policy,
