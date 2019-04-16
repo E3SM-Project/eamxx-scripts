@@ -17,7 +17,7 @@ struct LiVanilla
     m_minthresh(minthresh)
   {}
 
-  void setup(const vector_2d_t<Scalar>& /*x1*/, const vector_2d_t<Scalar>& /*x2*/)
+  void setup(const std::vector<Scalar>& /*x1*/, const std::vector<Scalar>& /*x2*/, int /*i*/)
   {}
 
   // Linearly interpolate y(x1) onto coordinates x2

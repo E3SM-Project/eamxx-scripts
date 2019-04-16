@@ -54,7 +54,6 @@ struct LiVect
     m_km1_pack(scream::pack::npack<Pack>(km1)),
     m_km2_pack(scream::pack::npack<Pack>(km2)),
     m_minthresh(minthresh),
-    m_init(false),
     m_policy(util::ExeSpaceUtils<ExeSpace>::get_default_team_policy(ncol, m_km2_pack)),
     m_indx_map("m_indx_map", ncol, scream::pack::npack<IntPack>(km2))
 #ifndef NDEBUG
@@ -65,16 +64,13 @@ struct LiVect
   int km1_pack() const { return m_km1_pack; }
   int km2_pack() const { return m_km2_pack; }
 
-  void setup(const view_2d<const Pack>& x1, const view_2d<const Pack>& x2)
+  KOKKOS_INLINE_FUNCTION
+  void setup(const MemberType& team, const view_1d<const Pack>& x1, const view_1d<const Pack>& x2) const
   {
-    if (!m_init) {
-      setup_nlogn(*this, x1, x2);
+    setup_nlogn(team, *this, x1, x2);
 #ifndef NDEBUG
-      setup_n2(*this, x1, x2);
+    setup_n2(team, *this, x1, x2);
 #endif
-    }
-
-    m_init = true;
   }
 
   // Linearly interpolate y(x1) onto coordinates x2
@@ -91,15 +87,23 @@ struct LiVect
                               const view_1d<const Pack>& x1, const view_1d<const Pack>& x2, const view_1d<const Pack>& y1,
                               const view_1d<Pack>& y2)
   {
-    micro_kassert_msg(liv.m_init, "Not set up");
-
     auto x1s = scalarize(x1);
     auto y1s = scalarize(y1);
 
     const int i = team.league_rank();
     Kokkos::parallel_for(Kokkos::TeamThreadRange(team, liv.m_km2_pack), [&] (Int k2) {
       const auto indx_pk = liv.m_indx_map(i, k2);
-      micro_kassert((indx_pk == liv.m_indx_map_dbg(i, k2)).all());
+#ifndef NDEBUG
+      const auto indx_pk_dbg = liv.m_indx_map_dbg(i, k2);
+      for (int s = 0; s < SCREAM_PACKN; ++s) {
+        if (k2*SCREAM_PACKN + s < liv.m_km2) {
+          if (indx_pk[s] != indx_pk_dbg[s]) {
+            std::cout << "For pack " << k2 << ", within " << k2*SCREAM_PACKN + s << "of " << liv.m_km2 << ", item " << s << ", " << indx_pk[s] << " != " << indx_pk_dbg[s] << std::endl;
+          }
+          micro_assert(indx_pk[s] == indx_pk_dbg[s]);
+        }
+      }
+#endif
       const auto end_mask = indx_pk == liv.m_km1 - 1;
       const auto not_end = !end_mask;
       if (end_mask.any()) {
@@ -124,49 +128,45 @@ struct LiVect
   }
 
 #ifndef NDEBUG
-  static void setup_n2(LiVect& liv, const view_2d<const Pack>& x1, const view_2d<const Pack>& x2)
+  static void setup_n2(const MemberType& team, const LiVect& liv, const view_1d<const Pack>& x1, const view_1d<const Pack>& x2)
   {
-    TeamPolicy policy(util::ExeSpaceUtils<ExeSpace>::get_default_team_policy(liv.m_ncol, liv.m_km2));
-
     auto x1s = scalarize(x1);
-    auto x2s = scalarize(x2);
-    auto idxs = scalarize(liv.m_indx_map_dbg);
+    const int i = team.league_rank();
+    Kokkos::parallel_for(Kokkos::TeamThreadRange(team, liv.m_km2_pack), [&] (Int k2) {
 
-    Kokkos::parallel_for("setup_n2", policy, KOKKOS_LAMBDA(const MemberType& team) {
-      const int i = team.league_rank();
-      Kokkos::parallel_for(Kokkos::TeamThreadRange(team, liv.m_km2), [&] (Int k2) {
-
-        if( x2s(i, k2) <= x1s(i, 0) ) { // x2[k2] comes before x1[0]
-          idxs(i, k2) = 0;
+      for (int s = 0; s < SCREAM_PACKN; ++s) {
+        if( x2(k2)[s] <= x1s(0) ) { // x2[k2] comes before x1[0]
+          liv.m_indx_map_dbg(i, k2)[s] = 0;
+          std::cout << "dbg(" << i <<  "," << k2 << ")[" << s << "] = 0" << std::endl;
         }
-        else if( x2s(i, k2) >= x1s(i, liv.m_km1-1) ) { // x2[k2] comes after x1[-1]
-          idxs(i, k2) = liv.m_km1-1;
+        else if( x2(k2)[s] >= x1s(liv.m_km1-1) ) { // x2[k2] comes after x1[-1]
+          liv.m_indx_map_dbg(i, k2) = liv.m_km1-1;
+          std::cout << "dbg(" << i <<  "," << k2 << ")[" << s << "] = " << liv.m_km1-1 << std::endl;
         }
         else {
           for (int k1 = 1; k1 < liv.m_km1; ++k1) { // scan over x1
-            if( (x2s(i, k2)>=x1s(i, k1-1)) && (x2s(i, k2)<x1s(i, k1)) ) { // check if x2[k2] lies within x1[k1-1] and x1[k1]
-              idxs(i, k2) = k1-1;
+            if( (x2(k2)[s]>=x1s(k1-1)) && (x2(k2)[s]<x1s(k1)) ) { // check if x2[k2] lies within x1[k1-1] and x1[k1]
+              liv.m_indx_map_dbg(i, k2)[s] = k1-1;
+              std::cout << "dbg(" << i <<  "," << k2 << ")[" << s << "] = " << k1-1 << std::endl;
             }
           }
         }
-      });
+      }
     });
   }
 #endif
 
-  static void setup_nlogn(LiVect& liv, const view_2d<const Pack>& x1, const view_2d<const Pack>& x2)
+  static void setup_nlogn(const MemberType& team, const LiVect& liv, const view_1d<const Pack>& x1, const view_1d<const Pack>& x2)
   {
-    TeamPolicy policy(util::ExeSpaceUtils<ExeSpace>::get_default_team_policy(liv.m_ncol, liv.m_km2));
     auto x1s = scalarize(x1);
-    auto x2s = scalarize(x2);
-    auto idxs = scalarize(liv.m_indx_map);
 
-    Kokkos::parallel_for("setup_nlogn", policy, KOKKOS_LAMBDA(const MemberType& team) {
-      const int i = team.league_rank();
-      Kokkos::parallel_for(Kokkos::TeamThreadRange(team, liv.m_km2), [&] (Int k2) {
+    std::cout << "km2" << liv.m_km2 << std::endl;
 
-        const Scalar x1_indv = x2s(i, k2);
-        auto begin = &x1s(i, 0);
+    const int i = team.league_rank();
+    Kokkos::parallel_for(Kokkos::TeamThreadRange(team, liv.m_km2_pack), [&] (Int k2) {
+      for (int s = 0; s < SCREAM_PACKN; ++s) {
+        const Scalar x1_indv = x2(k2)[s];
+        auto begin = x1s.data();
         auto upper = begin + liv.m_km1;
 
         auto ub = util::upper_bound(begin, upper, x1_indv);
@@ -174,8 +174,9 @@ struct LiVect
         if (x1_idx > 0) {
           --x1_idx;
         }
-        idxs(i, k2) = x1_idx;
-      });
+        liv.m_indx_map(i, k2)[s] = x1_idx;
+        std::cout << "real(" << i <<  "," << k2 << ")[" << s << "] = " << x1_idx << std::endl;
+      }
     });
   }
 
@@ -185,7 +186,6 @@ struct LiVect
   int m_km1_pack;
   int m_km2_pack;
   Scalar m_minthresh;
-  bool m_init;
   TeamPolicy m_policy;
   view_2d<IntPack> m_indx_map; // [x2-idx] -> x1-idx
 #ifndef NDEBUG

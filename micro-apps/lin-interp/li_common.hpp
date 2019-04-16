@@ -108,14 +108,13 @@ void lin_interp_func_wrap(const int ncol, const int km1, const int km2, const Sc
     }
   }
 
-  lik.setup(x1, x2);
-
   // This time is thrown out, I just wanted to be able to use auto
   auto start = std::chrono::steady_clock::now();
 
   for (int r = 0; r < repeat+1; ++r) {
 
     for (int i = 0; i < ncol; ++i) {
+      lik.setup(x1[i], x2[i], i);
       lik.lin_interp(x1[i], x2[i], y1[i], y2[i], i);
     }
 
@@ -187,8 +186,6 @@ void lin_interp_func_wrap_kokkos(const int ncol, const int km1, const int km2, c
     });
   });
 
-  lik.setup(x1, x2);
-
   // This time is thrown out, I just wanted to be able to use auto
   auto start = std::chrono::steady_clock::now();
 
@@ -198,13 +195,14 @@ void lin_interp_func_wrap_kokkos(const int ncol, const int km1, const int km2, c
                          lik.m_policy,
                          KOKKOS_LAMBDA(typename LIK::MemberType const& team_member) {
       const int i = team_member.league_rank();
+      lik.setup(team_member, util::subview(x1, i), util::subview(x2, i));
+      team_member.team_barrier();
       lik.lin_interp(team_member,
                      util::subview(x1, i),
                      util::subview(x2, i),
                      util::subview(y1, i),
                      util::subview(y2, i));
     });
-
 
     if (r == 0) {
       start = std::chrono::steady_clock::now();

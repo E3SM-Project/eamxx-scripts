@@ -16,7 +16,7 @@ int main (int argc, char** argv) {
   const Real minthresh = 0.000001;
   const int ncol = 10;
 
-  for (int r = 0; r < 1000; ++r) {
+  for (int r = 0; r < 1; ++r) {
     const int km1 = k_dist(generator);
     const int km2 = k_dist(generator);
     vector_2d_t<Real>
@@ -72,13 +72,17 @@ int main (int argc, char** argv) {
     for (int i = 0; i < ncol; ++i) {
       for (int j = 0; j < km1_pack; ++j) {
         for (int s = 0; s < SCREAM_PACKN; ++s) {
-          x1kvm(i, j)[s] = x1[i][j*SCREAM_PACKN + s];
-          y1kvm(i, j)[s] = y1[i][j*SCREAM_PACKN + s];
+          if (j*SCREAM_PACKN + s < km1) {
+            x1kvm(i, j)[s] = x1[i][j*SCREAM_PACKN + s];
+            y1kvm(i, j)[s] = y1[i][j*SCREAM_PACKN + s];
+          }
         }
       }
       for (int j = 0; j < km2_pack; ++j) {
         for (int s = 0; s < SCREAM_PACKN; ++s) {
-          x2kvm(i, j)[s] = x2[i][j*SCREAM_PACKN + s];
+          if (j*SCREAM_PACKN + s < km2) {
+            x2kvm(i, j)[s] = x2[i][j*SCREAM_PACKN + s];
+          }
         }
       }
     }
@@ -89,8 +93,10 @@ int main (int argc, char** argv) {
 
     li::LiVanilla<Real> vanilla(ncol, km1, km2, minthresh);
     li::LiAlg<Real> alg(ncol, km1, km2, minthresh);
-    vanilla.setup(x1, x2);
-    alg.setup(x1, x2);
+    for (int i = 0; i < ncol; ++i) {
+      vanilla.setup(x1[i], x2[i], i);
+      alg.setup(x1[i], x2[i], i);
+    }
     for (int i = 0; i < ncol; ++i) {
       vanilla.lin_interp(x1[i], x2[i], y1[i], y2_base[i], i);
       alg.lin_interp(x1[i], x2[i], y1[i], y2_cmp[i], i);
@@ -98,11 +104,14 @@ int main (int argc, char** argv) {
 
     using LIK = li::LiKokkos<Real>;
     LIK kokkos(ncol, km1, km2, minthresh);
-    kokkos.setup(x1k, x2k);
     Kokkos::parallel_for("lin-interp-ut-kokkos",
                          kokkos.m_policy,
                          KOKKOS_LAMBDA(typename LIK::MemberType const& team_member) {
       const int i = team_member.league_rank();
+      kokkos.setup(team_member,
+                   util::subview(x1k, i),
+                   util::subview(x2k, i));
+      team_member.team_barrier();
       kokkos.lin_interp(team_member,
                         util::subview(x1k, i),
                         util::subview(x2k, i),
@@ -110,11 +119,14 @@ int main (int argc, char** argv) {
                         util::subview(y2k, i));
     });
 
-    vect.setup(x1kv, x2kv);
     Kokkos::parallel_for("lin-interp-ut-vect",
                          vect.m_policy,
                          KOKKOS_LAMBDA(typename LIV::MemberType const& team_member) {
       const int i = team_member.league_rank();
+      vect.setup(team_member,
+                 util::subview(x1kv, i),
+                 util::subview(x2kv, i));
+      team_member.team_barrier();
       vect.lin_interp(team_member,
                       util::subview(x1kv, i),
                       util::subview(x2kv, i),
