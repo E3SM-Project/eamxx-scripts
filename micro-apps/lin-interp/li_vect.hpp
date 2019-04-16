@@ -114,10 +114,13 @@ struct LiVect
         }
       }
       else {
-        for (int s = 0; s < indx_pk.n; ++s) {
-          int k1 = indx_pk[s];
-          y2(k2)[s] = y1s(k1) + (y1s(k1+1)-y1s(k1))*(x2(k2)[s]-x1s(k1))/(x1s(k1+1)-x1s(k1));
-        }
+        const auto x1p  = index(x1s, indx_pk);
+        const auto x1p1 = index(x1s, indx_pk+1);
+        const auto y1p  = index(y1s, indx_pk);
+        const auto y1p1 = index(y1s, indx_pk+1);
+        const auto x2p = x2(k2);
+
+        y2(k2) = y1p + (y1p1-y1p)*(x2p-x1p)/(x1p1-x1p);
       }
 
       y2(k2).set(y2(k2) < liv.m_minthresh, liv.m_minthresh);
