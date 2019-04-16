@@ -114,10 +114,9 @@ struct LiVect
         }
       }
       else {
-        const auto x1p  = index(x1s, indx_pk);
-        const auto x1p1 = index(x1s, indx_pk+1);
-        const auto y1p  = index(y1s, indx_pk);
-        const auto y1p1 = index(y1s, indx_pk+1);
+        Pack x1p, x1p1, y1p, y1p1;
+        index_and_shift(x1s, indx_pk, 1, x1p, x1p1);
+        index_and_shift(y1s, indx_pk, 1, y1p, y1p1);
         const auto x2p = x2(k2);
 
         y2(k2) = y1p + (y1p1-y1p)*(x2p-x1p)/(x1p1-x1p);

@@ -387,6 +387,17 @@ index (const Array1& a, const IdxPack& i0,
     p[i] = a(i0[i]);
   return p;
 }
+
+template<typename Array1, typename IdxPack> KOKKOS_INLINE_FUNCTION
+void
+index_and_shift (const Array1& a, const IdxPack& i0, const int shift, Pack<typename Array1::non_const_value_type, IdxPack::n>& index, Pack<typename Array1::non_const_value_type, IdxPack::n>& index_shift,
+       typename std::enable_if<Array1::Rank == 1>::type* = nullptr) {
+  vector_simd for (int i = 0; i < IdxPack::n; ++i) {
+    index[i]       = a(i0[i]);
+    index_shift[i] = a(i0[i] + shift);
+  }
+}
+
 template<typename Array2, typename IdxPack> KOKKOS_INLINE_FUNCTION
 OnlyPackReturn<IdxPack, Pack<typename Array2::non_const_value_type, IdxPack::n> >
 index (const Array2& a, const IdxPack& i0, const IdxPack& i1,
