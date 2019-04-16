@@ -2,6 +2,7 @@
 #include "li_alg.hpp"
 #include "li_kokkos.hpp"
 #include "li_vect.hpp"
+#include "li_common.hpp"
 
 #include <random>
 #include <vector>
@@ -12,48 +13,41 @@ int main (int argc, char** argv) {
 
   std::default_random_engine generator;
   std::uniform_int_distribution<int> k_dist(10,100);
-  std::uniform_real_distribution<Real> x_dist(0.0,1.0);
-  std::uniform_real_distribution<Real> y_dist(0.0,100.0);
   const Real minthresh = 0.000001;
-  const int ncol = 1;
+  const int ncol = 10;
 
-  for (int i = 0; i < 10000; ++i) {
+  for (int r = 0; r < 1000; ++r) {
     const int km1 = k_dist(generator);
     const int km2 = k_dist(generator);
     vector_2d_t<Real>
-      x1(1, std::vector<Real>(km1)),
-      x2(1, std::vector<Real>(km2)),
-      y1(1, std::vector<Real>(km1)),
-      y2_base(1, std::vector<Real>(km2)),
-      y2_cmp(1, std::vector<Real>(km2));
+      x1(ncol, std::vector<Real>(km1)),
+      x2(ncol, std::vector<Real>(km2)),
+      y1(ncol, std::vector<Real>(km1)),
+      y2_base(ncol, std::vector<Real>(km2)),
+      y2_cmp(ncol, std::vector<Real>(km2));
 
-    for (int j = 0; j < km1; ++j) {
-      x1[0][j] = x_dist(generator);
-      y1[0][j] = y_dist(generator);
+    for (int i = 0; i < ncol; ++i) {
+      li::populate_li_input(km1, km2, x1[i].data(), y1[i].data(), x2[i].data());
     }
-    for (int j = 0; j < km2; ++j) {
-      x2[0][j] = x_dist(generator);
-    }
-
-    std::sort(x1[0].begin(), x1[0].end());
-    std::sort(x2[0].begin(), x2[0].end());
 
     typename li::LiKokkos<Real>::template view_2d<Real>
-      x1k("x1k", 1, km1),
-      x2k("x2k", 1, km2),
-      y1k("y1k", 1, km1),
-      y2k("y2k", 1, km2);
+      x1k("x1k", ncol, km1),
+      x2k("x2k", ncol, km2),
+      y1k("y1k", ncol, km1),
+      y2k("y2k", ncol, km2);
 
     auto x1km = Kokkos::create_mirror_view(x1k);
     auto x2km = Kokkos::create_mirror_view(x2k);
     auto y1km = Kokkos::create_mirror_view(y1k);
 
-    for (int j = 0; j < km1; ++j) {
-      x1km(0, j) = x1[0][j];
-      y1km(0, j) = y1[0][j];
-    }
-    for (int j = 0; j < km2; ++j) {
-      x2km(0, j) = x2[0][j];
+    for (int i = 0; i < ncol; ++i) {
+      for (int j = 0; j < km1; ++j) {
+        x1km(i, j) = x1[i][j];
+        y1km(i, j) = y1[i][j];
+      }
+      for (int j = 0; j < km2; ++j) {
+        x2km(i, j) = x2[i][j];
+      }
     }
 
     Kokkos::deep_copy(x1k, x1km);
@@ -66,24 +60,26 @@ int main (int argc, char** argv) {
     const int km2_pack = vect.km2_pack();
     using Pack = typename li::LiVect<Real>::Pack;
     typename li::LiVect<Real>::template view_2d<Pack>
-      x1kv("x1kv", 1, km1_pack),
-      x2kv("x2kv", 1, km2_pack),
-      y1kv("y1kv", 1, km1_pack),
-      y2kv("y2kv", 1, km2_pack);
+      x1kv("x1kv", ncol, km1_pack),
+      x2kv("x2kv", ncol, km2_pack),
+      y1kv("y1kv", ncol, km1_pack),
+      y2kv("y2kv", ncol, km2_pack);
 
     auto x1kvm = Kokkos::create_mirror_view(x1kv);
     auto x2kvm = Kokkos::create_mirror_view(x2kv);
     auto y1kvm = Kokkos::create_mirror_view(y1kv);
 
-    for (int j = 0; j < km1_pack; ++j) {
-      for (int s = 0; s < SCREAM_PACKN; ++s) {
-        x1kvm(0, j)[s] = x1[0][j*SCREAM_PACKN + s];
-        y1kvm(0, j)[s] = y1[0][j*SCREAM_PACKN + s];
+    for (int i = 0; i < ncol; ++i) {
+      for (int j = 0; j < km1_pack; ++j) {
+        for (int s = 0; s < SCREAM_PACKN; ++s) {
+          x1kvm(i, j)[s] = x1[i][j*SCREAM_PACKN + s];
+          y1kvm(i, j)[s] = y1[i][j*SCREAM_PACKN + s];
+        }
       }
-    }
-    for (int j = 0; j < km2_pack; ++j) {
-      for (int s = 0; s < SCREAM_PACKN; ++s) {
-        x2kvm(0, j)[s] = x2[0][j*SCREAM_PACKN + s];
+      for (int j = 0; j < km2_pack; ++j) {
+        for (int s = 0; s < SCREAM_PACKN; ++s) {
+          x2kvm(i, j)[s] = x2[i][j*SCREAM_PACKN + s];
+        }
       }
     }
 
@@ -130,10 +126,12 @@ int main (int argc, char** argv) {
     auto y2kvm = Kokkos::create_mirror_view(y2kv);
     Kokkos::deep_copy(y2km, y2k);
     Kokkos::deep_copy(y2kvm, y2kv);
-    for (int j = 0; j < km2; ++j) {
-      micro_require(y2_base[0][j] == y2_cmp[0][j]);
-      micro_require(y2_base[0][j] == y2km(0, j));
-      micro_require(y2_base[0][j] == y2kvm(0, j / SCREAM_PACKN)[j % SCREAM_PACKN]);
+    for (int i = 0; i < ncol; ++i) {
+      for (int j = 0; j < km2; ++j) {
+        micro_require(y2_base[i][j] == y2_cmp[i][j]);
+        micro_require(y2_base[i][j] == y2km(i, j));
+        micro_require(y2_base[i][j] == y2kvm(i, j / SCREAM_PACKN)[j % SCREAM_PACKN]);
+      }
     }
   }
 

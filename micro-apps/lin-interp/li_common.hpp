@@ -6,6 +6,8 @@
 #include "scream_arch.hpp"
 #include "kokkos_util.hpp"
 
+#include <random>
+
 extern "C" {
 
 void populate_li_input_from_fortran(int km1, int km2, Real** x1_i, Real** y1_i, Real** x2_i);
@@ -21,15 +23,26 @@ namespace li {
 template <typename Scalar>
 void populate_li_input(int km1, int km2, Scalar* x1_i, Scalar* y1_i, Scalar* x2_i)
 {
-  Scalar ratio = km1 / static_cast<Scalar>(km2);
-  // y is a simple linear function
-  for (int k = 0; k < km1; ++k) {
-    x1_i[k] = k;
-    y1_i[k] = k;
+  std::default_random_engine generator;
+  std::uniform_real_distribution<Real> x_dist(0.0,1.0);
+  std::uniform_real_distribution<Real> y_dist(0.0,100.0);
+
+  for (int j = 0; j < km1; ++j) {
+    x1_i[j] = x_dist(generator);
+    y1_i[j] = y_dist(generator);
   }
-  for (int k = 0; k < km2; ++k) {
-    x2_i[k] = k * ratio;
+  for (int j = 0; j < km2; ++j) {
+    x2_i[j] = x_dist(generator);
   }
+
+  // make endpoints same
+  x1_i[0] = 0.0;
+  x2_i[0] = 0.0;
+  x1_i[km1-1] = 1.0;
+  x2_i[km2-1] = 1.0;
+
+  std::sort(x1_i, x1_i + km1);
+  std::sort(x2_i, x2_i + km2);
 }
 
 template <typename Scalar>
