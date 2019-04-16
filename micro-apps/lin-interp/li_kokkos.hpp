@@ -68,18 +68,19 @@ struct LiKokkos
   }
 
   KOKKOS_INLINE_FUNCTION
-  void lin_interp(const view_1d<const Scalar>& x1, const view_1d<const Scalar>& x2, const view_1d<const Scalar>& y1,
-                  const view_1d<Scalar>& y2, const MemberType& team) const
+  void lin_interp(const MemberType& team, const view_1d<const Scalar>& x1, const view_1d<const Scalar>& x2, const view_1d<const Scalar>& y1,
+                  const view_1d<Scalar>& y2) const
   {
-    lin_interp_impl(*this, x1, x2, y1, y2, team);
+    lin_interp_impl(team, *this, x1, x2, y1, y2);
   }
 
   // Linearly interpolate y(x1) onto coordinates x2
   KOKKOS_INLINE_FUNCTION
   static void lin_interp_impl(
+    const MemberType& team,
     const LiKokkos& lik,
     const view_1d<const Scalar>& x1, const view_1d<const Scalar>& x2, const view_1d<const Scalar>& y1,
-    const view_1d<Scalar>& y2, const MemberType& team)
+    const view_1d<Scalar>& y2)
   {
     micro_kassert_msg(lik.m_init, "Not set up");
 

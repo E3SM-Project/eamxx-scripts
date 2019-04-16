@@ -103,11 +103,11 @@ int main (int argc, char** argv) {
                          kokkos.m_policy,
                          KOKKOS_LAMBDA(typename LIK::MemberType const& team_member) {
       const int i = team_member.league_rank();
-      kokkos.lin_interp(util::subview(x1k, i),
+      kokkos.lin_interp(team_member,
+                        util::subview(x1k, i),
                         util::subview(x2k, i),
                         util::subview(y1k, i),
-                        util::subview(y2k, i),
-                        team_member);
+                        util::subview(y2k, i));
     });
 
     vect.setup(x1kv, x2kv);
@@ -115,11 +115,11 @@ int main (int argc, char** argv) {
                          vect.m_policy,
                          KOKKOS_LAMBDA(typename LIV::MemberType const& team_member) {
       const int i = team_member.league_rank();
-      vect.lin_interp(util::subview(x1kv, i),
+      vect.lin_interp(team_member,
+                      util::subview(x1kv, i),
                       util::subview(x2kv, i),
                       util::subview(y1kv, i),
-                      util::subview(y2kv, i),
-                      team_member);
+                      util::subview(y2kv, i));
     });
 
     auto y2km  = Kokkos::create_mirror_view(y2k);

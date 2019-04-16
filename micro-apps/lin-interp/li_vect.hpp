@@ -79,16 +79,17 @@ struct LiVect
 
   // Linearly interpolate y(x1) onto coordinates x2
   KOKKOS_INLINE_FUNCTION
-  void lin_interp(const view_1d<const Pack>& x1, const view_1d<const Pack>& x2, const view_1d<const Pack>& y1,
-                  const view_1d<Pack>& y2, const MemberType& team) const
+  void lin_interp(const MemberType& team, const view_1d<const Pack>& x1, const view_1d<const Pack>& x2, const view_1d<const Pack>& y1,
+                  const view_1d<Pack>& y2) const
   {
-    lin_interp_impl(*this, x1, x2, y1, y2, team);
+    lin_interp_impl(team, *this, x1, x2, y1, y2);
   }
 
   KOKKOS_INLINE_FUNCTION
-  static void lin_interp_impl(const LiVect& liv,
+  static void lin_interp_impl(const MemberType& team,
+                              const LiVect& liv,
                               const view_1d<const Pack>& x1, const view_1d<const Pack>& x2, const view_1d<const Pack>& y1,
-                              const view_1d<Pack>& y2, const MemberType& team)
+                              const view_1d<Pack>& y2)
   {
     micro_kassert_msg(liv.m_init, "Not set up");
 

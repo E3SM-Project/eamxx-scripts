@@ -198,11 +198,11 @@ void lin_interp_func_wrap_kokkos(const int ncol, const int km1, const int km2, c
                          lik.m_policy,
                          KOKKOS_LAMBDA(typename LIK::MemberType const& team_member) {
       const int i = team_member.league_rank();
-      lik.lin_interp(util::subview(x1, i),
+      lik.lin_interp(team_member,
+                     util::subview(x1, i),
                      util::subview(x2, i),
                      util::subview(y1, i),
-                     util::subview(y2, i),
-                     team_member);
+                     util::subview(y2, i));
     });
 
 
