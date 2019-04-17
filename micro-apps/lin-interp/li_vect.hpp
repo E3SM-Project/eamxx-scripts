@@ -102,8 +102,8 @@ struct LiVect
       }
 #endif
       const auto end_mask = indx_pk == liv.m_km1 - 1;
-      const auto not_end = !end_mask;
       if (end_mask.any()) {
+        const auto not_end = !end_mask;
         scream_masked_loop(end_mask, s) {
           int k1 = indx_pk[s];
           y2(k2)[s] = y1s(k1) + (y1s(k1)-y1s(k1-1))*(x2(k2)[s]-x1s(k1))/(x1s(k1)-x1s(k1-1));
@@ -115,9 +115,9 @@ struct LiVect
       }
       else {
         Pack x1p, x1p1, y1p, y1p1;
-        index_and_shift(x1s, indx_pk, 1, x1p, x1p1);
-        index_and_shift(y1s, indx_pk, 1, y1p, y1p1);
-        const auto x2p = x2(k2);
+        scream::pack::index_and_shift<1>(x1s, indx_pk, x1p, x1p1);
+        scream::pack::index_and_shift<1>(y1s, indx_pk, y1p, y1p1);
+        const auto& x2p = x2(k2);
 
         y2(k2) = y1p + (y1p1-y1p)*(x2p-x1p)/(x1p1-x1p);
       }
