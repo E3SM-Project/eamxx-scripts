@@ -16,7 +16,7 @@ int main (int argc, char** argv) {
   const Real minthresh = 0.000001;
   const int ncol = 10;
 
-  for (int r = 0; r < 1; ++r) {
+  for (int r = 0; r < 1000; ++r) {
     const int km1 = k_dist(generator);
     const int km2 = k_dist(generator);
     vector_2d_t<Real>
