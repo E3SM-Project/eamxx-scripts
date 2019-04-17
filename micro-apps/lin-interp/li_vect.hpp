@@ -97,9 +97,6 @@ struct LiVect
       const auto indx_pk_dbg = liv.m_indx_map_dbg(i, k2);
       for (int s = 0; s < SCREAM_PACKN; ++s) {
         if (k2*SCREAM_PACKN + s < liv.m_km2) {
-          if (indx_pk[s] != indx_pk_dbg[s]) {
-            //std::cout << "For pack " << k2 << ", within " << k2*SCREAM_PACKN + s << "of " << liv.m_km2 << ", item " << s << ", " << indx_pk[s] << " != " << indx_pk_dbg[s] << std::endl;
-          }
           micro_assert(indx_pk[s] == indx_pk_dbg[s]);
         }
       }
@@ -130,48 +127,23 @@ struct LiVect
 #ifndef NDEBUG
   static void setup_n2(const MemberType& team, const LiVect& liv, const view_1d<const Pack>& x1, const view_1d<const Pack>& x2)
   {
-#if 0
     auto x1s = scalarize(x1);
+    auto idxs = liv.m_indx_map_dbg;
+
     const int i = team.league_rank();
-
     Kokkos::parallel_for(Kokkos::TeamThreadRange(team, liv.m_km2_pack), [&] (Int k2) {
-
       for (int s = 0; s < SCREAM_PACKN; ++s) {
         if( x2(k2)[s] <= x1s(0) ) { // x2[k2] comes before x1[0]
-          liv.m_indx_map_dbg(i, k2)[s] = 0;
-          //std::cout << "dbg(" << i <<  "," << k2 << ")[" << s << "] = 0" << std::endl;
+          idxs(i, k2)[s] = 0;
         }
         else if( x2(k2)[s] >= x1s(liv.m_km1-1) ) { // x2[k2] comes after x1[-1]
-          liv.m_indx_map_dbg(i, k2) = liv.m_km1-1;
-          //std::cout << "dbg(" << i <<  "," << k2 << ")[" << s << "] = " << liv.m_km1-1 << std::endl;
+          idxs(i, k2)[s] = liv.m_km1-1;
         }
         else {
           for (int k1 = 1; k1 < liv.m_km1; ++k1) { // scan over x1
             if( (x2(k2)[s]>=x1s(k1-1)) && (x2(k2)[s]<x1s(k1)) ) { // check if x2[k2] lies within x1[k1-1] and x1[k1]
-              liv.m_indx_map_dbg(i, k2)[s] = k1-1;
-              //std::cout << "dbg(" << i <<  "," << k2 << ")[" << s << "] = " << k1-1 << std::endl;
+              idxs(i, k2)[s] = k1-1;
             }
-          }
-        }
-      }
-    });
-#endif
-    auto x1s = scalarize(x1);
-    auto x2s = scalarize(x2);
-    auto idxs = scalarize(liv.m_indx_map_dbg);
-
-    const int i = team.league_rank();
-    Kokkos::parallel_for(Kokkos::TeamThreadRange(team, liv.m_km2), [&] (Int k2) {
-      if( x2s(k2) <= x1s(0) ) { // x2[k2] comes before x1[0]
-        idxs(i, k2) = 0;
-      }
-      else if( x2s(k2) >= x1s(liv.m_km1-1) ) { // x2[k2] comes after x1[-1]
-        idxs(i, k2) = liv.m_km1-1;
-      }
-      else {
-        for (int k1 = 1; k1 < liv.m_km1; ++k1) { // scan over x1
-          if( (x2s(k2)>=x1s(k1-1)) && (x2s(k2)<x1s(k1)) ) { // check if x2[k2] lies within x1[k1-1] and x1[k1]
-            idxs(i, k2) = k1-1;
           }
         }
       }
@@ -182,8 +154,6 @@ struct LiVect
   static void setup_nlogn(const MemberType& team, const LiVect& liv, const view_1d<const Pack>& x1, const view_1d<const Pack>& x2)
   {
     auto x1s = scalarize(x1);
-
-    //std::cout << "km2" << liv.m_km2 << std::endl;
 
     const int i = team.league_rank();
     Kokkos::parallel_for(Kokkos::TeamThreadRange(team, liv.m_km2_pack), [&] (Int k2) {
@@ -198,7 +168,6 @@ struct LiVect
           --x1_idx;
         }
         liv.m_indx_map(i, k2)[s] = x1_idx;
-        //std::cout << "real(" << i <<  "," << k2 << ")[" << s << "] = " << x1_idx << std::endl;
       }
     });
   }
