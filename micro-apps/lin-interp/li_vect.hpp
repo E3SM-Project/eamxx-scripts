@@ -97,7 +97,7 @@ struct LiVect
       const auto indx_pk_dbg = liv.m_indx_map_dbg(i, k2);
       for (int s = 0; s < SCREAM_PACKN; ++s) {
         if (k2*SCREAM_PACKN + s < liv.m_km2) {
-          micro_assert(indx_pk[s] == indx_pk_dbg[s]);
+          micro_kassert(indx_pk[s] == indx_pk_dbg[s]);
         }
       }
 #endif
@@ -125,6 +125,7 @@ struct LiVect
   }
 
 #ifndef NDEBUG
+  KOKKOS_INLINE_FUNCTION
   static void setup_n2(const MemberType& team, const LiVect& liv, const view_1d<const Pack>& x1, const view_1d<const Pack>& x2)
   {
     auto x1s = scalarize(x1);
@@ -151,6 +152,7 @@ struct LiVect
   }
 #endif
 
+  KOKKOS_INLINE_FUNCTION
   static void setup_nlogn(const MemberType& team, const LiVect& liv, const view_1d<const Pack>& x1, const view_1d<const Pack>& x2)
   {
     auto x1s = scalarize(x1);

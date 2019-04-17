@@ -96,6 +96,7 @@ struct LiKokkos
   }
 
 #ifndef NDEBUG
+  KOKKOS_INLINE_FUNCTION
   static void setup_n2(const MemberType& team, const LiKokkos& lik, const view_1d<const Scalar>& x1, const view_1d<const Scalar>& x2)
   {
     const int i = team.league_rank();
@@ -117,6 +118,7 @@ struct LiKokkos
   }
 #endif
 
+  KOKKOS_INLINE_FUNCTION
   static void setup_nlogn(const MemberType& team, const LiKokkos& lik, const view_1d<const Scalar>& x1, const view_1d<const Scalar>& x2)
   {
     const int i = team.league_rank();
