@@ -6,6 +6,8 @@
 #include "scream_arch.hpp"
 #include "kokkos_util.hpp"
 
+#include <random>
+
 extern "C" {
 
 void populate_li_input_from_fortran(int km1, int km2, Real** x1_i, Real** y1_i, Real** x2_i);
@@ -21,15 +23,26 @@ namespace li {
 template <typename Scalar>
 void populate_li_input(int km1, int km2, Scalar* x1_i, Scalar* y1_i, Scalar* x2_i)
 {
-  Scalar ratio = km1 / static_cast<Scalar>(km2);
-  // y is a simple linear function
-  for (int k = 0; k < km1; ++k) {
-    x1_i[k] = k;
-    y1_i[k] = k;
+  std::default_random_engine generator;
+  std::uniform_real_distribution<Real> x_dist(0.0,1.0);
+  std::uniform_real_distribution<Real> y_dist(0.0,100.0);
+
+  for (int j = 0; j < km1; ++j) {
+    x1_i[j] = x_dist(generator);
+    y1_i[j] = y_dist(generator);
   }
-  for (int k = 0; k < km2; ++k) {
-    x2_i[k] = k * ratio;
+  for (int j = 0; j < km2; ++j) {
+    x2_i[j] = x_dist(generator);
   }
+
+  // make endpoints same
+  x1_i[0] = 0.0;
+  x2_i[0] = 0.0;
+  x1_i[km1-1] = 1.0;
+  x2_i[km2-1] = 1.0;
+
+  std::sort(x1_i, x1_i + km1);
+  std::sort(x2_i, x2_i + km2);
 }
 
 template <typename Scalar>
@@ -95,35 +108,61 @@ void lin_interp_func_wrap(const int ncol, const int km1, const int km2, const Sc
     }
   }
 
-  lik.setup(x1, x2);
-
   // This time is thrown out, I just wanted to be able to use auto
   auto start = std::chrono::steady_clock::now();
 
-  for (int r = 0; r < repeat+1; ++r) {
+#ifdef LI_TIME_SETUP
+  int setup_repeat = repeat;
+  int li_repeat = 0;
+#else
+  int setup_repeat = 0;
+  int li_repeat = repeat;
+#endif
 
-    // re-init
+  for (int r = 0; r < setup_repeat+1; ++r) {
+
     for (int i = 0; i < ncol; ++i) {
-      for (int k = 0; k < km2; ++k) {
-        y2[i][k] = 0.0;
-      }
+      lik.setup(x1[i], x2[i], i);
     }
+
+#ifdef LI_TIME_SETUP
+    if (r == 0) {
+      start = std::chrono::steady_clock::now();
+    }
+#endif
+  }
+
+#ifdef LI_TIME_SETUP
+  auto finish = std::chrono::steady_clock::now();
+#endif
+
+  for (int r = 0; r < li_repeat+1; ++r) {
 
     for (int i = 0; i < ncol; ++i) {
       lik.lin_interp(x1[i], x2[i], y1[i], y2[i], i);
     }
 
+#ifndef LI_TIME_SETUP
     if (r == 0) {
       start = std::chrono::steady_clock::now();
     }
+#endif
   }
 
+#ifndef LI_TIME_SETUP
   auto finish = std::chrono::steady_clock::now();
+#endif
   auto duration = std::chrono::duration_cast<std::chrono::microseconds>(finish - start);
 
   const double report_time = (1e-6*duration.count()) / repeat;
+  const char* what =
+#ifdef LI_TIME_SETUP
+    "setup";
+#else
+    "li";
+#endif
 
-  printf("Time = %1.3e seconds\n", report_time);
+  printf("Time = %1.3e seconds (%s)\n", report_time, what);
 
   // Dump the results to a file. This will allow us to do result comparisons between
   // other runs.
@@ -167,7 +206,7 @@ void lin_interp_func_wrap_kokkos(const int ncol, const int km1, const int km2, c
   int max = std::max(km1_pack, km2_pack);
   Kokkos::parallel_for("init",
                        util::ExeSpaceUtils<typename LIK::ExeSpace>::get_default_team_policy(ncol, max),
-                       KOKKOS_LAMBDA(typename LIK::MemberType team_member) {
+                       KOKKOS_LAMBDA(typename LIK::MemberType const& team_member) {
     const int i = team_member.league_rank();
     Kokkos::parallel_for(Kokkos::TeamThreadRange(team_member, max), [=] (int k) {
       if (k < km1_pack) {
@@ -181,46 +220,70 @@ void lin_interp_func_wrap_kokkos(const int ncol, const int km1, const int km2, c
     });
   });
 
-  lik.setup(x1, x2);
-
   // This time is thrown out, I just wanted to be able to use auto
   auto start = std::chrono::steady_clock::now();
 
-  for (int r = 0; r < repeat+1; ++r) {
+#ifdef LI_TIME_SETUP
+  int setup_repeat = repeat;
+  int li_repeat = 0;
+#else
+  int setup_repeat = 0;
+  int li_repeat = repeat;
+#endif
+  for (int r = 0; r < setup_repeat+1; ++r) {
 
-    // re-init
-    Kokkos::parallel_for("Re-init",
+    Kokkos::parallel_for("setup",
                          lik.m_policy,
-                         KOKKOS_LAMBDA(typename LIK::MemberType team_member) {
+                         KOKKOS_LAMBDA(typename LIK::MemberType const& team_member) {
       const int i = team_member.league_rank();
-      Kokkos::parallel_for(Kokkos::TeamThreadRange(team_member, km2_pack), [=] (int k) {
-        y2(i, k) = 0.0;
-      });
+      lik.setup(team_member, util::subview(x1, i), util::subview(x2, i));
     });
 
-    Kokkos::parallel_for("lin-interp",
-                         lik.m_policy,
-                         KOKKOS_LAMBDA(typename LIK::MemberType team_member) {
-      const int i = team_member.league_rank();
-      lik.lin_interp(util::subview(x1, i),
-                     util::subview(x2, i),
-                     util::subview(y1, i),
-                     util::subview(y2, i),
-                     team_member);
-    });
-
-
+#ifdef LI_TIME_SETUP
     if (r == 0) {
       start = std::chrono::steady_clock::now();
     }
+#endif
   }
 
+#ifdef LI_TIME_SETUP
   auto finish = std::chrono::steady_clock::now();
+#endif
+
+  for (int r = 0; r < li_repeat+1; ++r) {
+
+    Kokkos::parallel_for("lin-interp",
+                         lik.m_policy,
+                         KOKKOS_LAMBDA(typename LIK::MemberType const& team_member) {
+      const int i = team_member.league_rank();
+      lik.lin_interp(team_member,
+                     util::subview(x1, i),
+                     util::subview(x2, i),
+                     util::subview(y1, i),
+                     util::subview(y2, i));
+    });
+
+#ifndef LI_TIME_SETUP
+    if (r == 0) {
+      start = std::chrono::steady_clock::now();
+    }
+#endif
+  }
+
+#ifndef LI_TIME_SETUP
+  auto finish = std::chrono::steady_clock::now();
+#endif
   auto duration = std::chrono::duration_cast<std::chrono::microseconds>(finish - start);
 
   const double report_time = (1e-6*duration.count()) / repeat;
+  const char* what =
+#ifdef LI_TIME_SETUP
+    "setup";
+#else
+    "li";
+#endif
 
-  printf("Time = %1.3e seconds\n", report_time);
+  printf("Time = %1.3e seconds (%s)\n", report_time, what);
 
   // Dump the results to a file. This will allow us to do result comparisons between
   // other runs.
