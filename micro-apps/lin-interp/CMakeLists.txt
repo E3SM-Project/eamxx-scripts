@@ -4,6 +4,13 @@ set(LI_SRCS
   li_cpp_bridge.f90
 )
 
+# LI CONFIG OPTIONS
+set(LI_TIME_SETUP FALSE CACHE LOGICAL "Time the setup phase instead of LIs")
+
+if (LI_TIME_SETUP)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DLI_TIME_SETUP")
+endif()
+
 add_library(li ${LI_SRCS})
 target_include_directories (li PUBLIC ${SCREAM_MICRO_APPS_INCLUDES} ${SCREAM_MICRO_APPS_SOURCE_DIR}/share)
 

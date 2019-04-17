@@ -111,24 +111,58 @@ void lin_interp_func_wrap(const int ncol, const int km1, const int km2, const Sc
   // This time is thrown out, I just wanted to be able to use auto
   auto start = std::chrono::steady_clock::now();
 
-  for (int r = 0; r < repeat+1; ++r) {
+#ifdef LI_TIME_SETUP
+  int setup_repeat = repeat;
+  int li_repeat = 0;
+#else
+  int setup_repeat = 0;
+  int li_repeat = repeat;
+#endif
+
+  for (int r = 0; r < setup_repeat+1; ++r) {
 
     for (int i = 0; i < ncol; ++i) {
       lik.setup(x1[i], x2[i], i);
-      lik.lin_interp(x1[i], x2[i], y1[i], y2[i], i);
     }
 
+#ifdef LI_TIME_SETUP
     if (r == 0) {
       start = std::chrono::steady_clock::now();
     }
+#endif
   }
 
+#ifdef LI_TIME_SETUP
   auto finish = std::chrono::steady_clock::now();
+#endif
+
+  for (int r = 0; r < li_repeat+1; ++r) {
+
+    for (int i = 0; i < ncol; ++i) {
+      lik.lin_interp(x1[i], x2[i], y1[i], y2[i], i);
+    }
+
+#ifndef LI_TIME_SETUP
+    if (r == 0) {
+      start = std::chrono::steady_clock::now();
+    }
+#endif
+  }
+
+#ifndef LI_TIME_SETUP
+  auto finish = std::chrono::steady_clock::now();
+#endif
   auto duration = std::chrono::duration_cast<std::chrono::microseconds>(finish - start);
 
   const double report_time = (1e-6*duration.count()) / repeat;
+  const char* what =
+#ifdef LI_TIME_SETUP
+    "setup";
+#else
+    "li";
+#endif
 
-  printf("Time = %1.3e seconds\n", report_time);
+  printf("Time = %1.3e seconds (%s)\n", report_time, what);
 
   // Dump the results to a file. This will allow us to do result comparisons between
   // other runs.
@@ -189,14 +223,39 @@ void lin_interp_func_wrap_kokkos(const int ncol, const int km1, const int km2, c
   // This time is thrown out, I just wanted to be able to use auto
   auto start = std::chrono::steady_clock::now();
 
-  for (int r = 0; r < repeat+1; ++r) {
+#ifdef LI_TIME_SETUP
+  int setup_repeat = repeat;
+  int li_repeat = 0;
+#else
+  int setup_repeat = 0;
+  int li_repeat = repeat;
+#endif
+  for (int r = 0; r < setup_repeat+1; ++r) {
 
     Kokkos::parallel_for("lin-interp",
                          lik.m_policy,
                          KOKKOS_LAMBDA(typename LIK::MemberType const& team_member) {
       const int i = team_member.league_rank();
       lik.setup(team_member, util::subview(x1, i), util::subview(x2, i));
-      team_member.team_barrier();
+    });
+
+#ifdef LI_TIME_SETUP
+    if (r == 0) {
+      start = std::chrono::steady_clock::now();
+    }
+#endif
+  }
+
+#ifdef LI_TIME_SETUP
+  auto finish = std::chrono::steady_clock::now();
+#endif
+
+  for (int r = 0; r < li_repeat+1; ++r) {
+
+    Kokkos::parallel_for("lin-interp",
+                         lik.m_policy,
+                         KOKKOS_LAMBDA(typename LIK::MemberType const& team_member) {
+      const int i = team_member.league_rank();
       lik.lin_interp(team_member,
                      util::subview(x1, i),
                      util::subview(x2, i),
@@ -204,17 +263,27 @@ void lin_interp_func_wrap_kokkos(const int ncol, const int km1, const int km2, c
                      util::subview(y2, i));
     });
 
+#ifndef LI_TIME_SETUP
     if (r == 0) {
       start = std::chrono::steady_clock::now();
     }
+#endif
   }
 
+#ifndef LI_TIME_SETUP
   auto finish = std::chrono::steady_clock::now();
+#endif
   auto duration = std::chrono::duration_cast<std::chrono::microseconds>(finish - start);
 
   const double report_time = (1e-6*duration.count()) / repeat;
+  const char* what =
+#ifdef LI_TIME_SETUP
+    "setup";
+#else
+    "li";
+#endif
 
-  printf("Time = %1.3e seconds\n", report_time);
+  printf("Time = %1.3e seconds (%s)\n", report_time, what);
 
   // Dump the results to a file. This will allow us to do result comparisons between
   // other runs.
