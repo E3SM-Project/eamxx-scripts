@@ -232,7 +232,7 @@ void lin_interp_func_wrap_kokkos(const int ncol, const int km1, const int km2, c
 #endif
   for (int r = 0; r < setup_repeat+1; ++r) {
 
-    Kokkos::parallel_for("lin-interp",
+    Kokkos::parallel_for("setup",
                          lik.m_policy,
                          KOKKOS_LAMBDA(typename LIK::MemberType const& team_member) {
       const int i = team_member.league_rank();
