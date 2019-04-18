@@ -232,6 +232,16 @@ void lin_interp_func_wrap_kokkos(const int ncol, const int km1, const int km2, c
 #endif
   for (int r = 0; r < setup_repeat+1; ++r) {
 
+    // re-init
+    Kokkos::parallel_for("Re-init",
+                         lik.m_policy,
+                         KOKKOS_LAMBDA(typename LIK::MemberType const& team_member) {
+      const int i = team_member.league_rank();
+      Kokkos::parallel_for(Kokkos::TeamThreadRange(team_member, km2_pack), [=] (int k) {
+        y2(i, k) = 0.0;
+      });
+    });
+
     Kokkos::parallel_for("setup",
                          lik.m_policy,
                          KOKKOS_LAMBDA(typename LIK::MemberType const& team_member) {
