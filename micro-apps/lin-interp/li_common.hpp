@@ -184,8 +184,8 @@ void lin_interp_func_wrap_kokkos(const int ncol, const int km1, const int km2, c
   const int km2_pack = lik.km2_pack();
 
   typename LIK::template view_2d<Pack>
-    x1("x1", ncol, km1_pack),
-    y1("y1", ncol, km1_pack),
+    x1("x1", ncol, km1_pack+1),
+    y1("y1", ncol, km1_pack+1),
     x2("x2", ncol, km2_pack),
     y2("y2", ncol, km2_pack);
 

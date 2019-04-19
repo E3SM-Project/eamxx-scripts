@@ -82,12 +82,12 @@ struct LiKokkos
     Kokkos::parallel_for(Kokkos::TeamThreadRange(team, lik.m_km2), [&] (Int k2) {
       micro_kassert(lik.m_indx_map(i, k2) == lik.m_indx_map_dbg(i, k2));
       const int k1 = lik.m_indx_map(i, k2);
-      if (k1+1 == lik.m_km1) {
-        y2(k2) = y1(k1) + (y1(k1)-y1(k1-1))*(x2(k2)-x1(k1))/(x1(k1)-x1(k1-1));
-      }
-      else {
-        y2(k2) = y1(k1) + (y1(k1+1)-y1(k1))*(x2(k2)-x1(k1))/(x1(k1+1)-x1(k1));
-      }
+      // if (k1+1 == lik.m_km1) {
+      //   y2(k2) = y1(k1) + (y1(k1)-y1(k1-1))*(x2(k2)-x1(k1))/(x1(k1)-x1(k1-1));
+      // }
+      //else {
+      y2(k2) = y1(k1) + (y1(k1+1)-y1(k1))*(x2(k2)-x1(k1))/(x1(k1+1)-x1(k1));
+      //}
 
       // if (y2(k2) < lik.m_minthresh) {
       //   y2(k2) = lik.m_minthresh;
