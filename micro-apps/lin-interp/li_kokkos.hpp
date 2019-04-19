@@ -89,9 +89,9 @@ struct LiKokkos
         y2(k2) = y1(k1) + (y1(k1+1)-y1(k1))*(x2(k2)-x1(k1))/(x1(k1+1)-x1(k1));
       }
 
-      if (y2(k2) < lik.m_minthresh) {
-        y2(k2) = lik.m_minthresh;
-      }
+      // if (y2(k2) < lik.m_minthresh) {
+      //   y2(k2) = lik.m_minthresh;
+      // }
     });
   }
 

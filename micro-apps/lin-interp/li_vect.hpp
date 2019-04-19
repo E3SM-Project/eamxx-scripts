@@ -122,7 +122,7 @@ struct LiVect
         y2(k2) = y1p + (y1p1-y1p)*(x2p-x1p)/(x1p1-x1p);
       }
 
-      y2(k2).set(y2(k2) < liv.m_minthresh, liv.m_minthresh);
+      //y2(k2).set(y2(k2) < liv.m_minthresh, liv.m_minthresh);
     });
   }
 
