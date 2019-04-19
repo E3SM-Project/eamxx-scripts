@@ -40,11 +40,13 @@ OR
 
     parser.add_argument("-l", "--log-x", action="store_true", help="Label the X axis with log values")
 
+    parser.add_argument("-L", "--log-y", action="store_true", help="Label the Y axis with log values")
+
     parser.add_argument("-t", "--tests", action="append", help="Only plot these tests")
 
     args = parser.parse_args(args[1:])
 
-    return args.datafiles, args.dashed, args.dotted, args.no_legend, args.font, args.log_x, args.tests
+    return args.datafiles, args.dashed, args.dotted, args.no_legend, args.font, args.log_x, args.log_y, args.tests
 
 ###############################################################################
 def pad_lim(lim, pad=0.05, mult=False):
@@ -83,23 +85,10 @@ def applies_to_line(match_list, line_label):
     return False
 
 ###############################################################################
-def get_line_format(line_label, color, dashed, dotted):
-###############################################################################
-    dash_line = applies_to_line(dashed, line_label)
-    dot_line  = applies_to_line(dotted, line_label)
-    if dash_line:
-        expect(not dot_line, "Ambiguous line format for '{}', matched both dashed and dotted".format(line_label))
-        return "{}--".format(color)
-    elif dot_line:
-        return "{}:".format(color)
-
-    return "{}-".format(color)
-
-###############################################################################
 class Plotter(object):
 ###############################################################################
 
-    def __init__(self, datafiles, font, log_x, tests):
+    def __init__(self, datafiles, font, log_x, log_y, tests):
         # plt.rcParams.update({'font.size': font})
         # axis_tight_pad()
         subtle_grid()
@@ -110,12 +99,15 @@ class Plotter(object):
         self._inconsistent      = []
         self._title             = None
         self._avail_colors      = ["b", "g", "r", "c", "m", "y", "k"]
+        self._dashed_colors     = list(self._avail_colors)
+        self._dotted_colors     = list(self._avail_colors)
         self._mach_color_map    = {}
         self._var_longname_map  = {"ni" : "Number of columns per node", "nk" : "Number of vertical levels", "dt" : "Time step", "ts" : "Number of time steps",
                                    "threads" : "Threads"}
         self._test_longname_map = {"ref" : "Fortran", "vanilla" : "Initial Kokkos", "final" : "Final Kokkos"}
         self._mach_longname_map = {"bowman" : "KNL", "blake" : "Skylake", "waterman" : "Nvidia_V100"}
         self._log_x             = log_x
+        self._log_y             = log_y
         self._min_x             = sys.maxsize
         self._max_x             = 0
         self._tests             = tests
@@ -169,19 +161,33 @@ class Plotter(object):
     def get_mach_longname(self, machine):
         return self._mach_longname_map[machine] if machine in self._mach_longname_map else machine.capitalize()
 
-    def plot_line(self, xs, ys, line_label, testname, dashed, dotted, color):
+    def get_line_format(self, line_label, dashed, dotted):
+        dash_line = applies_to_line(dashed, line_label)
+        dot_line  = applies_to_line(dotted, line_label)
+        try:
+            if dash_line:
+                color = self._dashed_colors.pop()
+                expect(not dot_line, "Ambiguous line format for '{}', matched both dashed and dotted".format(line_label))
+                return "{}--".format(color)
+            elif dot_line:
+                color = self._dotted_colors.pop()
+                return "{}:".format(color)
+            else:
+                color = self._avail_colors.pop()
+                return "{}-".format(color)
+        except IndexError:
+            expect(False, "Ran out of usable colors. Please use dashes or dots to differentiate categories of data")
+
+    def plot_line(self, xs, ys, line_label, testname, dashed, dotted):
         if not (self._tests and testname not in self._tests):
             line_label = "{} {}".format(self.get_test_longname(testname), line_label)
-            plt.plot(xs, ys, get_line_format(line_label, color, dashed, dotted), lw=2, label=line_label, linewidth=3)
+            plt.plot(xs, ys, self.get_line_format(line_label, dashed, dotted), lw=2, label=line_label, linewidth=3)
 
     def plotdata(self, datafile, dashed, dotted):
         xs, ys = [], []
         testname = None
         line_label = ""
         xlabel = None
-
-        if "machine" not in self._inconsistent:
-            avail_colors = list(self._avail_colors)
 
         with open(datafile, "r") as fd:
             for line in fd.readlines():
@@ -192,11 +198,6 @@ class Plotter(object):
                         machine = prov_dict["machine"]
                         line_label = "on {}".format(self.get_mach_longname(machine))
                         del prov_dict["machine"]
-                        if machine in self._mach_color_map:
-                            color = self._mach_color_map[machine]
-                        else:
-                            color = self._avail_colors.pop(0)
-                            self._mach_color_map[machine] = color
 
                     if prov_dict:
                         first = True
@@ -213,23 +214,21 @@ class Plotter(object):
                     self._min_x = min(x, self._min_x)
                     self._max_x = max(x, self._max_x)
                     xs.append(math.log(x, self._scaling_factor))
-                    ys.append(y / 1000.0)
+                    if self._log_y:
+                        ys.append(math.log(y, 2))
+                    else:
+                        ys.append(y / 1000.0)
 
                 elif line != "":
                     if xs:
-                        if "machine" in self._consistent:
-                            color = avail_colors.pop()
-                        self.plot_line(xs, ys, line_label, testname, dashed, dotted, color)
+                        self.plot_line(xs, ys, line_label, testname, dashed, dotted)
                         xs = []
                         ys = []
 
                     testname, xlabel = line.split()
                     expect(xlabel == self._scaling_var, "Bad file {}".format(datafile))
 
-        if "machine" in self._consistent:
-            color = avail_colors.pop()
-
-        self.plot_line(xs, ys, line_label, testname, dashed, dotted, color)
+        self.plot_line(xs, ys, line_label, testname, dashed, dotted)
 
     def finalize(self, no_legend):
         subtle_grid()
@@ -256,9 +255,9 @@ class Plotter(object):
 ###############################################################################
 def _main_func(description):
 ###############################################################################
-    datafiles, dashed, dotted, no_legend, font, log_x, tests = parse_command_line(sys.argv, description)
+    datafiles, dashed, dotted, no_legend, font, log_x, log_y, tests = parse_command_line(sys.argv, description)
 
-    plotter = Plotter(datafiles, font, log_x, tests)
+    plotter = Plotter(datafiles, font, log_x, log_y, tests)
 
     for datafile in datafiles:
         plotter.plotdata(datafile, dashed, dotted)
