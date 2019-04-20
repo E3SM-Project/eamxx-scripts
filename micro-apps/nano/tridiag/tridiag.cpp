@@ -36,6 +36,7 @@
   x call thomas with pack
   x make a blas perf test: (gttrf, gttrs); (dttrfb, dttrsb) if available
   x opt thomas
+  x need a threaded version of thomas_pack_amxm for hommexx
   - make an analysis routine that returns a small struct of POD indicating which
     alg and with what parms to run for a given set of prob parms. then make a
     top-level routine that switches based on the struct.
@@ -211,7 +212,7 @@ get_default_team_policy (const int nprob, const int nrow, const int nrhs) {
 # ifdef TRIDIAG_MIMIC_GPU
   return Kokkos::TeamPolicy<ExeSpace>(nprob, omp_get_max_threads(), 1);
 # else
-  const int per = (omp_get_max_threads() + nprob - 1)/nprob;
+  const int per = std::max(1, omp_get_max_threads()/nprob);
   return Kokkos::TeamPolicy<ExeSpace>(nprob, per, 1);
 # endif
 #else
@@ -304,7 +305,8 @@ void thomas_solve (const TeamMember& team,
 template <typename TeamMember, typename TridiagDiag, typename DataArray>
 KOKKOS_INLINE_FUNCTION
 void thomas (const TeamMember& team,
-             TridiagDiag dl, TridiagDiag d, TridiagDiag du, DataArray X) {
+             TridiagDiag dl, TridiagDiag d, TridiagDiag du, DataArray X,
+             typename std::enable_if<TridiagDiag::rank == 1>::type* = 0) {
   const int nrow = d.extent_int(0);
   assert(X.extent_int(0) == nrow);
   assert(dl.extent_int(0) == nrow);
@@ -1329,10 +1331,10 @@ struct Input {
   }
 };
 
-std::string string (const Input& in) {
+std::string string (const Input& in, const int& nwarp) {
   std::stringstream ss;
   ss << "run: solver " << Solver::convert(in.method) << " nprob " << in.nprob
-     << " nrow " << in.nrow << " nrhs " << in.nrhs << "\n";
+     << " nrow " << in.nrow << " nrhs " << in.nrhs << " nwarp " << nwarp << "\n";
   return ss.str();
 }
 
@@ -1375,7 +1377,6 @@ static void run_gpu (const Input& in) {
   using Kokkos::subview;
   using Kokkos::ALL;
   using TeamPolicy = Kokkos::TeamPolicy<Kokkos::DefaultExecutionSpace>;
-  std::cout << string(in);
 #ifdef TRIDIAG_STRIDE
   const int order[] = {2,0,1};
   const int Adim[] = {in.nprob, in.nrow, 3};
@@ -1411,6 +1412,7 @@ static void run_gpu (const Input& in) {
     std::cout << "run_gpu: league " << policy.league_size() << " team "
               << policy.team_size() << "\n";
   }
+  std::cout << string(in, policy.team_size()/32);
   if (in.method == Solver::pcr && policy.team_size() < in.nrow*in.nrhs) {
     std::stringstream ss;
     ss << "PCR requires nthr >= nrow*nrhs but nthr " << policy.team_size()
@@ -1668,7 +1670,7 @@ static void run_cpu (const Input& in) {
   using Kokkos::subview;
   using Kokkos::ALL;
   using TeamPolicy = Kokkos::TeamPolicy<Kokkos::DefaultExecutionSpace>;
-  std::cout << string(in);
+  std::cout << string(in, 1);
   TridiagArrays<Real> A("A", in.nprob, 3, in.nrow),
     Acopy("Acopy", A.extent(0), A.extent(1), A.extent(2));
   DataArrays<Real> B("B", in.nprob, in.nrow, in.nrhs), Y("Y", in.nprob, in.nrow, in.nrhs),
@@ -1688,12 +1690,17 @@ static void run_cpu (const Input& in) {
   Kokkos::deep_copy(B, X);
   Kokkos::fence();
   const auto policy = get_default_team_policy<>(in.nprob, in.nrow, in.nrhs);
+  if (policy.team_size() > 1)
+    std::cout << "run_cpu: league " << policy.league_size() << " team "
+              << policy.team_size() << "\n";
 #ifdef TRIDIAG_HAVE_MKL
   mkl_set_num_threads(1);
 #endif
   double t0, t1;
   switch (in.method) {
   case Solver::thomas: {
+    if (A.extent_int(3) == 1 && X.extent_int(3) > 1)
+      throw std::runtime_error("run_cpu: solver thomas does not support a1xm config.");
     for (int trial = 0; trial < 2; ++trial) {
       Kokkos::deep_copy(A, Acopy);
       // Kokkos::deep_copy was messing up the time for some reason. Do
@@ -1746,11 +1753,11 @@ static void run_cpu (const Input& in) {
       Kokkos::fence();
       t0 = util::gettime();
       const auto f = KOKKOS_LAMBDA (const typename TeamPolicy::member_type& team) {
-        const int ip = team.league_rank();
-        const auto dl = subview(A, ip, 0, ALL());
-        const auto d  = subview(A, ip, 1, ALL());
-        const auto du = subview(A, ip, 2, ALL());
         Kokkos::single(Kokkos::PerTeam(team), [&] () {
+          const int ip = team.league_rank();
+          const auto dl = subview(A, ip, 0, ALL());
+          const auto d  = subview(A, ip, 1, ALL());
+          const auto du = subview(A, ip, 2, ALL());
           thomas(dl, d, du,
                  Kokkos::View<Pack**, BulkLayout, Kokkos::MemoryUnmanaged>(
                    Xp, ip, ALL(), ALL()));
@@ -1779,11 +1786,11 @@ static void run_cpu (const Input& in) {
       Kokkos::fence();
       t0 = util::gettime();
       const auto f = KOKKOS_LAMBDA (const typename TeamPolicy::member_type& team) {
-        const int ip = team.league_rank();
-        const auto dl = subview(Ap, ip, 0, ALL(), ALL());
-        const auto d  = subview(Ap, ip, 1, ALL(), ALL());
-        const auto du = subview(Ap, ip, 2, ALL(), ALL());
         Kokkos::single(Kokkos::PerTeam(team), [&] () {
+          const int ip = team.league_rank();
+          const auto dl = subview(Ap, ip, 0, ALL(), ALL());
+          const auto d  = subview(Ap, ip, 1, ALL(), ALL());
+          const auto du = subview(Ap, ip, 2, ALL(), ALL());
           thomas(dl, d, du, subview(X, ip, ALL(), ALL()));
         });
       };
@@ -1801,11 +1808,11 @@ static void run_cpu (const Input& in) {
       Kokkos::fence();
       t0 = util::gettime();
       const auto f = KOKKOS_LAMBDA (const typename TeamPolicy::member_type& team) {
-        const int ip = team.league_rank();
-        const auto dl = subview(Ap, ip, 0, ALL(), ALL());
-        const auto d  = subview(Ap, ip, 1, ALL(), ALL());
-        const auto du = subview(Ap, ip, 2, ALL(), ALL());
         Kokkos::single(Kokkos::PerTeam(team), [&] () {
+          const int ip = team.league_rank();
+          const auto dl = subview(Ap, ip, 0, ALL(), ALL());
+          const auto d  = subview(Ap, ip, 1, ALL(), ALL());
+          const auto du = subview(Ap, ip, 2, ALL(), ALL());
           thomas(dl, d, du, subview(Xp, ip, ALL(), ALL()));
         });
       };
@@ -1893,9 +1900,13 @@ static void run_cpu (const Input& in) {
 
 int main (int argc, char** argv) {
   std::cout << "avx:" << util::active_avx_string() << "\n";
+  std::cout << "omp: " <<
 #ifdef KOKKOS_ENABLE_OPENMP
-  std::cout << "omp: " << omp_get_max_threads() << "\n";
+    omp_get_max_threads()
+#else
+    1
 #endif
+            << "\n";
   int stat = 0;
   Kokkos::initialize(argc, argv); {
     if (argc > 1) {
