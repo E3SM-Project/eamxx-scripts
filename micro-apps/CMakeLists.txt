@@ -20,6 +20,15 @@ set(SCREAM_PACK_SIZE 16 CACHE INTEGER
 set(SCREAM_SMALL_PACK_SIZE 16 CACHE INTEGER
   "The number of scalars in a scream::pack::SmallPack and SmallMask. Smaller packs can have better performance in loops with conditionals since more of the packs will have masks with uniform value.")
 
+if ("${KOKKOS_GMAKE_ARCH}" STREQUAL "SKX")
+  set(SCREAM_SKX_NO_PACK_DEFAULT 1)
+else()
+  set(SCREAM_SKX_NO_PACK_DEFAULT ${SCREAM_PACK_SIZE})
+endif()
+
+set(SCREAM_SKX_NO_PACK ${SCREAM_SKX_NO_PACK_DEFAULT} CACHE INTEGER
+  "Set skx-no-pack to this value. Expect this to usually be 1, but you can set it to something else to restore packs on SKX for testing.")
+
 # Check for valid pack sizes
 math(EXPR PACK_MODULO "${SCREAM_PACK_SIZE} % ${SCREAM_SMALL_PACK_SIZE}")
 if ( (SCREAM_SMALL_PACK_SIZE GREATER SCREAM_PACK_SIZE) OR (NOT PACK_MODULO EQUAL 0) )
@@ -124,6 +133,7 @@ endif()
 add_definitions(-DCHUNKSIZE=${CHUNKSIZE})
 add_definitions(-DSCREAM_PACKN=${SCREAM_PACK_SIZE})
 add_definitions(-DSCREAM_SMALL_PACKN=${SCREAM_SMALL_PACK_SIZE})
+add_definitions(-DSCREAM_SKX_NO_PACKN=${SCREAM_SKX_NO_PACK})
 
 enable_testing()
 
