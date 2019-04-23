@@ -21,25 +21,30 @@ bool dump_all_li(const char* filename,
 namespace li {
 
 template <typename Scalar>
-void populate_li_input(int km1, int km2, Scalar* x1_i, Scalar* y1_i, Scalar* x2_i)
+void populate_li_input(int km1, int km2, Scalar* x1_i, Scalar* y1_i, Scalar* x2_i, std::default_random_engine* generator = nullptr)
 {
-  std::default_random_engine generator;
+  std::default_random_engine local_generator;
+  if (generator == nullptr) {
+    generator = &local_generator;
+  }
   std::uniform_real_distribution<Real> x_dist(0.0,1.0);
   std::uniform_real_distribution<Real> y_dist(0.0,100.0);
 
   for (int j = 0; j < km1; ++j) {
-    x1_i[j] = x_dist(generator);
-    y1_i[j] = y_dist(generator);
+    x1_i[j] = x_dist(*generator);
+    y1_i[j] = y_dist(*generator);
   }
   for (int j = 0; j < km2; ++j) {
-    x2_i[j] = x_dist(generator);
+    x2_i[j] = x_dist(*generator);
   }
 
   // make endpoints same
-  x1_i[0] = 0.0;
-  x2_i[0] = 0.0;
-  x1_i[km1-1] = 1.0;
-  x2_i[km2-1] = 1.0;
+  if (generator != &local_generator) {
+    x1_i[0] = 0.0;
+    x2_i[0] = 0.0;
+    x1_i[km1-1] = 1.0;
+    x2_i[km2-1] = 1.0;
+  }
 
   std::sort(x1_i, x1_i + km1);
   std::sort(x2_i, x2_i + km2);
