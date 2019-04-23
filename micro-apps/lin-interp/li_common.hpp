@@ -39,10 +39,12 @@ void populate_li_input(int km1, int km2, Scalar* x1_i, Scalar* y1_i, Scalar* x2_
   }
 
   // make endpoints same
-  x1_i[0] = 0.0;
-  x2_i[0] = 0.0;
-  x1_i[km1-1] = 1.0;
-  x2_i[km2-1] = 1.0;
+  if (generator != &local_generator) {
+    x1_i[0] = 0.0;
+    x2_i[0] = 0.0;
+    x1_i[km1-1] = 1.0;
+    x2_i[km2-1] = 1.0;
+  }
 
   std::sort(x1_i, x1_i + km1);
   std::sort(x2_i, x2_i + km2);
