@@ -36,7 +36,7 @@ int main (int argc, char** argv) {
       y2_f90(ncol, std::vector<Real>(km2));
 
     for (int i = 0; i < ncol; ++i) {
-      li::populate_li_input(km1, km2, x1[i].data(), y1[i].data(), x2[i].data());
+      li::populate_li_input(km1, km2, x1[i].data(), y1[i].data(), x2[i].data(), &generator);
     }
 
     typename li::LiKokkos<Real>::template view_2d<Real>
