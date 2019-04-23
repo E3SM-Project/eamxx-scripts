@@ -98,6 +98,20 @@ contains
 
   end subroutine linear_interp_wrap
 
+  subroutine linear_interp_c(x1,x2,y1,y2,km1,km2,ncol,minthresh) bind(c)
+
+    use iso_c_binding
+
+    integer(kind=c_int), value, intent(in) :: km1, km2, ncol
+    real(kind=c_real), value, intent(in) :: minthresh
+    real(kind=c_real), intent(in) :: x1(ncol,km1), y1(ncol,km1)
+    real(kind=c_real), intent(in) :: x2(ncol,km2)
+    real(kind=c_real), intent(out) :: y2(ncol,km2)
+
+    call linear_interp(x1,x2,y1,y2,km1,km2,ncol,minthresh)
+
+  end subroutine linear_interp_c
+
   !==============================================================
   ! Linear interpolation to get values on various grids
 
