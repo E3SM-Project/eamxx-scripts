@@ -11,37 +11,6 @@
 # include <mkl.h>
 #endif
 
-/*
-  A = [0 b0 c0; a1 b1 c1; ...; an bn 0]
-  X fast index is j
-
-  todo:
-  x get test1 working on gpu
-  x get a perf test going
-  x try shared mem
-  x impl pcr
-  x make a perf test that covers thomas, cr, pcr
-  x try LayoutStride, esp with pcr. nope: LayoutStride has overhead
-    (revealed by order = {2,1,0}), so it's unusable.
-  x make a cusparse perf test
-  x 2x2 opt suggests i should try thomas in cr, after all. no.
-  x cr_a1x1: hand-code dl,d,u layout since LayoutStride won't cut it.
-  x switch interface to take dl,d,du
-  x homme gpu version that packs A differently. also can put A and X updates
-    together. with this version, nrhs = 1 case should call homme version. then
-    check perf against cusparse nrhs=1 case.
-  x raw cuda
-  x perf test for cr_amxm vs cusparse
-  x then opt cr_amxm, following a1x?? examples
-  x call thomas with pack
-  x make a blas perf test: (gttrf, gttrs); (dttrfb, dttrsb) if available
-  x opt thomas
-  x need a threaded version of thomas_pack_amxm for hommexx
-  - make an analysis routine that returns a small struct of POD indicating which
-    alg and with what parms to run for a given set of prob parms. then make a
-    top-level routine that switches based on the struct.
- */
-
 #if defined __INTEL_COMPILER
 # define vector_ivdep _Pragma("ivdep")
 # ifdef _OPENMP
@@ -1907,6 +1876,7 @@ int main (int argc, char** argv) {
     1
 #endif
             << "\n";
+  std::cout << "prec: " << ((sizeof(Real) == sizeof(float)) ? 1 : 2) << "\n";
   int stat = 0;
   Kokkos::initialize(argc, argv); {
     if (argc > 1) {

@@ -50,22 +50,37 @@ First, we discuss algorithms.
 Second, we demonstrate that SCREAM solvers reach roughly performance parity with,
 and in some cases are robustly better than,
 the vendor solvers on the problem format that all three solver groups support optimally.
-Third, we show results for the SHOC problem.
-Fourth, we show results for the HOMME problem.
+Third, we show results for the HOMME problem.
+Fourth, we show results for the SHOC problem.
 
 \noindent {\bf Algorithms.}
 The Thomas algorithm is Gaussian elimination without pivoting,
 with arithmetic arranged to optimize the special case of a tridiagonal matrix.
-On GPU, as is standard practice, some form of cyclic reduction (CR) must be used.
+Because of the data dependencies, it is sequential in rows.
+But it is embarrassingly parallel in multiple RHS and in multiple L/RHS.
+
+If this type of parallelism is not sufficient to fully use a computing resource,
+a method that parallelizes in rows may be necessary.
+Because of the data dependencies, such methods are \emph{work inefficient},
+which means they perform more operations in total than an optimal serial algorithm.
+Thus, the work inefficiency must be accounted for in the decision.
+On GPU, as is standard practice,
+some form of cyclic reduction (CR) must be used if the number of L/RHS is a factor
+approximately 3 or more smaller than number of hardware threads.
 We implemented cyclic reduction with a special case for the final one or two levels of reduction.
 GPU hardware threads are dispatched across the L/RHS before the rows.
-CR is work inefficient---it uses more operations than a serial solver---but
-it permits solving a set of rows independently in $2 \log_2 \mathrm{nextpow2}(n) - 1$ sweeps.
+CR processes a set of rows in parallel, with $2 \log_2 \mathrm{nextpow2}(n) - 1$ sets processed in sequence.
 Its work inefficiency means we cannot expect to get speedup over optimally implemented CPU solvers as large as
 in the case of work efficient computations, such as simple evaluation of level-independent physics parameterization formulas.
-So-called parallel CR (PCR) halves the number of sweeps at the cost of substantially more work inefficiency.
+
+So-called parallel CR (PCR) halves the number of sweeps at the cost of substantially more work inefficiency and workspace of the same size as the problem data.
 We evaluated PCR, and in special cases it is faster than CR.
-But in practice CR will always be faster, so we do not consider PCR further.
+But in our problem formats and hardware thread allocations,
+CR will always be faster, so we do not consider PCR further.
+
+On non-GPU computers, we can expect to use the Thomas algorithm in all cases.
+On GPU, we can expect to use CR except perhaps in the case of SHOC with 40 tracers.
+See the appendix for data for a number of problem formats and parameters.
 
 Algorithm names in the legends have the following scheme.
 The main solvers are {\tt cusparse}, for {\tt cusparse?gtsv2StridedBatch};
@@ -75,7 +90,7 @@ and {\tt cr}, for the cyclic reduction solvers.
 The suffix {\tt pack} is sometimes specified when a scalar version is being distinguished from the pack ({\tt scream::pack}) version.
 The suffix {\tt a$\{$1,m$\}$x$\{$1,m$\}$} is sometimes specified when an implementation specific to one ({\tt 1}) or many ({\tt m}) LHS ({\tt a}) or RHS ({\tt x}) is being distinguished.
 These suffixes appear mostly in the appendix.
-The implementations overload on Kokkos array rank, so the suffixes do not appear at the interface level.
+The implementations specialize on Kokkos array rank, so the suffixes do not appear at the interface level.
 
 \noindent {\bf Methods.}
 We use the following procedure to collect data.
@@ -90,13 +105,14 @@ KNL is run with 136 and 272 threads,
 and the best result from these two settings is selected for each point.
 Generally, this selection procedure favors MKL solvers over SCREAM ones:
 SCREAM solvers rely mostly on the vector processing units (VPU), and there are only two per core;
-for this problem type, MKL solvers rely mostly on threading, and there are four threads per core.
+MKL solvers rely mostly on threading, and there are four threads per core.
 MKL's serial libraries are linked to avoid inner OpenMP dispatch,
 which would hurt MKL performance on batch solves.
 
 All figures are formatted as follows.
-The $x$ axis is number of linear systems to solve in batch.
-The $y$ axis is number of systems solved per second.
+The $x$ axis is number of problems to solve in batch,
+where a problem is one of the three we describe subsequently.
+The $y$ axis is number of problems solved per second.
 Red curves are for Nvidia Volta (V100);
 green, Intel 48-core Skylake (SKX);
 blue, Intel 68-core Knights Landing (KNL).
@@ -138,30 +154,40 @@ Figure \ref{fig:one}(b) shows results for the HOMME problem format,
 in which there are 16 L/RHS sides per problem.
 The vendor solvers are set up to run on the full collection of equations (number of problems times number of L/RHS),
 which means they can perform as fast as possible.
-In contrast, the SCREAM solvers are dispatched as they will be used in practice:
+The SCREAM solvers are dispatched as they will be used in practice:
 one 16-L/RHS problem per Kokkos team.
+For 16 L/RHS, this likely does not put the SCREAM solvers at a disadvantage relative to cuSPARSE,
+but in the appendix, the case of 10 L/RHS narrows the gap between solvers
+because the SCREAM solver is not given an optimal map of data to threads.
 On SKX and KNL, explicit vectorization via packing in the L/RHS direction enables
 substantial speedup over MKL.
-On V100, SCREAM is robustly faster than cuSPARSE.
+On V100, SCREAM is robustly faster than cuSPARSE for 16 L/RHS.
 On SKX and KNL, spikes in performance occur at element counts such that the number of cores divides the element count, i.e., when the work per core is exactly balanced.
 
 \noindent {\bf SHOC problem.}
 SHOC solves systems having multiple RHS, either 2 or 3 plus the number of tracers.
 SCREAM will initially have 10 tracers and later approximately 40.
 Figure \ref{fig:shoc} shows the three cases of 2, 13, and 43 RHS.
-As in the HOMME problem, the vendor solvers are used in the configuration that is best for them,
-while the SCREAM solvers are used as they will be in practice.
 On V100, SCREAM solvers are again uniformly faster than cuSPARSE.
 On V100 and at 43 RHS, the Thomas solver is competitive with CR when there are enough columns.
 On SKX, SCREAM is a little slower than MKL at 2 RHS but a little faster at more except at very large column count;
 we can summarize this as that SCREAM and MKL are roughly at parity on SKX.
 On KNL, SCREAM is uniformly substantially faster than MKL.
+As in the HOMME problem, the vendor solvers are used in the configuration that is best for them,
+while the SCREAM solvers are used as they will be in practice.
+MKL supports multiple RHS, so SCREAM speedup over MKL is purely a result of vectorization over the RHS.
+In contrast, cuSPARSE does not support multiple RHS per LHS;
+hence, the LHS must be duplicated to be 1-1 with the multiple RHS.
+This increases memory use, memory bandwidth demand, and operation count.
+We suggest that a future version of cuSPARSE should support the 1-LHS/multiple-RHS use case.
+Until then, for the SHOC problem format, SCREAM solver speedup over cuSPARSE will increase with RHS number,
+on top of the small base speedup.
 
 \noindent {\bf Summary.} SCREAM solvers solve all problem formats optimally,
 exploiting the speedup certain formats enable;
 they perform at parity or better relative to vendor solvers;
-they use no extra memory, unlike vendor solvers;
-and they can be called from kernels, unlike cuSPARSE, with no restrictions on Kokkos team and thread configurations.
+they use no extra memory, unlike vendor solvers, because they implement in-place factorizations and solves;
+and they can be called from kernels, unlike the cuSPARSE solver, with no restrictions on Kokkos team and thread configurations.
 
 \onecolumn
 
@@ -179,10 +205,9 @@ and they can be called from kernels, unlike cuSPARSE, with no restrictions on Ko
   \subfigure[]{\includegraphics[width=0.48\linewidth]{shoc-prec2-nlev128-nrhs43-simple.pdf}}
   \caption{SHOC problem with three different numbers of RHS.} \label{fig:shoc}
 \end{figure}
+
 \clearpage
-
-\noindent {\bf Appendix}
-
+\noindent {\bf Appendix: Double precision.}
 This appendix shows results for many solvers and various problem size parameters.
 
 \begin{figure}[hbt]
@@ -225,6 +250,52 @@ This appendix shows results for many solvers and various problem size parameters
   \includegraphics[width=0.48\linewidth]{shoc-prec2-nlev72-nrhs43.pdf}
   \includegraphics[width=0.48\linewidth]{shoc-prec2-nlev128-nrhs43.pdf} \\
   \includegraphics[width=0.48\linewidth]{shoc-prec2-nlev256-nrhs43.pdf}
+\end{figure}
+
+\clearpage
+\noindent {\bf Appendix: Single precision.}
+This appendix shows results for many solvers and various problem size parameters, now in single precision.
+
+\begin{figure}[hbt]
+  \centering
+  \includegraphics[width=0.48\linewidth]{baseline-prec1-nlev72-all.pdf}
+  \includegraphics[width=0.48\linewidth]{baseline-prec1-nlev128-all.pdf} \\
+  \includegraphics[width=0.48\linewidth]{baseline-prec1-nlev256-all.pdf}
+\end{figure}
+
+\begin{figure}[hbt]
+  \centering
+  \includegraphics[width=0.48\linewidth]{hommexx-prec1-nlev72-nrhs16.pdf}
+  \includegraphics[width=0.48\linewidth]{hommexx-prec1-nlev128-nrhs16.pdf} \\
+  \includegraphics[width=0.48\linewidth]{hommexx-prec1-nlev256-nrhs16.pdf}
+\end{figure}
+
+\begin{figure}[hbt]
+  \centering
+  \includegraphics[width=0.48\linewidth]{hommexx-prec1-nlev72-nrhs10.pdf}
+  \includegraphics[width=0.48\linewidth]{hommexx-prec1-nlev128-nrhs10.pdf} \\
+  \includegraphics[width=0.48\linewidth]{hommexx-prec1-nlev256-nrhs10.pdf}
+\end{figure}
+
+\begin{figure}[hbt]
+  \centering
+  \includegraphics[width=0.48\linewidth]{shoc-prec1-nlev72-nrhs2.pdf}
+  \includegraphics[width=0.48\linewidth]{shoc-prec1-nlev128-nrhs2.pdf} \\
+  \includegraphics[width=0.48\linewidth]{shoc-prec1-nlev256-nrhs2.pdf}
+\end{figure}
+
+\begin{figure}[hbt]
+  \centering
+  \includegraphics[width=0.48\linewidth]{shoc-prec1-nlev72-nrhs13.pdf}
+  \includegraphics[width=0.48\linewidth]{shoc-prec1-nlev128-nrhs13.pdf} \\
+  \includegraphics[width=0.48\linewidth]{shoc-prec1-nlev256-nrhs13.pdf}
+\end{figure}
+
+\begin{figure}[hbt]
+  \centering
+  \includegraphics[width=0.48\linewidth]{shoc-prec1-nlev72-nrhs43.pdf}
+  \includegraphics[width=0.48\linewidth]{shoc-prec1-nlev128-nrhs43.pdf} \\
+  \includegraphics[width=0.48\linewidth]{shoc-prec1-nlev256-nrhs43.pdf}
 \end{figure}
 
 \end{document}

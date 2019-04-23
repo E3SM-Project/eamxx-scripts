@@ -87,7 +87,8 @@
 
   (defn plot-baseline [me precision &optional [all False] [probpersec False]
                        [simple False]]
-    (sv nprobs (sort (.keys (get me.d 'v100 precision 'cr_a1x1p 128 1))))
+    ;;(sv nprobs (sort (.keys (get me.d 'v100 precision 'cr_a1x1p 128 1))))
+    (sv nprobs (sort (.keys (get me.d 'skx precision 'thomas 128 1))))
     (for [nlev (, 72 128 256)]
       (with [(pl-plot (, 7 9) (.format "baseline-prec{}-nlev{}{}"
                                        precision nlev
@@ -126,7 +127,7 @@
         (pl.legend :loc "best" :fontsize 10))))
 
   (defn plot-hommexx [me precision &optional [probpersec False] [simple False]]
-    (sv nprobs (sort (.keys (get me.d 'v100 precision 'cr_amxm 128 16))))
+    (sv nprobs (sort (.keys (get me.d 'skx precision 'thomas_pack_amxm 128 16))))
     (for [nlev (, 72 128 256)
           nrhs (, 10 16)]
       (with [(pl-plot (, 7 9) (.format "hommexx-prec{}-nlev{}-nrhs{}{}"
@@ -172,7 +173,7 @@
         (pl.legend :loc "best" :fontsize 10))))
 
   (defn plot-shoc [me precision &optional [probpersec False] [simple False]]
-    (sv nprobs (sort (.keys (get me.d 'v100 precision 'cr_a1xm 128 43))))
+    (sv nprobs (sort (.keys (get me.d 'skx precision 'dttr 128 43))))
     (for [nlev (, 72 128 256)
           nrhs (, 2 13 43)]
       (with [(pl-plot (, 7 9) (.format "shoc-prec{}-nlev{}-nrhs{}{}"
@@ -218,9 +219,15 @@
   (sv d (Data)
       set1 (, "cdata-skx-dp-1.txt" "cdata-knl-dp-1.txt" "cdata-v100-dp-2.txt")
       set2 (, "cdata-skx-dp-2.txt" "cdata-knl-dp-2.txt" "cdata-v100-dp-3.txt")
-      set3 (, "cdata-skx-dp-3.txt" "cdata-knl-dp-3.txt" "cdata-knl-dp-4.txt"
-              "cdata-v100-dp-3.txt"))
-  (for [filename set3]
+      set3 (, "cdata-skx-dp-3.txt"
+              "cdata-knl-dp-3.txt" ; 136 threads
+              "cdata-knl-dp-5.txt" ; 272 threads (4 was killed in power outage)
+              "cdata-v100-dp-3.txt")
+      set4 (, "cdata-skx-sp-0.txt"
+              "cdata-knl-sp-0.txt" ; 272
+              "cdata-knl-sp-1.txt" ; 136
+              "cdata-v100-sp-0.txt"))
+  (for [filename set4]
     (sv tokens (.split filename "-")
         machine (symbol (second tokens))
         precision (if (= (get tokens 2) "dp") 2 1))
@@ -230,11 +237,11 @@
 (when-inp ["plot"]
   (sv d (Data))
   (d.unpickle "tdp-read.pickle")
-  (sv pps True)
-  (d.plot-baseline 2 :probpersec pps)
-  (d.plot-baseline 2 :probpersec pps :simple True)
-  (d.plot-baseline 2 :probpersec pps :all True)
-  (d.plot-hommexx 2 :probpersec pps)
-  (d.plot-hommexx 2 :probpersec pps :simple True)
-  (d.plot-shoc 2 :probpersec pps)
-  (d.plot-shoc 2 :probpersec pps :simple True))
+  (sv pps True prec 1)
+  (d.plot-baseline prec :probpersec pps)
+  (d.plot-baseline prec :probpersec pps :simple True)
+  (d.plot-baseline prec :probpersec pps :all True)
+  (d.plot-shoc prec :probpersec pps)
+  (d.plot-shoc prec :probpersec pps :simple True)
+  (d.plot-hommexx prec :probpersec pps)
+  (d.plot-hommexx prec :probpersec pps :simple True))
