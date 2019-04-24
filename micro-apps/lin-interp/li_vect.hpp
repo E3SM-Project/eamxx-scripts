@@ -67,9 +67,9 @@ struct LiVect
              const V& x1,
              const V& x2) const
   {
-    setup_nlogn(team, *this, scream::pack::repack<LI_PACKN>(x1), scream::pack::repack<LI_PACKN>(x2));
+    setup_nlogn(team, *this, scream::pack::repack<Pack::n>(x1), scream::pack::repack<Pack::n>(x2));
 #ifndef NDEBUG
-    setup_n2(team, *this, scream::pack::repack<LI_PACKN>(x1), scream::pack::repack<LI_PACKN>(x2));
+    setup_n2(team, *this, scream::pack::repack<Pack::n>(x1), scream::pack::repack<Pack::n>(x2));
 #endif
   }
 
@@ -84,10 +84,10 @@ struct LiVect
   {
     lin_interp_impl(team,
                     *this,
-                    scream::pack::repack<LI_PACKN>(x1),
-                    scream::pack::repack<LI_PACKN>(x2),
-                    scream::pack::repack<LI_PACKN>(y1),
-                    scream::pack::repack<LI_PACKN>(y2));
+                    scream::pack::repack<Pack::n>(x1),
+                    scream::pack::repack<Pack::n>(x2),
+                    scream::pack::repack<Pack::n>(y1),
+                    scream::pack::repack<Pack::n>(y2));
   }
 
   KOKKOS_INLINE_FUNCTION
@@ -104,8 +104,8 @@ struct LiVect
       const auto indx_pk = liv.m_indx_map(i, k2);
 #ifndef NDEBUG
       const auto indx_pk_dbg = liv.m_indx_map_dbg(i, k2);
-      for (int s = 0; s < LI_PACKN; ++s) {
-        if (k2*LI_PACKN + s < liv.m_km2) {
+      for (int s = 0; s < Pack::n; ++s) {
+        if (k2*Pack::n + s < liv.m_km2) {
           micro_kassert(indx_pk[s] == indx_pk_dbg[s]);
         }
       }
@@ -144,7 +144,7 @@ struct LiVect
 
     const int i = team.league_rank();
     Kokkos::parallel_for(Kokkos::TeamThreadRange(team, liv.m_km2_pack), [&] (Int k2) {
-      for (int s = 0; s < LI_PACKN; ++s) {
+      for (int s = 0; s < Pack::n; ++s) {
         if( x2(k2)[s] <= x1s(0) ) { // x2[k2] comes before x1[0]
           idxs(i, k2)[s] = 0;
         }
@@ -170,7 +170,7 @@ struct LiVect
 
     const int i = team.league_rank();
     Kokkos::parallel_for(Kokkos::TeamThreadRange(team, liv.m_km2_pack), [&] (Int k2) {
-      for (int s = 0; s < LI_PACKN; ++s) {
+      for (int s = 0; s < Pack::n; ++s) {
         const Scalar x1_indv = x2(k2)[s];
         auto begin = x1s.data();
         auto upper = begin + liv.m_km1;
