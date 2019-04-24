@@ -67,11 +67,11 @@ int main (int argc, char** argv) {
     }
 
     using LIV = li::LiVect<Real>;
+    using Pack = scream::pack::BigPack<Real>;
     LIV vect(ncol, km1, km2, minthresh);
-    const int km1_pack = vect.km1_pack();
-    const int km2_pack = vect.km2_pack();
-    using Pack = typename li::LiVect<Real>::Pack;
-    typename li::LiVect<Real>::template view_2d<Pack>
+    const int km1_pack = scream::pack::npack<Pack>(km1);
+    const int km2_pack = scream::pack::npack<Pack>(km2);
+    typename LIV::template view_2d<Pack>
       x1kv("x1kv", ncol, km1_pack),
       x2kv("x2kv", ncol, km2_pack),
       y1kv("y1kv", ncol, km1_pack),
@@ -85,17 +85,17 @@ int main (int argc, char** argv) {
 
       for (int i = 0; i < ncol; ++i) {
         for (int j = 0; j < km1_pack; ++j) {
-          for (int s = 0; s < SCREAM_PACKN; ++s) {
-            if (j*SCREAM_PACKN + s < km1) {
-              x1kvm(i, j)[s] = x1[i][j*SCREAM_PACKN + s];
-              y1kvm(i, j)[s] = y1[i][j*SCREAM_PACKN + s];
+          for (int s = 0; s < Pack::n; ++s) {
+            if (j*Pack::n + s < km1) {
+              x1kvm(i, j)[s] = x1[i][j*Pack::n + s];
+              y1kvm(i, j)[s] = y1[i][j*Pack::n + s];
             }
           }
         }
         for (int j = 0; j < km2_pack; ++j) {
-          for (int s = 0; s < SCREAM_PACKN; ++s) {
-            if (j*SCREAM_PACKN + s < km2) {
-              x2kvm(i, j)[s] = x2[i][j*SCREAM_PACKN + s];
+          for (int s = 0; s < Pack::n; ++s) {
+            if (j*Pack::n + s < km2) {
+              x2kvm(i, j)[s] = x2[i][j*Pack::n + s];
             }
           }
         }
@@ -200,7 +200,7 @@ int main (int argc, char** argv) {
           micro_require(y2_base[i][j] == y2_cmp[i][j]);
           micro_require(y2_base[i][j] == y2_f90[i][j]);
           micro_require(y2_base[i][j] == y2km(i, j));
-          micro_require(y2_base[i][j] == y2kvm(i, j / SCREAM_PACKN)[j % SCREAM_PACKN]);
+          micro_require(y2_base[i][j] == y2kvm(i, j / Pack::n)[j % Pack::n]);
         }
       }
     }

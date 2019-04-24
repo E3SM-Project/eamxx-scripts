@@ -35,6 +35,15 @@ else ()
   message (FATAL_ERROR "SCREAM_MICRO_APPS requires Kokkos_DIR; this is the base directory of the Kokkos installation.")
 endif ()
 
+if ("${KOKKOS_GMAKE_ARCH}" STREQUAL "SKX")
+  set(SCREAM_POSSIBLY_NO_PACK_DEFAULT 1)
+else()
+  set(SCREAM_POSSIBLY_NO_PACK_DEFAULT ${SCREAM_PACK_SIZE})
+endif()
+
+set(SCREAM_POSSIBLY_NO_PACK ${SCREAM_POSSIBLY_NO_PACK_DEFAULT} CACHE INTEGER
+  "Set skx-no-pack to this value. Expect this to usually be 1, but you can set it to something else to restore packs on SKX for testing.")
+
 string (REPLACE ";" " " KOKKOS_CXXFLAGS_STR "${KOKKOS_CXXFLAGS}")
 set(KOKKOS_LDFLAGS_STR "")
 list(LENGTH KOKKOS_LDFLAGS THE_LEN)
@@ -119,11 +128,13 @@ endif()
 if (CUDA_BUILD)
   set(SCREAM_PACK_SIZE 1)
   set(SCREAM_SMALL_PACK_SIZE 1)
+  set(SCREAM_POSSIBLY_NO_PACK 1)
 endif()
 
 add_definitions(-DCHUNKSIZE=${CHUNKSIZE})
 add_definitions(-DSCREAM_PACKN=${SCREAM_PACK_SIZE})
 add_definitions(-DSCREAM_SMALL_PACKN=${SCREAM_SMALL_PACK_SIZE})
+add_definitions(-DSCREAM_POSSIBLY_NO_PACKN=${SCREAM_POSSIBLY_NO_PACK})
 
 enable_testing()
 

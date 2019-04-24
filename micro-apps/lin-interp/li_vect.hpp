@@ -11,13 +11,6 @@
 
 namespace li {
 
-using scream::pack::IntPack;
-using scream::pack::IntSmallPack;
-using scream::pack::smallize;
-using scream::pack::scalarize;
-using scream::pack::BigPack;
-using scream::pack::SmallPack;
-
 template <typename ScalarT, typename DeviceT=DefaultDevice>
 struct LiVect
 {
@@ -39,7 +32,11 @@ struct LiVect
   using MemberType  = typename KT::MemberType;
   using TeamPolicy  = typename KT::TeamPolicy;
 
-  using Pack = BigPack<Scalar>;
+  // Testing has shown that li runs better on SKX with pk=1
+  static constexpr int LI_PACKN = SCREAM_POSSIBLY_NO_PACKN;
+
+  using Pack    = scream::pack::Pack<Scalar, LI_PACKN>;
+  using IntPack = scream::pack::Pack<int, LI_PACKN>;
 
   //
   // ------ public API -------
@@ -64,21 +61,33 @@ struct LiVect
   int km1_pack() const { return m_km1_pack; }
   int km2_pack() const { return m_km2_pack; }
 
+  template<typename V>
   KOKKOS_INLINE_FUNCTION
-  void setup(const MemberType& team, const view_1d<const Pack>& x1, const view_1d<const Pack>& x2) const
+  void setup(const MemberType& team,
+             const V& x1,
+             const V& x2) const
   {
-    setup_nlogn(team, *this, x1, x2);
+    setup_nlogn(team, *this, scream::pack::repack<Pack::n>(x1), scream::pack::repack<Pack::n>(x2));
 #ifndef NDEBUG
-    setup_n2(team, *this, x1, x2);
+    setup_n2(team, *this, scream::pack::repack<Pack::n>(x1), scream::pack::repack<Pack::n>(x2));
 #endif
   }
 
   // Linearly interpolate y(x1) onto coordinates x2
+  template <typename V>
   KOKKOS_INLINE_FUNCTION
-  void lin_interp(const MemberType& team, const view_1d<const Pack>& x1, const view_1d<const Pack>& x2, const view_1d<const Pack>& y1,
-                  const view_1d<Pack>& y2) const
+  void lin_interp(const MemberType& team,
+                  const V& x1,
+                  const V& x2,
+                  const V& y1,
+                  const V& y2) const
   {
-    lin_interp_impl(team, *this, x1, x2, y1, y2);
+    lin_interp_impl(team,
+                    *this,
+                    scream::pack::repack<Pack::n>(x1),
+                    scream::pack::repack<Pack::n>(x2),
+                    scream::pack::repack<Pack::n>(y1),
+                    scream::pack::repack<Pack::n>(y2));
   }
 
   KOKKOS_INLINE_FUNCTION
@@ -87,16 +96,16 @@ struct LiVect
                               const view_1d<const Pack>& x1, const view_1d<const Pack>& x2, const view_1d<const Pack>& y1,
                               const view_1d<Pack>& y2)
   {
-    auto x1s = scalarize(x1);
-    auto y1s = scalarize(y1);
+    auto x1s = scream::pack::scalarize(x1);
+    auto y1s = scream::pack::scalarize(y1);
 
     const int i = team.league_rank();
     Kokkos::parallel_for(Kokkos::TeamThreadRange(team, liv.m_km2_pack), [&] (Int k2) {
       const auto indx_pk = liv.m_indx_map(i, k2);
 #ifndef NDEBUG
       const auto indx_pk_dbg = liv.m_indx_map_dbg(i, k2);
-      for (int s = 0; s < SCREAM_PACKN; ++s) {
-        if (k2*SCREAM_PACKN + s < liv.m_km2) {
+      for (int s = 0; s < Pack::n; ++s) {
+        if (k2*Pack::n + s < liv.m_km2) {
           micro_kassert(indx_pk[s] == indx_pk_dbg[s]);
         }
       }
@@ -130,12 +139,12 @@ struct LiVect
   KOKKOS_INLINE_FUNCTION
   static void setup_n2(const MemberType& team, const LiVect& liv, const view_1d<const Pack>& x1, const view_1d<const Pack>& x2)
   {
-    auto x1s = scalarize(x1);
+    auto x1s = scream::pack::scalarize(x1);
     auto idxs = liv.m_indx_map_dbg;
 
     const int i = team.league_rank();
     Kokkos::parallel_for(Kokkos::TeamThreadRange(team, liv.m_km2_pack), [&] (Int k2) {
-      for (int s = 0; s < SCREAM_PACKN; ++s) {
+      for (int s = 0; s < Pack::n; ++s) {
         if( x2(k2)[s] <= x1s(0) ) { // x2[k2] comes before x1[0]
           idxs(i, k2)[s] = 0;
         }
@@ -157,11 +166,11 @@ struct LiVect
   KOKKOS_INLINE_FUNCTION
   static void setup_nlogn(const MemberType& team, const LiVect& liv, const view_1d<const Pack>& x1, const view_1d<const Pack>& x2)
   {
-    auto x1s = scalarize(x1);
+    auto x1s = scream::pack::scalarize(x1);
 
     const int i = team.league_rank();
     Kokkos::parallel_for(Kokkos::TeamThreadRange(team, liv.m_km2_pack), [&] (Int k2) {
-      for (int s = 0; s < SCREAM_PACKN; ++s) {
+      for (int s = 0; s < Pack::n; ++s) {
         const Scalar x1_indv = x2(k2)[s];
         auto begin = x1s.data();
         auto upper = begin + liv.m_km1;
