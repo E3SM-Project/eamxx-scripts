@@ -67,11 +67,11 @@ int main (int argc, char** argv) {
     }
 
     using LIV = li::LiVect<Real>;
+    using Pack = scream::pack::BigPack<Real>;
     LIV vect(ncol, km1, km2, minthresh);
-    const int km1_pack = vect.km1_pack();
-    const int km2_pack = vect.km2_pack();
-    using Pack = typename li::LiVect<Real>::Pack;
-    typename li::LiVect<Real>::template view_2d<Pack>
+    const int km1_pack = scream::pack::npack<Pack>(km1);
+    const int km2_pack = scream::pack::npack<Pack>(km2);
+    typename LIV::template view_2d<Pack>
       x1kv("x1kv", ncol, km1_pack),
       x2kv("x2kv", ncol, km2_pack),
       y1kv("y1kv", ncol, km1_pack),
