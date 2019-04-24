@@ -128,6 +128,7 @@ endif()
 if (CUDA_BUILD)
   set(SCREAM_PACK_SIZE 1)
   set(SCREAM_SMALL_PACK_SIZE 1)
+  set(SCREAM_SKX_NO_PACK 1)
 endif()
 
 add_definitions(-DCHUNKSIZE=${CHUNKSIZE})
