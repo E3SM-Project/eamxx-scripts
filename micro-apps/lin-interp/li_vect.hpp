@@ -33,7 +33,7 @@ struct LiVect
   using TeamPolicy  = typename KT::TeamPolicy;
 
   // Testing has shown that li runs better on SKX with pk=1
-  static constexpr int LI_PACKN = SCREAM_SKX_NO_PACKN;
+  static constexpr int LI_PACKN = SCREAM_POSSIBLY_NO_PACKN;
 
   using Pack    = scream::pack::Pack<Scalar, LI_PACKN>;
   using IntPack = scream::pack::Pack<int, LI_PACKN>;
