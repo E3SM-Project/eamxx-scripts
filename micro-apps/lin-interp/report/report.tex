@@ -28,8 +28,8 @@ code.
 
 \noindent {\bf Implementation}
 
-We broke up the algorithm into two phases, an O-nlogn setup phase and the actual
-O-n linear interpolation. The setup phase creates a map, for each x2 coordinate, to
+We broke up the algorithm into two phases, an O($n \log n$) setup phase and the actual
+O($n$) linear interpolation. The setup phase creates a map, for each x2 coordinate, to
 the nearest x1 coordinate. The idea here is that a user can do the setup phase once, and
 then do several linear interpolations (assuming they use the same coodinates). The more
 linear interpolations that are done per setup, the better the performance, but the algorithm
@@ -98,8 +98,21 @@ across all columns.
 
 \noindent {\bf Results/Conclusion}
 
-Despite a lot of tweaking, we were never able to get SKX to vectorize well-enough to outperform
-the scalar implementation. We were also not able to get KNL to perform as well as SKX.
+The scalar implementation, li\_kokkos, auto-vectorizes,
+as is evident for example by outputting readable assembly with the Intel compiler arguments {\tt -S -fsource-asm}.
+Thus, unlike in the sedimentation micro-app, but similar to the tridiagonal solver nano-app,
+the pack-based implementation competes against auto-vectorized code.
+On SKX, li\_vect is slower than li\_kokkos;
+on KNL, it is faster.
+The explanation is that the auto-vectorization produces assembly that use vector registers and instructions smaller than 512 bit.
+These essentially always lead to suboptimal performance on KNL relative to perfectly vectorized (via packs) 512-bit instructions.
+In contrast, on SKX, CPU cycle throttling and other complexities make for complicated trade offs. 
+However, the {\tt Pack} implementation compiles away to simple scalar operations when the pack size is set to 1;
+this setting makes li\_vect and li\_kokkos perform nearly the same on SKX.
+Here we use the performance-portability aspect of the design of SCREAM.
+
+We were also not able to get KNL to perform as well as SKX. TODO
+%todo I think this is true only for small problems, where for this simple problem, SKX is keeping data in probably L2 and certainly L3. For a sufficiently large problem, KNL ought to pull even with SKX b/c its 16 GB of high b/w memory will outperform an out-of-L3 run on SKX. If you confirm this, I recommend making an extra figure that shows this for KNL, SKX, and V100. This way, even though it's not a practically useful result, we can at least explain what's happening.
 
 For linear interpolation only, see figure 1. V100 scales best since it has so much more parallelism
 available. KNL gets a nice speedup with packs (vectorization) but is still about 2x slower than SKX
