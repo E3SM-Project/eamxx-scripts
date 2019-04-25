@@ -7,6 +7,8 @@
 \begin{document}
 \sloppy
 
+\onecolumn
+
 \begin{center}
   {\bf Evaluation of linear interpolation for SHOC} \\
   E3SM/SCREAM (\today)
@@ -27,7 +29,8 @@ code.
 \noindent {\bf Implementation}
 
 We broke up the algorithm into two phases, an O-nlogn setup phase and the actual
-O-n linear interpolation. The idea here is that a user can do the setup phase once, and
+O-n linear interpolation. The setup phase creates a map, for each x2 coordinate, to
+the nearest x1 coordinate. The idea here is that a user can do the setup phase once, and
 then do several linear interpolations (assuming they use the same coodinates). The more
 linear interpolations that are done per setup, the better the performance, but the algorithm
 is still optimal even if only one linear interpolation is done.
@@ -39,7 +42,6 @@ described above and one (li\_vect) that attempts to add vectorization to the bas
 li\_kokkos was very straightforward, but li\_vect was a bit trickier. The most interesting
 vectorization exercise was turning this:
 
-\onecolumn
 
 \begin{verbatim}
     Kokkos::parallel_for(Kokkos::TeamThreadRange(team, lik.m_km2), [&] (Int k2) {
@@ -64,10 +66,8 @@ Kokkos::parallel_for(Kokkos::TeamThreadRange(team, liv.m_km2_pack), [&] (Int k2)
       ...
 \end{verbatim}
 
-\twocolumn
-
 We were able to do the common-case linear interpolation without needing scalarized
-views. This required the index\_and\_shift function, which looks-up a two packs-worth
+views. This required the index\_and\_shift function, which looks-up two packs-worth
 of data, one using indx\_pk and one using indx\_pk with each index shifted by a known
 compile-time constant, which should be generally useful.
 
@@ -85,8 +85,8 @@ archictectures (HSW, KNL, SKX, and V100).
 
 Linear interpolation is very fast for realistic input data (128 levels, 2048 columns), so we
 had to leverage a lot of repetition to reduce noise. Our drivers were instrumented to support
-internal repititions (run code-of-interest within an N-loop, then divide walltime by N) and our performance scripts
-support external repititions (run executable M times, then take median). I settled on
+internal repetitions (run code-of-interest within an N-loop, then divide walltime by N) and our performance scripts
+support external repetitions (run executable M times, then take median). I settled on
 200x20 repetitions (200 internal run 20 times) as a value that ran quickly and eliminated
 most noise.
 
@@ -109,7 +109,7 @@ any extra overhead.
 
 For setup cost only, see figure 2. Both SKX and KNL tail off quickly since this is a nlogn algorithm. V100
 again scales great since, even at 8192 columns, it can give a cuda thread to each vertical level in every
-columns. KNL does not get much benefit from vectorization since we have to scalarize the x1 coords in order
+column. KNL does not get much benefit from vectorization since we have to scalarize the x1 coords in order
 to do the binary-search for the x1 coord that is closest to the current x2 coord.
 
 For total perf, see figure 3. For this test, we only did one interpolation per setup. We show
@@ -121,17 +121,17 @@ reference for V100 since we did not add CUDA support to it.
 
 \begin{figure}[hbt]
   \centering
-  \includegraphics{final-li.pdf}
+  \includegraphics[width=1.0\linewidth]{final-li.pdf}
 \end{figure}
 
 \begin{figure}[hbt]
   \centering
-  \includegraphics{final-setup.pdf}
+  \includegraphics[width=1.0\linewidth]{final-setup.pdf}
 \end{figure}
 
 \begin{figure}[hbt]
   \centering
-  \includegraphics{final-total.pdf}
+  \includegraphics[width=1.0\linewidth]{final-total.pdf}
 \end{figure}
 
 \end{document}
