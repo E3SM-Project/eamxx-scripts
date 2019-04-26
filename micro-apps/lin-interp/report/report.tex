@@ -120,9 +120,14 @@ auto-vectorized implemetation.
 
 We were also not able to get KNL to perform as well as SKX because of the small scale
 of this micro app. LI does very little computation per iteration and only uses only 4 doubles and an
-int per column level (x1, x2, y1, y2, and indx-map) of heap memory, so it is ill suited to a high-bandwitch architecture
+int per column level (x1, x2, y1, y2, and indx-map) of heap memory, so it is ill suited to a high-bandwidth architecture
 like KNL. If we turn up the number of columns insanely high, then KNL does eventually
 pull ahead (see figure 2).
+The explanation for this behavior is as follows.
+At relatively small column count, SKX works entirely in L3, and possibly L2, memory,
+and these have higher bandwidth than KNL high-bandwidth memory (HBM).
+But at relatively large column count, SKX must access main memory,
+while KNL continues to work in its 16 GB of HBM.
 
 For linear interpolation only, see figure 3. At the smaller scales,
 SKX is way faster, but V100 scales better since it has so much more
