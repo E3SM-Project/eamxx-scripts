@@ -44,9 +44,11 @@ OR
 
     parser.add_argument("-t", "--tests", action="append", help="Only plot these tests")
 
+    parser.add_argument("-s", "--save", help="Instead of showing the plot, save to this file")
+
     args = parser.parse_args(args[1:])
 
-    return args.datafiles, args.dashed, args.dotted, args.no_legend, args.font, args.log_x, args.log_y, args.tests
+    return args.datafiles, args.dashed, args.dotted, args.no_legend, args.font, args.log_x, args.log_y, args.tests, args.save
 
 ###############################################################################
 def pad_lim(lim, pad=0.05, mult=False):
@@ -88,7 +90,7 @@ def applies_to_line(match_list, line_label):
 class Plotter(object):
 ###############################################################################
 
-    def __init__(self, datafiles, font, log_x, log_y, tests):
+    def __init__(self, datafiles, font, log_x, log_y, tests, save):
         # plt.rcParams.update({'font.size': font})
         # axis_tight_pad()
         subtle_grid()
@@ -112,6 +114,7 @@ class Plotter(object):
         self._max_x             = 0
         self._tests             = tests
         self._font              = font
+        self._save              = save
 
         for datafile in datafiles:
             with open(datafile, "r") as fd:
@@ -245,19 +248,25 @@ class Plotter(object):
                        rotation=45, fontsize=self._font - 4)
             plt.xlabel(self.get_var_longname(self._scaling_var), fontsize=self._font)
 
-        plt.ylabel("Thousands of columns per second", fontsize=self._font)
+        if self._log_y:
+            plt.ylabel("Log2 of columns per second", fontsize=self._font)
+        else:
+            plt.ylabel("Thousands of columns per second", fontsize=self._font)
         plt.yticks(fontsize=self._font - 4)
         if not no_legend:
             plt.legend(loc=2, framealpha=0, fontsize=self._font - 4)
 
-        plt.show()
+        if self._save is None:
+            plt.show()
+        else:
+            plt.savefig(self._save)
 
 ###############################################################################
 def _main_func(description):
 ###############################################################################
-    datafiles, dashed, dotted, no_legend, font, log_x, log_y, tests = parse_command_line(sys.argv, description)
+    datafiles, dashed, dotted, no_legend, font, log_x, log_y, tests, save = parse_command_line(sys.argv, description)
 
-    plotter = Plotter(datafiles, font, log_x, log_y, tests)
+    plotter = Plotter(datafiles, font, log_x, log_y, tests, save)
 
     for datafile in datafiles:
         plotter.plotdata(datafile, dashed, dotted)
