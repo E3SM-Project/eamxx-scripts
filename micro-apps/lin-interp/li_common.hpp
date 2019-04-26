@@ -243,6 +243,7 @@ void lin_interp_func_wrap_kokkos(const int ncol, const int km1, const int km2, c
       const int i = team_member.league_rank();
       lik.setup(team_member, util::subview(x1, i), util::subview(x2, i));
     });
+    Kokkos::fence();
 
 #ifdef LI_TIME_SETUP
     if (r == 0) {
@@ -267,6 +268,7 @@ void lin_interp_func_wrap_kokkos(const int ncol, const int km1, const int km2, c
                      util::subview(y1, i),
                      util::subview(y2, i));
     });
+    Kokkos::fence();
 
 #ifndef LI_TIME_SETUP
     if (r == 0) {
