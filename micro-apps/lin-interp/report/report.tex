@@ -98,53 +98,91 @@ across all columns.
 
 \noindent {\bf Results/Conclusion}
 
-The scalar implementation, li\_kokkos, auto-vectorizes,
-as is evident for example by outputting readable assembly with the Intel compiler arguments {\tt -S -fsource-asm}.
-Thus, unlike in the sedimentation micro-app, but similar to the tridiagonal solver nano-app,
-the pack-based implementation competes against auto-vectorized code.
-On SKX, li\_vect is slower than li\_kokkos;
-on KNL, it is faster.
-The explanation is that the auto-vectorization produces assembly that use vector registers and instructions smaller than 512 bit.
-These essentially always lead to suboptimal performance on KNL relative to perfectly vectorized (via packs) 512-bit instructions.
-In contrast, on SKX, CPU cycle throttling and other complexities make for complicated trade offs. 
-However, the {\tt Pack} implementation compiles away to simple scalar operations when the pack size is set to 1;
-this setting makes li\_vect and li\_kokkos perform nearly the same on SKX.
-Here we use the performance-portability aspect of the design of SCREAM.
+The scalar implementation, li\_kokkos, auto-vectorizes, as is evident
+for example by outputting readable assembly with the Intel compiler
+arguments {\tt -S -fsource-asm}.  Thus, unlike in the sedimentation
+micro-app, but similar to the tridiagonal solver nano-app, the
+pack-based implementation competes against auto-vectorized code.  On
+SKX, li\_vect is slower than li\_kokkos; on KNL, it is faster.  The
+explanation is that the auto-vectorization produces assembly that use
+vector registers and instructions smaller than 512 bit.  These
+essentially always lead to suboptimal performance on KNL relative to
+perfectly vectorized (via packs) 512-bit instructions.  In contrast,
+on SKX, CPU cycle throttling and other complexities make for
+complicated trade offs.  However, the {\tt Pack} implementation
+compiles away to simple scalar operations when the pack size is set to
+1; this setting makes li\_vect and li\_kokkos perform nearly the same
+on SKX.  Here we use the performance-portability aspect of the design
+of SCREAM. In the first figure, we see that, when packs are enabled
+for SKX, performance eventually reached parity with the
+auto-vectorized implemetation.
 
-We were also not able to get KNL to perform as well as SKX. TODO
-%todo I think this is true only for small problems, where for this simple problem, SKX is keeping data in probably L2 and certainly L3. For a sufficiently large problem, KNL ought to pull even with SKX b/c its 16 GB of high b/w memory will outperform an out-of-L3 run on SKX. If you confirm this, I recommend making an extra figure that shows this for KNL, SKX, and V100. This way, even though it's not a practically useful result, we can at least explain what's happening.
 
-For linear interpolation only, see figure 1. V100 scales best since it has so much more parallelism
-available. KNL gets a nice speedup with packs (vectorization) but is still about 2x slower than SKX
-for our largest runs. SKX performance of li\_kokkos and li\_vect is nearly exactly the same, which is
-expected since we're using packsize=1 on SKX. This at least shows that the pack implementation does not incur
-any extra overhead.
+We were also not able to get KNL to perform as well as SKX because of the small scale
+of this micro app. LI does very little computation per iteration and only uses only 4 doubles and an
+int per column level (x1, x2, y1, y2, and indx-map) of heap memory, so it is ill suited to a high-bandwitch architecture
+like KNL. If we turn up the number of columns insanely high, then KNL does eventually
+pull ahead (see figure 2).
 
-For setup cost only, see figure 2. Both SKX and KNL tail off quickly since this is a nlogn algorithm. V100
-again scales great since, even at 8192 columns, it can give a cuda thread to each vertical level in every
-column. KNL does not get much benefit from vectorization since we have to scalarize the x1 coords in order
-to do the binary-search for the x1 coord that is closest to the current x2 coord.
+For linear interpolation only, see figure 3. At the smaller scales,
+SKX is way faster, but V100 scales better since it has so much more
+parallelism available and it eventually passes SKX as columns increase. KNL gets a nice speedup with packs
+(vectorization) but is still about 2x slower than SKX for 8192
+columns. As we saw in figure 1, KNL eventually passes SKX too at unrealistically large
+column counts. SKX performance of li\_kokkos and li\_vect is nearly exactly the
+same, which is expected since we're using packsize=1 on SKX. This at
+least shows that the pack implementation does not incur any extra
+overhead.
 
-For total perf, see figure 3. For this test, we only did one interpolation per setup. We show
-the performance for the fortran reference implementation. SKX and KNL are dominated by setup
-time. We get a 3x speedup on SKN and KNL compared to the fortran reference. There is no fortran
+For setup cost only, see figure 4. Both SKX and KNL tail off quickly
+since this is a O($n \log n$) algorithm. There being more work per column,
+SKX and KNL become saturated at smaller column counts. The V100 is a different
+story since it can process 640 columns simultaneously (4 warps/column, 32 double prec warps/SM, 80 SM/GPU => 640)
+and performs betters as it becomes oversubcribed (to a certain point), it
+scales much better here compared to SKX and KNL. KNL does not get much benefit from
+vectorization since we have to scalarize the x1 coords in order to do
+the binary-search for the x1 coord that is closest to the current x2
+coord.
+
+For total perf, see figure 5. For this test, we only did one
+interpolation per setup. We show the performance for the fortran
+reference implementation for the first time here since we do not
+distinguish between setup and li cost in the fortran implementation
+(there is no setup phase). SKX and KNL are dominated by setup time. We
+get roughly an 8x speedup on SKX and KNL compared to the fortran
+reference which increases as columns increase. There is no fortran
 reference for V100 since we did not add CUDA support to it.
 
 \onecolumn
 
 \begin{figure}[hbt]
   \centering
+  \includegraphics[width=1.0\linewidth]{blake-pk-li.pdf}
+  \caption{SKX high-scale pack study. Yellow=pk16}
+\end{figure}
+
+\begin{figure}[hbt]
+  \centering
+  \includegraphics[width=1.0\linewidth]{high-scale-li.pdf}
+  \caption{High-scale linear interpolation}
+\end{figure}
+
+\begin{figure}[hbt]
+  \centering
   \includegraphics[width=1.0\linewidth]{final-li.pdf}
+  \caption{Normal-scale linear interpolation}
 \end{figure}
 
 \begin{figure}[hbt]
   \centering
   \includegraphics[width=1.0\linewidth]{final-setup.pdf}
+  \caption{Normal-scale setup}
 \end{figure}
 
 \begin{figure}[hbt]
   \centering
   \includegraphics[width=1.0\linewidth]{final-total.pdf}
+  \caption{Normal-scale overall}
 \end{figure}
 
 \end{document}
