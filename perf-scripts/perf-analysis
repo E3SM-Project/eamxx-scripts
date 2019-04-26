@@ -8,7 +8,7 @@ expected that this will be run from micro-apps directory.
 from utils import expect, check_minimum_python_version
 check_minimum_python_version(3, 4)
 
-import argparse, sys, os
+import argparse, sys, os, socket
 from collections import OrderedDict
 
 from perf_analysis import PerfAnalysis, ScalingExp
@@ -60,6 +60,8 @@ OR
 
     parser.add_argument("-T", "--force-threads", type=int, help="Override the machine default for threads.")
 
+    parser.add_argument("-m", "--machine", default=socket.gethostname(), help="Manually set machine. Defaults to hostname.")
+
     args = parser.parse_args(args[1:])
 
     expect(args.kokkos, "--kokkos is currently required")
@@ -77,9 +79,9 @@ OR
         argmap[argname] = float(starting_val) if "." in starting_val else int(starting_val)
 
     if args.scaling is None:
-        scaling_exp = ScalingExp(argmap, args.force_threads, "{}:2.0:{}".format(list(argmap.keys())[0], list(argmap.values())[0]))
+        scaling_exp = ScalingExp(argmap, args.force_threads, "{}:2.0:{}".format(list(argmap.keys())[0], list(argmap.values())[0]), args.machine)
     else:
-        scaling_exp = ScalingExp(argmap, args.force_threads, args.scaling)
+        scaling_exp = ScalingExp(argmap, args.force_threads, args.scaling, args.machine)
         expect(not (scaling_exp.varname == "threads" and args.force_threads is None),
                "Need to set --force-threads if doing a threading scaling experiment")
 

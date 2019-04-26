@@ -6,7 +6,7 @@ import os, tempfile, re, socket
 class ScalingExp(object):
 ###############################################################################
 
-    def __init__(self, argmap, threads, arg_str):
+    def __init__(self, argmap, threads, arg_str, machine):
         try:
             self.varname, self.scale_factor, self.upper_limit = arg_str.split(":")
             self.scale_factor = float(self.scale_factor)
@@ -19,6 +19,7 @@ class ScalingExp(object):
             setattr(self, name, val)
 
         self.threads = threads
+        self.machine = machine
 
         expect(self.varname in dir(self), "Unknown varname '{}'".format(self.varname))
 
@@ -55,7 +56,7 @@ class ScalingExp(object):
 
         st, out, _ = run_cmd("git rev-parse --short HEAD")
         git_commit = out if st == 0 else "Unknown"
-        print("{} machine={} commit={}".format(prov_msg, socket.gethostname().split(".")[0], git_commit))
+        print("{} machine={} commit={}".format(prov_msg, self.machine, git_commit))
 
         for test_name, test_results in results.items():
             print(test_name, self.varname)
@@ -68,7 +69,7 @@ class PerfAnalysis(object):
 ###############################################################################
 
     ###########################################################################
-    def __init__(self, argmap, force_threads, num_runs, tests, cmake_options, use_existing, scaling_exp, plot_friendly):
+    def __init__(self, argmap, force_threads, num_runs, tests, cmake_options, use_existing, scaling_exp, plot_friendly, machine):
     ###########################################################################
         self._argmap        = argmap
         self._force_threads = force_threads
@@ -78,6 +79,7 @@ class PerfAnalysis(object):
         self._use_existing  = use_existing
         self._scaling_exp   = scaling_exp
         self._plot_friendly = plot_friendly
+        self._machine       = machine
 
     ###############################################################################
     def build(self):
@@ -203,10 +205,8 @@ class PerfAnalysis(object):
     ###############################################################################
     def test_specific_init(self, exename, force_threads):
     ###############################################################################
-        host = socket.gethostname()
-
         # This appears to be slower with 48
-        #if "blake" in host and exename == "p3_ref":
+        #if self._machine == "blake" and exename == "p3_ref":
         #    os.environ["OMP_NUM_THREADS"] = "48"
 
         if force_threads:
@@ -215,16 +215,19 @@ class PerfAnalysis(object):
     ###############################################################################
     def machine_specific_init(self, force_threads=None):
     ###############################################################################
-        host = socket.gethostname()
         force_threads = self._force_threads if force_threads is None else force_threads
 
-        if "bowman" in host:
+        if self._machine == "bowman":
             os.environ["KMP_AFFINITY"] = "balanced,granularity=fine"
             os.environ["OMP_NUM_THREADS"] = "272"
             os.environ["NUMA_PREFIX"] = "numactl -i 1"
-        elif "blake" in host:
+        elif self._machine == "blake":
             os.environ["KMP_AFFINITY"] = "balanced,granularity=fine"
             os.environ["OMP_NUM_THREADS"] = "96"
+        elif self._machine in ["white", "waterman", "melvin"]:
+            pass
+        else:
+            print("WARNING: Unrecognized machine {}".format(self._machine))
 
         if force_threads:
             os.environ["OMP_NUM_THREADS"] = str(force_threads)
