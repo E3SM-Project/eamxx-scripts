@@ -64,14 +64,24 @@ class TestAllScream(object):
             run_cmd_no_fail("git checkout {}".format(self._baseline))
             print("  Switched to {}".format(get_current_commit()))
 
-        run_cmd_no_fail("{} ..".format(cmake_config), arg_stdout=None, arg_stderr=None, verbose=True)
-        run_cmd_no_fail("make -j8 && make baseline", arg_stdout=None, arg_stderr=None, verbose=True)
+        # We cannot just crash if we fail to generate baselines, since we would
+        # not get a dashboard report if we did that. Instead, just ensure there is
+        # no baseline file to compare against if there's a problem.
+        stat, _, err = run_cmd("{} ..".format(cmake_config), arg_stdout=None, arg_stderr=None, verbose=True)
+        if stat == 0:
+            stat, _, err = run_cmd("make -j8 && make baseline", arg_stdout=None, arg_stderr=None, verbose=True)
+
+        if stat != 0:
+            print("WARNING: Failed to create baselines:\n{}".format(err))
 
         baseline_files = run_cmd_no_fail('find . -name "*baseline*" -type f').split()
         datas = []
         for baseline_file in baseline_files:
-            with open(baseline_file, "rb") as fd:
-                datas.append(fd.read())
+            if stat == 0:
+                with open(baseline_file, "rb") as fd:
+                    datas.append(fd.read())
+            else:
+                os.remove(baseline_file)
 
         if self._baseline is not None:
             run_cmd_no_fail("git checkout {}".format(git_head))
