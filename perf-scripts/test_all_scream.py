@@ -130,16 +130,18 @@ class TestAllScream(object):
             os.chdir("ctest-build")
 
             # A full debug test
-            success &= self.run_test([("CMAKE_BUILD_TYPE", "Debug")], [], "full_debug", git_head)
+            success &= self.run_test([("CMAKE_BUILD_TYPE", "Debug")],
+                                     [], "full_debug", git_head)
+
+            # A full debug single precision
+            success &= self.run_test([("CMAKE_BUILD_TYPE", "Debug"), ("SCREAM_DOUBLE_PRECISION", "False")],
+                                     [], "full_sp_debug", git_head)
 
             # A full debug test with packsize=1 and FPE
             if self._machine not in ["waterman", "white"]:
                 success &= self.run_test([("CMAKE_BUILD_TYPE", "Debug"), ("SCREAM_PACK_SIZE", "1"), ("SCREAM_SMALL_PACK_SIZE", "1")],
                                          [], "debug_nopack_fpe", git_head)
 
-            # A single precision build
-            success &= self.run_test([("CMAKE_BUILD_TYPE", "Debug"), ("SCREAM_DOUBLE_PRECISION", "False")],
-                                     [("BUILD_ONLY", "True")], "debug_sp_bld", git_head)
         finally:
             if self._baseline is not None:
                 run_cmd_no_fail("git checkout {}".format(git_head))

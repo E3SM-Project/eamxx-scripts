@@ -24,12 +24,8 @@ OR
 
 \033[1mEXAMPLES:\033[0m
     \033[1;32m# Run all tests on current machine \033[0m
-    > cd $scream_repo/components/scream -m melvin
-    > ~/scream-docs/perf-scripts/test-all-scream $(which mpicxx)
-
-    \033[1;32m# Run all tests on current machine and submit to dashboard \033[0m
     > cd $scream_repo/components/scream
-    > ~/scream-docs/perf-scripts/test-all-scream $(which mpicxx) -m melvin -s
+    > ~/scream-docs/perf-scripts/test-all-scream $(which mpicxx) -m melvin
 """.format(os.path.basename(args[0])),
         description=description,
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
