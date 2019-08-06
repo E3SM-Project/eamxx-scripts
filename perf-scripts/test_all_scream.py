@@ -41,7 +41,7 @@ class TestAllScream(object):
         if self._submit:
             result += "CIME_MACHINE={} ".format(self._machine)
 
-        result += "ctest "
+        result += "ctest -V "
 
         if not self._submit:
             result += "-DNO_SUBMIT=True "
