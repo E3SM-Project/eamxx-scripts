@@ -67,9 +67,19 @@ class TestAllScream(object):
         # We cannot just crash if we fail to generate baselines, since we would
         # not get a dashboard report if we did that. Instead, just ensure there is
         # no baseline file to compare against if there's a problem.
-        stat, _, err = run_cmd("{} ..".format(cmake_config), arg_stdout=None, arg_stderr=None, verbose=True)
+        stat, _, err = run_cmd("{} ..".format(cmake_config), verbose=True)
         if stat == 0:
-            stat, _, err = run_cmd("make -j8 && make baseline", arg_stdout=None, arg_stderr=None, verbose=True)
+            proc_count = None
+            if "CTEST_PARALLEL_LEVEL" in os.environ:
+                try:
+                    proc_count = int(os.environ["CTEST_PARALLEL_LEVEL"])
+                except ValueError:
+                    pass
+
+            if not proc_count:
+                proc_count = 8 # Default
+
+            stat, _, err = run_cmd("make -j{} && make baseline".format(proc_count), verbose=True)
 
         if stat != 0:
             print("WARNING: Failed to create baselines:\n{}".format(err))
