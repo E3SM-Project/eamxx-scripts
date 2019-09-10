@@ -112,7 +112,8 @@ class TestAllScream(object):
             filepaths, datas = self.generate_baselines(cmake_config, git_head)
             run_cmd_no_fail("/bin/rm -rf *") # Clean out baseline build
             for filepath, data in zip(filepaths, datas):
-                run_cmd_no_fail("install -D /dev/null {}".format(filepath))
+                if not os.path.isdir(os.path.dirname(filepath)):
+                    os.makedirs(os.path.dirname(filepath))
                 with open(filepath, "wb") as fd:
                     fd.write(data)
 
