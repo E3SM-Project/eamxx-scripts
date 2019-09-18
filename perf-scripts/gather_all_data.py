@@ -17,11 +17,11 @@ MACHINE_METADATA = {
                   "$(which mpicxx)",
                   "/ascldap/users/jgfouca/kokkos-install-blake/install",
                   "srun"),
-    "waterman" : (["module purge && module load devpack/latest/openmpi/2.1.2/gcc/7.2.0/cuda/9.2.88 git/2.10.1", "module switch cmake/3.12.3", "export PATH=/ascldap/users/jgfouca/packages/Python-3.6.8-waterman/bin:$PATH"],
+    "waterman" : (["module purge && module load devpack/latest/openmpi/2.1.2/gcc/7.2.0/cuda/9.2.88 git/2.10.1", "module switch cmake/3.12.3", "export PATH=/ascldap/users/jgfouca/packages/Python-3.6.8-waterman/bin:$PATH", "export OMPI_CXX=/ascldap/users/jgfouca/kokkos-install/install/bin/nvcc_wrapper"],
                   "$(which mpicxx)",
                   "/ascldap/users/jgfouca/kokkos-install/install",
                   "bsub -I -q rhel7W"),
-    "white"    : (["module purge && module load devpack/20181011/openmpi/2.1.2/gcc/7.2.0/cuda/9.2.88 git/2.10.1 cmake/3.12.3", "export PATH=/ascldap/users/jgfouca/packages/Python-3.6.8-white/bin:$PATH"],
+    "white"    : (["module purge && module load devpack/20181011/openmpi/2.1.2/gcc/7.2.0/cuda/9.2.88 git/2.10.1 cmake/3.12.3", "export PATH=/ascldap/users/jgfouca/packages/Python-3.6.8-white/bin:$PATH", "export OMPI_CXX=/ascldap/users/jgfouca/kokkos-install-white/install/bin"],
                   "$(which mpicxx)",
                   "/ascldap/users/jgfouca/kokkos-install-white/install",
                   "bsub -I -q rhel7G"),
@@ -70,7 +70,7 @@ class GatherAllData(object):
 
         setup = "cd {} && git fetch && git reset --hard origin/master && ".format(scream_docs_repo) if (self._scream and not self._local) else ""
         extra_env = ""
-        if machine in ["waterman", "white"]:
+        if machine in ["waterman", "white"] and "OMPI_CXX" not in " ".join(env_setup):
             extra_env = "OMPI_CXX={}/bin/nvcc_wrapper ".format(kokkos_loc)
         else:
             extra_env = "OMP_PROC_BIND=FALSE "
