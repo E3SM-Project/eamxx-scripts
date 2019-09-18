@@ -21,7 +21,7 @@ MACHINE_METADATA = {
                   "$(which mpicxx)",
                   "/ascldap/users/jgfouca/kokkos-install/install",
                   "bsub -I -q rhel7W"),
-    "white"    : (["module purge && module load devpack/20181011/openmpi/2.1.2/gcc/7.2.0/cuda/9.2.88 git/2.10.1 cmake/3.12.3", "export PATH=/ascldap/users/jgfouca/packages/Python-3.6.8-white/bin:$PATH", "export OMPI_CXX=/ascldap/users/jgfouca/kokkos-install-white/install/bin"],
+    "white"    : (["module purge && module load devpack/20181011/openmpi/2.1.2/gcc/7.2.0/cuda/9.2.88 git/2.10.1 cmake/3.12.3", "export PATH=/ascldap/users/jgfouca/packages/Python-3.6.8-white/bin:$PATH", "export OMPI_CXX=/ascldap/users/jgfouca/kokkos-install-white/install/bin/nvcc_wrapper"],
                   "$(which mpicxx)",
                   "/ascldap/users/jgfouca/kokkos-install-white/install",
                   "bsub -I -q rhel7G"),
