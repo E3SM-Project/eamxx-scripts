@@ -46,6 +46,8 @@ OR
 
     parser.add_argument("-f", "--font", type=int, default=14, help="Set font")
 
+    parser.add_argument("-w", "--line-width", type=int, default=3, help="Set font")
+
     parser.add_argument("-l", "--log-x", action="store_true", help="Label the X axis with log values")
 
     parser.add_argument("-L", "--log-y", action="store_true", help="Label the Y axis with log values")
@@ -99,7 +101,7 @@ def applies_to_line(match_list, line_label):
 class Plotter(object):
 ###############################################################################
 
-    def __init__(self, datafiles, dashed, dotted, no_legend, font, log_x, log_y, tests, save, varname_map):
+    def __init__(self, datafiles, dashed, dotted, no_legend, font, line_width, log_x, log_y, tests, save, varname_map):
         # plt.rcParams.update({'font.size': font})
         # axis_tight_pad()
 
@@ -121,6 +123,7 @@ class Plotter(object):
         self._max_x             = 0
         self._tests             = tests
         self._font              = font
+        self._line_width        = line_width
         self._save              = save
         self._no_legend         = no_legend
 
@@ -213,7 +216,7 @@ class Plotter(object):
     def plot_line(self, xs, ys, line_label, testname):
         if not(self._tests) or testname in self._tests:
             line_label = "{} {}".format(self.get_display_name(testname), line_label)
-            plt.plot(xs, ys, self.get_line_format(line_label), lw=2, label=line_label, linewidth=3)
+            plt.plot(xs, ys, self.get_line_format(line_label), lw=2, label=line_label, linewidth=self._line_width)
 
     def plot_all(self):
         for datafile in self._datafiles:
