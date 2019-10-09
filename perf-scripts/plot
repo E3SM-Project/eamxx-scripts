@@ -23,6 +23,14 @@ OR
 \033[1mEXAMPLES:\033[0m
     \033[1;32m# Plot data file \033[0m
     > {0} data
+
+\033[1mEXAMPLES:\033[0m
+    \033[1;32m# Plot data for multiple architectures \033[0m
+    > {0} blake bowman waterman  -d Fortran -D Initial
+
+\033[1mEXAMPLES:\033[0m
+    \033[1;32m# Very stripped-down plot for all key archs \033[0m
+    > {0} blake bowman waterman  -d Fortran -t ref -t final -v blake:CPU -v waterman:GPU -v threads: -v final:C++/Kokkos -f 28
 """.format(os.path.basename(args[0])),
         description=description,
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
@@ -30,9 +38,9 @@ OR
 
     parser.add_argument("datafiles", nargs="+", help="Data file to plot")
 
-    parser.add_argument("-d", "--dashed", action="append", help="Specify items associated with this value should be dashed")
+    parser.add_argument("-d", "--dashed", action="append", default=[], help="Specify items associated with this value should be dashed")
 
-    parser.add_argument("-D", "--dotted", action="append", help="Specify items associated with this value should be dotted")
+    parser.add_argument("-D", "--dotted", action="append", default=[], help="Specify items associated with this value should be dotted")
 
     parser.add_argument("-n", "--no-legend", action="store_true", help="Do not produce legend")
 
@@ -46,9 +54,11 @@ OR
 
     parser.add_argument("-s", "--save", help="Instead of showing the plot, save to this file")
 
+    parser.add_argument("-v", "--varname-map", action="append", default=[], help="Override how script displays this varname, format=basename:newname , blank implies don't show it at all")
+
     args = parser.parse_args(args[1:])
 
-    return args.datafiles, args.dashed, args.dotted, args.no_legend, args.font, args.log_x, args.log_y, args.tests, args.save
+    return args
 
 ###############################################################################
 def pad_lim(lim, pad=0.05, mult=False):
@@ -79,10 +89,9 @@ def subtle_grid():
 ###############################################################################
 def applies_to_line(match_list, line_label):
 ###############################################################################
-    if match_list:
-        for item in match_list:
-            if item in line_label:
-                return True
+    for item in match_list:
+        if item in line_label:
+            return True
 
     return False
 
@@ -90,11 +99,14 @@ def applies_to_line(match_list, line_label):
 class Plotter(object):
 ###############################################################################
 
-    def __init__(self, datafiles, font, log_x, log_y, tests, save):
+    def __init__(self, datafiles, dashed, dotted, no_legend, font, log_x, log_y, tests, save, varname_map):
         # plt.rcParams.update({'font.size': font})
         # axis_tight_pad()
         subtle_grid()
 
+        self._datafiles         = datafiles
+        self._dashed            = dashed
+        self._dotted            = dotted
         self._scaling_var       = None
         self._scaling_factor    = None
         self._consistent        = OrderedDict()
@@ -104,10 +116,6 @@ class Plotter(object):
         self._dashed_colors     = list(self._avail_colors)
         self._dotted_colors     = list(self._avail_colors)
         self._mach_color_map    = {}
-        self._var_longname_map  = {"ni" : "Number of columns per node", "nk" : "Number of vertical levels", "dt" : "Time step", "ts" : "Number of time steps",
-                                   "threads" : "Threads"}
-        self._test_longname_map = {"ref" : "Fortran", "vanilla" : "Initial Kokkos", "final" : "Final Kokkos"}
-        self._mach_longname_map = {"bowman" : "KNL", "blake" : "Skylake", "waterman" : "Nvidia_V100"}
         self._log_x             = log_x
         self._log_y             = log_y
         self._min_x             = sys.maxsize
@@ -115,6 +123,33 @@ class Plotter(object):
         self._tests             = tests
         self._font              = font
         self._save              = save
+        self._no_legend         = no_legend
+
+        # How to refer to things in the plot
+        self._display_name_map  = {
+            "ni" : "Number of columns per node",
+            "nk" : "Number of vertical levels",
+            "dt" : "Time step",
+            "ts" : "Number of time steps",
+            "threads" : "Threads",
+            "ref" : "Fortran",
+            "vanilla" : "Initial Kokkos",
+            "final" : "Final Kokkos",
+            "bowman" : "KNL",
+            "blake" : "Skylake",
+            "waterman" : "Nvidia_V100",
+            "commit" : ""}
+
+        for varname_display_chg in varname_map:
+            try:
+                orig_name, new_name = varname_display_chg.split(":")
+            except Exception:
+                expect(False, "Incorrect varname_map format, expect X:Y, got {}".format(varname_display_chg))
+
+            expect(orig_name in self._display_name_map,
+                   "{} is not something you can override, expected one of {}".format(orig_name, ", ".join(self._display_name_map.keys())))
+
+            self._display_name_map[orig_name] = new_name
 
         for datafile in datafiles:
             with open(datafile, "r") as fd:
@@ -150,43 +185,44 @@ class Plotter(object):
 
         title = []
         for key, value in self._consistent.items():
-            if key != "commit":
-                title.append("{}={}".format(self.get_var_longname(key), value))
+            display_name = self.get_display_name(key)
+            if display_name:
+                title.append("{}={}".format(self.get_display_name(key), value))
 
         self._title = "\n".join(title)
 
-    def get_var_longname(self, var):
-        return self._var_longname_map[var] if var in self._var_longname_map else var
+    def get_display_name(self, var):
+        return self._display_name_map[var] if var in self._display_name_map else var
 
-    def get_test_longname(self, test):
-        return self._test_longname_map[test] if test in self._test_longname_map else test.capitalize()
-
-    def get_mach_longname(self, machine):
-        return self._mach_longname_map[machine] if machine in self._mach_longname_map else machine.capitalize()
-
-    def get_line_format(self, line_label, dashed, dotted):
-        dash_line = applies_to_line(dashed, line_label)
-        dot_line  = applies_to_line(dotted, line_label)
+    def get_line_format(self, line_label):
+        dash_line = applies_to_line(self._dashed, line_label)
+        dot_line  = applies_to_line(self._dotted, line_label)
         try:
             if dash_line:
-                color = self._dashed_colors.pop()
+                color = self._dashed_colors.pop(0)
                 expect(not dot_line, "Ambiguous line format for '{}', matched both dashed and dotted".format(line_label))
                 return "{}--".format(color)
             elif dot_line:
-                color = self._dotted_colors.pop()
+                color = self._dotted_colors.pop(0)
                 return "{}:".format(color)
             else:
-                color = self._avail_colors.pop()
+                color = self._avail_colors.pop(0)
                 return "{}-".format(color)
         except IndexError:
             expect(False, "Ran out of usable colors. Please use dashes or dots to differentiate categories of data")
 
-    def plot_line(self, xs, ys, line_label, testname, dashed, dotted):
-        if not (self._tests and testname not in self._tests):
-            line_label = "{} {}".format(self.get_test_longname(testname), line_label)
-            plt.plot(xs, ys, self.get_line_format(line_label, dashed, dotted), lw=2, label=line_label, linewidth=3)
+    def plot_line(self, xs, ys, line_label, testname):
+        if not(self._tests) or testname in self._tests:
+            line_label = "{} {}".format(self.get_display_name(testname), line_label)
+            plt.plot(xs, ys, self.get_line_format(line_label), lw=2, label=line_label, linewidth=3)
 
-    def plotdata(self, datafile, dashed, dotted):
+    def plot_all(self):
+        for datafile in self._datafiles:
+            self.plotdata(datafile)
+
+        self.finalize()
+
+    def plotdata(self, datafile):
         xs, ys = [], []
         testname = None
         line_label = ""
@@ -199,18 +235,20 @@ class Plotter(object):
                     prov_dict = dict([item.split("=") for item in line.split()[1:] if not item.endswith("=None")])
                     if "machine" in self._inconsistent:
                         machine = prov_dict["machine"]
-                        line_label = "on {}".format(self.get_mach_longname(machine))
+                        line_label = "on {}".format(self.get_display_name(machine))
                         del prov_dict["machine"]
 
                     if prov_dict:
                         first = True
                         for key, value in prov_dict.items():
                             if key in self._inconsistent:
-                                if first:
-                                    line_label += ","
-                                    first = False
+                                display_name = self.get_display_name(key).lower()
+                                if display_name:
+                                    if first:
+                                        line_label += ","
+                                        first = False
 
-                                line_label += " {} {}".format(value, self.get_var_longname(key).lower())
+                                    line_label += " {} {}".format(value, display_name)
 
                 elif "," in line:
                     x, y = [float(item) for item in line.split(", ")]
@@ -224,36 +262,36 @@ class Plotter(object):
 
                 elif line != "":
                     if xs:
-                        self.plot_line(xs, ys, line_label, testname, dashed, dotted)
+                        self.plot_line(xs, ys, line_label, testname)
                         xs = []
                         ys = []
 
                     testname, xlabel = line.split()
                     expect(xlabel == self._scaling_var, "Bad file {}".format(datafile))
 
-        self.plot_line(xs, ys, line_label, testname, dashed, dotted)
+        self.plot_line(xs, ys, line_label, testname)
 
-    def finalize(self, no_legend):
+    def finalize(self):
         subtle_grid()
         plt.title(self._title, fontsize=self._font)
 
         if self._log_x:
             log_base_str = str(int(self._scaling_factor)) if self._scaling_factor.is_integer() else "{:.2f}".format(self._scaling_factor)
-            plt.xlabel(r"$\log_{}$ {}".format(log_base_str, self.get_var_longname(self._scaling_var)), fontsize=self._font)
+            plt.xlabel(r"$\log_{}$ {}".format(log_base_str, self.get_display_name(self._scaling_var)), fontsize=self._font)
         else:
             distance = int(round(math.log(self._max_x / self._min_x, self._scaling_factor)))
             start = int(round(math.log(self._min_x, self._scaling_factor)))
             plt.xticks(ticks=list(range(start, start+distance+1)),
                        labels=[str(int(round(pow(self._scaling_factor, item)))) for item in range(start, start+distance+1)],
                        rotation=45, fontsize=self._font - 4)
-            plt.xlabel(self.get_var_longname(self._scaling_var), fontsize=self._font)
+            plt.xlabel(self.get_display_name(self._scaling_var), fontsize=self._font)
 
         if self._log_y:
             plt.ylabel("Log2 of columns per second", fontsize=self._font)
         else:
             plt.ylabel("Thousands of columns per second", fontsize=self._font)
         plt.yticks(fontsize=self._font - 4)
-        if not no_legend:
+        if not self._no_legend:
             plt.legend(loc=2, framealpha=0, fontsize=self._font - 4)
 
         if self._save is None:
@@ -264,14 +302,9 @@ class Plotter(object):
 ###############################################################################
 def _main_func(description):
 ###############################################################################
-    datafiles, dashed, dotted, no_legend, font, log_x, log_y, tests, save = parse_command_line(sys.argv, description)
+    plotter = Plotter(**vars(parse_command_line(sys.argv, description)))
 
-    plotter = Plotter(datafiles, font, log_x, log_y, tests, save)
-
-    for datafile in datafiles:
-        plotter.plotdata(datafile, dashed, dotted)
-
-    plotter.finalize(no_legend)
+    plotter.plot_all()
 
 ###############################################################################
 
