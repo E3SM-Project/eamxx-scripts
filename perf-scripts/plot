@@ -102,7 +102,6 @@ class Plotter(object):
     def __init__(self, datafiles, dashed, dotted, no_legend, font, log_x, log_y, tests, save, varname_map):
         # plt.rcParams.update({'font.size': font})
         # axis_tight_pad()
-        subtle_grid()
 
         self._datafiles         = datafiles
         self._dashed            = dashed
@@ -273,7 +272,8 @@ class Plotter(object):
 
     def finalize(self):
         subtle_grid()
-        plt.title(self._title, fontsize=self._font)
+        if (self._title):
+            plt.title(self._title, fontsize=self._font)
 
         if self._log_x:
             log_base_str = str(int(self._scaling_factor)) if self._scaling_factor.is_integer() else "{:.2f}".format(self._scaling_factor)
