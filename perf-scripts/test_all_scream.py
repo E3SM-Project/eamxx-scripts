@@ -8,7 +8,7 @@ class TestAllScream(object):
 ###############################################################################
 
     ###########################################################################
-    def __init__(self, cxx, kokkos, submit, baseline, machine, custom_cmake_opts):
+    def __init__(self, cxx, kokkos, submit, baseline, machine, custom_cmake_opts, tests):
     ###########################################################################
         self._cxx               = cxx
         self._kokkos            = kokkos
@@ -16,6 +16,7 @@ class TestAllScream(object):
         self._baseline          = baseline
         self._machine           = machine
         self._custom_cmake_opts = custom_cmake_opts
+        self._tests             = tests
 
     ###############################################################################
     def generate_cmake_config(self, extra_configs):
@@ -41,7 +42,7 @@ class TestAllScream(object):
         if self._submit:
             result += "CIME_MACHINE={} ".format(self._machine)
 
-        result += "ctest -V "
+        result += "ctest -V --output-on-failure "
 
         if not self._submit:
             result += "-DNO_SUBMIT=True "
@@ -141,17 +142,20 @@ class TestAllScream(object):
             os.chdir("ctest-build")
 
             # A full debug test
-            success &= self.run_test([("CMAKE_BUILD_TYPE", "Debug")],
-                                     [], "full_debug", git_head)
+            if not self._tests or "dbg" in self._tests:
+                success &= self.run_test([("CMAKE_BUILD_TYPE", "Debug")],
+                                         [], "full_debug", git_head)
 
             # A full debug single precision
-            success &= self.run_test([("CMAKE_BUILD_TYPE", "Debug"), ("SCREAM_DOUBLE_PRECISION", "False")],
-                                     [], "full_sp_debug", git_head)
+            if not self._tests or "sp" in self._tests:
+                success &= self.run_test([("CMAKE_BUILD_TYPE", "Debug"), ("SCREAM_DOUBLE_PRECISION", "False")],
+                                         [], "full_sp_debug", git_head)
 
             # A full debug test with packsize=1 and FPE
-            if self._machine not in ["waterman", "white"]:
-                success &= self.run_test([("CMAKE_BUILD_TYPE", "Debug"), ("SCREAM_PACK_SIZE", "1"), ("SCREAM_SMALL_PACK_SIZE", "1")],
-                                         [], "debug_nopack_fpe", git_head)
+            if not self._tests or "fpe" in self._tests:
+                if self._machine not in ["waterman", "white"]:
+                    success &= self.run_test([("CMAKE_BUILD_TYPE", "Debug"), ("SCREAM_PACK_SIZE", "1"), ("SCREAM_SMALL_PACK_SIZE", "1")],
+                                             [], "debug_nopack_fpe", git_head)
 
         finally:
             if self._baseline is not None:

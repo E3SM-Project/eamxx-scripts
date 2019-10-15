@@ -46,6 +46,9 @@ OR
     parser.add_argument("-c", "--custom-cmake-opts",
                         help="Extra custom options to pass to cmake")
 
+    parser.add_argument("-t", "--test", dest="tests", action="append", default=[],
+                        help="Only run specific test configurations, choices='dbg' (debug), 'sp' (single-prec), 'fpe' (floating-point exceptions)")
+
     args = parser.parse_args(args[1:])
 
     expect(os.getcwd().endswith("components/scream"), "Run from $scream_repo/components/scream")
