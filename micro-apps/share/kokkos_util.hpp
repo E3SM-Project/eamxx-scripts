@@ -4,10 +4,13 @@
 #include "types.hpp"
 #include "scream_assert.hpp"
 #include "scream_arch.hpp"
+#include "micro_kokkos.hpp"
 
 #ifdef _OPENMP
 # include <omp.h>
 #endif
+
+#include <chrono>
 
 namespace util {
 
@@ -77,7 +80,7 @@ class _TeamUtilsCommonBase
   template <typename TeamPolicy>
   _TeamUtilsCommonBase(const TeamPolicy& policy) : _team_size(0)
   {
-    _max_threads = ExeSpace::concurrency();
+    _max_threads = ExeSpace::concurrency() / ( (!is_single_precision<Real>::value && OnGpu<ExeSpace>::value) ? 2 : 1);
     const int team_size = policy.team_size();
     _num_teams = _max_threads / team_size;
     _team_size = _max_threads / _num_teams;
@@ -142,9 +145,17 @@ class TeamUtils<Kokkos::Cuda> : public _TeamUtilsCommonBase<Kokkos::Cuda>
   using Device = Kokkos::Device<Kokkos::Cuda, typename Kokkos::Cuda::memory_space>;
   using flag_type = int; // this appears to be the smallest type that correctly handles atomic operations
   using view_1d = typename KokkosTypes<Device>::view_1d<flag_type>;
+#ifdef WS_RANDOM
+  using RandomGenerator = Kokkos::Random_XorShift64_Pool<Kokkos::Cuda>;
+  using rnd_type = typename RandomGenerator::generator_type;
+#endif
 
   bool    _need_ws_sharing; // true if there are more teams in the policy than can be run concurrently
   view_1d _open_ws_slots;   // indexed by ws-idx, true if in current use, else false
+
+#ifdef WS_RANDOM
+  RandomGenerator _rand_pool;
+#endif
 
  public:
   template <typename TeamPolicy>
@@ -152,6 +163,9 @@ class TeamUtils<Kokkos::Cuda> : public _TeamUtilsCommonBase<Kokkos::Cuda>
     _TeamUtilsCommonBase<Kokkos::Cuda>(policy),
     _need_ws_sharing(policy.league_size() > _num_teams),
     _open_ws_slots("open_ws_slots", _need_ws_sharing ? _num_teams : 0)
+#ifdef WS_RANDOM
+    , _rand_pool(std::chrono::high_resolution_clock::now().time_since_epoch().count())
+#endif
   { }
 
   template <typename MemberType>
@@ -164,10 +178,16 @@ class TeamUtils<Kokkos::Cuda> : public _TeamUtilsCommonBase<Kokkos::Cuda>
     else {
       int ws_idx = 0;
       Kokkos::single(Kokkos::PerTeam(team_member), [&] () {
+#ifdef WS_RANDOM
+        rnd_type rand_gen = _rand_pool.get_state(team_member.league_rank());
+#endif
         ws_idx = team_member.league_rank() % _num_teams;
         while (!Kokkos::atomic_compare_exchange_strong(&_open_ws_slots(ws_idx), (flag_type) 0, (flag_type)1)) {
-          // or random?
+#ifdef WS_RANDOM
+          ws_idx = Kokkos::rand<rnd_type, int>::draw(rand_gen) % _num_teams;
+#else
           ws_idx = (ws_idx+1) % _num_teams;
+#endif
         }
       });
 
