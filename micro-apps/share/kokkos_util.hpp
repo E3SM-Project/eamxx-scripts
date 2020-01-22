@@ -77,7 +77,7 @@ class _TeamUtilsCommonBase
   template <typename TeamPolicy>
   _TeamUtilsCommonBase(const TeamPolicy& policy) : _team_size(0)
   {
-    _max_threads = ExeSpace::concurrency() / ( (!is_single_precision<Real>::value && OnGpu<ExeSpace>::value) ? 2 : 1);
+    _max_threads = ExeSpace::concurrency();
     const int team_size = policy.team_size();
     _num_teams = _max_threads / team_size;
     _team_size = _max_threads / _num_teams;
