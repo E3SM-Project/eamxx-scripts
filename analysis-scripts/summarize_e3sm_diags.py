@@ -1,4 +1,6 @@
-import sys, string, copy, glob, os, json, argparse, textwrap
+#!/usr/bin/env python
+
+import sys, string, copy, glob, os, json, argparse, textwrap, functools
 import matplotlib
 matplotlib.use('AGG')
 import matplotlib.pyplot as pl
@@ -6,7 +8,7 @@ import matplotlib.pyplot as pl
 def is_none(a): return a == None
 def is_empty(a): return len(a) == 0
 def is_zero(a): return a == 0
-def is_pod_number(n): return type(n) in (int, long, float)
+def is_pod_number(n): return type(n) in (int, float)
 def first(coll): return coll[0]
 def second(coll): return coll[1]
 def last(coll): return coll[-1]
@@ -31,7 +33,7 @@ def assoc_nested(d, keys, val):
     # Associate in a nested dict, creating new sub-dicts as needed.
     dn = d
     for key in keys[0:-1:]:
-        if not dn.has_key(key): dn[key] = {}
+        if not key in dn: dn[key] = {}
         dn = dn[key]
     dn[keys[-1]] = val
 
@@ -60,12 +62,12 @@ def dispfig(fn_prefix=None, format='pdf', tight=True):
         pl.savefig(fn_prefix + '.' + format, format=format, bbox_inches='tight')
 
 def my_grid():
-    pl.grid(True, lw=0.5, ls=u'-', color=(0.8, 0.8, 0.8), zorder=-1, which=u'both')
+    pl.grid(True, lw=0.5, ls='-', color=(0.8, 0.8, 0.8), zorder=-1, which='both')
     return pl.gca().set_axisbelow(True)
 
 def pad_lim(lim, pad=0.05, mult=False):
     if mult:
-       v = first(lim) * (1 - pad), second(lim) * (1 + pad)
+        v = first(lim) * (1 - pad), second(lim) * (1 + pad)
     else:
         d = second(lim) - first(lim)
         delta = pad * d
@@ -103,7 +105,7 @@ class ClimoPlotter:
             stuff = name.split('-')
             region = first(last(stuff).split('.'))
             timespan = stuff[-2]
-            name = reduce(lambda a, e: a + '-' + e, stuff[1:-2:])
+            name = functools.reduce(lambda a, e: a + '-' + e, stuff[1:-2:])
             with open(jfn, 'r') as fp:
                 d = json.load(fp)
                 assoc_nested(me.d, (name, region, timespan), d)
