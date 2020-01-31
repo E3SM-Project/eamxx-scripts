@@ -11,9 +11,9 @@ namespace util {
  */
 
 template <typename T, typename D>
-WorkspaceManager<T, D>::WorkspaceManager(int size, int max_used, TeamPolicy policy) :
-  m_tu(policy),
-  m_concurrent_teams(m_tu.get_num_concurrent_teams()),
+WorkspaceManager<T, D>::WorkspaceManager(int size, int max_used, TeamPolicy policy, const Real& overprov_factor) :
+  m_tu(policy, overprov_factor),
+  m_concurrent_teams(m_tu.get_num_ws_slots()),
   m_reserve( (sizeof(T) > 2*sizeof(int)) ? 1 :
              (2*sizeof(int) + sizeof(T) - 1)/sizeof(T) ),
   m_size(size),

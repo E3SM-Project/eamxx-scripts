@@ -92,6 +92,9 @@ class _TeamUtilsCommonBase
   // How many threads can run concurrently
   int get_max_concurrent_threads() const { return _max_threads; }
 
+  // How many ws slots are there
+  int get_num_ws_slots() const { return _num_teams; }
+
   /*
    * Of the C concurrently running teams, which "slot" is open
    * for the given team.
@@ -112,7 +115,8 @@ class TeamUtils : public _TeamUtilsCommonBase<ExeSpace>
 {
  public:
   template <typename TeamPolicy>
-  TeamUtils(const TeamPolicy& policy) : _TeamUtilsCommonBase<ExeSpace>(policy)
+  TeamUtils(const TeamPolicy& policy, const Real& = 1.0) :
+    _TeamUtilsCommonBase<ExeSpace>(policy)
   { }
 };
 
@@ -125,7 +129,8 @@ class TeamUtils<Kokkos::OpenMP> : public _TeamUtilsCommonBase<Kokkos::OpenMP>
 {
  public:
   template <typename TeamPolicy>
-  TeamUtils(const TeamPolicy& policy) : _TeamUtilsCommonBase<Kokkos::OpenMP>(policy)
+  TeamUtils(const TeamPolicy& policy, const Real& = 1.0) :
+    _TeamUtilsCommonBase<Kokkos::OpenMP>(policy)
   { }
 
   template <typename MemberType>
@@ -145,28 +150,26 @@ class TeamUtils<Kokkos::Cuda> : public _TeamUtilsCommonBase<Kokkos::Cuda>
   using Device = Kokkos::Device<Kokkos::Cuda, typename Kokkos::Cuda::memory_space>;
   using flag_type = int; // this appears to be the smallest type that correctly handles atomic operations
   using view_1d = typename KokkosTypes<Device>::view_1d<flag_type>;
-#ifdef WS_RANDOM
   using RandomGenerator = Kokkos::Random_XorShift64_Pool<Kokkos::Cuda>;
   using rnd_type = typename RandomGenerator::generator_type;
-#endif
 
-  bool    _need_ws_sharing; // true if there are more teams in the policy than can be run concurrently
-  view_1d _open_ws_slots;   // indexed by ws-idx, true if in current use, else false
-
-#ifdef WS_RANDOM
+  bool             _need_ws_sharing; // true if there are more teams in the policy than can be run concurrently
+  int              _num_ws_slots;    // how many workspace slots (potentially more than the num of concurrent teams due to overprovision factor)
+  view_1d         _open_ws_slots;    // indexed by ws-idx, true if in current use, else false
   RandomGenerator _rand_pool;
-#endif
 
  public:
   template <typename TeamPolicy>
-  TeamUtils(const TeamPolicy& policy) :
+  TeamUtils(const TeamPolicy& policy, const Real& overprov_factor = 1.25) :
     _TeamUtilsCommonBase<Kokkos::Cuda>(policy),
     _need_ws_sharing(policy.league_size() > _num_teams),
-    _open_ws_slots("open_ws_slots", _need_ws_sharing ? _num_teams : 0)
-#ifdef WS_RANDOM
-    , _rand_pool(std::chrono::high_resolution_clock::now().time_since_epoch().count())
-#endif
+    _num_ws_slots( _need_ws_sharing ? _num_teams * overprov_factor : _num_teams),
+    _open_ws_slots("open_ws_slots", _need_ws_sharing ? _num_ws_slots : 0),
+    _rand_pool(std::chrono::high_resolution_clock::now().time_since_epoch().count())
   { }
+
+  // How many ws slots are there
+  int get_num_ws_slots() const { return _num_ws_slots; }
 
   template <typename MemberType>
   KOKKOS_INLINE_FUNCTION
@@ -178,16 +181,10 @@ class TeamUtils<Kokkos::Cuda> : public _TeamUtilsCommonBase<Kokkos::Cuda>
     else {
       int ws_idx = 0;
       Kokkos::single(Kokkos::PerTeam(team_member), [&] () {
-#ifdef WS_RANDOM
         rnd_type rand_gen = _rand_pool.get_state(team_member.league_rank());
-#endif
-        ws_idx = team_member.league_rank() % _num_teams;
+        ws_idx = team_member.league_rank() % _num_ws_slots;
         while (!Kokkos::atomic_compare_exchange_strong(&_open_ws_slots(ws_idx), (flag_type) 0, (flag_type)1)) {
-#ifdef WS_RANDOM
-          ws_idx = Kokkos::rand<rnd_type, int>::draw(rand_gen) % _num_teams;
-#else
-          ws_idx = (ws_idx+1) % _num_teams;
-#endif
+          ws_idx = Kokkos::rand<rnd_type, int>::draw(rand_gen) % _num_ws_slots;
         }
       });
 
