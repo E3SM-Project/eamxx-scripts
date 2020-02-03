@@ -11,9 +11,9 @@ namespace util {
  */
 
 template <typename T, typename D>
-WorkspaceManager<T, D>::WorkspaceManager(int size, int max_used, TeamPolicy policy) :
-  m_tu(policy),
-  m_concurrent_teams(m_tu.get_num_concurrent_teams()),
+WorkspaceManager<T, D>::WorkspaceManager(int size, int max_used, TeamPolicy policy, const Real& overprov_factor) :
+  m_tu(policy, overprov_factor),
+  m_concurrent_teams(m_tu.get_num_ws_slots()),
   m_reserve( (sizeof(T) > 2*sizeof(int)) ? 1 :
              (2*sizeof(int) + sizeof(T) - 1)/sizeof(T) ),
   m_size(size),
@@ -96,6 +96,11 @@ WorkspaceManager<T, D>::get_workspace(const MemberType& team) const
 { return Workspace(*this, m_tu.get_workspace_idx(team), team); }
 
 template <typename T, typename D>
+KOKKOS_INLINE_FUNCTION
+void WorkspaceManager<T, D>::release_workspace(const MemberType& team, const Workspace& ws) const
+{ m_tu.release_workspace_idx(team, ws.m_ws_idx); }
+
+template <typename T, typename D>
 void WorkspaceManager<T, D>::init(const WorkspaceManager<T, D>& wm, const view_2d<T>& data,
                                   const int concurrent_teams, const int max_used, const int total)
 {
@@ -149,6 +154,13 @@ WorkspaceManager<T, D>::Workspace::Workspace(
   m_parent(parent), m_team(team), m_ws_idx(ws_idx),
   m_next_slot(parent.m_next_slot(m_pad_factor*ws_idx))
 {}
+
+template <typename T, typename D>
+KOKKOS_INLINE_FUNCTION
+WorkspaceManager<T, D>::Workspace::~Workspace()
+{
+  m_parent.release_workspace(m_team, *this);
+}
 
 template <typename T, typename D>
 template <typename S>

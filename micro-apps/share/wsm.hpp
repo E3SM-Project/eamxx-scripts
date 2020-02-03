@@ -76,7 +76,8 @@ class WorkspaceManager
   //   size: The number of T's per sub-block
   //   max_used: The maximum number of active sub-blocks
   //   policy: The team policy for Kokkos kernels using this WorkspaceManager
-  WorkspaceManager(int size, int max_used, TeamPolicy policy);
+  //   overprov_factor: How many workspace slots to overprovision on GPU
+  WorkspaceManager(int size, int max_used, TeamPolicy policy, const Real& overprov_factor=1.25);
 
   // call from host.
   //
@@ -91,6 +92,13 @@ class WorkspaceManager
   // Returns a Workspace object which provides access to sub-blocks.
   KOKKOS_INLINE_FUNCTION
   Workspace get_workspace(const MemberType& team) const;
+
+  // call from device
+  //
+  // Releases a Workspace object, should normally be called via the
+  // Workspace destructor.
+  KOKKOS_INLINE_FUNCTION
+  void release_workspace(const MemberType& team, const Workspace& ws) const;
 
   class Workspace {
    public:
@@ -147,6 +155,10 @@ class WorkspaceManager
     //
     // ---------- Private --------------
     //
+
+    // Not technically private, but not part of the API since the user won't call it directly
+    KOKKOS_INLINE_FUNCTION
+    ~Workspace();
 
 #ifndef KOKKOS_ENABLE_CUDA
    private:
