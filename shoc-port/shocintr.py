@@ -1,4 +1,4 @@
-import sys, os, math, ctypes, numpy as npy, copy
+import sys, os, math, ctypes, numpy as npy
 
 import matplotlib
 #matplotlib.use('AGG')
@@ -238,7 +238,7 @@ def set_uni_mesh(s, c, ztop):
 # forcings. Copy this class and fill in the functions with different numbers to
 # make other cases.
 #   WARNING: This case does *not* necessarily exercise every part of SHOC.
-class TestCase:
+class ExampleCase:
     def get_zref(me): return npy.array([0., 520, 1480, 2000, 3000])
 
     def get_ps(me): return 1015e2
@@ -302,8 +302,8 @@ class TestCase:
 
 # Given a case object and number of levels, initialize it with initial
 # conditions.
-def get_ics(testcase, nz):
-    tc = testcase
+def get_ics(case, nz):
+    tc = case
     s = Shoc(1,nz,1)
     s.dtime = 12
     s.host_dx[:] = 5300
@@ -322,7 +322,6 @@ def get_ics(testcase, nz):
 # Given a Shoc object, a Shoc::get_state object, or a collection of these, make
 # a grid of figures showing the basic quantities.
 def plot_basics(ss, filename):
-    first = True
     axs = []
     def _plot_basics(s, first):
         plotno = [1, 2, 3, 3, 4, 4, 4, 5, 5, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
@@ -344,7 +343,6 @@ def plot_basics(ss, filename):
                     label=name if first else None)
             if first: pl.legend(loc='best', fontsize=10)
             axis_tight_pad()
-        first = False
     
     if not is_coll(ss): ss = [ss]
     with pl_plot((16, 20), filename):
@@ -378,5 +376,4 @@ def devtest():
     s.test_lib()
     
 if __name__ == '__main__':
-    #devtest()
-    example_run_case(TestCase())
+    example_run_case(ExampleCase())
