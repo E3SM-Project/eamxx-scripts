@@ -1,16 +1,24 @@
 F90=gfortran
-F90FLAGS=-fPIC -O3
+CPP=g++
+
+CFLAGS=-fPIC -O3
+#CFLAGS=-fPIC -g -O0 -DWITH_FPE
+
 LDFLAGS=-shared
 
 .SUFFIXES: .cpp .F90 .o
 
+CPP_SRC = fpe.cpp
 F90_SRC = shoc.F90 shoc_c_intr.F90
-OBJECTS = $(F90_SRC:.F90=.o)
+OBJECTS = $(F90_SRC:.F90=.o) $(CPP_SRC:.cpp=.o)
 
 %.o: %.mod
 
+.cpp.o:
+	$(CXX) $(CFLAGS) -c $< -o $@
+
 .F90.o:
-	$(F90) $(F90FLAGS) -c $< -o $@
+	$(F90) $(CFLAGS) -c $< -o $@
 
 libshoc: $(OBJECTS)
 	$(F90) $(OBJECTS) $(LDFLAGS) -o libshoc.so
