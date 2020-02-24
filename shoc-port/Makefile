@@ -1,6 +1,6 @@
 F90=gfortran
-#F90FLAGS=-fPIC -O3
-F90FLAGS=-fPIC -g -O0
+F90FLAGS=-fPIC -O3
+#F90FLAGS=-fPIC -g -O0
 LDFLAGS=-shared
 
 .SUFFIXES: .cpp .F90 .o

@@ -126,7 +126,7 @@ class Shoc:
 
         zero(zc, ['host_dx', 'host_dy', 'wthl_sfc', 'wqw_sfc', 'uw_sfc', 'vw_sfc',
                   'pblh', 'phis'])
-        zero(zcm, ['zt_grid', 'pres', 'pdel', 'thv', 'cldliq', 'w_field', 'host_temp',
+        zero(zcm, ['zt_grid', 'pres', 'pdel', 'thv', 'cldliq', 'w_field', 'host_dse',
                    'tke', 'thetal', 'qw', 'u_wind', 'v_wind', 'wthv_sec', 'tk', 'tkh',
                    'shoc_cldfrac', 'shoc_ql', 'shoc_mix', 'w_sec', 'wqls_sec', 'brunt',
                    'isotropy', 'exner'])
@@ -160,12 +160,14 @@ class Shoc:
         c = ctypes
         i = c.c_int
         d = c.c_double
-        inout = ['host_temp', 'tke', 'thetal', 'qw', 'u_wind', 'v_wind', 'qtracers',
+        inout = ['host_dse', 'tke', 'thetal', 'qw', 'u_wind', 'v_wind', 'qtracers',
                  'wthv_sec', 'tkh', 'tk', 'shoc_ql', 'shoc_cldfrac', 'pblh', 'shoc_mix',
                  'isotropy', 'w_sec', 'thl_sec', 'qw_sec', 'qwthl_sec', 'wthl_sec',
                  'wqw_sec', 'wtke_sec', 'uw_sec', 'vw_sec', 'w3', 'wqls_sec', 'brunt']
         v_inout = [v(di[e]) for e in inout]
-        me.host_temp = PhysConsts.cpair*theta_to_T(me.thv, me.pres)
+        me.host_dse = PhysConsts.cpair*theta_to_T(me.thv, me.pres) + PhysConsts.gravit*me.zt_grid
+        me.exner = p_to_exner(me.pres)
+        #print(me.host_dse)
         me.lib.shoc_c_main(
             #in
             i(me.shcol), i(me.nlev), i((me.nlev+1)), d(me.dtime), i(ntimes),
@@ -184,14 +186,15 @@ class Shoc:
                 print(len(v_inout[i]))
                 print(npy.array(v_inout[i]).shape)
             di[name] = flipvert(npy.transpose(npy.array(v_inout[i]).reshape(f.shape[s_all_rev()])))
+        #print(me.host_dse)
 
     def get_state(me):
         state = ['thv', 'cldliq', 'zt_grid', 'zi_grid', 'pres', 'presi', 'pdel',
                  'wthl_sfc', 'wqw_sfc', 'uw_sfc', 'vw_sfc', 'wtracer_sfc', 'w_field',
-                 'tke', 'thetal', 'qw', 'u_wind', 'v_wind', 'qtracers', 'wthv_sec', 'tkh',
-                 'tk', 'shoc_cldfrac', 'shoc_ql', 'shoc_mix', 'isotropy', 'w_sec', 'thl_sec',
-                 'qw_sec', 'qwthl_sec', 'wthl_sec', 'wqw_sec', 'wtke_sec', 'uw_sec', 'vw_sec',
-                 'w3', 'wqls_sec', 'brunt']
+                 'tke', 'thetal', 'qw', 'u_wind', 'v_wind', 'qtracers', 'wthv_sec',
+                 'tkh', 'tk', 'shoc_cldfrac', 'shoc_ql', 'shoc_mix', 'isotropy',
+                 'w_sec', 'thl_sec', 'qw_sec', 'qwthl_sec', 'wthl_sec', 'wqw_sec',
+                 'wtke_sec', 'uw_sec', 'vw_sec', 'w3', 'wqls_sec', 'brunt', 'host_dse']
         d = Struct()
         for s in state:
             d.__dict__[s] = me.__dict__[s]
@@ -288,19 +291,12 @@ class ExampleCase:
         s.v_wind[c] = v
         s.w_field[c] = w
 
-    def set_surface_fluxes(me, s, c):
+    def set_surface_fluxes(me, s, c, rho):
+        # not clear whether htese can be set independent of mesh
         s.wthl_sfc[c] = 1e-4
         s.wqw_sfc[c] = 1e-6
-        if False:
-            ustar2 = 0.28**2
-            u = s.u_wind[c][0]
-            v = s.v_wind[c][0]
-            speed = math.sqrt(u*u + v*v)
-            s.uw_sfc[c] = -ustar2 * (u / speed)
-            s.vw_sfc[c] = -ustar2 * (v / speed)
-        else:
-            s.uw_sfc[c] = -1e-6
-            s.vw_sfc[c] = -1e-6
+        s.uw_sfc[c] = -1e-2
+        s.vw_sfc[c] = -1e-3
 
     def set_forcings(me, s, c): pass
 
@@ -308,13 +304,14 @@ class ExampleCase:
 
     def set_tracers(me, s, c, zt):
         for q in range(s.qtracers.shape[2]):
-            s.qtracers[c,:,q] = npy.sin(q/3. + 1e-3*zt*(0.2*(c+1)))
+            s.qtracers[c,:,q] = npy.sin(q/3. + 1e-1*zt*(0.2*(c+1)))
             s.wtracer_sfc[c,q] = 0.1*c
 
-    def set_time_dep(me, s):
-        for c in range(s.shcol):
-            me.set_surface_fluxes(s, c)
-            me.set_forcings(s, c)
+    def set_time_dep(me, s, c, zi):
+        dp = s.pdel[c][-1]
+        dz = zi[-2] - zi[-1]
+        me.set_surface_fluxes(s, c, dp/(dz*PhysConsts.gravit))
+        me.set_forcings(s, c)
 
 # Given a case object and number of levels, initialize it with initial
 # conditions.
@@ -327,12 +324,12 @@ def get_ics(case, nz):
     for c in range(s.shcol):
         set_uni_mesh(s, c, 2400)
         zt = s.zt_grid[c]
+        zi = s.zi_grid[c]
         tc.set_theta_pressure(s, c, s.zi_grid[c], zt)
         tc.set_ls_winds(s, c, zt)
-        tc.set_surface_fluxes(s, c)
         tc.set_tke(s, c, zt)
         tc.set_tracers(s, c, zt)
-    tc.set_time_dep(s)
+        tc.set_time_dep(s, c, zi)
     return s
 
 # Given a Shoc object, a Shoc::get_state object, or a collection of these, make
@@ -340,28 +337,28 @@ def get_ics(case, nz):
 def plot_basics(ss, filename):
     axs = []
     def _plot_basics(s, first):
-        plotno = [1, 1, 2, 3, 3, 4, 4, 4, 5, 5, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
-        grids  = [0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,  1,  1,  1,  0,  1,  1 , 1,  0,  0,  0 ]
+        plotno = [1, 1, 2, 3, 3, 4, 4, 4, 5, 5, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21]
+        grids  = [0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,  1,  1,  1,  0,  1,  1 , 1,  0,  0,  0,  0 ]
         zs = s.zt_grid[0], s.zi_grid[0]
         fields = ['pres', 'presi', 'pdel', 'thv', 'thetal', 'cldliq', 'shoc_ql',
                   'qw', 'u_wind', 'v_wind', 'w_field', 'tke', 'tkh',
                   'shoc_mix', 'isotropy', 'wtke_sec', 'uw_sec', 'wthl_sec',
                   'wqw_sec', 'w_sec', 'thl_sec', 'qw_sec',
-                  'w3', 'wqls_sec', 'brunt', 'qtracers']
+                  'w3', 'wqls_sec', 'brunt', 'qtracers', 'host_dse']
         for i in range(len(plotno)):
             if i == 0 or plotno[i] != plotno[i-1]:
-                if first: axs.append(pl.subplot(5, 4, plotno[i]))
+                if first: axs.append(pl.subplot(5, 5, plotno[i]))
                 else: pl.sca(axs[plotno[i]-1])
             name = fields[i]
             if name == 'qtracers': y = s.qtracers[0,:,0]
             else: y = s.__dict__[name]
-            pl.plot(vec(y), 0.001 * zs[grids[i]], '-',
+            pl.plot(vec(y), 1e-3 * zs[grids[i]], '-',
                     label=name if first else None)
             if first: pl.legend(loc='best', fontsize=10)
             axis_tight_pad()
     
     if not is_coll(ss): ss = [ss]
-    with pl_plot((16, 20), filename):
+    with pl_plot((20, 20), filename):
         for i, s in enumerate(ss):
             _plot_basics(s, i == 0)
 
@@ -386,11 +383,13 @@ def example_run_case(tc):
 
 def run_conv(tc):
     states = []
-    for nz in (50, 100, 200, 400):
-        print(nz)
+    nzs = (50, 77, 100, 141, 200, 277, 400)
+    #nzs = (50,)
+    for nz in nzs:
+        print('amb> nz {}'.format(nz))
         s = get_ics(tc, nz)
         s.dtime = 10
-        s.call(1333)
+        s.call(2333)
         states.append(s.get_state())
     plot_basics(states, "fig/conv")
 
@@ -403,7 +402,5 @@ def devtest():
 if __name__ == '__main__':
     conv = len(sys.argv) > 1 and sys.argv[1] == 'conv'
     tc = ExampleCase()
-    if conv:
-        run_conv(tc)
-    else:
-        example_run_case(tc)
+    if conv: run_conv(tc)
+    else: example_run_case(tc)
