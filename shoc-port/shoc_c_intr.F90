@@ -18,18 +18,20 @@ contains
     end do
   end subroutine hi
 
-  subroutine shoc_c_init(nlev, gravit, rair, rh2o, cpair, zvir, latvap, latice, &
-       karman, pref_mid) bind(c)
-    use shoc, only: shoc_init
+  subroutine shoc_c_init(nlev, gravit, rair, rh2o, cpair, zvir, latvap, latice, karman) bind(c)
+    use shoc, only: shoc_init, npbl
     implicit none
 
     integer(kind=c_int), value, intent(in) :: nlev
     real(kind=c_double), value, intent(in) :: gravit, rair, rh2o, cpair, zvir, latvap, &
          latice, karman
-    real(kind=c_double), intent(in) :: pref_mid(nlev)
 
+    real(8) :: pref_mid(nlev) ! unused values
+
+    pref_mid = 0
     call shoc_init(nlev, gravit, rair, rh2o, cpair, zvir, latvap, latice, karman, &
          pref_mid, nlev, 1)
+    npbl = nlev ! set pbl layer explicitly so we don't need pref_mid.
   end subroutine shoc_c_init
 
   subroutine shoc_c_main( &

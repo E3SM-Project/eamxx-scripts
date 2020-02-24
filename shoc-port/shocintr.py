@@ -70,11 +70,20 @@ def ctype_vec(B):
 def vec(a): return a.reshape(a.size)
 
 class PhysConsts:
+    # WARNING: Do not use these for anything real; use simulation-consistent values.
     gravit = 9.80616
     rair   = 287.042
     rh2o   = 461.505
     cpair  = 1004.64
+    latice = 3.337e5
     latvap = 2501000.0
+    karman = 0.4
+    avogad = 6.02214e26
+    boltz  = 1.38065e-23
+    rgas   = avogad*boltz # Universal gas constant ~ J/K/kmole
+    mwwv   = 18.016       # Molecular weight water vapor
+    rwv    = rgas/mwwv    # Water vapor gas constant ~ J/K/kg
+    zvir   = (rwv/rair) - 1
     p0     = 1e5
 
 # Class to call Fortran SHOC.
@@ -82,7 +91,7 @@ class Shoc:
     def __init__(me, shcol, nlev, nqtracers):
         me.lib = me.load_lib()
         if not me.lib: return
-        me.shoc_init()
+        me.shoc_init(nlev)
         me.set_defaults(shcol, nlev, nqtracers)
         
     def load_lib(me):
@@ -93,14 +102,15 @@ class Shoc:
             lib = None
         return lib        
 
-    def shoc_init(me):
+    def shoc_init(me, nlev):
+        me.nlev = nlev
         c = PhysConsts
         d = ctypes.c_double
-        me.lib.shoc_c_init(d(c.gravit), d(c.rair), d(c.rh2o), d(c.cpair), d(c.latvap))
+        me.lib.shoc_c_init(me.nlev, d(c.gravit), d(c.rair), d(c.rh2o), d(c.cpair), d(c.zvir),
+                           d(c.latvap), d(c.latice), d(c.karman))
 
     def set_defaults(me, shcol, nlev, nqtracers):
         me.shcol = shcol
-        me.nlev = nlev
         me.nqtracers = nqtracers
         me.dtime = 300
 
@@ -374,6 +384,16 @@ def example_run_case(tc):
     # Plot all snapshots.
     plot_basics(states, "fig/fin")
 
+def run_conv(tc):
+    states = []
+    for nz in (50, 100, 200):
+        print(nz)
+        s = get_ics(tc, nz)
+        s.dtime = 10
+        s.call(3333)
+        states.append(s.get_state())
+    plot_basics(states, "fig/conv")
+
 def devtest():
     c = PhysConsts
     print(c.gravit)
@@ -381,4 +401,5 @@ def devtest():
     s.test_lib()
     
 if __name__ == '__main__':
-    example_run_case(ExampleCase())
+    #example_run_case(ExampleCase())
+    run_conv(ExampleCase())
