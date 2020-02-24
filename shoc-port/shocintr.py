@@ -379,18 +379,18 @@ def example_run_case(tc):
     states.append(s.get_state())
     for trial in range(3):
         # Then advance further.
-        s.call(3000)
+        s.call(333)
         states.append(s.get_state())
     # Plot all snapshots.
     plot_basics(states, "fig/fin")
 
 def run_conv(tc):
     states = []
-    for nz in (50, 100, 200):
+    for nz in (50, 100, 200, 400):
         print(nz)
         s = get_ics(tc, nz)
         s.dtime = 10
-        s.call(3333)
+        s.call(1333)
         states.append(s.get_state())
     plot_basics(states, "fig/conv")
 
@@ -401,5 +401,9 @@ def devtest():
     s.test_lib()
     
 if __name__ == '__main__':
-    #example_run_case(ExampleCase())
-    run_conv(ExampleCase())
+    conv = len(sys.argv) > 1 and sys.argv[1] == 'conv'
+    tc = ExampleCase()
+    if conv:
+        run_conv(tc)
+    else:
+        example_run_case(tc)
