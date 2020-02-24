@@ -155,6 +155,7 @@ class Shoc:
                  'isotropy', 'w_sec', 'thl_sec', 'qw_sec', 'qwthl_sec', 'wthl_sec',
                  'wqw_sec', 'wtke_sec', 'uw_sec', 'vw_sec', 'w3', 'wqls_sec', 'brunt']
         v_inout = [v(di[e]) for e in inout]
+        me.host_temp = PhysConsts.cpair*theta_to_T(me.thv, me.pres)
         me.lib.shoc_c_main(
             #in
             i(me.shcol), i(me.nlev), i((me.nlev+1)), d(me.dtime), i(ntimes),
@@ -175,7 +176,7 @@ class Shoc:
             di[name] = flipvert(npy.transpose(npy.array(v_inout[i]).reshape(f.shape[s_all_rev()])))
 
     def get_state(me):
-        state = ['thv', 'cldliq', 'zt_grid', 'zi_grid', 'pres', 'pdel',
+        state = ['thv', 'cldliq', 'zt_grid', 'zi_grid', 'pres', 'presi', 'pdel',
                  'wthl_sfc', 'wqw_sfc', 'uw_sfc', 'vw_sfc', 'wtracer_sfc', 'w_field',
                  'tke', 'thetal', 'qw', 'u_wind', 'v_wind', 'qtracers', 'wthv_sec', 'tkh',
                  'tk', 'shoc_cldfrac', 'shoc_ql', 'shoc_mix', 'isotropy', 'w_sec', 'thl_sec',
@@ -266,6 +267,7 @@ class ExampleCase:
         ps = me.get_ps()
         s.pdel[c] = npy.abs(npy.diff(calc_hydrostatic_p(ps, theta_zi[0], zi, theta_zi)))
         s.pres[c] = calc_hydrostatic_p(ps, theta_zi[0], zt, theta_zt)
+        s.presi[c] = calc_hydrostatic_p(ps, theta_zi[0], zi, theta_zi)
         s.qw[c] = me.get_ic_qv(zt)
         s.thv[c] = theta_to_thetav(theta_zt, s.qw[c])
         s.thetal[c] = theta_zt
@@ -277,14 +279,18 @@ class ExampleCase:
         s.w_field[c] = w
 
     def set_surface_fluxes(me, s, c):
-        s.wthl_sfc[c] = 0.008
-        s.wqw_sfc[c] = 5.2e-05
-        ustar2 = 0.28**2
-        u = s.u_wind[c][0]
-        v = s.v_wind[c][0]
-        speed = math.sqrt(u*u + v*v)
-        s.uw_sfc[c] = -ustar2 * (u / speed)
-        s.vw_sfc[c] = -ustar2 * (v / speed)
+        s.wthl_sfc[c] = 1e-4
+        s.wqw_sfc[c] = 1e-6
+        if False:
+            ustar2 = 0.28**2
+            u = s.u_wind[c][0]
+            v = s.v_wind[c][0]
+            speed = math.sqrt(u*u + v*v)
+            s.uw_sfc[c] = -ustar2 * (u / speed)
+            s.vw_sfc[c] = -ustar2 * (v / speed)
+        else:
+            s.uw_sfc[c] = -1e-6
+            s.vw_sfc[c] = -1e-6
 
     def set_forcings(me, s, c): pass
 
@@ -324,10 +330,10 @@ def get_ics(case, nz):
 def plot_basics(ss, filename):
     axs = []
     def _plot_basics(s, first):
-        plotno = [1, 2, 3, 3, 4, 4, 4, 5, 5, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
-        grids  = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,  1,  1,  1,  0,  1,  1 , 1,  0,  0,  0 ]
+        plotno = [1, 1, 2, 3, 3, 4, 4, 4, 5, 5, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+        grids  = [0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,  1,  1,  1,  0,  1,  1 , 1,  0,  0,  0 ]
         zs = s.zt_grid[0], s.zi_grid[0]
-        fields = ['pres', 'pdel', 'thv', 'thetal', 'cldliq', 'shoc_ql',
+        fields = ['pres', 'presi', 'pdel', 'thv', 'thetal', 'cldliq', 'shoc_ql',
                   'qw', 'u_wind', 'v_wind', 'w_field', 'tke', 'tkh',
                   'shoc_mix', 'isotropy', 'wtke_sec', 'uw_sec', 'wthl_sec',
                   'wqw_sec', 'w_sec', 'thl_sec', 'qw_sec',
@@ -357,17 +363,16 @@ def example_run_case(tc):
     plot_basics(s, "fig/ics")
     s.dtime = 10
     # Advance in time.
-    for ti in range(1,101):
-        tc.set_time_dep(s)
-        s.call()
+    s.call(100)
     # Save the current state.
-    s1 = s.get_state()
-    # Then advance further.
-    for ti in range(1,21):
-        tc.set_time_dep(s)
-        s.call()
-    # Plot both snapshots.
-    plot_basics([s1, s], "fig/fin")
+    states = []
+    states.append(s.get_state())
+    for trial in range(3):
+        # Then advance further.
+        s.call(3000)
+        states.append(s.get_state())
+    # Plot all snapshots.
+    plot_basics(states, "fig/fin")
 
 def devtest():
     c = PhysConsts
