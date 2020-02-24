@@ -114,12 +114,14 @@ class Shoc:
             for e in names:
                 me.__dict__[e] = zeroer()
 
-        zero(zc, ['host_dx', 'host_dy', 'wthl_sfc', 'wqw_sfc', 'uw_sfc', 'vw_sfc'])
-        zero(zcm, ['zt_grid', 'pres', 'pdel', 'thv', 'cldliq', 'w_field', 'tke', 'thetal',
-                   'qw', 'u_wind', 'v_wind', 'wthv_sec', 'tk', 'tkh', 'shoc_cldfrac',
-                   'shoc_ql', 'shoc_mix', 'w_sec', 'wqls_sec', 'brunt', 'isotropy'])
+        zero(zc, ['host_dx', 'host_dy', 'wthl_sfc', 'wqw_sfc', 'uw_sfc', 'vw_sfc',
+                  'pblh', 'phis'])
+        zero(zcm, ['zt_grid', 'pres', 'pdel', 'thv', 'cldliq', 'w_field', 'host_temp',
+                   'tke', 'thetal', 'qw', 'u_wind', 'v_wind', 'wthv_sec', 'tk', 'tkh',
+                   'shoc_cldfrac', 'shoc_ql', 'shoc_mix', 'w_sec', 'wqls_sec', 'brunt',
+                   'isotropy', 'exner'])
         zero(zci, ['zi_grid', 'thl_sec', 'qw_sec', 'qwthl_sec', 'wthl_sec', 'wqw_sec',
-                   'wtke_sec', 'uw_sec', 'vw_sec', 'w3'])
+                   'wtke_sec', 'uw_sec', 'vw_sec', 'w3', 'presi'])
         zero(zcq, ['wtracer_sfc'])
         zero(zcmq, ['qtracers'])
 
@@ -135,7 +137,7 @@ class Shoc:
         arr = npy.transpose(npy.array(varr).reshape(arr.shape[s_all_rev()]))
         print(arr)
 
-    def call(me, ntimes=-1, verbose=False):
+    def call(me, ntimes=1, verbose=False):
         def flipvert(e):
             # Flip vertical after recent SHOC index flip.
             if len(e.shape) >= 2 and e.shape[1] >= me.nlev:
@@ -148,23 +150,21 @@ class Shoc:
         c = ctypes
         i = c.c_int
         d = c.c_double
-        inout = ['tke', 'thetal', 'qw', 'u_wind', 'v_wind', 'qtracers', 'wthv_sec', 'tkh',
-                 'tk', 'shoc_cldfrac', 'shoc_ql', 'shoc_mix', 'isotropy', 'w_sec', 'thl_sec',
-                 'qw_sec', 'qwthl_sec', 'wthl_sec', 'wqw_sec', 'wtke_sec', 'uw_sec', 'vw_sec',
-                 'w3', 'wqls_sec', 'brunt']
+        inout = ['host_temp', 'tke', 'thetal', 'qw', 'u_wind', 'v_wind', 'qtracers',
+                 'wthv_sec', 'tkh', 'tk', 'shoc_ql', 'shoc_cldfrac', 'pblh', 'shoc_mix',
+                 'isotropy', 'w_sec', 'thl_sec', 'qw_sec', 'qwthl_sec', 'wthl_sec',
+                 'wqw_sec', 'wtke_sec', 'uw_sec', 'vw_sec', 'w3', 'wqls_sec', 'brunt']
         v_inout = [v(di[e]) for e in inout]
-        shoc_main = me.lib.shoc_c_main_ntimes if ntimes > 0 else me.lib.shoc_c_main
-        if ntimes > 0: v_inout.append(i(ntimes))
-        shoc_main(
+        me.lib.shoc_c_main(
             #in
-            i(me.shcol), i(me.nlev), i((me.nlev+1),), d(me.dtime),
-            v(me.host_dx), v(me.host_dy), v(me.thv), v(me.cldliq), v(me.zt_grid), v(me.zi_grid),
-            v(me.pres), v(me.pdel), v(me.wthl_sfc), v(me.wqw_sfc), v(me.uw_sfc), v(me.vw_sfc),
-            v(me.wtracer_sfc), i(me.nqtracers), v(me.w_field),
+            i(me.shcol), i(me.nlev), i((me.nlev+1)), d(me.dtime), i(ntimes),
+            v(me.host_dx), v(me.host_dy), v(me.thv), v(me.zt_grid), v(me.zi_grid),
+            v(me.pres), v(me.presi), v(me.pdel),
+            v(me.wthl_sfc), v(me.wqw_sfc), v(me.uw_sfc), v(me.vw_sfc),
+            v(me.wtracer_sfc), i(me.nqtracers), v(me.w_field), v(me.exner), v(me.phis),
             #inout, out
             *v_inout)
         for i, e in enumerate(v_inout):
-            if ntimes > 0 and i == len(v_inout)-1: break
             name = str(inout[i])
             if verbose: print(name)
             f = di[name]
