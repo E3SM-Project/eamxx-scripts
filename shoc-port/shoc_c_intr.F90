@@ -2,6 +2,11 @@ module shoc_c_intr
 
   use iso_c_binding
 
+  interface
+     subroutine activate_fpe() bind(c)
+     end subroutine activate_fpe
+  end interface
+
 contains
 
   subroutine hi(shcol, nlev, nlevi, nqtracers, dtime, arr) bind(c)
@@ -27,6 +32,8 @@ contains
          latice, karman
 
     real(8) :: pref_mid(nlev) ! unused values
+
+    call activate_fpe()
 
     pref_mid = 0
     call shoc_init(nlev, gravit, rair, rh2o, cpair, zvir, latvap, latice, karman, &

@@ -126,9 +126,9 @@ class Shoc:
 
         zero(zc, ['host_dx', 'host_dy', 'wthl_sfc', 'wqw_sfc', 'uw_sfc', 'vw_sfc',
                   'pblh', 'phis'])
-        zero(zcm, ['zt_grid', 'pres', 'pdel', 'thv', 'cldliq', 'w_field', 'host_dse',
+        zero(zcm, ['zt_grid', 'pres', 'pdel', 'thv', 'w_field', 'host_dse',
                    'tke', 'thetal', 'qw', 'u_wind', 'v_wind', 'wthv_sec', 'tk', 'tkh',
-                   'shoc_cldfrac', 'shoc_ql', 'shoc_mix', 'w_sec', 'wqls_sec', 'brunt',
+                   'shoc_cldfrac', 'ql', 'shoc_mix', 'w_sec', 'wqls_sec', 'brunt',
                    'isotropy', 'exner'])
         zero(zci, ['zi_grid', 'thl_sec', 'qw_sec', 'qwthl_sec', 'wthl_sec', 'wqw_sec',
                    'wtke_sec', 'uw_sec', 'vw_sec', 'w3', 'presi'])
@@ -161,7 +161,7 @@ class Shoc:
         i = c.c_int
         d = c.c_double
         inout = ['host_dse', 'tke', 'thetal', 'qw', 'u_wind', 'v_wind', 'qtracers',
-                 'wthv_sec', 'tkh', 'tk', 'shoc_ql', 'shoc_cldfrac', 'pblh', 'shoc_mix',
+                 'wthv_sec', 'tkh', 'tk', 'ql', 'shoc_cldfrac', 'pblh', 'shoc_mix',
                  'isotropy', 'w_sec', 'thl_sec', 'qw_sec', 'qwthl_sec', 'wthl_sec',
                  'wqw_sec', 'wtke_sec', 'uw_sec', 'vw_sec', 'w3', 'wqls_sec', 'brunt']
         v_inout = [v(di[e]) for e in inout]
@@ -189,12 +189,13 @@ class Shoc:
         #print(me.host_dse)
 
     def get_state(me):
-        state = ['thv', 'cldliq', 'zt_grid', 'zi_grid', 'pres', 'presi', 'pdel',
+        state = ['thv', 'zt_grid', 'zi_grid', 'pres', 'presi', 'pdel',
                  'wthl_sfc', 'wqw_sfc', 'uw_sfc', 'vw_sfc', 'wtracer_sfc', 'w_field',
                  'tke', 'thetal', 'qw', 'u_wind', 'v_wind', 'qtracers', 'wthv_sec',
-                 'tkh', 'tk', 'shoc_cldfrac', 'shoc_ql', 'shoc_mix', 'isotropy',
+                 'tkh', 'tk', 'shoc_cldfrac', 'ql', 'shoc_mix', 'isotropy',
                  'w_sec', 'thl_sec', 'qw_sec', 'qwthl_sec', 'wthl_sec', 'wqw_sec',
-                 'wtke_sec', 'uw_sec', 'vw_sec', 'w3', 'wqls_sec', 'brunt', 'host_dse']
+                 'wtke_sec', 'uw_sec', 'vw_sec', 'w3', 'wqls_sec', 'brunt', 'host_dse',
+                 'exner']
         d = Struct()
         for s in state:
             d.__dict__[s] = me.__dict__[s]
@@ -253,14 +254,17 @@ def set_uni_mesh(s, c, ztop):
 # make other cases.
 #   WARNING: This case does *not* necessarily exercise every part of SHOC.
 class ExampleCase:
-    def get_zref(me): return npy.array([0., 520, 1480, 2000, 3000])
+    def get_zref(me):
+        zref = npy.array([0., 520, 1480, 2000, 3000]) # more physical
+        return zref
 
     def get_ps(me): return 1015e2
 
-    def get_ic_qv(me, z):
+    def get_ic_q(me, z):
         zref = me.get_zref()
         qvref = 1e-3*npy.array([17., 16.3, 10.7, 4.2, 3])
-        return linterp(zref, qvref, z)
+        qlref = 1e-3*npy.array([0., 5, 7., 6., 0])
+        return linterp(zref, qvref, z), linterp(zref, qlref, z)
 
     def get_ic_theta(me, z):
         zref = me.get_zref()
@@ -270,8 +274,8 @@ class ExampleCase:
     def get_ls_winds(me, z):
         zref = npy.array([0., 700, 3000])
         uref = npy.array([-7.75, -8.75, -4.61])
-        vref = npy.array([0., 0, 0])
-        wref = npy.array([0., 0, 0])
+        vref = npy.array([0., 0.1, 0])
+        wref = npy.array([0.1, 0.1, 0])
         return linterp(zref, uref, z), linterp(zref, vref, z), linterp(zref, wref, z)
 
     def set_theta_pressure(me, s, c, zi, zt):
@@ -281,7 +285,7 @@ class ExampleCase:
         s.pdel[c] = npy.abs(npy.diff(calc_hydrostatic_p(ps, theta_zi[0], zi, theta_zi)))
         s.pres[c] = calc_hydrostatic_p(ps, theta_zi[0], zt, theta_zt)
         s.presi[c] = calc_hydrostatic_p(ps, theta_zi[0], zi, theta_zi)
-        s.qw[c] = me.get_ic_qv(zt)
+        s.qw[c], s.ql[c] = me.get_ic_q(zt)
         s.thv[c] = theta_to_thetav(theta_zt, s.qw[c])
         s.thetal[c] = theta_zt
 
@@ -295,8 +299,8 @@ class ExampleCase:
         # not clear whether htese can be set independent of mesh
         s.wthl_sfc[c] = 1e-4
         s.wqw_sfc[c] = 1e-6
-        s.uw_sfc[c] = -1e-2
-        s.vw_sfc[c] = -1e-3
+        s.uw_sfc[c] = 1e-2
+        s.vw_sfc[c] = 1e-4
 
     def set_forcings(me, s, c): pass
 
@@ -337,14 +341,16 @@ def get_ics(case, nz):
 def plot_basics(ss, filename):
     axs = []
     def _plot_basics(s, first):
-        plotno = [1, 1, 2, 3, 3, 4, 4, 4, 5, 5, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21]
-        grids  = [0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,  1,  1,  1,  0,  1,  1 , 1,  0,  0,  0,  0 ]
+        plotno = [1, 1, 2, 3, 3, 4, 4, 5, 5, 5, 6, 7, 8, 9, 10,
+                  11, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22 ]
+        grids  = [0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+                  1,  1,  1,  1,  0,  1,  1 , 1,  0,  0,  0,  0 , 0  ]
         zs = s.zt_grid[0], s.zi_grid[0]
-        fields = ['pres', 'presi', 'pdel', 'thv', 'thetal', 'cldliq', 'shoc_ql',
+        fields = ['pres', 'presi', 'pdel', 'thv', 'thetal', 'ql',
                   'qw', 'u_wind', 'v_wind', 'w_field', 'tke', 'tkh',
-                  'shoc_mix', 'isotropy', 'wtke_sec', 'uw_sec', 'wthl_sec',
+                  'shoc_mix', 'isotropy', 'wtke_sec', 'uw_sec', 'vw_sec', 'wthl_sec',
                   'wqw_sec', 'w_sec', 'thl_sec', 'qw_sec',
-                  'w3', 'wqls_sec', 'brunt', 'qtracers', 'host_dse']
+                  'w3', 'wqls_sec', 'brunt', 'qtracers', 'host_dse', 'exner']
         for i in range(len(plotno)):
             if i == 0 or plotno[i] != plotno[i-1]:
                 if first: axs.append(pl.subplot(5, 5, plotno[i]))
@@ -354,7 +360,7 @@ def plot_basics(ss, filename):
             else: y = s.__dict__[name]
             pl.plot(vec(y), 1e-3 * zs[grids[i]], '-',
                     label=name if first else None)
-            if first: pl.legend(loc='best', fontsize=10)
+            if first: pl.legend(loc='best', fontsize=12)
             axis_tight_pad()
     
     if not is_coll(ss): ss = [ss]
@@ -376,20 +382,24 @@ def example_run_case(tc):
     states.append(s.get_state())
     for trial in range(3):
         # Then advance further.
-        s.call(333)
+        s.call(555)
         states.append(s.get_state())
     # Plot all snapshots.
     plot_basics(states, "fig/fin")
 
 def run_conv(tc):
     states = []
-    nzs = (50, 77, 100, 141, 200, 277, 400)
-    #nzs = (50,)
-    for nz in nzs:
-        print('amb> nz {}'.format(nz))
+    nz0 = 77
+    dtime0 = 9.3
+    nstep0 = 555
+    for refine in range(0,6):
+        fac = 2**refine
+        nz = fac*nz0
         s = get_ics(tc, nz)
-        s.dtime = 10
-        s.call(2333)
+        nsteps = int(fac*nstep0)
+        s.dtime = dtime0/fac
+        print('nz {:4d} nsteps {:5d} dtime {:1.3e}'.format(nz, nsteps, s.dtime))
+        s.call(nsteps)
         states.append(s.get_state())
     plot_basics(states, "fig/conv")
 
