@@ -1,6 +1,9 @@
 F90=gfortran
+CPP=g++
+
 CFLAGS=-fPIC -O3
 #CFLAGS=-fPIC -g -O0 -DWITH_FPE
+
 LDFLAGS=-shared
 
 .SUFFIXES: .cpp .F90 .o
