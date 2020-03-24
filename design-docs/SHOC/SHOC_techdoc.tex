@@ -111,24 +111,22 @@ In SHOC the order of operations is chosen deliberately so that the prognostic va
 \section{Turbulence Length Scale}
 \label{turb_scale}
 
-\subsection{Mixing Length Formulation in the Sub-Cloud Region}
+The empirical formulation is based on the finding that the turbulent length scale is highly correlated with the distance from the wall, strength of the turbulence, boundary layer depth, and local thermal stability (Bogenschutz et al. 2010).  Within the turbulent boundary layer, the length scale definition is set equal to an asymptotic shape, similar to that of Blackadar (1962).  However it is weighted more strongly by the strength of the turbulence.  This reflects the behavior that as the grid size increases, the SGS TKE increases and so does the mixing length.  The effects of thermal stability are also included to reduce the length scale where the local stability is large.  
 
-The empirical formulation is based on the finding that the turbulent length scale in the sub-cloud region is highly correlated with the distance from the wall, strength of the turbulence, boundary layer depth, and local thermal stability (Bogenschutz et al. 2010).  Within the turbulent boundary layer, the length scale definition is set equal to an asymptotic shape, similar to that of Blackadar (1962).  However it is weighted more strongly by the strength of the turbulence.  This reflects the behavior that as the grid size increases, the SGS TKE increases and so does the mixing length.  The effects of thermal stability are also included to reduce the length scale where the local stability is large.  
-
-The formulation in (\ref{thelength}) is empirically determined from LES data and essentially represents a geometric average between the strength of the SGS TKE (as suggested by Texieria et al. 2004) and an asymptote length scale, with a contribution due to stability effects.  The geometric average assures that in close proximity to the surface, the length scale will be small.  This is not guaranteed in the formulation of Texieria et al. 2004 (where $L \propto \tau \sqrt[]{e}$) because SGS TKE is often very large near the surface due to large variances of the horizontal winds due to downdrafts.         
-
+The formulation in (\ref{thelength}) is empirically determined from LES data and essentially represents a geometric average between the strength of the SGS TKE (as suggested by Texieria et al. 2004) and an asymptote length scale, with a contribution due to stability effects.  The geometric average assures that in close proximity to the surface, the length scale will be small.  
+%
 \begin{equation}
-  L=\sqrt[]{8\left[\frac{1}{\tau_{l}\sqrt[]{e}kz}+\frac{1}{\tau_{l}\sqrt[]{e}D_{b}}+0.01\delta\frac{N^{2}}{\overline{e}}\right]^{-1}}
+  L=\sqrt[]{8\left[\frac{1}{\tau\sqrt[]{e}kz}+\frac{1}{\tau\sqrt[]{e}L_{\infty}}+0.01\delta\frac{N^{2}}{\overline{e}}\right]^{-1}}
   \label{thelength}
 \end{equation}
 
-Above, $k$ is the von Karman constant and $\tau_{l}$ represents a timescale empirically set as 400 s (Texieria et al. 2004).  $D_{b}$ is a measure of the boundary layer depth, which is different than $L_{\infty}$ used in the Blackadar formulation as it only includes integration up a model column until a cloud is detected (Xu and Krueger 1991)
+Above, $k$ is the von Karman constant.  $L_{\infty}$ is the asymptotic value of the length scale as defined in Blackadar (1962) as
 %
  \begin{equation}
-  D_{b}=0.1\frac{\int_{0}^{z(q_{l} > 0)}\overline{e}^{1/2}z dz}{\int_{0}^{z(q_{l} > 0)} \overline{e}^{1/2} dz}, 
+  L_{\infty}=0.1\frac{\int_{0}^{L_{\infty}}\overline{e}^{1/2}z dz}{\int_{0}^{L_{\infty}} \overline{e}^{1/2} dz}. 
   \end{equation}
  %
- where $z(q_{l} > 0)$ is the first vertical grid level where a cloud is detected (where $z(q_{l}(k) > 0$) but no clouds are detected below $k$).  Finally, in equation~\ref{thelength} $\delta$ is defined as:
+   In equation~\ref{thelength} $\delta$ is defined as:
 \[
 \delta = \left\{ 
 \begin{array}{l l}
@@ -150,41 +148,24 @@ where $\theta_{v}$ is the virtual potential temperature defined as:
   \theta_{v}=\theta(1 + 0.61q_{v} - q_{l}) , 
   \label{thetav}
 \end{equation}
-
-where $q_{v}$ is the water vapor mixing ratio.  
-
-\subsection{Mixing Length Formulation for Clouds}
-\label{length_newformc}
-
-Based on similarity analysis from high resolution LES of several regimes (including stratocumulus, cumulus, and deep convection), it is determined that the length scale in clouds is strongly related to cloud depth and strength of the SGS TKE.  Therefore, the formulation within clouds is
-
-\begin{equation}
-  L=\sqrt[]{8\left[ \frac{\overline{e}}{(w_{*}/D_{c})^2}+0.01\delta\frac{N^2}{\overline{e}}\right]^{-1}} , 
-  \label{incloud}
-\end{equation}
 %
-where $D_{c}$ is the cloud depth, defined simply as
+where $q_{v}$ is the water vapor mixing ratio. 
+%
+Finally, $\tau$ in equation~\ref{thelength} represents the eddy turnover timescale and is defined as
 %
 \begin{equation}
-  D_{c}=z_{top}-z_{base},
-  \label{cloud_length}
-\end{equation}
-%
-where $z_{top}$ represents the height of cloud top and $z_{base}$ represents the height of cloud base.  
+  \tau = \frac{D_{b}}{w_{*}},
+  \label{conv_scale}
+\end{equation} 
 
-In (\ref{incloud}), $\tau$ is another timescale that is needed.  Unlike equation~\ref{thelength}, I do not assume that $\tau_{c}$ in the clouds is a constant.  Therefore I set $\tau_{c}$ equal to an eddy turnover timescale within the cloud.  That is
+where $D_{b}$ is the boundary layer depth and is computed according to that of Holtslag and Boville (1993).  $w_{*}$ represents the convective velocity scale, integrated from the surface to the height of the boundary layer depth, and is defined as:
 %
 \begin{equation}
-  \tau_{c}=\frac{D_{c}}{w_{*}} , 
-  \label{tscale_cloud}
+  w_{*}^{3}=2.5\frac{g}{\overline{\theta_{v}}} \int_{0}^{z_{D_{b}}} \overline{w^{'}\theta_{v}^{'}} dz .   
+  \label{wstar_pbl}
 \end{equation}
-%
-where $w_{*}$ is the convective velocity scale for the cloud ensemble which is defined by Khairoutdinov and Randall (2002) as 
-%
-\begin{equation}
-  w_{*}^{3}=2.5\frac{g}{\overline{\theta_{v}}} \int_{z_{base}}^{z_{top}} \overline{w^{'}\theta_{v}^{'}} dz .   
-  \label{wstar_cloud}
-\end{equation}
+
+In the event that $w_{*}^{3} < 0$, which is indicative of a stable boundary layer, then $\tau$ is set to a default value of 100 s.  
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
