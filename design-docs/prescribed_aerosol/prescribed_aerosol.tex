@@ -1,0 +1,53 @@
+\documentclass[12pt,titlepage]{article}
+
+\usepackage{geometry}
+\usepackage{amsmath}
+\geometry{letterpaper}
+\usepackage[autostyle]{csquotes}
+
+\newcommand{\bit}{\par \noindent \hangindent=3em} %bib style
+\hangafter=1 %bib style
+
+\numberwithin{equation}{section}
+
+\setlength{\topmargin}{-0.6in}
+\setlength{\headheight}{0.5 in}
+\setlength{\headsep}{0.25 in}
+\setlength{\topskip}{0 in}
+\setlength{\textheight}{9.0 in}
+\setlength{\textwidth}{6.5 in}
+\setlength{\oddsidemargin}{0 in}
+\setlength{\evensidemargin}{0 in}
+
+\title{Prescribed Aerosols in SCREAM}
+\author{Peter A. Bogenschutz}
+
+\begin{document}
+\maketitle 
+
+\section{Generating Prescribed Aerosol Climatology}
+
+By default the SCREAM compsets are run with prescribed aerosols, which is counter to E3SM which is run with prognostic aerosols.  To run with prescribed aerosols requires climatological aerosol output derived from a prognostic aerosol run.  
+
+The functionality to output the relevant data to generate the files needed to drive a prescribed aerosol run is now a feature in SCREAM F90 code.  \textbf{NOTE:} it is NOT necessary to generate these files each time a prescribed aerosol run is performed.  The prescribed aerosol input files only need to be generated when substantial modifications are made to the model (i.e. major physics changes or changes to the vertical grid).  
+
+Should the prescribed aerosol files need to be regenerated the user should follow these steps:
+\begin{enumerate}
+  \item Set up a global simulation with \textbf{prognostic} aerosols.
+  \item In the namelist (user\_nl\_cam) be sure to set presc\_aero\_data = .true.  
+  \item Run the simulation for six years minimum.  There is a minimum of five years needed to generate the prescribed aerosol climatology and we toss out the first year to allow the aerosols to spin up.  
+  \item Note that the required aerosol data will be placed in the monthly *.cam.h0*.nc files.
+  \item When the run has completed, additional post processing is needed to get the output data in the structure required for the prescribed aerosol code.  To achieve this, run the script found on the repo \enquote{scream-docs} at design-docs/prescribed\_aerosol/make\_presc\_aero.csh .  Follow the instructions in the header to set the appropriate settings.  
+\end{enumerate}
+
+\section{Running Prescribed Aerosol Simulation}
+
+When the updated prescribed aerosol file has been generated, the user will need to update their namelist (user\_cam\_nl) to reflect the updated location and name of the newly generated prescribed aerosol file.  Specifically, the namelist settings that need to be changed are:
+\begin{enumerate}
+  \item aerodep\_flx\_datapath and prescribed\_aero\_datapath : These will be set to the location of the newly generated prescribed aerosol file (both will be set to the same value).
+  \item aerodep\_flx\_file and prescribed\_aero\_file : These will be set to the file name of the newly generated aerosol file (both will be set to the same value).   
+\end{enumerate}  
+
+Then the user should be able to run with any supported FSCREAM compset.  
+
+\end{document}
