@@ -197,13 +197,17 @@ where
   \label{tke_Sterm}
 \end{equation}
 %
-Since $\overline{u}$ and $\overline{v}$ are located vertically in the mid-points, $S^{2}$ is computed on the interface grid while $K_{m}$ is linearly interpolated to the interface grid.  After the shear production term is calculated on the interface grid, it is interpolated to the mid-point grid to be consistent with the location of $\overline{e}$. 
+Since $\overline{u}$ and $\overline{v}$ are located vertically in the mid-points, $S^{2}$ is computed on the interface grid, then interpolated onto the mid-point grid.  After the shear production term is calculated on the interface grid, it is interpolated to the mid-point grid to be consistent with the location of $\overline{e}$. 
 
 The boundary surface value of $K_{M}S^{2}$ is set to zero as the boundary fluxes for TKE are applied in the diffusion solver.  
 
 The fourth term on the RHS of equation~\ref{sgstke} represents the turbulent transport of TKE.  This term is computed in the turbulent diffusion (section~\ref{turb_diffusion}) of SHOC.  
 
 The last term on the RHS of equation~\ref{sgstke} represents the turbulent dissipation of TKE.  Here $C_{ee}$ is a turbulent constant, which is defined in Deardorff (1980) as $C_{ee}=C_{e1}+C_{e2}$, where $C_{e1} = C_{e}/0.133$ and $C_{e1} = C_{e}/0.357$ and $C_{e}=C_{k}^{3}/C_{s}^{4}$.  Finally, $C_{k} = 0.1$ and $C_{s} = 0.15$.  
+
+\subsection{Eddy Diffusivities}
+
+\subsubsection{Default Formulation}
 
 After TKE is updated due to buoyant production, shear production, and dissipation processes, the eddy diffusivity parameters for heat and momentum, to be used in turbulence diffusion, are respectively defined in the TKE module as:
 \begin{equation}
@@ -238,6 +242,31 @@ where $\lambda_{0}=0$ if $N^{2} < 0$ and $\epsilon$ is the turbulence dissipatio
 %
 
 Where $\lambda_{min} = 0.001$, $\lambda_{slope}$ = 0.35, and $N_{low}$ = 0.037.  Here, $\lambda_{slope}$ is an adjustable parameter.  $\lambda_{0}$ has a minimum threshold of 0.001 and a maximum threshold of 0.04.   
+
+\subsubsection{Stable Boundary Layer}
+
+For the case of a moderate to very stable boundary layer, the formulation of the eddy diffusivities are revised to promote sufficient mixing, as they are based primarily on turbulence shear production, and prevent runaway cooling.  We use the dimensionless Obukov length, $z/L$ to determine when to trigger the stable boundary layer eddy diffusivities, where $z$ is the height of the lowest mid-point grid height and L the Monin-Obukhov length defined as
+%
+\begin{equation}
+  L=-\frac{u_{*}^{3}\overline{\theta_{v}}}{kg\left(\overline{w^{'}\theta^{'}_{v}}\right)_{s}}. 
+  \label{monin}
+\end{equation}
+%
+The stable boundary layer formulation for the eddy diffusivities triggers when $z/L$ is greater than 100, which signifies a moderately or very stable boundary layer.  These stable boundary layer diffusivities are applied for the PBL depth within this column and are defined as:
+%
+\begin{equation}
+  K_{H}=C_{Khs} L^{2} S
+  \label{diffusivity_heat}
+\end{equation}
+%
+and
+%
+\begin{equation}
+  K_{M}=C_{Kms} L^{2} S , 
+  \label{diffusivity_momentum}
+\end{equation}
+%
+where $C_{Khs}$ and $C_{Kms}$ are the stable boundary eddy coefficients for heat and momentum, respectively.  By default these values are set to 1. 
  
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
