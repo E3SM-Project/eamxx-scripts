@@ -46,7 +46,7 @@ import pylab as pl
 
 #Setting print_* variables to "True" would print values of that scheme
 #currently implemented schemes are "Flatau" and "Murphy and Koop"
-print_flatau     = False
+print_flatau     = True
 print_murphyKoop = True
 
 
@@ -117,7 +117,7 @@ def polysvp_liq(T):
           +a_liq[7]*(T-T0)**7.\
           +a_liq[8]*(T-T0)**8.
     """
-    dt=T-T0
+    dt=max(T-T0,-80.0)
     esat=a_liq[0]\
           +dt*(a_liq[1]\
                +dt*(a_liq[2]\
@@ -148,7 +148,7 @@ def polysvp_ice_naive(T):
         return polysvp_liq(T)
     else:
 
-        dt=(T-T0)
+        dt=max(T-T0, -80.0)
 
         esat=a_ice[0]\
               +a_ice[1]*dt\
@@ -172,7 +172,7 @@ def polysvp_ice(T):
     if T>=T0: #C++ and F90 assume ice takes liq value at T0.
         return polysvp_liq(T)
     else:
-        dt=T-T0
+        dt=max(T-T0, -80.0)
         esat=a_ice[0]\
               +dt*(a_ice[1]\
                    +dt*(a_ice[2]\
@@ -406,25 +406,29 @@ T243P500_data=[243.15, 5e4, 37.98530141245404, 50.98455924912173,\
 #Table C1, titled "VALUES RECOMMENDED FOR CHECKING COMPUTER CODES"
 
 #DEFINITIONS:ice vapor pressure(ivp); liquid vapor pressure(lvp)
-#"expected values" are from the paper
+#"expected values" for ivp and lvp are from the paper
+#There are some unknown data for the following data arrays and "None" are used for that data.
 
-#Test values @150  @ 1e5 Pa (expected values-> ivp: 6.106e-6; lvp:1.562e-5)
-T150_data    = [150,    1e5]
+#Format of the data arrays below is the following:
+#[T, pres, expected ivp from the paper, expected lvp from the paper, missing data, missing data]
 
-#Test values @180  @ 1e5 Pa (expected values-> ivp: 0.0053975; lvp: 0.011239)
-T180_data    = [180,    1e5]
+#Test values @150  @ 1e5 Pa
+T150_data    = [150,    1e5, 6.106e-6, 1.562e-5, None, None]
 
-#Test values @210  @ 1e5 Pa (expected values-> ivp: 0.70202; lvp: 1.2335)
-T210_data    = [210,    1e5]
+#Test values @180  @ 1e5 Pa
+T180_data    = [180,    1e5, 0.0053975, 0.011239, None, None]
 
-#Test values @240  @ 1e5 Pa (expected values-> ivp: 27.272; lvp: 37.667)
-T240_data    = [240,    1e5]
+#Test values @210  @ 1e5 Pa
+T210_data    = [210,    1e5, 0.70202,   1.2335, None, None]
 
-#Test values @273.16  @ 1e5 Pa (expected values-> ivp: 611.657; lvp: 611.657)
-T273_16_data = [273.16, 1e5]
+#Test values @240  @ 1e5 Pa
+T240_data    = [240,    1e5, 27.272,    37.667, None, None]
 
-#Test values @300  @ 1e5 Pa (expected values-> lvp:3536.8, no ivp mentioned as temp is 300K)
-T300_data    = [300,    1e5]
+#Test values @273.16  @ 1e5 Pa
+T273_16_data = [273.16, 1e5, 611.657,   611.657, None, None]
+
+#Test values @300  @ 1e5 Pa (expected value for ivp is not mentioned below as temp is 300K)
+T300_data    = [300,    1e5, None,      3536.8, None, None]
 
 
 #The last line in this loop prints stuff to copy/paste into C++ tests.
