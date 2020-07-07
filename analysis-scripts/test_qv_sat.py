@@ -5,7 +5,7 @@ https://journals.ametsoc.org/doi/abs/10.1175/1520-0450%281992%29031%3C1507%3APFT
 in python to make sure it matches our result in C++.
 
 [BSINGH: Extended the original code to add new test cases along with Murphy and Koop specific
-print atements. Test cases are obtained from Murphy and Koop (2005) paper (accessed 07/05/2020):
+print statements. Test cases are obtained from Murphy and Koop (2005) paper (accessed 07/05/2020):
 https://pdfs.semanticscholar.org/519c/bb52a54c5abadff7263bf98678fccce5b594.pdf
 
 Added control variables "print_flatau" and "print_murphyKoop" to decide whether to
