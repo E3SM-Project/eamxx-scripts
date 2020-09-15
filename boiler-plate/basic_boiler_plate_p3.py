@@ -2,7 +2,7 @@
 
 #---------------------------------------------------------------------------------------
 # Purpose: A very basic script to output boiler plate for C++ porting. This script
-#          doesn't out the entire boiler plate but it helps with many repetitive
+#          doesn't print out the entire boiler plate but it helps with many repetitive
 #          parts especially where we have huge argument lists.
 #
 # Input: All intent ins, in-outs and outs from the fortran code
@@ -12,9 +12,9 @@
 
 from __future__ import print_function
 
-# Form goups of vars
+# Form groups of vars
 #---------------------------------------------------------------------------------------
-# Break reals in multiple groups, so that we can maintain order in which they appear
+# Break reals into multiple groups, so that we can maintain order in which they appear
 #---------------------------------------------------------------------------------------
 intent_in_real_1 =  ["t","pres","rho","xxlv","xxls","qvs","qvi"]
 
