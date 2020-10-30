@@ -123,29 +123,36 @@ if [ "${do_setup}" == "true" ]; then
     # Edit CAM namelist to set dycore options for new grid
     cat <<EOF >> user_nl_eam
 
-    ! Don't write h0 files
+    !*** By default the model dumps hundreds of vars in h0. Don't do that. ***
     empty_htapes=.true.
-    ! Outputs for DYAMOND
-    nhtfrq = 0, 3,3,-3 !output freq:   monthly, 15 min, 15 min, 3 hrly
-    mfilt = 1, 96,96,8 !new file freq: monthly, daily, daily, daily 
-    fincl2 = 'U10', 'UBOT:I', 'VBOT:I', 'TREFHT', 'PS', 'QREFHT', 'CLDLOW', 'CLDMED', 'CLDHGH', 
-             'TMQ', 'TMCLDLIQ', 'TMCLDICE', 'TMRAINQM', 'TMCLDRIM', 'CLDTOT', 'SHFLX', 'TGCLDLWP', 
-             'LHFLX', 'TAUX', 'TAUY', 'PRECT','PRECSL', 'QFLX', 'FSNS',  'FSNTOA',  'FSDS',  'FLNS', 'FLNT', 
-             'FLNTC','FSNTOAC'
-             !'CAPE', 'CIN', 'V10', 'TMSNOWQM', 'SurfZonalMomFlux', 'SurfMeriMomFlux'
-    fincl3 = 'T200:I', 'T500:I', 'T700:I', 'T850:I', 
-             'Q200:I', 'Q850:I', 'OMEGA500:I', 'OMEGA850:I', 
-             'Z200:I', 'Z500:I', 'Z700:I', 
-             'TBOT:M', 'TS:M','U850','Q700','Q500','OMEGA200','OMEGA700','Z850',
-             'Q700', 'Q500', 'OMEGA200', 'OMEGA700', 'Z850'
-    fincl4 = 'U:I', 'V:I', 'WLARGE:I', 'T:I', 'PS:I', 'Q:I', 'CLDLIQ:I', 'CLDICE:I','NUMICE:I','NUMLIQ:I'
-    ! Radiation must be called every output timestep
+    !*** Outputs for DYAMOND (note fincl can only go to 10) ***
+    nhtfrq = 3,3,3,3,3-3,-3,-3,-3,-3 !output freq: 3 steps=15 mi, -3=3hrs
+    mfilt = 96,96,96,96,96,8,8,8,8,8 !new file freq: daily in all cases
+    fincl1 = 'CLDLOW', 'CLDMED', 'CLDHGH', 'CLDTOT', 
+             'TMCLDLIQ', 'TMCLDICE', 'TMRAINQM', 'TMCLDRIM', 'TMQ' 
+    fincl2 = 'PS', 'TS', 'TREFHT', 'QREFHT',  
+             'SHFLX', 'LHFLX', 
+	     'PRECT','PRECSL', 'QFLX'  
+             !'CAPE', 'CIN', 'V10'
+    fincl3 = 'FSNTOA', 'FLNT','FLNTC','FSNTOAC', 'FSNS', 'FSDS', 'FLNS', 'FLDS'
+    fincl4 = 'U10', 'TAUX', 'TAUY' !note U10 is wind speed. We plan to change this.
+    fincl5 = 'T200',     'T500',      T700',     'T850', !remove in favor of RH?
+             'Q200',     'Q500',     'Q700',     'Q850', !remove in favor of RH?
+	     'OMEGA200', 'OMEGA500', 'OMEGA700', 'OMEGA850', 
+             'Z200',     'Z500',     'Z700',     'Z850'
+    !*** 3d variables below here ***
+    fincl6 = 'PS:I'
+    fincl7 = 'U:I', 'V:I', 'OMEGA:I'
+    fincl8 = 'T:I', 'Q:I', 
+    fincl9 = 'CLDLIQ:I', 'CLDICE:I'
+    fincl10 = 'NUMICE:I','NUMLIQ:I' !remove in favor of something else?
+    !*** Radiation must be called every output timestep ***
     iradsw = 3
     iradlw = 3
 
 EOF
 
-    cat <<EOF >> user_nl_clm
+    cat <<EOF >> user_nl_elm
 
 
 EOF
