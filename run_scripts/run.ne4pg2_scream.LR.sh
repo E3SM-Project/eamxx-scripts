@@ -2,21 +2,22 @@
 
 # Set run options
 #=============================================
-resolution=ne256pg2_r0125_oRRS18to6v3
-compset=F2010-SCREAM-HR-DYAMOND2
-branch=autoconv_25perc
+resolution=ne4pg2_ne4pg2
+#compset=F2010-SCREAM-HR-DYAMOND2
+compset=F2000-SCREAM-LR
+branch=U10
 repo=scream
 machine=cori-knl
 compiler=intel
 stop_option="ndays"
 stop_n="1"
 rest_n="1"
-walltime="2:00:00"
-queue="regular"
+walltime="0:29:00"
+queue="debug"
 
 # Setup processor layout
-nnodes_atm=1024
-nnodes_ocn=1024
+nnodes_atm=128
+nnodes_ocn=128
 nthreads=8
 mpi_tasks_per_node=16
 ntasks_atm=$(expr ${nnodes_atm} \* ${mpi_tasks_per_node})
@@ -126,8 +127,8 @@ if [ "${do_setup}" == "true" ]; then
     !*** By default the model dumps hundreds of vars in h0. Don't do that. ***
     empty_htapes=.true.
     !*** Outputs for DYAMOND (note fincl can only go to 10) ***
-    nhtfrq = 3,3,3,3,3,-3,-3,-3,-3,-3 !output freq: 3 steps=15 mi, -3=3hrs
-    mfilt = 96,96,96,96,96,8,8,8,8,8 !new file freq: daily in all cases
+    nhtfrq = 1,1,1,1,1,-3,-3,-3,-3,-3 !output freq: 1 step=30min, -3=3hrs
+    mfilt = 48,48,48,48,48,8,8,8,8,8 !new file freq: daily in all cases
     fincl1 = 'CLDLOW', 'CLDMED', 'CLDHGH', 'CLDTOT', 
              'TMCLDLIQ', 'TMCLDICE', 'TMRAINQM', 'TMCLDRIM', 'TMQ' 
     fincl2 = 'PS', 'TS', 'TREFHT', 'QREFHT',  
@@ -136,8 +137,8 @@ if [ "${do_setup}" == "true" ]; then
              !'CAPE', 'CIN', 'V10'
     fincl3 = 'FSNTOA', 'FLNT','FLNTC','FSNTOAC', 'FSNS', 'FSDS', 'FLNS', 'FLDS'
     fincl4 = 'U10', 'TAUX', 'TAUY' !note U10 is wind speed. We plan to change this.
-    fincl5 = 'T200',     'T500',     'T700',     'T850', !remove in favor of RH?
-             'Q200',     'Q500',     'Q700',     'Q850', !remove in favor of RH?
+    fincl5 = 'T200',     'T500',     'T700',     'T850',
+             'Q200',     'Q500',     'Q700',     'Q850',
 	     'OMEGA200', 'OMEGA500', 'OMEGA700', 'OMEGA850', 
              'Z200',     'Z500',     'Z700',     'Z850'
     !*** 3d variables below here ***
@@ -147,8 +148,8 @@ if [ "${do_setup}" == "true" ]; then
     fincl9 = 'CLDLIQ:I', 'CLDICE:I'
     fincl10 = 'NUMICE:I','NUMLIQ:I' !remove in favor of something else?
     !*** Radiation must be called every output timestep ***
-    iradsw = 3
-    iradlw = 3
+    iradsw = 1
+    iradlw = 1
 
 EOF
 

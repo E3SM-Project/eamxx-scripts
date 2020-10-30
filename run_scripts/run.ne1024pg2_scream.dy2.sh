@@ -2,23 +2,23 @@
 
 # Set run options
 #=============================================
-resolution=ne256pg2_r0125_oRRS18to6v3
+resolution=ne1024pg2_r0125_oRRS18to6v3
 compset=F2010-SCREAM-HR-DYAMOND2
-branch=autoconv_25perc
+branch=master
 repo=scream
 machine=cori-knl
 compiler=intel
 stop_option="ndays"
 stop_n="1"
 rest_n="1"
-walltime="2:00:00"
+walltime="5:30:00"
 queue="regular"
 
 # Setup processor layout
-nnodes_atm=1024
-nnodes_ocn=1024
-nthreads=8
-mpi_tasks_per_node=16
+nnodes_atm=1536
+nnodes_ocn=1536
+nthreads=16
+mpi_tasks_per_node=8
 ntasks_atm=$(expr ${nnodes_atm} \* ${mpi_tasks_per_node})
 ntasks_ocn=$(expr ${nnodes_ocn} \* ${mpi_tasks_per_node})
 total_tasks_per_node=$(expr ${mpi_tasks_per_node} \* ${nthreads})
@@ -118,7 +118,7 @@ if [ "${do_setup}" == "true" ]; then
     # Set PIO format, use PIO version 2, and increase PIO buffer size 
     ./xmlchange PIO_NETCDF_FORMAT="64bit_data"
     ./xmlchange PIO_VERSION="2"
-    ./xmlchange PIO_BUFFER_SIZE_LIMIT=64200000
+    ./xmlchange PIO_BUFFER_SIZE_LIMIT=134217728
     
     # Edit CAM namelist to set dycore options for new grid
     cat <<EOF >> user_nl_eam
@@ -126,7 +126,7 @@ if [ "${do_setup}" == "true" ]; then
     !*** By default the model dumps hundreds of vars in h0. Don't do that. ***
     empty_htapes=.true.
     !*** Outputs for DYAMOND (note fincl can only go to 10) ***
-    nhtfrq = 3,3,3,3,3,-3,-3,-3,-3,-3 !output freq: 3 steps=15 mi, -3=3hrs
+    nhtfrq = 12,12,12,12,12,-3,-3,-3,-3,-3 !output freq: 12 steps=15 mi, -3=3hrs
     mfilt = 96,96,96,96,96,8,8,8,8,8 !new file freq: daily in all cases
     fincl1 = 'CLDLOW', 'CLDMED', 'CLDHGH', 'CLDTOT', 
              'TMCLDLIQ', 'TMCLDICE', 'TMRAINQM', 'TMCLDRIM', 'TMQ' 
@@ -146,9 +146,9 @@ if [ "${do_setup}" == "true" ]; then
     fincl8 = 'T:I', 'Q:I', 
     fincl9 = 'CLDLIQ:I', 'CLDICE:I'
     fincl10 = 'NUMICE:I','NUMLIQ:I' !remove in favor of something else?
-    !*** Radiation must be called every output timestep ***
-    iradsw = 3
-    iradlw = 3
+    !*** Rad Freq: 4x75sec=5 min which divides 15 min output freq ***
+    iradsw = 4
+    iradlw = 4
 
 EOF
 
