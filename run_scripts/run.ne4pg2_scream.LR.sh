@@ -5,7 +5,8 @@
 resolution=ne4pg2_ne4pg2
 #compset=F2010-SCREAM-HR-DYAMOND2
 compset=F2000-SCREAM-LR
-branch=U10
+checkout_date=20101030 #the date of get code checkout
+run_descriptor=RenameU10 #will be SCREAMv0 for production run
 repo=scream
 machine=cori-knl
 compiler=intel
@@ -16,10 +17,10 @@ walltime="0:29:00"
 queue="debug"
 
 # Setup processor layout
-nnodes_atm=128
-nnodes_ocn=128
-nthreads=8
-mpi_tasks_per_node=16
+nnodes_atm=2
+nnodes_ocn=2
+nthreads=1
+mpi_tasks_per_node=64
 ntasks_atm=$(expr ${nnodes_atm} \* ${mpi_tasks_per_node})
 ntasks_ocn=$(expr ${nnodes_ocn} \* ${mpi_tasks_per_node})
 total_tasks_per_node=$(expr ${mpi_tasks_per_node} \* ${nthreads})
@@ -40,11 +41,14 @@ do_setup=true
 do_build=true
 do_submit=true
 
-debug_compile='FALSE'
+debug_compile='TRUE'
 
 # Set paths
-datestring=`date +"%Y%m%d-%H"`
-case_name=${branch}.${resolution}.${compset}.${machine}_${compiler}.${pelayout}.DY2_Oct6.${datestring}
+#datestring=`date +"%Y%m%d-%H"`
+#case_name=${branch}.${resolution}.${compset}.${machine}_${compiler}.${pelayout}.DY2_Oct6.${datestring}
+
+case_name=${checkout_date}.${run_descriptor}.${compset}.${resolution}.${machine}.${pelayout}
+
 code_root=${HOME}/gitwork/scream/
 case_root=${CSCRATCH}/E3SM_runs/${case_name}
 
@@ -136,7 +140,7 @@ if [ "${do_setup}" == "true" ]; then
 	     'PRECT','PRECSL', 'QFLX'  
              !'CAPE', 'CIN', 'V10'
     fincl3 = 'FSNTOA', 'FLNT','FLNTC','FSNTOAC', 'FSNS', 'FSDS', 'FLNS', 'FLDS'
-    fincl4 = 'U10', 'TAUX', 'TAUY' !note U10 is wind speed. We plan to change this.
+    fincl4 = 'WINDSPD_10M', 'TAUX', 'TAUY' !note U10 is wind speed. We plan to change this.
     fincl5 = 'T200',     'T500',     'T700',     'T850',
              'Q200',     'Q500',     'Q700',     'Q850',
 	     'OMEGA200', 'OMEGA500', 'OMEGA700', 'OMEGA850', 
