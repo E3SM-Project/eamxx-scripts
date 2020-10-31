@@ -140,7 +140,7 @@ if [ "${do_setup}" == "true" ]; then
 	     'PRECT','PRECSL', 'QFLX'  
              !'CAPE', 'CIN', 'V10'
     fincl3 = 'FSNTOA', 'FLNT','FLNTC','FSNTOAC', 'FSNS', 'FSDS', 'FLNS', 'FLDS'
-    fincl4 = 'WINDSPD_10M', 'TAUX', 'TAUY' !note U10 is wind speed. We plan to change this.
+    fincl4 = 'U10', 'TAUX', 'TAUY' !note U10 is wind speed. We plan to change this.
     fincl5 = 'T200',     'T500',     'T700',     'T850',
              'Q200',     'Q500',     'Q700',     'Q850',
 	     'OMEGA200', 'OMEGA500', 'OMEGA700', 'OMEGA850', 
