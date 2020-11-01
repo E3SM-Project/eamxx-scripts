@@ -5,6 +5,8 @@
 resolution=ne1024pg2_r0125_oRRS18to6v3
 compset=F2010-SCREAM-HR-DYAMOND2
 branch=master
+checkout_date=20101101 #the date of get code *checkout*
+run_descriptor=master #will be SCREAMv0 for production run
 repo=scream
 machine=cori-knl
 compiler=intel
@@ -13,6 +15,7 @@ stop_n="1"
 rest_n="1"
 walltime="5:30:00"
 queue="regular"
+debug_compile='FALSE'
 
 # Setup processor layout
 nnodes_atm=1536
@@ -39,11 +42,9 @@ do_setup=true
 do_build=true
 do_submit=true
 
-debug_compile='FALSE'
+case_name=${checkout_date}.${run_descriptor}.${compset}.${resolution}.${machine}.${pelayout}
 
 # Set paths
-datestring=`date +"%Y%m%d-%H"`
-case_name=${branch}.${resolution}.${compset}.${machine}_${compiler}.${pelayout}.DY2_Oct6.${datestring}
 code_root=${HOME}/gitwork/scream/
 case_root=${CSCRATCH}/E3SM_runs/${case_name}
 
@@ -135,9 +136,8 @@ if [ "${do_setup}" == "true" ]; then
 	     'PRECT','PRECSL', 'QFLX'  
              !'CAPE', 'CIN', 'V10'
     fincl3 = 'FSNTOA', 'FLNT','FLNTC','FSNTOAC', 'FSNS', 'FSDS', 'FLNS', 'FLDS'
-    fincl4 = 'U10', 'TAUX', 'TAUY' !note U10 is wind speed. We plan to change this.
-    fincl5 = 'T200',     'T500',     'T700',     'T850', !remove in favor of RH?
-             'Q200',     'Q500',     'Q700',     'Q850', !remove in favor of RH?
+    fincl4 = 'WINDSPD_10M', 'TAUX', 'TAUY'
+    fincl5 = 'RH200',    'RH500',    'RH700',    'RH850',
 	     'OMEGA200', 'OMEGA500', 'OMEGA700', 'OMEGA850', 
              'Z200',     'Z500',     'Z700',     'Z850'
     !*** 3d variables below here ***
@@ -145,7 +145,7 @@ if [ "${do_setup}" == "true" ]; then
     fincl7 = 'U:I', 'V:I', 'OMEGA:I'
     fincl8 = 'T:I', 'Q:I', 
     fincl9 = 'CLDLIQ:I', 'CLDICE:I'
-    fincl10 = 'NUMICE:I','NUMLIQ:I' !remove in favor of something else?
+    fincl10 = 'CLOUD:I','EMIS:I', 'TOT_ICLD_VISTAU:I'
     !*** Rad Freq: 4x75sec=5 min which divides 15 min output freq ***
     iradsw = 4
     iradlw = 4
