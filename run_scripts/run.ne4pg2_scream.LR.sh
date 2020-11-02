@@ -132,12 +132,9 @@ if [ "${do_setup}" == "true" ]; then
     mfilt = 48,48,48,48,48,8,8,8,8,8 !new file freq: daily in all cases
     fincl1 = 'CLDLOW', 'CLDMED', 'CLDHGH', 'CLDTOT', 
              'TMCLDLIQ', 'TMCLDICE', 'TMRAINQM', 'TMCLDRIM', 'TMQ' 
-    fincl2 = 'PS', 'TS', 'TREFHT', 'QREFHT',  
-             'SHFLX', 'LHFLX', 
-	     'PRECT','PRECSL', 'QFLX'  
-             !'CAPE', 'CIN', 'V10'
+    fincl2 = 'PS', 'TS', 'TREFHT', 'QREFHT', 'PRECT','PRECSL', 'QFLX' 
     fincl3 = 'FSNTOA', 'FLNT','FLNTC','FSNTOAC', 'FSNS', 'FSDS', 'FLNS', 'FLDS'
-    fincl4 = 'WINDSPD_10M', 'TAUX', 'TAUY'
+    fincl4 = 'WINDSPD_10M', 'TAUX', 'TAUY','CAPE', 'CIN','SHFLX', 'LHFLX'
     fincl5 = 'RH200',    'RH500',    'RH700',    'RH850',
 	     'OMEGA200', 'OMEGA500', 'OMEGA700', 'OMEGA850', 
              'Z200',     'Z500',     'Z700',     'Z850'
