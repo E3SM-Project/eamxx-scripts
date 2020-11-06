@@ -4,9 +4,9 @@
 #=============================================
 resolution=ne1024pg2_r0125_oRRS18to6v3
 compset=F2010-SCREAM-HR-DYAMOND2
-checkout_date=20101101 #the date you *checked out* the code
+checkout_date=20201106 #the date you *checked out* the code
 branch=master          #actual name of branch to check out
-run_descriptor=master #will be SCREAMv0 for production run
+run_descriptor=master  #will be SCREAMv0 for production run
 repo=scream
 machine=cori-knl
 compiler=intel
@@ -127,22 +127,24 @@ if [ "${do_setup}" == "true" ]; then
     !*** By default the model dumps hundreds of vars in h0. Don't do that. ***
     empty_htapes=.true.
     !*** Outputs for DYAMOND (note fincl can only go to 10) ***
-    nhtfrq = 12,12,12,12,12,-3,-3,-3,-3,-3 !output freq: 12 steps=15 mi, -3=3hrs
-    mfilt = 96,96,96,96,96,8,8,8,8,8 !new file freq: daily in all cases
-    fincl1 = 'CLDLOW', 'CLDMED', 'CLDHGH', 'CLDTOT', 
-             'TMCLDLIQ', 'TMCLDICE', 'TMRAINQM', 'TMCLDRIM', 'TMQ' 
-    fincl2 = 'PS', 'TS', 'TREFHT', 'QREFHT', 'PRECT','PRECSL', 'QFLX' 
-    fincl3 = 'FSNTOA', 'FLNT','FLNTC','FSNTOAC', 'FSNS', 'FSDS', 'FLNS', 'FLDS'
-    fincl4 = 'WINDSPD_10M', 'TAUX', 'TAUY','CAPE', 'CIN','SHFLX', 'LHFLX'
-    fincl5 = 'RH200',    'RH500',    'RH700',    'RH850',
+    nhtfrq = 12,12,12,12,-3,-3,-3,-3,-3,-3 !output freq: 12 steps=15 mi, -3=3hrs
+    mfilt = 96,96,96,96,8,8,8,8,8,8 !new file freq: daily in all cases
+    fincl1 = 'CLDLOW', 'CLDMED', 'CLDHGH', 'CLDTOT', 'TMCLDLIQ', 
+             'TMCLDICE', 'TMRAINQM', 'TMCLDRIM', 'TMQ', 'CAPE', 'CIN'
+    fincl2 = 'PS', 'TS', 'TREFHT', 'QREFHT', 'PRECT','PRECSL',
+    	     'WINDSPD_10M', 'TAUX', 'TAUY', 'SHFLX', 'LHFLX'
+    fincl3 = 'FSNTOA', 'FLNT','FLNTC','FSNTOAC', 'FSNS', 'FSDS', 
+    	     'FLNS', 'FLDS'
+    fincl4 = 'RH200',    'RH500',    'RH700',    'RH850',
 	     'OMEGA200', 'OMEGA500', 'OMEGA700', 'OMEGA850', 
              'Z200',     'Z500',     'Z700',     'Z850'
-    !*** 3d variables below here ***
-    fincl6 = 'PS:I'
-    fincl7 = 'U:I', 'V:I', 'OMEGA:I'
-    fincl8 = 'T:I', 'Q:I', 
-    fincl9 = 'CLDLIQ:I', 'CLDICE:I'
-    fincl10 = 'CLOUD:I','EMIS:I', 'TOT_ICLD_VISTAU:I'
+    !*** 3 hrly (mostly 3d) variables below here ***
+    fincl5 = 'PS:I', 'PSL', 'TMNUMLIQ', 'TMNUMICE', 'TMNUMRAI'
+    fincl6 = 'U:I', 'V:I'
+    fincl7 = 'T:I', 'Q:I', 
+    fincl8 = 'CLDLIQ:I', 'CLDICE:I'
+    fincl9 = 'CLOUD:I','OMEGA:I'
+    fincl10= 'EMIS:I', 'TOT_ICLD_VISTAU:I'
     !*** Rad Freq: 4x75sec=5 min which divides 15 min output freq ***
     iradsw = 4
     iradlw = 4
