@@ -46,7 +46,8 @@ case_name=${checkout_date}.${run_descriptor}.${compset}.${resolution}.${machine}
 
 # Set paths
 code_root=${HOME}/gitwork/scream/
-case_root=${CSCRATCH}/E3SM_runs/${case_name}
+#case_root=${CSCRATCH}/E3SM_runs/${case_name}
+case_root=${CSCRATCH}/e3sm_scratch/cori-knl/${case_name}
 
 ######################################################################################
 ### USERS PROBABLY DON'T NEED TO CHANGE ANYTHING BELOW HERE EXCEPT user_nl_* FILES ###
@@ -139,7 +140,7 @@ if [ "${do_setup}" == "true" ]; then
 	     'OMEGA200', 'OMEGA500', 'OMEGA700', 'OMEGA850', 
              'Z200',     'Z500',     'Z700',     'Z850'
     !*** 3 hrly (mostly 3d) variables below here ***
-    fincl5 = 'PS:I', 'PSL', 'TMNUMLIQ', 'TMNUMICE', 'TMNUMRAI'
+    fincl5 = 'PS:I', 'PSL:I', 'TMNUMLIQ', 'TMNUMICE', 'TMNUMRAI'
     fincl6 = 'U:I', 'V:I'
     fincl7 = 'T:I', 'Q:I', 
     fincl8 = 'CLDLIQ:I', 'CLDICE:I'
