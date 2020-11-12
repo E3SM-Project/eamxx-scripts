@@ -183,9 +183,9 @@ if [ "${do_build}" == "true" ]; then
     ./case.build
 
     # Set file striping on run dir for writing large files
-    ls -l run > /dev/null #should be empty, just here to give good error if run dir doesn't exist
+    ls -l run > /dev/null #just using this command as a check that run dir exists
     lfs setstripe -S 1m -c 64 run
-    lfs getstripe run 2>&1 lfs_run.txt
+    lfs getstripe run >& lfs_run.txt
 fi
 
 # Run
