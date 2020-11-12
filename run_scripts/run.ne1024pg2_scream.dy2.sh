@@ -4,9 +4,9 @@
 #=============================================
 resolution=ne1024pg2_r0125_oRRS18to6v3
 compset=F2010-SCREAM-HR-DYAMOND2
-checkout_date=20201106 #the date you *checked out* the code
-branch=master          #actual name of branch to check out
-run_descriptor=master  #will be SCREAMv0 for production run
+checkout_date=20201112  #the date you *checked out* the code
+branch=dyamond2         #actual name of branch to check out
+run_descriptor=dyamond2 #will be SCREAMv0 for production run
 repo=scream
 machine=cori-knl
 compiler=intel
@@ -46,12 +46,16 @@ case_name=${checkout_date}.${run_descriptor}.${compset}.${resolution}.${machine}
 
 # Set paths
 code_root=${HOME}/gitwork/scream/
-#case_root=${CSCRATCH}/E3SM_runs/${case_name}
+#code_root=${CSCRATCH}/E3SM_code/scream/
 case_root=${CSCRATCH}/e3sm_scratch/cori-knl/${case_name}
 
 ######################################################################################
 ### USERS PROBABLY DON'T NEED TO CHANGE ANYTHING BELOW HERE EXCEPT user_nl_* FILES ###
 ######################################################################################
+
+# Make directories created by this script world-readable:
+#=============================================
+umask 022
 
 # Download code
 #=============================================
@@ -91,6 +95,7 @@ if [ "${do_newcase}" == "true" ]; then
 fi
 
 # Copy this script to case directory
+#=============================================
 cp -v `basename $0` ${case_root}/
 
 # Setup
@@ -130,17 +135,17 @@ if [ "${do_setup}" == "true" ]; then
     !*** Outputs for DYAMOND (note fincl can only go to 10) ***
     nhtfrq = 12,12,12,12,-3,-3,-3,-3,-3,-3 !output freq: 12 steps=15 mi, -3=3hrs
     mfilt = 96,96,96,96,8,8,8,8,8,8 !new file freq: daily in all cases
-    fincl1 = 'CLDLOW', 'CLDMED', 'CLDHGH', 'CLDTOT', 'TMCLDLIQ', 
-             'TMCLDICE', 'TMRAINQM', 'TMCLDRIM', 'TMQ', 'CAPE', 'CIN'
-    fincl2 = 'PS', 'TS', 'TREFHT', 'QREFHT', 'PRECT','PRECSL',
-    	     'WINDSPD_10M', 'TAUX', 'TAUY', 'SHFLX', 'LHFLX'
-    fincl3 = 'FSNTOA', 'FLNT','FLNTC','FSNTOAC', 'FSNS', 'FSDS', 
-    	     'FLNS', 'FLDS'
-    fincl4 = 'RH200',    'RH500',    'RH700',    'RH850',
-	     'OMEGA200', 'OMEGA500', 'OMEGA700', 'OMEGA850', 
-             'Z200',     'Z500',     'Z700',     'Z850'
+    fincl1 = 'CLDLOW:I', 'CLDMED:I', 'CLDHGH:I', 'CLDTOT:I', 'TMCLDLIQ:I', 
+             'TMCLDICE:I', 'TMRAINQM:I', 'TMCLDRIM:I', 'TMQ:I', 'CAPE:I', 'CIN:I'
+    fincl2 = 'PS:I', 'TS:I', 'TREFHT:I', 'QREFHT:I', 'PRECT:I','PRECSL:I',
+    	     'WINDSPD_10M:I', 'TAUX:I', 'TAUY:I', 'SHFLX:I', 'LHFLX:I'
+    fincl3 = 'FSNTOA:I', 'FLNT:I','FLNTC:I','FSNTOAC:I', 'FSNS:I', 'FSDS:I', 
+    	     'FLNS:I', 'FLDS:I'
+    fincl4 = 'RH200:I',    'RH500:I',    'RH700:I',    'RH850:I',
+	     'OMEGA200:I', 'OMEGA500:I', 'OMEGA700:I', 'OMEGA850:I', 
+             'Z200:I',     'Z500:I',     'Z700:I',     'Z850:I'
     !*** 3 hrly (mostly 3d) variables below here ***
-    fincl5 = 'PS:I', 'PSL:I', 'TMNUMLIQ', 'TMNUMICE', 'TMNUMRAI'
+    fincl5 = 'PS:I', 'PSL:I', 'TMNUMLIQ:I', 'TMNUMICE:I', 'TMNUMRAI:I'
     fincl6 = 'U:I', 'V:I'
     fincl7 = 'T:I', 'Q:I', 
     fincl8 = 'CLDLIQ:I', 'CLDICE:I'
@@ -178,9 +183,9 @@ if [ "${do_build}" == "true" ]; then
     ./case.build
 
     # Set file striping on run dir for writing large files
-    ls -l run
+    ls -l run > /dev/null #should be empty, just here to give good error if run dir doesn't exist
     lfs setstripe -S 1m -c 64 run
-    lfs getstripe run >& lfs_run.txt
+    lfs getstripe run 2>&1 lfs_run.txt
 fi
 
 # Run
