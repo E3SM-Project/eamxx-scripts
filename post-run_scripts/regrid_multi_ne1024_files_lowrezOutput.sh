@@ -25,7 +25,7 @@ echo "Regridding ${2} variable from ${3} files"
 for f in *.eam.${3}.*.nc
 do
     echo "processing $f"
-    ncremap -v ${2} -m /global/cfs/cdirs/e3sm/terai/mapping/map_ne1024pg2_to_fv256x512_mono.20200428.nc -i ${1}${f} -o ${4}${2}_rgr_256x512_${f}
+    ncremap -v ${2} -m /global/cfs/cdirs/e3sm/terai/mapping/map_ne1024pg2_to_fv256x512_nco.20201201.nc -i ${1}${f} -o ${4}${2}_rgr_256x512_${f}
 done
 
 ncrcat ${4}${2}_rgr_256x512_*nc ${4}CAT_${2}_rgr_256x512_${3}.nc
