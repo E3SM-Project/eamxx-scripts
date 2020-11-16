@@ -25,13 +25,13 @@ cd ${fileloc}
 for f in *eam.h*.nc ; do
     
     echo "moving $f"
-    time hsi "cd ${hpssloc}; put -c on $f"
+    hsi "cd ${hpssloc}; put -c on $f"
 done
 
 for f in *eam.h*.nc ; do
 
     echo "verifying $f"
-    hsi hashverify ${hpssloc}${f}
+    hsi -P hashverify ${hpssloc}${f} >> move_verify.txt
 done
 
 
