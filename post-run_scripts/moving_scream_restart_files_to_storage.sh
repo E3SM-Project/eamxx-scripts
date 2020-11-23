@@ -23,16 +23,16 @@ echo "  "
 
 cd ${fileloc}
 
-for f in ${fileprefix}*.r*.* ; do
+for f in ${fileprefix}*.r*.2020-01-31-00000* ; do
     
     echo "moving $f"
-    time hsi "cd ${hpssloc}; put -c on $f"
+    hsi -P "cd ${hpssloc}; cput -c on $f" >> moving_restart_log.txt
 done
 
-for f in ${fileprefix}*.r*.* ; do
+for f in ${fileprefix}*.r*.2020-01-31-00000* ; do
 
     echo "verifying $f"
-    time hsi hashverify ${hpssloc}${f}
+    hsi -P hashverify ${hpssloc}${f} >> moving_verify_restart.txt
 done
 
 

@@ -22,13 +22,26 @@ echo "  "
 
 cd ${fileloc}
 
-for f in *eam.h*.nc ; do
+for f in *eam.h*2020-01-2[789]-*.nc ; do
     
     echo "moving $f"
     hsi "cd ${hpssloc}; put -c on $f"
 done
 
-for f in *eam.h*.nc ; do
+for f in *eam.h*2020-01-30-*.nc ; do
+    
+    echo "moving $f"
+    hsi "cd ${hpssloc}; put -c on $f"
+done
+
+
+for f in *eam.h*2020-01-2[789]-*.nc ; do
+
+    echo "verifying $f"
+    hsi -P hashverify ${hpssloc}${f} >> move_verify.txt
+done
+
+for f in *eam.h*2020-01-30-*.nc ; do
 
     echo "verifying $f"
     hsi -P hashverify ${hpssloc}${f} >> move_verify.txt
