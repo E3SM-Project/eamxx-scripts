@@ -4,18 +4,19 @@
 #=============================================
 resolution=ne1024pg2_r0125_oRRS18to6v3
 compset=F2010-SCREAM-HR-DYAMOND2
-checkout_date=20201112  #the date you *checked out* the code
-branch=33dc819          #actual git hash of branch to check out
-run_descriptor=SCREAMv0dyamond2 #will be SCREAMv0 for production run
+checkout_date=20201127  #the date you *checked out* the code
+branch=ad0e203          #actual git hash of branch to check out
+run_descriptor=SCREAMv0 #will be SCREAMv0 for production run
 repo=scream
 machine=cori-knl
 compiler=intel
 stop_option="ndays"
-stop_n="1"
+stop_n="4"
 rest_n="1"
-walltime="7:00:00"
+walltime="29:00:00"
 queue="regular"
 debug_compile='FALSE'
+date_string=`date`
 
 # Setup processor layout
 nnodes_atm=1536
@@ -42,11 +43,11 @@ do_setup=true
 do_build=true
 do_submit=true
 
-case_name=${checkout_date}.${run_descriptor}.${compset}.${resolution}.${machine}.${pelayout}
+case_name=SCREAMv0.SCREAM-DY2.ne1024pg2.${date_string}
 
 # Set paths
 #code_root=${HOME}/gitwork/scream/
-code_root=${CSCRATCH}/E3SM_code/scream/
+code_root=${CSCRATCH}/E3SM_code/screamv0_20201127/
 case_root=${CSCRATCH}/e3sm_scratch/cori-knl/${case_name}
 
 ######################################################################################
