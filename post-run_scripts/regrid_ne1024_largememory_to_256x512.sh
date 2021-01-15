@@ -9,18 +9,15 @@
 
 # Location of the model output              
 # USER needs to change this                 
-fileloc='/global/cfs/cdirs/e3sm/terai/SCREAM/DYAMOND2/Output/20201112/'
-#fileloc='/global/cscratch1/sd/terai/e3sm_scratch/cori-knl/SCREAMv0.SCREAM-DY2.ne1024pg2.20201127/run/'
+fileloc='/global/cscratch1/sd/terai/e3sm_scratch/cori-knl/SCREAMv0.SCREAM-DY2.ne1024pg2.20201127/run/'
 
 # Map file
 map_file='/global/cfs/cdirs/e3sm/terai/mapping/map_ne1024pg2_to_fv256x512_nco.20201201.nc'
 
 # Location of the regridded files
 # USER needs to change this
-outputloc='/global/cfs/cdirs/e3sm/terai/SCREAM/DYAMOND2/Output/20201112/regridded/'
-#outputloc='/global/cfs/cdirs/e3sm/terai/SCREAM/DYAMOND2/Output/20201127/regridded/'
+outputloc='/global/cfs/cdirs/e3sm/terai/SCREAM/DYAMOND2/Output/20201127/regridded/'
 
-casename='20201112.SCREAMv0dyamond2.F2010-SCREAM-HR-DYAMOND2.ne1024pg2_r0125_oRRS18to6v3.cori-knl.1536x8x16'
 
 # =============================================================                                               
 
@@ -35,15 +32,16 @@ echo "  "
 
 cd ${fileloc}
 
-ls ${casename}*eam.h[56789].2020-01-20-00000.nc | ncremap --dbg=1 --vrb=3 --devnull=Np --nco='--dbg=5' --thr_nbr=3 --par_typ=bck --job_nbr=10 -m ${map_file} -O ${outputloc} > ./ncremap.2020-01-20 2>&1 
+#ls ${casename}*eam.h?.2020-02-24-00000.nc | ncremap --dbg=1 --vrb=3 --devnull=Np --nco='--dbg=5' --thr_nbr=3 --par_typ=bck --job_nbr=10 -m ${map_file} -O ${outputloc} > ./ncremap.2020-02-24 2>&1 
+#echo "done with 02-24"
+#ls ${casename}*eam.h?.2020-02-25-00000.nc | ncremap --dbg=1 --vrb=3 --devnull=Np --nco='--dbg=5' --thr_nbr=3 --par_typ=bck --job_nbr=10 -m ${map_file} -O ${outputloc} > ./ncremap.2020-02-25 2>&1 
+#echo "done with 02-25"
+ls ${casename}*eam.h?.2020-02-25-00000.nc | ncremap --dbg=1 --vrb=3 --devnull=Np --nco='--dbg=5' --thr_nbr=3 --par_typ=bck --job_nbr=10 -m ${map_file} -O ${outputloc} > ~/ncremap.2020-02-25 2>&1 
+echo "done with 02-26"
+#ls ${casename}*eam.h?.2020-02-27-00000.nc | ncremap --dbg=1 --vrb=3 --devnull=Np --nco='--dbg=5' --thr_nbr=3 --par_typ=bck --job_nbr=10 -m ${map_file} -O ${outputloc} > ~/ncremap.2020-02-20 2>&1 
+#echo "done with 02-20"
 
-ls ${casename}*eam.h[56789].2020-01-21-00000.nc | ncremap --dbg=1 --vrb=3 --devnull=Np --nco='--dbg=5' --thr_nbr=3 --par_typ=bck --job_nbr=10 -m ${map_file} -O ${outputloc} > ./ncremap.2020-01-21 2>&1 
-
-ls ${casename}*eam.h[56789].2020-01-22-00000.nc | ncremap --dbg=1 --vrb=3 --devnull=Np --nco='--dbg=5' --thr_nbr=3 --par_typ=bck --job_nbr=10 -m ${map_file} -O ${outputloc} > ~/ncremap.2020-01-22 2>&1 
-
-ls ${casename}*eam.h[56789].2020-01-23-00000.nc | ncremap --dbg=1 --vrb=3 --devnull=Np --nco='--dbg=5' --thr_nbr=3 --par_typ=bck --job_nbr=10 -m ${map_file} -O ${outputloc} > ~/ncremap.2020-01-23 2>&1 
-
-ls ${casename}*eam.h[56789].2020-01-24-00000.nc | ncremap --dbg=1 --vrb=3 --devnull=Np --nco='--dbg=5' --thr_nbr=3 --par_typ=bck --job_nbr=10 -m ${map_file} -O ${outputloc} > ~/ncremap.2020-01-24 2>&1 
+#ls ${casename}*eam.h?.2020-01-24-00000.nc | ncremap --dbg=1 --vrb=3 --devnull=Np --nco='--dbg=5' --thr_nbr=3 --par_typ=bck --job_nbr=10 -m ${map_file} -O ${outputloc} > ~/ncremap.2020-01-24 2>&1 
 
 
 echo "  "
