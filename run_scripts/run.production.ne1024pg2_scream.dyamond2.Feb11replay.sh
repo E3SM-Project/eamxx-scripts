@@ -196,6 +196,16 @@ if [ "${do_build}" == "true" ]; then
     lfs getstripe run >& lfs_run.txt
 fi
 
+#==============================================
+# IMPORTANT Note: CRT
+./xmlchange GET_REFCASE="FALSE" # turn off GET_REFCASE so that the file doesn't try to copy over data again
+
+# Here, you need to modify the rpointer files in the current run directory
+# so that they have the correct dates that correspond to RUN_REFDATE
+
+#==============================================
+
+
 # Run
 #=============================================
 if [ "${do_submit}" == "true" ]; then
