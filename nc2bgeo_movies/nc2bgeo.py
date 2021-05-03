@@ -28,9 +28,12 @@ def make_3d_pres(ps,hya,hyb):
     """
 
     #COPY ALL ARRAYS TO HAVE 3 DIMENSIONS
-    PS=np.dot(np.ones([len(hya),1],np.float32),np.reshape(ps,[1]+list(ps.shape)))
-    HYA=np.dot(np.reshape(hya,[len(hya),1]),np.ones([1]+list(ps.shape),np.float32))
-    HYB=np.dot(np.reshape(hyb,[len(hyb),1]),np.ones([1]+list(ps.shape),np.float32))
+    for i in np.arange(len(ps.shape)):
+        hya=np.expand_dims(hya,axis=i+1)
+        hyb=np.expand_dims(hyb,axis=i+1)
+    HYA=(hya*np.ones([1]+list(ps.shape),np.float32))
+    HYB=(hyb*np.ones([1]+list(ps.shape),np.float32))
+    PS= (np.ones(hya.shape,np.float32)*np.reshape(ps,[1]+list(ps.shape)))
 
     P=HYA*100000. + HYB*PS
 
