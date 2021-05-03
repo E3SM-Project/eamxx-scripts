@@ -28,9 +28,15 @@ def make_3d_pres(ps,hya,hyb):
     """
 
     #COPY ALL ARRAYS TO HAVE 3 DIMENSIONS
+    # Below, expand hya and hyb so that they have 1+# of dimensions of ps
     for i in np.arange(len(ps.shape)):
         hya=np.expand_dims(hya,axis=i+1)
         hyb=np.expand_dims(hyb,axis=i+1)
+        
+    # Below, using broadcasting feature in numpy to create HYA,HYB, and PS
+    # which have dimensions [len(hya),ps.shape[0],ps.shape[1]] if PS is
+    # regridded or [len(hya),ps.shape[0]] if PS is native (1D)
+    # https://numpy.org/doc/stable/user/basics.broadcasting.html
     HYA=(hya*np.ones([1]+list(ps.shape),np.float32))
     HYB=(hyb*np.ones([1]+list(ps.shape),np.float32))
     PS= (np.ones(hya.shape,np.float32)*np.reshape(ps,[1]+list(ps.shape)))
