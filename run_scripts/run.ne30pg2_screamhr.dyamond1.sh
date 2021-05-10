@@ -2,27 +2,27 @@
 
 # Set run options
 #=============================================
-resolution=ne1024pg2_r0125_oRRS18to6v3
-compset=F2010-SCREAM-HR-DYAMOND2
+resolution=ne30pg2_r05_oECv3
+compset=F2010-SCREAM-HR-DYAMOND1
 checkout_date=20210505   #the date you *checked out* the code
 branch=757fc7c           #actual git hash of branch to check out
-run_descriptor=SCREAMv01 #will be SCREAMv0 for production run
+run_descriptor=SCREAMv010 #will be SCREAMv0 for production run
 repo=scream
 machine=cori-knl
 compiler=intel
 stop_option="ndays"
-stop_n="1"
-rest_n="1"
-walltime="8:00:00"
+stop_n="30"
+rest_n="10"
+walltime="2:00:00"
 queue="regular"
 debug_compile='FALSE'
-date_string=20210505
+date_string=20210510
 
 # Setup processor layout
-nnodes_atm=1536
-nnodes_ocn=1536
-nthreads=16
-mpi_tasks_per_node=8
+nnodes_atm=42
+nnodes_ocn=42
+nthreads=4
+mpi_tasks_per_node=33
 ntasks_atm=$(expr ${nnodes_atm} \* ${mpi_tasks_per_node})
 ntasks_ocn=$(expr ${nnodes_ocn} \* ${mpi_tasks_per_node})
 total_tasks_per_node=$(expr ${mpi_tasks_per_node} \* ${nthreads})
@@ -34,18 +34,19 @@ fi
 pelayout=${nnodes}x${mpi_tasks_per_node}x${nthreads}
 
 # Who to send email updates on run status to
-email_address="ndkeen@lbl.gov"
+email_address="terai1@llnl.gov"
 
 # Set flags specific to running this script
-do_download=true
+do_download=false
 do_newcase=true
 do_setup=true
 do_build=true
 do_submit=true
 
-case_name=SCREAMv010.SCREAM-DY2.ne1024pg2.${date_string}
+case_name=SCREAMv010.SCREAM-DY1.ne30pg2.HR.${date_string}
 
 # Set paths
+#code_root=${HOME}/gitwork/scream/
 code_root=${CSCRATCH}/E3SM_code/screamv01_20210505/
 case_root=${CSCRATCH}/e3sm_scratch/cori-knl/${case_name}
 
@@ -122,10 +123,10 @@ if [ "${do_setup}" == "true" ]; then
     # Flag for debug compile
     ./xmlchange --id DEBUG --val ${debug_compile}
     
-    # Set PIO format, use PIO version 2, and increase PIO buffer size 
-    ./xmlchange PIO_NETCDF_FORMAT="64bit_data"
-    ./xmlchange PIO_VERSION="2"
-    ./xmlchange PIO_BUFFER_SIZE_LIMIT=134217728
+    ## Set PIO format, use PIO version 2, and increase PIO buffer size 
+    #./xmlchange PIO_NETCDF_FORMAT="64bit_data"
+    #./xmlchange PIO_VERSION="2"
+    #./xmlchange PIO_BUFFER_SIZE_LIMIT=134217728
     
     # Edit CAM namelist to set dycore options for new grid
     cat <<EOF >> user_nl_eam
@@ -133,8 +134,8 @@ if [ "${do_setup}" == "true" ]; then
     !*** By default the model dumps hundreds of vars in h0. Don't do that. ***
     empty_htapes=.true.
     !*** Outputs for DYAMOND (note fincl can only go to 10) ***
-    nhtfrq = 12,12,12,12,-3,-3,-3,-3,-3,-3 !output freq: 12 steps=15 mi, -3=3hrs
-    mfilt = 96,96,96,96,8,8,8,8,8,8 !new file freq: daily in all cases
+    nhtfrq = 1,1,1,1,-3,-3,-3,-3,-3,-3 !output freq: 12 steps=15 mi, -3=3hrs
+    mfilt = 48,48,48,48,8,8,8,8,8,8 !new file freq: daily in all cases
     fincl1 = 'CLDLOW:I', 'CLDMED:I', 'CLDHGH:I', 'CLDTOT:I', 'TMCLDLIQ:I', 
              'TMCLDICE:I', 'TMRAINQM:I', 'TMCLDRIM:I', 'TMQ:I', 'CAPE:I', 'CIN:I'
     fincl2 = 'PS:I', 'TS:I', 'TREFHT:I', 'QREFHT:I', 'PRECT:I','PRECSL:I',
@@ -152,18 +153,8 @@ if [ "${do_setup}" == "true" ]; then
     fincl9 = 'CLOUD:I','OMEGA:I'
     fincl10= 'EMIS:I', 'TOT_ICLD_VISTAU:I'
     !*** Rad Freq: 4x75sec=5 min which divides 15 min output freq ***
-    iradsw = 4
-    iradlw = 4
-
-    ! Add dycore settings for coarser topography
-    pgrad_correction = 1
-    hv_ref_profiles = 2
-    hv_theta_correction = 1
-    !bnd_topo='/projects/ClimateEnergy_4/terai/topo/USGS-gtopo30_ne1024np4pg2_fx1t-SGH.nc'
-    bnd_topo='/global/cfs/cdirs/e3sm/terai/topo/USGS-gtopo30_ne1024np4pg2_fx1t-SGH.nc'
-    !for running more smoothed topography
-    !bnd_topo='/projects/ClimateEnergy_4/terai/topo/USGS-gtopo30_ne1024np4pg2_fx2t-SGH.nc' 
-    !se_tstep=4.6875
+    iradsw = 1
+    iradlw = 1
 
 EOF
 
@@ -188,9 +179,9 @@ if [ "${do_build}" == "true" ]; then
     ./case.build
 
     # Set file striping on run dir for writing large files
-    ls -l run > /dev/null #just using this command as a check that run dir exists
-    lfs setstripe -S 1m -c 64 run
-    lfs getstripe run >& lfs_run.txt
+    #ls -l run > /dev/null #just using this command as a check that run dir exists
+    #lfs setstripe -S 1m -c 64 run
+    #lfs getstripe run >& lfs_run.txt
 fi
 
 # Run
@@ -198,8 +189,6 @@ fi
 if [ "${do_submit}" == "true" ]; then
     cd ${case_root}
     ./case.submit --batch-args="--mail-type=ALL --mail-user=${email_address}"
-    # This may be needed for jobs on Theta where slurm is not used
-    #./case.submit --batch-args="-M ${email_address} --jobname ${case_name}"
 fi
 
 echo "Done working in ${case_root}"
