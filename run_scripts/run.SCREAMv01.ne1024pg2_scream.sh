@@ -198,6 +198,8 @@ fi
 if [ "${do_submit}" == "true" ]; then
     cd ${case_root}
     ./case.submit --batch-args="--mail-type=ALL --mail-user=${email_address}"
+    # This may be needed for jobs on Theta where slurm is not used
+    #./case.submit --batch-args="-M ${email_address} --jobname ${case_name}"
 fi
 
 echo "Done working in ${case_root}"
