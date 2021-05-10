@@ -179,9 +179,9 @@ EOF
 
 
     # This disables the logic that sets tprof_n and tprof_options internally.
-    ./xmlchange --file env_run.xml TPROF_TOTAL=-1
-    echo "tprof_n = 1" >> user_nl_cpl
-    echo "tprof_option = 'nsteps'" >> user_nl_cpl
+    #./xmlchange --file env_run.xml TPROF_TOTAL=-1
+    #echo "tprof_n = 1" >> user_nl_cpl
+    #echo "tprof_option = 'nsteps'" >> user_nl_cpl
 fi
 
 # Build
