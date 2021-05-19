@@ -22,22 +22,22 @@ Notes:
 #==============
 from netCDF4 import Dataset
 import numpy as np
-import pylab as pl
+#import pylab as pl
 import time
 import nc2bgeo
-
+"""
 #INPUTS FOR A GLOBAL 3D 256X521 REGRIDDED VARIABLE
 #=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-==-=-=--=-=-==-=-=-
-"""
+
 varname='CLDLIQ'
-regridded=True
+regridded=False
 vertdim=True #if 3d data rather than just lat/lon
 ####outfile=varname+'_14-25Sx98-110W.bgeo'
-outfile=varname+'_regridded.bgeo'
+#outfile=varname+'_native_20200216_timesnap1.bgeo'
 latlonht=True #if true, dims=lat,lon,ht. Otherwise meters from center of earth
 
-var_fi='/global/cfs/cdirs/e3sm/terai/SCREAM/DYAMOND2/Output/20201127/regridded/'\
-        'SCREAMv0.SCREAM-DY2.ne1024pg2.20201127.eam.h7.2020-01-21-00000.nc'
+#var_fi='/global/cscratch1/sd/terai/SCREAM/ForBradCarvey/'\
+#        'rgr_1800x3600_SCREAMv0.SCREAM-DY2.ne1024pg2.20201127.eam.h7.2020-02-16-00000.nc'
 
 #Only need the next file if regridded=False.
 #native_grid_fi='/global/homes/z/zender/data/grids/ne1024pg2.nc'
@@ -46,50 +46,54 @@ var_fi='/global/cfs/cdirs/e3sm/terai/SCREAM/DYAMOND2/Output/20201127/regridded/'
 #- - - - - - - - - - - - - - - - - - - - - - - -
 #topo_fi='/global/cfs/cdirs/e3sm/inputdata/atm/cam/topo/'\
 #           'USGS-gtopo30_ne1024np4pg2_16xconsistentSGH_20190528_converted.nc'
-topo_fi='/global/homes/p/petercal/py/e3sm/movies/PHIS_regridded256x512.nc' #for regridded
+#topo_fi='/global/cscratch1/sd/terai/SCREAM/ForBradCarvey/'\
+#            'rgr_1800x3600_USGS-gtopo30_ne1024np4pg2_16xconsistentSGH_20190528_converted.nc' #for regridded
 #note: if regridded=True, no topo file exists yet. Create it via
 #      ncremap -v PHIS -m map.nc ${topo_fi}.nc ${topo_fi}_regridded256x512.nc
 #      where map.nc is extracted from ncdump -h ${var_fi}
-ps_fi='/global/cfs/cdirs/e3sm/terai/SCREAM/DYAMOND2/Output/20201127/regridded/'\
-       'SCREAMv0.SCREAM-DY2.ne1024pg2.20201127.eam.h4.2020-01-21-00000.nc'
-T_fi='/global/cfs/cdirs/e3sm/terai/SCREAM/DYAMOND2/Output/20201127/regridded/'\
-      'SCREAMv0.SCREAM-DY2.ne1024pg2.20201127.eam.h6.2020-01-21-00000.nc'
+#ps_fi='/global/cscratch1/sd/terai/SCREAM/ForBradCarvey/'\
+#       'rgr_1800x3600_PS_SCREAMv0.eam.h4.2020-02-16-00000.nc'
+#T_fi='/global/cscratch1/sd/terai/SCREAM/ForBradCarvey/'\
+#      'rgr_1800x3600_T_SCREAMv0.eam.h6.2020-02-16-00000.nc'
 
-timesnap=0 #index of time entry to write to .bgeo. Must be a scalar integer.
+timesnap=1 #index of time entry to write to .bgeo. Must be a scalar integer.
 
 ###latslice=[-25,-14]
 ###lonslice=[98,110]
-latslice=0
-lonslice=0
-
+#latslice=0
+#lonslice=0
 """
+toplev=35  #skip levels closer to model top than this. 35=100mb
+
 
 #INPUTS FOR GLOBAL 3D NATIVE-GRID VARIABLE
 #=============================================
-varname='PRECT'   #'CLDLIQ' on h7
+varname='CLDLIQ'   #'CLDLIQ' on h7
 regridded=False
-vertdim=False #if 3d data rather than just lat/lon
+vertdim=True #if 3d data rather than just lat/lon
 outfile=varname+'_native_14-25Sx98-110W.bgeo'
-toplev=35  #skip levels closer to model top than this. 35=100mb
+
 timesnap=0 #index of time entry to write to .bgeo. Must be a scalar integer.
 latslice=[-25,-14]
 lonslice=[98,110]
+#latslice=0
+#lonslice=0
 latlonht=True #if true, dims=lat,lon,ht. Otherwise meters from center of earth
 
 time_on_file='2020-02-16-00000' 
 
-var_fi='/global/cscratch1/sd/terai/e3sm_scratch/cori-knl/SCREAMv0.SCREAM-DY2.ne1024pg2.20201127/'\
-        +'run/SCREAMv0.SCREAM-DY2.ne1024pg2.20201127.eam.h1.'+time_on_file+'.nc'
+var_fi='/global/cfs/cdirs/e3sm/terai/SCREAM/DYAMOND2/Output/20201127/'\
+        +'SCREAMv0.SCREAM-DY2.ne1024pg2.20201127.eam.h7.'+time_on_file+'.nc'
 
 #Next 3 files aren't used if vertdim=False; You shouldn't need to edit these file names.
 #- - - - - - - - - - - - - - - - - - - - - - - -
 topo_fi='/global/cfs/cdirs/e3sm/inputdata/atm/cam/topo/'\
            'USGS-gtopo30_ne1024np4pg2_16xconsistentSGH_20190528_converted.nc'
 
-ps_fi='/global/cscratch1/sd/terai/e3sm_scratch/cori-knl/SCREAMv0.SCREAM-DY2.ne1024pg2.20201127/'\
-        +'run/SCREAMv0.SCREAM-DY2.ne1024pg2.20201127.eam.h4.'+time_on_file+'.nc'
-T_fi='/global/cscratch1/sd/terai/e3sm_scratch/cori-knl/SCREAMv0.SCREAM-DY2.ne1024pg2.20201127/'\
-        +'run/SCREAMv0.SCREAM-DY2.ne1024pg2.20201127.eam.h6.'+time_on_file+'.nc'
+ps_fi='/global/cfs/cdirs/e3sm/terai/SCREAM/DYAMOND2/Output/20201127/'\
+        +'SCREAMv0.SCREAM-DY2.ne1024pg2.20201127.eam.h4.'+time_on_file+'.nc'
+T_fi='/global/cfs/cdirs/e3sm/terai/SCREAM/DYAMOND2/Output/20201127/'\
+        +'SCREAMv0.SCREAM-DY2.ne1024pg2.20201127.eam.h6.'+time_on_file+'.nc'
 
 #Only need the next file if regridded=False.
 #native_grid_fi='/global/homes/z/zender/data/grids/ne1024pg2.nc' #is netCDF-4, doesn't work on compute nodes
@@ -156,18 +160,19 @@ else:
         
     f=Dataset(ps_fi)
     ps=f.variables['PS'][timesnap].astype(np.float32)
-    hyam=f.variables['hyam'][toplev:].astype(np.float32)
-    hybm=f.variables['hybm'][toplev:].astype(np.float32)
     f.close()
 
-    P=nc2bgeo.make_3d_pres(ps,hyam,hybm)
 
     #COMBINE SURFACE HEIGHT AND PRESSURE W/ HYPSOMETRIC EQ TO GET HEIGHT
     #------------------   
     f=Dataset(T_fi)
     #note hack: should be *virtual* temperature here!
     T=f.variables['T'][timesnap,toplev:].astype(np.float32)
+    hyam=f.variables['hyam'][toplev:].astype(np.float32)
+    hybm=f.variables['hybm'][toplev:].astype(np.float32)
     f.close()
+
+    P=nc2bgeo.make_3d_pres(ps,hyam,hybm)
     
     hts=np.zeros(var.shape,np.float32)
     hts[-1]=surf_z+10. #this is bottom edge of lowest cell. Adding 10m as a guess of center.
@@ -250,6 +255,6 @@ pl.show()
 #WRITE THE FILE
 #==============================
 start=time.time()
-nc2bgeo.writeBgeoFile('bgeo_files/'+outfile,varname,V,X,Y,Z)
+nc2bgeo.writeBgeoFile('/global/cscratch1/sd/terai/SCREAM/ForBradCarvey/'+outfile,varname,V,X,Y,Z)
 end=time.time()
 print('Writing file took %f sec'%(end-start))
