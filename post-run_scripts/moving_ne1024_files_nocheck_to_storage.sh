@@ -1,7 +1,7 @@
 #!/bin/bash
 #$ -cwd
 
-# Script moves data to HPSS and verifies the integrity of the files
+# Script moves data to HPSS and DOES NOT verify the move with check sums
 
 # ============================================================
 
