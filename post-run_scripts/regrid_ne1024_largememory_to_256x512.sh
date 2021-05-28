@@ -2,21 +2,26 @@
 #$ -cwd                                     
 
 # regrids ne1024np4 output to 70 km fv grid 
-# Tested script having requested 4 interactive nodes on cori-haswell                                          
+# Tested script having requested 1 interactive nodes on cori large-memory nodes (amd)
+# Instructions courtesy of Charlie Zender
 # Mainly for regridding 2D variables        
 
 # ============================================================                                                
 
 # Location of the model output              
 # USER needs to change this                 
-fileloc='/global/cscratch1/sd/terai/e3sm_scratch/cori-knl/SCREAMv0.SCREAM-DY2.ne1024pg2.20201127/run/Additional_output/'
+fileloc='/global/cfs/cdirs/e3sm/terai/SCREAM/DYAMOND2/Output/20201127/'
 
 # Map file
-map_file='/global/cfs/cdirs/e3sm/terai/mapping/map_ne1024pg2_to_fv256x512_nco.20201201.nc'
+map_file='/global/cfs/cdirs/e3sm/mapping/maps/map_ne1024pg2_to_fv256x512_nco.20201201.nc'
+
+# Alternative map file for high resolution regridding
+#map_file=/global/cfs/cdirs/e3sm/terai/mapping/'map_ne1024pg2_to_fv1800x3600_nco.20210407.nc'
+
 
 # Location of the regridded files
 # USER needs to change this
-outputloc='/global/cfs/cdirs/e3sm/terai/SCREAM/DYAMOND2/Output/20201127/regridded/Derived/CLOUD_MASK/'
+outputloc='/global/cfs/cdirs/e3sm/terai/SCREAM/DYAMOND2/Output/20201127/regridded/'
 
 
 # =============================================================                                               
@@ -26,26 +31,14 @@ outputloc='/global/cfs/cdirs/e3sm/terai/SCREAM/DYAMOND2/Output/20201127/regridde
 
 # USER: Compare the fincl list with the list below to make sure they correspond
 echo "  "
-echo " ---------------- Starting h0 files -------------------- "
+echo " ---------------- Start regridding -------------------- "
 echo "  "
 
 
 cd ${fileloc}
 
-#ls ${casename}*eam.h?.2020-02-24-00000.nc | ncremap --dbg=1 --vrb=3 --devnull=Np --nco='--dbg=5' --thr_nbr=3 --par_typ=bck --job_nbr=10 -m ${map_file} -O ${outputloc} > ./ncremap.2020-02-24 2>&1 
+ls ${casename}*eam.h?.2020-01-27-00000.nc | ncremap --dbg=1 --vrb=3 --devnull=Np --nco='--dbg=5' --thr_nbr=3 --par_typ=bck --job_nbr=10 -m ${map_file} -O ${outputloc} > ./ncremap.2020-01-27 2>&1 
 #echo "done with 02-24"
-#ls ${casename}*eam.h?.2020-02-25-00000.nc | ncremap --dbg=1 --vrb=3 --devnull=Np --nco='--dbg=5' --thr_nbr=3 --par_typ=bck --job_nbr=10 -m ${map_file} -O ${outputloc} > ./ncremap.2020-02-25 2>&1 
-#echo "done with 02-25"
-ls ${casename}*eam.*_CLD_*2020-01-20-00000.nc | ncremap --dbg=1 --vrb=3 --devnull=Np --nco='--dbg=5' --thr_nbr=3 --par_typ=bck --job_nbr=6 -m ${map_file} -O ${outputloc} > ~/ncremap.ICE_CLOUDMASK 2>&1 
-echo "done with ICE CLOUDMASK data"
-#ls ${casename}*eam.TOT_LIQ_*2020-01-2*-00000.nc | ncremap --dbg=1 --vrb=3 --devnull=Np --nco='--dbg=5' --thr_nbr=3 --par_typ=bck --job_nbr=10 -m ${map_file} -O ${outputloc} > ~/ncremap.LIQ_CLOUDMASK 2>&1 
-echo "done with LIQ CLOUDMASK data"
-#ls ${casename}*eam.TOT_CLD_*2020-01-2*-00000.nc | ncremap --dbg=1 --vrb=3 --devnull=Np --nco='--dbg=5' --thr_nbr=3 --par_typ=bck --job_nbr=10 -m ${map_file} -O ${outputloc} > ~/ncremap.TOT_CLOUDMASK 2>&1 
-echo "done with TOT CLOUDMASK data"
-#ls ${casename}*eam.h?.2020-02-27-00000.nc | ncremap --dbg=1 --vrb=3 --devnull=Np --nco='--dbg=5' --thr_nbr=3 --par_typ=bck --job_nbr=10 -m ${map_file} -O ${outputloc} > ~/ncremap.2020-02-20 2>&1 
-#echo "done with 02-20"
-
-#ls ${casename}*eam.h?.2020-01-24-00000.nc | ncremap --dbg=1 --vrb=3 --devnull=Np --nco='--dbg=5' --thr_nbr=3 --par_typ=bck --job_nbr=10 -m ${map_file} -O ${outputloc} > ~/ncremap.2020-01-24 2>&1 
 
 
 echo "  "
