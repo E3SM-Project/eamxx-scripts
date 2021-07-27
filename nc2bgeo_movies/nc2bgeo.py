@@ -79,8 +79,8 @@ def resize_ncollev(lat,lon,lev):
     if np.isscalar(lev) or len(lev.shape)!=2:
         raise Exception('resize_ncollev only works with 2 dim lev array')
     
-    junk,LAT = pl.meshgrid(lev[:,0],lat)
-    junk,LON = pl.meshgrid(lev[:,0],lon)
+    LAT=np.tile(np.expand_dims(np.array(lat),axis=0),(lev.shape[0],1))
+    LON=np.tile(np.expand_dims(np.array(lon),axis=0),(lev.shape[0],1))
 
     return LAT,LON
    
