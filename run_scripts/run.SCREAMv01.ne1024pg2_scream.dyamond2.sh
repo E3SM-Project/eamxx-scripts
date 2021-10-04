@@ -4,8 +4,8 @@
 #=============================================
 resolution=ne1024pg2_r0125_oRRS18to6v3
 compset=F2010-SCREAM-HR-DYAMOND2
-checkout_date=20210528   #the date you *checked out* the code
-branch=9acca3c           #actual git hash of branch to check out
+checkout_date=20211004   #the date you *checked out* the code
+branch=29516d7           #actual git hash of branch to check out
 run_descriptor=SCREAMv01 #will be SCREAMv0 for production run
 repo=scream
 machine=cori-knl
@@ -16,7 +16,7 @@ rest_n="1"
 walltime="8:00:00"
 queue="regular"
 debug_compile='FALSE'
-date_string=20210517
+date_string=20211004
 
 # Setup processor layout
 nnodes_atm=1536
@@ -120,13 +120,21 @@ if [ "${do_setup}" == "true" ]; then
     ./xmlchange MAX_MPITASKS_PER_NODE=${mpi_tasks_per_node}
     ./xmlchange MAX_TASKS_PER_NODE=${total_tasks_per_node}
 
+
+    ./xmlchange HIST_OPTION=ndays
+    ./xmlchange HIST_N=1
+    
     # Flag for debug compile
     ./xmlchange --id DEBUG --val ${debug_compile}
     
     # Set PIO format, use PIO version 2, and increase PIO buffer size 
     ./xmlchange PIO_NETCDF_FORMAT="64bit_data"
     ./xmlchange PIO_VERSION="2"
+
     ./xmlchange PIO_BUFFER_SIZE_LIMIT=134217728
+
+    ./xmlchange --append CAM_CONFIG_OPTS="-cosp"
+    ./xmlchange ATM_NCPL="864"  # dtime=100s
     
     # Edit CAM namelist to set dycore options for new grid
     cat <<EOF >> user_nl_eam
@@ -134,7 +142,7 @@ if [ "${do_setup}" == "true" ]; then
     !*** By default the model dumps hundreds of vars in h0. Don't do that. ***
     empty_htapes=.true.
     !*** Outputs for DYAMOND (note fincl can only go to 10) ***
-    nhtfrq = 12,12,12,12,-3,-3,-3,-3,-3,-3 !output freq: 12 steps=15 mi, -3=3hrs
+    nhtfrq = 9,9,9,9,-3,-3,-3,-3,-3,-3 !output freq: 12 steps=15 mi, -3=3hrs
     mfilt = 96,96,96,96,8,8,8,8,8,8 !new file freq: daily in all cases
     fincl1 = 'CLDLOW:I', 'CLDMED:I', 'CLDHGH:I', 'CLDTOT:I', 'TMCLDLIQ:I', 
              'TMCLDICE:I', 'TMRAINQM:I', 'TMCLDRIM:I', 'TMQ:I', 'CAPE:I', 'CIN:I'
@@ -151,32 +159,46 @@ if [ "${do_setup}" == "true" ]; then
     fincl7 = 'T:I', 'Q:I', 
     fincl8 = 'CLDLIQ:I', 'CLDICE:I'
     fincl9 = 'CLOUD:I','OMEGA:I'
-    fincl10= 'EMIS:I', 'TOT_ICLD_VISTAU:I'
-    !*** Rad Freq: 4x75sec=5 min which divides 15 min output freq ***
-    iradsw = 4
-    iradlw = 4
+    fincl10= 'EMIS:I', 'TOT_ICLD_VISTAU:I', 'FISCCP1_COSP:I'
+    !*** Rad Freq: 3x100sec=5 min which divides 15 min output freq ***
+    iradsw = 3
+    iradlw = 3
 
     ! Add dycore settings for coarser topography
     pgrad_correction = 1
-    hv_ref_profiles = 2
-    hv_theta_correction = 1
-    ! Running with topo1 = coarsest topography
-    bnd_topo='/global/cfs/cdirs/e3sm/inputdata/atm/cam/topo/USGS-gtopo30_ne1024np4pg2_fx1t-SGH.nc' 
-    ncdata='/global/cfs/cdirs/e3sm/inputdata/atm/cam/inic/homme/ifs_oper_T1279_2020012000_mod_subset_to_e3sm_ne1024np4_topoadj-fx1t_L128.nc'      
-    se_tstep=4.6875    
-    dt_tracer_factor=16  
-    hypervis_subcycle_q=16   
-
-    ! Run with SPA
-    do_prescribed_CCN = .true. 
-    spa_file = 'spa_file_unified_and_clipped.nc' 
-    spa_datapath = '/global/cscratch1/sd/beydoun/SPA_files'  
-    spa_type = 'CYCLICAL'      
-    spa_cycle_yr = 1   
-
-    ! Run with all or nothing ice (default = 5)
-    cldfrc_iceopt = 7
-
+    hv_ref_profiles = 0                                                 
+    hv_theta_correction = 0                                             
+    bnd_topo='/projects/ccsm/e3sm/inputdata/atm/cam/topo/USGS-gtopo30_ne1024np4pg2_x6t-SGH.nc'                                
+    ncdata='/projects/ccsm/e3sm/inputdata/atm/cam/inic/homme/ifs_oper_T1279_2020012000_mod_subset_to_e3sm_ne1024np4_topoadj-x6t_L128.c062121.nc'                                    
+                  
+    se_tstep=8.333333333333333d0                                        
+    dt_remap_factor=2                                                   
+    dt_tracer_factor=6                                                  
+    hypervis_subcycle_q=6                                               
+                  
+    ! spa related nl parameters                                         
+    do_spa_optics = .true.                                              
+    do_prescribed_CCN = .true.                                          
+    spa_file = 'spa_mixing_ratio_data.nc'                               
+    spa_datapath = '/projects/ccsm/e3sm/inputdata/atm/cam/chem/spa'     
+    spa_type = 'CYCLICAL'                                               
+    spa_cycle_yr = 1                                                    
+                  
+    cldfrc_iceopt = 7 !turn on all or nothing ice scheme                
+                  
+    ! Settings for COSP                                                 
+    cosp_lradar_sim = .false.                                           
+    cosp_llidar_sim = .false.                                           
+    cosp_lisccp_sim = .true.                                            
+    cosp_lmodis_sim = .false.                                           
+    cosp_lmisr_sim = .false.                                            
+                  
+    ! Only run COSP every 3 hours (every 36 rad steps, which are set to every 5 minutes), since only outputting 3-hourly snapshots                                                  
+    ! This should be changed if changing any of dtime, iradsw/iradlw, or the output frequency for COSP variables.             
+    cosp_nradsteps = 36                     
+    shoc_thl2tune = 1.0D0                   
+    shoc_qw2tune = 1.0D0                    
+    shoc_qwthl2tune = 1.0D0    
 EOF
 
     cat <<EOF >> user_nl_elm
@@ -196,13 +218,13 @@ EOF
 
     # The run location is determined in the bowels of CIME
     # Symlink to that location from user-chosen $case_root (=current dir)
-    ln -s `./xmlquery -value RUNDIR` run
+    #ndk ln -s `./xmlquery -value RUNDIR` run
 
 
     # This disables the logic that sets tprof_n and tprof_options internally.
-    ./xmlchange --file env_run.xml TPROF_TOTAL=-1
-    echo "tprof_n = 1" >> user_nl_cpl
-    echo "tprof_option = 'nsteps'" >> user_nl_cpl
+    # ./xmlchange --file env_run.xml TPROF_TOTAL=-1
+    # echo "tprof_n = 1" >> user_nl_cpl
+    # echo "tprof_option = 'nsteps'" >> user_nl_cpl
 fi
 
 # Build
