@@ -168,8 +168,8 @@ if [ "${do_setup}" == "true" ]; then
     pgrad_correction = 1
     hv_ref_profiles = 0                                                 
     hv_theta_correction = 0                                             
-    bnd_topo='/projects/ccsm/e3sm/inputdata/atm/cam/topo/USGS-gtopo30_ne1024np4pg2_x6t-SGH.nc'                                
-    ncdata='/projects/ccsm/e3sm/inputdata/atm/cam/inic/homme/ifs_oper_T1279_2020012000_mod_subset_to_e3sm_ne1024np4_topoadj-x6t_L128.c062121.nc'                                    
+    bnd_topo='/global/cfs/cdirs/e3sm/inputdata/atm/cam/topo/USGS-gtopo30_ne1024np4pg2_x6t-SGH.nc'                                
+    ncdata='/global/cfs/cdirs/e3sm/inputdata/atm/cam/inic/homme/ifs_oper_T1279_2020012000_mod_subset_to_e3sm_ne1024np4_topoadj-x6t_L128.c062121.nc'                                    
                   
     se_tstep=8.333333333333333d0                                        
     dt_remap_factor=2                                                   
@@ -180,7 +180,7 @@ if [ "${do_setup}" == "true" ]; then
     do_spa_optics = .true.                                              
     do_prescribed_CCN = .true.                                          
     spa_file = 'spa_mixing_ratio_data.nc'                               
-    spa_datapath = '/projects/ccsm/e3sm/inputdata/atm/cam/chem/spa'     
+    spa_datapath = '/global/cfs/cdirs/e3sm/inputdata/atm/cam/chem/spa'     
     spa_type = 'CYCLICAL'                                               
     spa_cycle_yr = 1                                                    
                   
