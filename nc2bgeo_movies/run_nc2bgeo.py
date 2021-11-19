@@ -68,7 +68,7 @@ toplev=35  #skip levels closer to model top than this. 35=100mb
 
 #INPUTS FOR GLOBAL 3D NATIVE-GRID VARIABLE
 #=============================================
-varname='CLDLIQ'   #'CLDLIQ' on h7
+varname='U'   #'CLDLIQ' on h7 'U' on h5
 regridded=False
 vertdim=True #if 3d data rather than just lat/lon
 outfile=varname+'_native_14-25Sx98-110W.bgeo'
@@ -83,7 +83,7 @@ latlonht=True #if true, dims=lat,lon,ht. Otherwise meters from center of earth
 time_on_file='2020-02-16-00000' 
 
 var_fi='/global/cfs/cdirs/e3sm/terai/SCREAM/DYAMOND2/Output/20201127/'\
-        +'SCREAMv0.SCREAM-DY2.ne1024pg2.20201127.eam.h7.'+time_on_file+'.nc'
+        +'SCREAMv0.SCREAM-DY2.ne1024pg2.20201127.eam.h5.'+time_on_file+'.nc'
 
 #Next 3 files aren't used if vertdim=False; You shouldn't need to edit these file names.
 #- - - - - - - - - - - - - - - - - - - - - - - -
