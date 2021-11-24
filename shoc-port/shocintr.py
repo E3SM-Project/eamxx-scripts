@@ -297,6 +297,71 @@ class ExampleCase:
 
     def set_surface_fluxes(me, s, c, rho):
         # not clear whether htese can be set independent of mesh
+        s.wthl_sfc[c] = 15.0/cp
+        s.wqw_sfc[c] = 115.0/latvap
+        s.uw_sfc[c] = 1e-2
+        s.vw_sfc[c] = 1e-4
+
+    def set_forcings(me, s, c): pass
+
+    def set_tke(me, s, c, zt): pass
+
+    def set_tracers(me, s, c, zt):
+        for q in range(s.qtracers.shape[2]):
+            s.qtracers[c,:,q] = npy.sin(q/3. + 1e-1*zt*(0.2*(c+1)))
+            s.wtracer_sfc[c,q] = 0.1*c
+
+    def set_time_dep(me, s, c, zi):
+        dp = s.pdel[c][-1]
+        dz = zi[-2] - zi[-1]
+        me.set_surface_fluxes(s, c, dp/(dz*PhysConsts.gravit))
+        me.set_forcings(s, c)
+	
+# DYCOMS-RF01
+class DYCOMSRF01:
+    def get_zref(me):
+        zref = npy.array([0., 840, 841, 1480, 2000, 3000]) # more physical
+        return zref
+
+    def get_ps(me): return 1015e2
+
+    def get_ic_q(me, z):
+        zref = me.get_zref()
+        qvref = 1e-3*npy.array([9., 9.0, 1.5, 1.5, 1.5, 1.5])
+        qlref = 1e-3*npy.array([0., 0.0, 0., 0., 0., 0.0])
+        return linterp(zref, qvref, z), linterp(zref, qlref, z)
+
+    def get_ic_theta(me, z):
+        zref = me.get_zref()
+        thrf = npy.array([289.0, 289.0, 297.5, 300.0, 304.2, 308.85])
+        return linterp(zref, thrf, z)
+
+    def get_ls_winds(me, z):
+        zref = npy.array([0., 700, 3000])
+        uref = npy.array([6.0, 6.0, 6.0])
+        vref = npy.array([-4.25, -4.25, -4.25])
+        wref = npy.array([0.1, 0.1, 0.1])
+        return linterp(zref, uref, z), linterp(zref, vref, z), linterp(zref, wref, z)
+
+    def set_theta_pressure(me, s, c, zi, zt):
+        theta_zi = me.get_ic_theta(zi)
+        theta_zt = me.get_ic_theta(zt)
+        ps = me.get_ps()
+        s.pdel[c] = npy.abs(npy.diff(calc_hydrostatic_p(ps, theta_zi[0], zi, theta_zi)))
+        s.pres[c] = calc_hydrostatic_p(ps, theta_zi[0], zt, theta_zt)
+        s.presi[c] = calc_hydrostatic_p(ps, theta_zi[0], zi, theta_zi)
+        s.qw[c], s.ql[c] = me.get_ic_q(zt)
+        s.thv[c] = theta_to_thetav(theta_zt, s.qw[c])
+        s.thetal[c] = theta_zt
+
+    def set_ls_winds(me, s, c, zt):
+        u, v, w = me.get_ls_winds(zt)
+        s.u_wind[c] = u
+        s.v_wind[c] = v
+        s.w_field[c] = w
+
+    def set_surface_fluxes(me, s, c, rho):
+        # not clear whether htese can be set independent of mesh
         s.wthl_sfc[c] = 1e-4
         s.wqw_sfc[c] = 1e-6
         s.uw_sfc[c] = 1e-2
@@ -315,7 +380,7 @@ class ExampleCase:
         dp = s.pdel[c][-1]
         dz = zi[-2] - zi[-1]
         me.set_surface_fluxes(s, c, dp/(dz*PhysConsts.gravit))
-        me.set_forcings(s, c)
+        me.set_forcings(s, c)	
 
 # Given a case object and number of levels, initialize it with initial
 # conditions.
@@ -411,6 +476,6 @@ def devtest():
     
 if __name__ == '__main__':
     conv = len(sys.argv) > 1 and sys.argv[1] == 'conv'
-    tc = ExampleCase()
+    tc = DYCOMSRF01()
     if conv: run_conv(tc)
     else: example_run_case(tc)
