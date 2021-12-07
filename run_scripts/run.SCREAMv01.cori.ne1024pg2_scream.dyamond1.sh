@@ -175,7 +175,7 @@ if [ "${do_setup}" == "true" ]; then
     hv_ref_profiles = 0
     hv_theta_correction = 0
     bnd_topo='/global/cfs/cdirs/e3sm/inputdata/atm/cam/topo/USGS-gtopo30_ne1024np4pg2_x6t-SGH.nc'
-    ncdata='/global/cscratch1/sd/ndk/dyamond1/ifs_oper_T1279_2016080100_mod_subset_to_e3sm_ne1024np4_topoadj-x6t_L128.c102721.nc'
+    ncdata='/global/cfs/cdirs/e3sm/inputdata/atm/cam/inic/homme/ifs_oper_T1279_2016080100_mod_subset_to_e3sm_ne1024np4_topoadj-x6t_L128.c102721.nc'
 
     se_tstep=8.333333333333333d0
     dt_remap_factor=2
@@ -213,8 +213,8 @@ if [ "${do_setup}" == "true" ]; then
 EOF
 
     cat <<EOF >> user_nl_elm
-    finidat='/global/cscratch1/sd/ndk/dyamond1/20211025.I2010CRUELM.ne1024pg2_oRRS18to6v3.elm.r.2016-08-01-00000.nc'
-    fsurdat='/global/cscratch1/sd/ndk/dyamond1/surfdata_ne1024pg2_simyr2010_c211021.nc'
+    finidat='/global/cfs/cdirs/e3sm/inputdata/lnd/clm2/initdata/20211025.I2010CRUELM.ne1024pg2_oRRS18to6v3.elm.r.2016-08-01-00000.nc'
+    fsurdat='/global/cfs/cdirs/e3sm/inputdata/lnd/clm2/surfdata_map/surfdata_ne1024pg2_simyr2010_c211021.nc'
 EOF
 
     # UofA surface flux scheme
