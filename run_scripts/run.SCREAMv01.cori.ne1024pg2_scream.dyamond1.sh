@@ -117,6 +117,7 @@ if [ "${do_setup}" == "true" ]; then
 	./xmlchange NTASKS=${ntasks_atm}
     fi
 
+    # In attempt to reduce memory, restrict number of MPI processes for several components
     ./xmlchange PSTRID_CPL=${mpi_tasks_per_node} # 8
     ./xmlchange PSTRID_ICE=${mpi_tasks_per_node} # 8
     ./xmlchange PSTRID_LND=${mpi_tasks_per_node} # 8
