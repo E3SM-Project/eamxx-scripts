@@ -4,7 +4,7 @@
 #=============================================
 resolution=ne1024pg2_oRRS18to6v3
 compset=F2010-SCREAM-HR-DYAMOND1-MPASSI
-checkout_date=20211004   #the date you *checked out* the code
+checkout_date=20211207   #the date you *checked out* the code
 branch=master            #actual git hash of branch to check out
 run_descriptor=SCREAMv01 #will be SCREAMv0 for production run
 repo=scream
@@ -16,7 +16,7 @@ rest_n="1"
 walltime="8:00:00"
 queue="regular"
 debug_compile='FALSE'
-date_string=20211004
+date_string=${checkout_date}
 
 # Setup processor layout
 nnodes_atm=1536
@@ -153,20 +153,21 @@ if [ "${do_setup}" == "true" ]; then
     fincl1 = 'CLDLOW:I', 'CLDMED:I', 'CLDHGH:I', 'CLDTOT:I', 'TMCLDLIQ:I',
 	     'TMCLDICE:I', 'TMRAINQM:I', 'TMCLDRIM:I', 'TMQ:I', 'CAPE:I', 'CIN:I'
     fincl2 = 'PS:I', 'TS:I', 'TREFHT:I', 'QREFHT:I', 'PRECT:I','PRECSL:I',
-	     'WINDSPD_10M:I', 'TAUX:I', 'TAUY:I', 'SHFLX:I', 'LHFLX:I'
+	     'WINDSPD_10M:I', 'TAUX:I', 'TAUY:I', 'SHFLX:I', 'LHFLX:I', 
+             'UBOT:I','VBOT:I'
     fincl3 = 'FSNTOA:I', 'FLNT:I','FLNTC:I','FSNTOAC:I', 'FSNS:I', 'FSDS:I',
 	     'FLNS:I', 'FLDS:I'
     fincl4 = 'RH200:I',    'RH500:I',    'RH700:I',    'RH850:I',
 	     'OMEGA200:I', 'OMEGA500:I', 'OMEGA700:I', 'OMEGA850:I',
 	     'Z200:I',     'Z500:I',     'Z700:I',     'Z850:I'
     !*** 3 hrly (mostly 3d) variables below here ***
-    fincl5 = 'PS:I', 'PSL:I', 'TMNUMLIQ:I', 'TMNUMICE:I', 'TMNUMRAI:I','RAINQM:I','TBOT:M'
-    fincl6 = 'U:I', 'V:I'
-    fincl7 = 'T:I', 'Q:I',
-    fincl8 = 'CLDLIQ:I', 'CLDICE:I'
-    fincl9 = 'CLOUD:I','OMEGA:I'
+    fincl5 = 'PS:I','NUMLIQ:I','NUMICE:I','CLDRIM:I'
+    fincl6 = 'PSL:I','U:I', 'V:I','W3:I'
+    fincl7 = 'T:I', 'Q:I','SHOC_TKE:I'
+    fincl8 = 'CLDLIQ:I', 'CLDICE:I','RAINQM:I'
+    fincl9 = 'TOT_CLOUD_FRAC:I','OMEGA:I'
     fincl10= 'EMIS:I', 'TOT_ICLD_VISTAU:I', 'FISCCP1_COSP:I'
-    !*** Rad Freq: 3x120sec=5 min which divides 15 min output freq ***
+    !*** Rad Freq: 3x100sec=5 min which divides 15 min output freq ***
     iradsw = 3
     iradlw = 3
 
