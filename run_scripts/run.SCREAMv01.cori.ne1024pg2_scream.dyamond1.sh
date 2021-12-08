@@ -216,6 +216,10 @@ EOF
     cat <<EOF >> user_nl_elm
     finidat='/global/cfs/cdirs/e3sm/inputdata/lnd/clm2/initdata/20211025.I2010CRUELM.ne1024pg2_oRRS18to6v3.elm.r.2016-08-01-00000.nc'
     fsurdat='/global/cfs/cdirs/e3sm/inputdata/lnd/clm2/surfdata_map/surfdata_ne1024pg2_simyr2010_c211021.nc'
+    !Land output request
+    hist_nhtfrq = -1 !hourly output
+    hist_mfilt  = 24 !one file per day
+    hist_fincl1 = 'SOILWATER_10CM','TSOI_10CM','FCEV','FGEV','FCTR','FSH_G','FSH_V','TLAI','QINFL','QOVER','RAIN','SNOW'
 EOF
 
     # UofA surface flux scheme
