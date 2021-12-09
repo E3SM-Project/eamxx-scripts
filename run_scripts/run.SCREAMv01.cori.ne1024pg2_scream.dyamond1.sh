@@ -151,21 +151,21 @@ if [ "${do_setup}" == "true" ]; then
     nhtfrq = 9,9,9,9,-3,-3,-3,-3,-3,-3 !output freq: 9 steps=15 mi, -3=3hrs
     mfilt = 96,96,96,96,8,8,8,8,8,8 !new file freq: daily in all cases
     fincl1 = 'CLDLOW:I', 'CLDMED:I', 'CLDHGH:I', 'CLDTOT:I', 'TMCLDLIQ:I',
-	     'TMCLDICE:I', 'TMRAINQM:I', 'TMCLDRIM:I', 'TMQ:I', 'CAPE:I', 'CIN:I'
-    fincl2 = 'PS:I', 'TS:I', 'TREFHT:I', 'QREFHT:I', 'PRECT:I','PRECSL:I',
+	     'TMCLDICE:I', 'TMRAINQM:I', 'TMCLDRIM:I', 'TMQ:I', 'CAPE:I', 'CIN:I',
+             'PS:I', 'TS:I', 'TREFHT:I', 'QREFHT:I', 'PRECT:I','PRECSL:I',
 	     'WINDSPD_10M:I', 'TAUX:I', 'TAUY:I', 'SHFLX:I', 'LHFLX:I', 
              'UBOT:I','VBOT:I'
-    fincl3 = 'FSNTOA:I', 'FLNT:I','FLNTC:I','FSNTOAC:I', 'FSNS:I', 'FSDS:I',
-	     'FLNS:I', 'FLDS:I'
-    fincl4 = 'RH200:I',    'RH500:I',    'RH700:I',    'RH850:I',
-	     'OMEGA200:I', 'OMEGA500:I', 'OMEGA700:I', 'OMEGA850:I',
-	     'Z200:I',     'Z500:I',     'Z700:I',     'Z850:I'
-    !*** 3 hrly (mostly 3d) variables below here ***
-    fincl5 = 'PS:I','NUMLIQ:I','NUMICE:I','CLDRIM:I'
-    fincl6 = 'PSL:I','U:I', 'V:I','W3:I'
-    fincl7 = 'T:I', 'Q:I','SHOC_TKE:I'
+    fincl2 = 'FSNTOA:I', 'FLNT:I','FLNTC:I','FSNTOAC:I', 'FSNS:I', 'FSDS:I',
+	     'FLNS:I', 'FLDS:I','RH200:I',    'RH500:I',    'RH700:I',    'RH850:I',
+	     'OMEGA200:I', 'OMEGA500:I', 'OMEGA700:I', 'OMEGA850:I'
+    !*** 3 hrly (mostly 3d) variables below here ***	     
+    fincl3 = 'PS:I', 'Z200:I', 'Z500:I', 'Z700:I', 'Z850:I','PSL:I','SOLIN:I'
+    fincl4 = 'DYN_PS:I', 'VOR:I', 'DIV:I'
+    fincl5 = 'T:I', 'Q:I'
+    fincl6 = 'U:I', 'V:I', 'OMEGA:I'
+    fincl7 = 'NUMLIQ:I','NUMICE:I','CLDRIM:I'
     fincl8 = 'CLDLIQ:I', 'CLDICE:I','RAINQM:I'
-    fincl9 = 'TOT_CLOUD_FRAC:I','OMEGA:I'
+    fincl9 = 'TOT_CLOUD_FRAC:I', 'W3:I','SHOC_TKE:I'
     fincl10= 'EMIS:I', 'TOT_ICLD_VISTAU:I', 'FISCCP1_COSP:I'
     !*** Rad Freq: 3x100sec=5 min which divides 15 min output freq ***
     iradsw = 3
@@ -203,13 +203,6 @@ if [ "${do_setup}" == "true" ]; then
     ! Only run COSP every 3 hours (every 36 rad steps, which are set to every 5 minutes), since only outputting 3-hourly snapshots
     ! This should be changed if changing any of dtime, iradsw/iradlw, or the output frequency for COSP variables.
     cosp_nradsteps = 36
-
-    shoc_thl2tune = 1.0D0
-    shoc_qw2tune = 1.0D0
-    shoc_qwthl2tune = 1.0D0
-
-    shoc_ckh_s_max = 0.1
-    shoc_ckm_s_max = 0.1
 
 EOF
 
