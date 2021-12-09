@@ -68,10 +68,10 @@ toplev=35  #skip levels closer to model top than this. 35=100mb
 
 #INPUTS FOR GLOBAL 3D NATIVE-GRID VARIABLE
 #=============================================
-varname='U'   #'CLDLIQ' on h7 'U' on h5
+varname='OMEGA'   #'CLDLIQ' on h7 'U' on h5
 regridded=False
 vertdim=True #if 3d data rather than just lat/lon
-outfile=varname+'_native_14-25Sx98-110W.bgeo'
+outfile=varname+'_native_14-25Sx98-110W_Feb16.20211119.bgeo'
 
 timesnap=0 #index of time entry to write to .bgeo. Must be a scalar integer.
 latslice=[-25,-14]
@@ -83,7 +83,7 @@ latlonht=True #if true, dims=lat,lon,ht. Otherwise meters from center of earth
 time_on_file='2020-02-16-00000' 
 
 var_fi='/global/cfs/cdirs/e3sm/terai/SCREAM/DYAMOND2/Output/20201127/'\
-        +'SCREAMv0.SCREAM-DY2.ne1024pg2.20201127.eam.h5.'+time_on_file+'.nc'
+        +'SCREAMv0.SCREAM-DY2.ne1024pg2.20201127.eam.h8.'+time_on_file+'.nc'
 
 #Next 3 files aren't used if vertdim=False; You shouldn't need to edit these file names.
 #- - - - - - - - - - - - - - - - - - - - - - - -
@@ -183,6 +183,11 @@ else:
     end=time.time()
     print('Getting hts took %f sec'%(end-start))
 
+
+if varname in ['OMEGA']:
+    vertwind=-1.*var*Rd*T/(P*grav)
+    
+
 #MAKE LAT AND LON THE SAME SIZE AS VAR FOR VECTOR OPERATIONS
 #==============================
 start=time.time()
@@ -226,10 +231,30 @@ else:
             Z=hts
     else:
         X,Y,Z,V=nc2bgeo.subset_latlonht(LAT,LON,hts,var,latslice,lonslice)
-        
+        if varname in ['OMEGA']:
+            X,Y,Z,W=nc2bgeo.subset_latlonht(LAT,LON,hts,vertwind,latslice,lonslice)
 end=time.time()
 print('Finding points to write took %f sec'%(end-start))
-        
+
+print('Min/max var')
+print(np.min(V))
+print(np.max(V))
+
+print('Min/Max lat')
+print(np.min(X))
+print(np.max(X))
+
+print('Min/Max lon')
+print(np.min(Y))
+print(np.max(Y))
+if vertdim:
+    print('Min/Max heights')
+    print(np.min(Z))
+    print(np.max(Z))
+if varname in ['OMEGA']:
+    print('Min/Max w')
+    print(np.min(W))
+    print(np.max(W))
 #DEBUGGING
 #==============================
 """
@@ -256,5 +281,8 @@ pl.show()
 #==============================
 start=time.time()
 nc2bgeo.writeBgeoFile('/global/cscratch1/sd/terai/SCREAM/ForBradCarvey/'+outfile,varname,V,X,Y,Z)
+if varname in ['OMEGA']:
+    outfile2='W'+'_native_14-25Sx98-110W_Feb16.20211119.bgeo'
+    nc2bgeo.writeBgeoFile('/global/cscratch1/sd/terai/SCREAM/ForBradCarvey/'+outfile2,'W',W,X,Y,Z)
 end=time.time()
 print('Writing file took %f sec'%(end-start))
