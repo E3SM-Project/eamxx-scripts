@@ -148,8 +148,8 @@ if [ "${do_setup}" == "true" ]; then
 
     !*** By default the model dumps hundreds of vars in h0, so use emptry_htapes
     empty_htapes=.true.
-    nhtfrq = 9,9,9,9,-3,-3,-3,-3,-3,-3 !output freq: 9 steps=15 mi, -3=3hrs
-    mfilt = 96,96,96,96,8,8,8,8,8,8 !new file freq: daily in all cases
+    nhtfrq = 9,9,-3,-3,-3,-3,-3,-3,-3,-3 !output freq: 9 steps=15 mi, -3=3hrs
+    mfilt = 96,96,8,8,8,8,8,8,8,8 !new file freq: daily in all cases
     fincl1 = 'CLDLOW:I', 'CLDMED:I', 'CLDHGH:I', 'CLDTOT:I', 'TMCLDLIQ:I',
 	     'TMCLDICE:I', 'TMRAINQM:I', 'TMCLDRIM:I', 'TMQ:I', 'CAPE:I', 'CIN:I',
              'PS:I', 'TS:I', 'TREFHT:I', 'QREFHT:I', 'PRECT:I','PRECSL:I',
