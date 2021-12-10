@@ -173,7 +173,7 @@ if [ "${do_setup}" == "true" ]; then
     iradsw = 3
     iradlw = 3
 
-    ! Add dycore settings for coarser topography
+    ! Add dycore settings for rougher topography
     pgrad_correction = 1
     hv_ref_profiles = 0
     hv_theta_correction = 0
