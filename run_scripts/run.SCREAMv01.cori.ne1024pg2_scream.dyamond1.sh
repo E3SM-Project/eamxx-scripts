@@ -148,8 +148,8 @@ if [ "${do_setup}" == "true" ]; then
 
     !*** By default the model dumps hundreds of vars in h0, so use emptry_htapes
     empty_htapes=.true.
-    nhtfrq = 9,9,-3,-3,-3,-3,-3,-3,-3,-3 !output freq: 9 steps=15 mi, -3=3hrs
-    mfilt = 96,96,8,8,8,8,8,8,8,8 !new file freq: daily in all cases
+    nhtfrq = 9,9,-12,-3,-3,-3,-3,-3,-3,-3 !output freq: 9 steps=15 mi, -3=3hrs
+    mfilt = 96,96,2,8,8,8,8,8,8,8 !new file freq: daily in all cases
     fincl1 = 'CLDLOW:I', 'CLDMED:I', 'CLDHGH:I', 'CLDTOT:I', 'TMCLDLIQ:I',
 	     'TMCLDICE:I', 'TMRAINQM:I', 'TMCLDRIM:I', 'TMQ:I', 'CAPE:I', 'CIN:I',
              'PS:I', 'TS:I', 'TREFHT:I', 'QREFHT:I', 'PRECT:I','PRECSL:I',
@@ -158,9 +158,10 @@ if [ "${do_setup}" == "true" ]; then
     fincl2 = 'FSNTOA:I', 'FLNT:I','FLNTC:I','FSNTOAC:I', 'FSNS:I', 'FSDS:I',
 	     'FLNS:I', 'FLDS:I','RH200:I',    'RH500:I',    'RH700:I',    'RH850:I',
 	     'OMEGA200:I', 'OMEGA500:I', 'OMEGA700:I', 'OMEGA850:I'
+    !*** 12 hrly (mostly 3d) variables below here ***	     
+    fincl3 = 'DYN_PS:I', 'VOR:I', 'DIV:I'
     !*** 3 hrly (mostly 3d) variables below here ***	     
-    fincl3 = 'PS:I', 'Z200:I', 'Z500:I', 'Z700:I', 'Z850:I','PSL:I','SOLIN:I'
-    fincl4 = 'DYN_PS:I', 'VOR:I', 'DIV:I'
+    fincl4 = 'PS:I', 'Z200:I', 'Z500:I', 'Z700:I', 'Z850:I','PSL:I','SOLIN:I'
     fincl5 = 'T:I', 'Q:I'
     fincl6 = 'U:I', 'V:I', 'OMEGA:I'
     fincl7 = 'NUMLIQ:I','NUMICE:I','CLDRIM:I'
@@ -210,9 +211,9 @@ EOF
     finidat='/global/cfs/cdirs/e3sm/inputdata/lnd/clm2/initdata/20211025.I2010CRUELM.ne1024pg2_oRRS18to6v3.elm.r.2016-08-01-00000.nc'
     fsurdat='/global/cfs/cdirs/e3sm/inputdata/lnd/clm2/surfdata_map/surfdata_ne1024pg2_simyr2010_c211021.nc'
     !Land output request
-    hist_nhtfrq = -1 !hourly output
-    hist_mfilt  = 24 !one file per day
-    hist_fincl1 = 'SOILWATER_10CM','TSOI_10CM','FCEV','FGEV','FCTR','FSH_G','FSH_V','TLAI','QINFL','QOVER','RAIN','SNOW'
+    hist_nhtfrq = 0,-1 !hourly output
+    hist_mfilt  = 1,24 !one file per day
+    hist_fincl2 = 'SOILWATER_10CM','TSOI_10CM','FCEV','FGEV','FCTR','FSH_G','FSH_V','TLAI','QINFL','QOVER','RAIN','SNOW'
 EOF
 
     # UofA surface flux scheme
