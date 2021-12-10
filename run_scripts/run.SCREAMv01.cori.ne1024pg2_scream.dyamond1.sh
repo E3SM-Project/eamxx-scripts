@@ -146,19 +146,19 @@ if [ "${do_setup}" == "true" ]; then
     # Edit CAM namelist to set dycore options for new grid
     cat <<EOF >> user_nl_eam
 
-    !*** By default the model dumps hundreds of vars in h0, so use emptry_htapes
+    !*** By default the model dumps hundreds of vars in h0, so use empty_htapes
     empty_htapes=.true.
     nhtfrq = 9,9,-12,-3,-3,-3,-3,-3,-3,-3 !output freq: 9 steps=15 mi, -3=3hrs
     mfilt = 96,96,2,8,8,8,8,8,8,8 !new file freq: daily in all cases
     fincl1 = 'CLDLOW:I', 'CLDMED:I', 'CLDHGH:I', 'CLDTOT:I', 'TMCLDLIQ:I',
 	     'TMCLDICE:I', 'TMRAINQM:I', 'TMCLDRIM:I', 'TMQ:I', 'CAPE:I', 'CIN:I',
              'PS:I', 'TS:I', 'TREFHT:I', 'QREFHT:I', 'PRECT:I','PRECSL:I',
-	     'WINDSPD_10M:I', 'TAUX:I', 'TAUY:I', 'SHFLX:I', 'LHFLX:I', 
-             'UBOT:I','VBOT:I'
+	     'SHFLX:I', 'LHFLX:I'
     fincl2 = 'FSNTOA:I', 'FLNT:I','FLNTC:I','FSNTOAC:I', 'FSNS:I', 'FSDS:I',
 	     'FLNS:I', 'FLDS:I','RH200:I',    'RH500:I',    'RH700:I',    'RH850:I',
-	     'OMEGA200:I', 'OMEGA500:I', 'OMEGA700:I', 'OMEGA850:I'
-    !*** 12 hrly (mostly 3d) variables below here ***	     
+	     'OMEGA200:I', 'OMEGA500:I', 'OMEGA700:I', 'OMEGA850:I',
+	     'WINDSPD_10M:I', 'UBOT:I','VBOT:I'
+    !*** 12 hrly dyn-grid variables  ***	     
     fincl3 = 'DYN_PS:I', 'VOR:I', 'DIV:I'
     !*** 3 hrly (mostly 3d) variables below here ***	     
     fincl4 = 'PS:I', 'Z200:I', 'Z500:I', 'Z700:I', 'Z850:I','PSL:I','SOLIN:I'
@@ -168,6 +168,7 @@ if [ "${do_setup}" == "true" ]; then
     fincl8 = 'CLDLIQ:I', 'CLDICE:I','RAINQM:I'
     fincl9 = 'TOT_CLOUD_FRAC:I', 'W3:I','SHOC_TKE:I'
     fincl10= 'EMIS:I', 'TOT_ICLD_VISTAU:I', 'FISCCP1_COSP:I'
+
     !*** Rad Freq: 3x100sec=5 min which divides 15 min output freq ***
     iradsw = 3
     iradlw = 3
