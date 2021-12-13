@@ -152,15 +152,15 @@ if [ "${do_setup}" == "true" ]; then
     mfilt = 96,96,2,8,8,8,8,8,8,8 !new file freq: daily in all cases
     fincl1 = 'CLDLOW:I', 'CLDMED:I', 'CLDHGH:I', 'CLDTOT:I', 'TMCLDLIQ:I',
 	     'TMCLDICE:I', 'TMRAINQM:I', 'TMCLDRIM:I', 'TMQ:I', 'CAPE:I', 'CIN:I',
-             'PS:I', 'TS:I', 'TREFHT:I', 'QREFHT:I', 'PRECT:I','PRECSL:I',
+	     'PS:I', 'TS:I', 'TREFHT:I', 'QREFHT:I', 'PRECT:I','PRECSL:I',
 	     'SHFLX:I', 'LHFLX:I'
     fincl2 = 'FSNTOA:I', 'FLNT:I','FLNTC:I','FSNTOAC:I', 'FSNS:I', 'FSDS:I',
 	     'FLNS:I', 'FLDS:I','RH200:I',    'RH500:I',    'RH700:I',    'RH850:I',
 	     'OMEGA200:I', 'OMEGA500:I', 'OMEGA700:I', 'OMEGA850:I',
 	     'WINDSPD_10M:I', 'UBOT:I','VBOT:I'
-    !*** 12 hrly dyn-grid variables  ***	     
+    !*** 12 hrly dyn-grid variables  ***
     fincl3 = 'DYN_PS:I', 'VOR:I', 'DIV:I'
-    !*** 3 hrly 2d variables ***	     
+    !*** 3 hrly 2d variables ***
     fincl4 = 'PS:I', 'Z200:I', 'Z500:I', 'Z700:I', 'Z850:I','PSL:I','SOLIN:I'
     !*** 3 hrly 3d variables below here ***
     fincl5 = 'T:I', 'Q:I'
@@ -216,6 +216,10 @@ EOF
     hist_nhtfrq = -24,-1 !daily default output, hourly requested output
     hist_mfilt  = 1,24 !one file per day
     hist_fincl2 = 'SOILWATER_10CM','TSOI_10CM','FCEV','FGEV','FCTR','FSH_G','FSH_V','TLAI','QINFL','QOVER','RAIN','SNOW'
+EOF
+
+    cat <<EOF >> user_nl_mosart
+    rtmhist_nhtfrq = -24
 EOF
 
     # UofA surface flux scheme
