@@ -160,8 +160,9 @@ if [ "${do_setup}" == "true" ]; then
 	     'WINDSPD_10M:I', 'UBOT:I','VBOT:I'
     !*** 12 hrly dyn-grid variables  ***	     
     fincl3 = 'DYN_PS:I', 'VOR:I', 'DIV:I'
-    !*** 3 hrly (mostly 3d) variables below here ***	     
+    !*** 3 hrly 2d variables ***	     
     fincl4 = 'PS:I', 'Z200:I', 'Z500:I', 'Z700:I', 'Z850:I','PSL:I','SOLIN:I'
+    !*** 3 hrly 3d variables below here ***
     fincl5 = 'T:I', 'Q:I'
     fincl6 = 'U:I', 'V:I', 'OMEGA:I'
     fincl7 = 'NUMLIQ:I','NUMICE:I','CLDRIM:I'
@@ -212,7 +213,7 @@ EOF
     finidat='/global/cfs/cdirs/e3sm/inputdata/lnd/clm2/initdata/20211025.I2010CRUELM.ne1024pg2_oRRS18to6v3.elm.r.2016-08-01-00000.nc'
     fsurdat='/global/cfs/cdirs/e3sm/inputdata/lnd/clm2/surfdata_map/surfdata_ne1024pg2_simyr2010_c211021.nc'
     !Land output request
-    hist_nhtfrq = 0,-1 !hourly output
+    hist_nhtfrq = -24,-1 !daily default output, hourly requested output
     hist_mfilt  = 1,24 !one file per day
     hist_fincl2 = 'SOILWATER_10CM','TSOI_10CM','FCEV','FGEV','FCTR','FSH_G','FSH_V','TLAI','QINFL','QOVER','RAIN','SNOW'
 EOF
