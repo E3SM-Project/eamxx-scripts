@@ -151,7 +151,9 @@ if [ "${do_setup}" == "true" ]; then
     nhtfrq = 9,9,-12,-3,-3,-3,-3,-3,-3,-3 !output freq: 9 steps=15 mi, -3=3hrs
     mfilt = 96,96,2,8,8,8,8,8,8,8 !new file freq: daily in all cases
     fincl1 = 'CLDLOW:I', 'CLDMED:I', 'CLDHGH:I', 'CLDTOT:I', 'TMCLDLIQ:I',
-	     'TMCLDICE:I', 'TMRAINQM:I', 'TMCLDRIM:I', 'TMQ:I', 'CAPE:I', 'CIN:I',
+	     'TMCLDICE:I', 'TMRAINQM:I', 'TMCLDRIM:I',
+             'TMNUMLIQ:I', 'TMNUMICE:I', 'TMNUMRAI:I',
+             'TMQ:I', 'CAPE:I', 'CIN:I',
 	     'PS:I', 'TS:I', 'TREFHT:I', 'QREFHT:I', 'PRECT:I','PRECSL:I',
 	     'SHFLX:I', 'LHFLX:I'
     fincl2 = 'FSNTOA:I', 'FLNT:I','FLNTC:I','FSNTOAC:I', 'FSNS:I', 'FSDS:I',
