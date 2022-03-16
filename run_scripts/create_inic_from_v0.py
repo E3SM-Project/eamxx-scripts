@@ -112,7 +112,7 @@ rename_vars_in_new=(
 )
 
 # Leave SPA out of it; separate input file
-required_vars = homme_vars + p3_vars + rad_vars
+required_vars = homme_vars + p3_vars + shoc_vars + rad_vars
 
 # Create a mapping from SCREAMv0 output names to SCREAMv1 input names
 screamv0_to_screamv1_names = {v: v.split('_in')[0] for v in required_vars}
