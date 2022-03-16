@@ -139,3 +139,10 @@ call(f'ncrename -O {rename_string} {output_file}'.split(' '))
 # Fix dimension ording
 print('Fix dimension ordering...')
 call(f'ncpdq -O -a time,ncol,dim2,lev {output_file} {output_file}'.split(' '))
+
+# Append another var identical to hybm but called pref_mid for SHOC
+print('Add a hybm->pref_mid var for SHOC...')
+call(f'ncks -O -v hybm {input_file} pref_mid.nc'.split(' '))
+call(f'ncrename -O -v hybm,pref_mid pref_mid.nc'.split(' '))
+call(f'ncks -A -v pref_mid pref_mid.nc {output_file}'.split(' '))
+os.remove('pref_mid.nc')
