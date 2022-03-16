@@ -4,20 +4,20 @@
 email_address="bhillma@sandia.gov"
 
 # Set run options
-resolution=ne30_ne30 #ne1024np4_360x720cru_oRRS15to5
-compset=F-SCREAM-HR-AQP1
+resolution=ne1024np4_360x720cru_oRRS15to5 #ne120_r0125_oRRS18to6v3 #ne4_ne4 #ne30_ne30 #ne1024np4_360x720cru_oRRS15to5
+compset=F2010-SCREAM-HR
 #branch=68e0661e4 #  9bfb38267 # git hash to branch is most useful here
-branch=add-aquaplanet # git hash to branch is most useful here
+branch=aarondonahue/scream_p3_sa_input_from_f90 # git hash to branch is most useful here
 repo=scream
 machine=cori-knl
 compiler=intel
 stop_option="nsteps"
 stop_n="1"
-walltime="00:05:00"
+walltime="00:30:00"
 queue="debug"
 
 # Setup processor layout
-nnodes=32 #1536 #12 #3072 #2048 #1536
+nnodes=1536 #512 #128 #32 #1536 #12 #3072 #2048 #1536
 nthreads=2
 mpi_tasks_per_node=32
 ntasks=$(expr ${nnodes} \* ${mpi_tasks_per_node})
@@ -32,9 +32,9 @@ do_build=true
 do_submit=true
 
 # Set paths
-datestring=`date +"%Y%m%d-%H%M"`
+datestring=`date +"%Y%m%d"`
 case_name=${branch}.${resolution}.${compset}.${machine}_${compiler}.${pelayout}.${datestring}
-code_root=${SCRATCH}/${repo}/branches/${branch}
+code_root=${HOME}/codes/${repo}/branches/${branch}
 case_root=${SCRATCH}/${repo}/cases/${case_name}
 
 # Download code
@@ -100,7 +100,8 @@ if [ "${do_setup}" == "true" ]; then
 	iradsw = 1
 	iradlw = 1
 
-    ! Outputs for DYAMOND
+    ! Outputs for initial conditions
+    avgflag_pertape = 'A', 'I'
 	nhtfrq = 0, 1
 	mfilt = 1, 48
 	fincl2 =
@@ -150,7 +151,6 @@ if [ "${do_setup}" == "true" ]; then
 		"eff_radius_qi_inRAD",
 		"p_mid_inRAD",
 		"p_int_inRAD",
-		"qv_inRAD",
 		"qc_inRAD",
 		"qi_inRAD",
 		"surf_lw_flux_up_inRAD",
