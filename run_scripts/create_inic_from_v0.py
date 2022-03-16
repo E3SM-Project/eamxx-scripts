@@ -1,12 +1,18 @@
 #!/usr/bin/env python3
 from subprocess import call
 import os
+
+# Define input and output files
 datestring = '20220315'
 #input_file = "/global/cscratch1/sd/bhillma/scream/cases/aarondonahue/scream_p3_sa_input_from_f90.ne30_ne30.F2010-SCREAM-LR.cori-knl_intel.32x32x2.20220311-1614/run/scream_p3_sa_input_from_f90.ne30_ne30.F2010-SCREAM-LR.cori-knl_intel.32x32x2.20220311-1614.eam.h1.0001-01-01-00000.nc"
 #output_file = f'/global/cscratch1/sd/bhillma/scream/data/init/ne30np4L72/{datestring}/screami_ne30np4L72_{datestring}.nc'
 input_file = '/global/cscratch1/sd/bhillma/scream/cases/aarondonahue/scream_p3_sa_input_from_f90.ne4_ne4.F2010-SCREAM-LR.cori-knl_intel.1x32x2.20220315-1829/run/scream_p3_sa_input_from_f90.ne4_ne4.F2010-SCREAM-LR.cori-knl_intel.1x32x2.20220315-1829.eam.h1.0001-01-01-00000.nc'
 output_file = f'/global/cscratch1/sd/bhillma/scream/data/init/ne4np4L72/{datestring}/screami_ne4np4L72_{datestring}.nc'
+
+# Make sure directory for output file exists
 os.makedirs(os.path.dirname(output_file), exist_ok=True)
+
+# Define required vars
 spa_vars=(
     "CCN3",
     "AER_G_SW",
@@ -90,57 +96,48 @@ rad_vars=(
     "O2_inRAD",
     "N2_inRAD",
 )
-rename_vars_in_orig=(
-    "H2O_inRAD",
-    "CO2_inRAD",
-    "O3_inRAD",
-    "N2O_inRAD",
-    "CO_inRAD",
-    "CH4_inRAD",
-    "O2_inRAD",
-    "N2_inRAD",
-)
-rename_vars_in_new=(
-    "h2o",
-    "co2",
-    "o3",
-    "n2o",
-    "co",
-    "ch4",
-    "o2",
-    "n2",
-)
+rename_vars = {
+    "H2O_inRAD": 'h2o',
+    "CO2_inRAD": 'co2',
+    "O3_inRAD" : 'o3' ,
+    "N2O_inRAD": 'n2o',
+    "CO_inRAD" : 'co' ,
+    "CH4_inRAD": 'ch4',
+    "O2_inRAD" : 'o2' ,
+    "N2_inRAD" : 'n2' ,
+}
 
-# Leave SPA out of it; separate input file
+# Full list of required variables from v0 output file. Note that we are leaving
+# SPA out, since the SPA data is in a separate input file.
 required_vars = homme_vars + p3_vars + shoc_vars + rad_vars
 
-# Create a mapping from SCREAMv0 output names to SCREAMv1 input names
+# Create a mapping from SCREAMv0 output names to SCREAMv1 input names; using the
+# branch aarondonahue/scream_p3_sa_input_from_f90, these all have names
+# <var>_in<PROCESS>; i.e., qv_inHOMME. In the future, we might give these
+# standard names. This naming convention was adopted in anticipation that we
+# might use this to create inputs and outputs from each individual process.
 screamv0_to_screamv1_names = {v: v.split('_in')[0] for v in required_vars}
 
 # And some of these need to be renamed still
-for v0, v1 in zip(rename_vars_in_orig, rename_vars_in_new): 
+for v0, v1 in rename_vars.items():
     screamv0_to_screamv1_names[v0] = v1
 
-# Only keep one version of each variable added?
-#unique_names = set(v1 for v0, v1 in screamv0_to_screamv1_names.items())
-#print(unique_names)
-#exit()
-
-# Make file with all these variables
+# Copy all the required fields to a new file
 required_vars_string = ','.join(required_vars)
 print('Adding variables from input file to output file...')
 call(f'ncks -O -v {required_vars_string} {input_file} {output_file}'.split(' '))
 
-# Rename
+# Rename variables
 print('Rename variables from SCREAMv0 output to SCREAMv1 input names...')
 rename_string = ' '.join([f'-v {v0},{v1}' for v0, v1 in screamv0_to_screamv1_names.items() if v0 != v1])
 call(f'ncrename -O {rename_string} {output_file}'.split(' '))
 
-# Fix dimension ording
+# Fix dimension ordering
 print('Fix dimension ordering...')
 call(f'ncpdq -O -a time,ncol,dim2,lev {output_file} {output_file}'.split(' '))
 
 # Append another var identical to hybm but called pref_mid for SHOC
+# TODO: why does SHOC not just use hybm?
 print('Add a hybm->pref_mid var for SHOC...')
 call(f'ncks -O -v hybm {input_file} pref_mid.nc'.split(' '))
 call(f'ncrename -O -v hybm,pref_mid pref_mid.nc'.split(' '))
