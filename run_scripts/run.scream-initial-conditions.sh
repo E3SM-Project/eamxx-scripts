@@ -4,8 +4,9 @@
 email_address="bhillma@sandia.gov"
 
 # Set run options
-resolution=ne1024np4_360x720cru_oRRS15to5 #ne120_r0125_oRRS18to6v3 #ne4_ne4 #ne30_ne30 #ne1024np4_360x720cru_oRRS15to5
-compset=F2010-SCREAM-HR
+#resolution=ne512np4_360x720cru_oRRS15to5 #ne1024np4_360x720cru_oRRS15to5 #ne120_r0125_oRRS18to6v3 #ne4_ne4 #ne30_ne30 #ne1024np4_360x720cru_oRRS15to5
+resolution=ne120np4_r0125_oRRS18to6v3 #ne1024np4_360x720cru_oRRS15to5 #ne120_r0125_oRRS18to6v3 #ne4_ne4 #ne30_ne30 #ne1024np4_360x720cru_oRRS15to5
+compset=F2010-SCREAM-LR
 #branch=68e0661e4 #  9bfb38267 # git hash to branch is most useful here
 branch=aarondonahue/scream_p3_sa_input_from_f90 # git hash to branch is most useful here
 repo=scream
@@ -17,9 +18,9 @@ walltime="00:30:00"
 queue="debug"
 
 # Setup processor layout
-nnodes=1536 #512 #128 #32 #1536 #12 #3072 #2048 #1536
-nthreads=2
-mpi_tasks_per_node=32
+nnodes=512 #384 #3072 #1536 #512 #128 #32 #1536 #12 #3072 #2048 #1536
+nthreads=16
+mpi_tasks_per_node=8
 ntasks=$(expr ${nnodes} \* ${mpi_tasks_per_node})
 total_tasks_per_node=$(expr ${mpi_tasks_per_node} \* ${nthreads})
 pelayout=${nnodes}x${mpi_tasks_per_node}x${nthreads}
@@ -94,8 +95,22 @@ if [ "${do_setup}" == "true" ]; then
     ./xmlchange PIO_NETCDF_FORMAT="64bit_data"
     ./xmlchange PIO_BUFFER_SIZE_LIMIT=134217728
 
+    if [ "${resolution}" == "ne120_r0125_oRRS18to6v3" ]; then #ne1024np4_360x720cru_oRRS15to5 #ne120_r0125_oRRS18to6v3 #ne4_ne4 #ne30_ne30 #ne1024np4_360x720cru_oRRS15to5
+      cat <<EOF >> user_nl_eam
+    ncdata = '/global/cfs/cdirs/e3sm/inputdata/atm/cam/inic/homme/cami_mam3_Linoz_0000-01-ne120np4_L72_c160318.nc'
+EOF
+    elif [ "${resolution}" == "ne512np4_360x720cru_oRRS15to5" ]; then
+       cat <<EOF >> user_nl_eam
+    ncdata = 'atm/cam/inic/homme/ifs_oper_T1279_2016080100_mod_subset_to_e3sm_ne512np4_topoadj_L128_c20200115.nc'
+EOF
+    fi
+
     # Edit CAM namelist to set dycore options for new grid
     cat <<EOF >> user_nl_eam
+
+    ! Also write a new initial condition
+    inithist = 'ENDOFRUN'
+
 	! Always do radiation
 	iradsw = 1
 	iradlw = 1
