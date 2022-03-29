@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 from subprocess import call
 import os
+from datetime import date
 
 # Define input and output files
-datestring = '20220315'
+datestring = date.today().strftime('%Y%m%d')
+res = "ne120np4L72"
 #input_file = "/global/cscratch1/sd/bhillma/scream/cases/aarondonahue/scream_p3_sa_input_from_f90.ne30_ne30.F2010-SCREAM-LR.cori-knl_intel.32x32x2.20220311-1614/run/scream_p3_sa_input_from_f90.ne30_ne30.F2010-SCREAM-LR.cori-knl_intel.32x32x2.20220311-1614.eam.h1.0001-01-01-00000.nc"
-#output_file = f'/global/cscratch1/sd/bhillma/scream/data/init/ne30np4L72/{datestring}/screami_ne30np4L72_{datestring}.nc'
-input_file = '/global/cscratch1/sd/bhillma/scream/cases/aarondonahue/scream_p3_sa_input_from_f90.ne4_ne4.F2010-SCREAM-LR.cori-knl_intel.1x32x2.20220315-1829/run/scream_p3_sa_input_from_f90.ne4_ne4.F2010-SCREAM-LR.cori-knl_intel.1x32x2.20220315-1829.eam.h1.0001-01-01-00000.nc'
-output_file = f'/global/cscratch1/sd/bhillma/scream/data/init/ne4np4L72/{datestring}/screami_ne4np4L72_{datestring}.nc'
+input_file = "/global/cscratch1/sd/bhillma/scream/cases/aarondonahue/scream_p3_sa_input_from_f90.ne120_r0125_oRRS18to6v3.F2010-SCREAM-LR.cori-knl_intel.384x32x2.20220328/run/scream_p3_sa_input_from_f90.ne120_r0125_oRRS18to6v3.F2010-SCREAM-LR.cori-knl_intel.384x32x2.20220328.eam.h1.0001-01-01-00000.nc"
+output_file = f'/global/cscratch1/sd/bhillma/scream/data/init/{res}/screami_{res}_{datestring}.nc'
+#input_file = '/global/cscratch1/sd/bhillma/scream/cases/aarondonahue/scream_p3_sa_input_from_f90.ne4_ne4.F2010-SCREAM-LR.cori-knl_intel.1x32x2.20220315-1829/run/scream_p3_sa_input_from_f90.ne4_ne4.F2010-SCREAM-LR.cori-knl_intel.1x32x2.20220315-1829.eam.h1.0001-01-01-00000.nc'
+#output_file = f'/global/cscratch1/sd/bhillma/scream/data/init/ne4np4L72/{datestring}/screami_ne4np4L72_{datestring}.nc'
 
 # Make sure directory for output file exists
 os.makedirs(os.path.dirname(output_file), exist_ok=True)
