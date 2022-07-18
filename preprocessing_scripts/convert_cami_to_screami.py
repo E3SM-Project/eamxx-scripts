@@ -62,7 +62,7 @@ def main(inputfile, topofile, gasfile, outputfile):
 
         # Grab phis from topo file
         print('Grab phis from topo file')
-        with xarray.open_dataset(topofile) as ds_topo:
+        with xarray.open_dataset(topofile, decode_cf=False) as ds_topo:
             if 'PHIS_d' in ds_topo.variables.keys():
                 print('  use PHIS_d')
                 ds_out['phis'] = ds_topo['PHIS_d'].rename({'ncol_d': 'ncol'})
@@ -74,13 +74,19 @@ def main(inputfile, topofile, gasfile, outputfile):
 
         # Grab trace gas concentrations from file
         print('Get trace gases')
-        with xarray.open_dataset(gasfile).isel(time=0).drop('time') as ds_gas:
+        with xarray.open_dataset(gasfile, decode_cf=False).isel(time=0).drop('time') as ds_gas:
             for v in gas_names:
                 ds_out[v], *__ = xarray.broadcast(ds_gas[v], ds_out['ps'])
 
         # Permute dimensions
         print('Permute dimensions')
-        ds_out = ds_out.transpose('time','ncol','dim2','lev','ilev','nbnd')
+        try:
+            if 'nbnd' in ds_out.dimensions:
+                ds_out = ds_out.transpose('time','ncol','dim2','lev','ilev','nbnd')
+            else:
+                ds_out = ds_out.transpose('time','ncol','dim2','lev','ilev')
+        except:
+            print('  permute dimensions failed, but continuing anyways.')
 
         print('Write to netcdf')
         ds_out.to_netcdf(outputfile)
