@@ -8,7 +8,12 @@ def main(file1, file2):
 
     for v in ds1.variables.keys():
         #print(f'{v:10} file1: {ds1[v].min().values:10} - {ds1[v].max().values:10}; file2: {ds2[v].min().values:10} - {ds2[v].max().values:10}')
-        print(f'{v} file1: {ds1[v].min().values} - {ds1[v].max().values}; file2: {ds2[v].min().values} - {ds2[v].max().values}')
+        if v in ds2.variables.keys():
+            #print(f'{v} file1: {ds1[v].min().values} - {ds1[v].max().values}; file2: {ds2[v].min().values} - {ds2[v].max().values}')
+            if not ds1[v].dims == ds2[v].dims:
+                print(f'WARNING: Variable {v} dims are inconsistent; {ds1[v].dims} != {ds2[v].dims}')
+        else:
+            print(f'WARNING: Variable {v} in {file1} but not in {file2}')
     ds1.close()
     ds2.close()
 
