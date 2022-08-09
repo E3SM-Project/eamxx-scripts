@@ -17,8 +17,7 @@ def main(inputfile, topofile, gasfile, outputfile):
         'qv'  : 'Q',
         'ps'  : 'PS',
         'T_mid': 'T',
-        #'horiz_winds': ('U', 'V'),
-        'pref_mid': 'hybm', #'lev',
+        'pref_mid': 'lev', #hybm
         'qc': 'CLDLIQ',
         'qi': 'CLDICE',
         'qr': 'RAINQM',
@@ -49,16 +48,13 @@ def main(inputfile, topofile, gasfile, outputfile):
             else:
                 print(f'WARNING: {eam_name} not found in inputfile; hope you did not need that one...')
 
+        # Make sure ps field contains a time dimension
+        if 'time' not in ds_out['ps'].dims:
+            ds_out['ps'] = ds_out['ps'].expand_dims('time', axis=0)
+
         # Handle U,V to horiz_winds(time,ncol,dim2,lev)
         print('Map U,V to horiz_winds')
         ds_out['horiz_winds'] = xarray.concat([ds_in['U'], ds_in['V']], 'dim2')
-        #xarray.DataArray(
-        #    dask.array.zeros([ntime,nlev,2,ncol], chunks=[1,1,1,ncol]),
-        #    #numpy.zeros([ntime,nlev,2,ncol]),
-        #    dims=('time','lev','dim2','ncol'),
-        #)
-        #ds_out['horiz_winds'][:,:,0,:] = ds_in['U']
-        #ds_out['horiz_winds'][:,:,1,:] = ds_in['V']
 
         # Grab phis from topo file
         print('Grab phis from topo file')
@@ -81,7 +77,7 @@ def main(inputfile, topofile, gasfile, outputfile):
         # Permute dimensions
         print('Permute dimensions')
         try:
-            if 'nbnd' in ds_out.dimensions:
+            if 'nbnd' in ds_out.dims:
                 ds_out = ds_out.transpose('time','ncol','dim2','lev','ilev','nbnd')
             else:
                 ds_out = ds_out.transpose('time','ncol','dim2','lev','ilev')
