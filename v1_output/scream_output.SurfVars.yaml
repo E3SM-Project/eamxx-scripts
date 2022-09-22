@@ -2,7 +2,7 @@
 ---
 Casename: output.scream.SurfVars
 Averaging Type: Instant
-Max Snapshots Per File: 48
+Max Snapshots Per File: 96
 Fields:
   Physics PG2:
     Field Names:
@@ -14,7 +14,15 @@ Fields:
     - sfc_flux_sw_net
     - ps
     - sea_level_pressure
+    - surf_mom_flux
+    - Tmid@bot
+    - qv@bot
+    - horiz_winds@bot
+    - SW_flux_up@bot
+    - SW_flux_dn@bot
+    - LW_flux_up@bot
+    - LW_flux_dn@bot
 Output Control:
-  Frequency: 30
+  Frequency: 15
   Frequency Units: nmins
   MPI Ranks in Filename: false

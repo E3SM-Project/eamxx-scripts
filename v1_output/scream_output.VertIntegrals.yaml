@@ -2,7 +2,7 @@
 ---
 Casename: output.scream.VertIntegrals
 Averaging Type: Instant
-Max Snapshots Per File: 48 #1 per day
+Max Snapshots Per File: 96 #1 per day
 Fields:
   Physics PG2:
     Field Names:
@@ -12,6 +12,6 @@ Fields:
     - rime_water_path
     - vapor_water_path
 Output Control:
-  Frequency: 30
+  Frequency: 15
   Frequency Units: nmins
   MPI Ranks in Filename: false
