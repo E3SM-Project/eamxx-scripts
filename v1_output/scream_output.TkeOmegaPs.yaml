@@ -1,12 +1,13 @@
 %YAML 1.1
 ---
-Casename: output.scream.CldfracOmega
+Casename: output.scream.SHOC
 Averaging Type: Instant
 Max Snapshots Per File: 8
 Fields:
   Physics PG2:
     Field Names:
-    - cldfrac_tot
+    - ps
+    - tke
     - omega
 Output Control:
   Frequency: 3

@@ -1,13 +1,13 @@
 %YAML 1.1
 ---
-Casename: output.scream.SHOC
+Casename: output.scream.Cldfrac
 Averaging Type: Instant
 Max Snapshots Per File: 8
 Fields:
   Physics PG2:
     Field Names:
-    - ps
-    - tke
+    - cldfrac_tot
+    - ice_cloud_mask
 Output Control:
   Frequency: 3
   Frequency Units: nhours
