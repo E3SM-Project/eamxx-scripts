@@ -1,0 +1,14 @@
+%YAML 1.1
+---
+Casename: output.scream.SHOC
+Averaging Type: Instant
+Max Snapshots Per File: 8
+Fields:
+  Physics PG2:
+    Field Names:
+    - ps
+    - tke
+Output Control:
+  Frequency: 3
+  Frequency Units: nhours
+  MPI Ranks in Filename: false

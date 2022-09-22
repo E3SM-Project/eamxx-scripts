@@ -1,0 +1,20 @@
+%YAML 1.1
+---
+Casename: output.scream.SurfVars
+Averaging Type: Instant
+Max Snapshots Per File: 48
+Fields:
+  Physics PG2:
+    Field Names:
+    - precip_liq_surf_mass
+    - precip_ice_surf_mass
+    - surf_evap
+    - surf_sens_flux
+    - sfc_flux_lw_dn
+    - sfc_flux_sw_net
+    - ps
+    - sea_level_pressure
+Output Control:
+  Frequency: 30
+  Frequency Units: nmins
+  MPI Ranks in Filename: false
