@@ -10,8 +10,6 @@ Fields:
     - precip_ice_surf_mass
     - surf_evap
     - surf_sens_flux
-    - sfc_flux_lw_dn
-    - sfc_flux_sw_net
     - ps
     - sea_level_pressure
     - surf_mom_flux
