@@ -6,13 +6,13 @@ Max Snapshots Per File: 96 #1 per day
 Fields:
   Physics PG2:
     Field Names:
-    - liquid_water_path
-    - ice_water_path
-    - rain_water_path
-    - rime_water_path
-    - vapor_water_path
-    - qv_vert_integrated_flux_u
-    - qv_vert_integrated_flux_v
+    - LiqWaterPath
+    - IceWaterPath
+    - RainWaterPath
+    - RimeWaterPath
+    - VapWaterPath
+    - ZonalVapFlux
+    - MeridionalVapFlux
 Output Control:
   Frequency: 15
   Frequency Units: nmins

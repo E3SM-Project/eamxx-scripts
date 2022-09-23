@@ -1,12 +1,11 @@
 %YAML 1.1
 ---
-Casename: output.scream.SHOC
+Casename: output.scream.TkeOmega
 Averaging Type: Instant
 Max Snapshots Per File: 8
 Fields:
   Physics PG2:
     Field Names:
-    - ps
     - tke
     - omega
 Output Control:

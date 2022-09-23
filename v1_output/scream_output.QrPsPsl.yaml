@@ -1,13 +1,14 @@
 %YAML 1.1
 ---
-Casename: output.scream.Cldfrac
+Casename: output.scream.QrPsPsl
 Averaging Type: Instant
 Max Snapshots Per File: 8
 Fields:
   Physics PG2:
     Field Names:
-    - cldfrac_tot
-    - IceCloudMask
+    - qr
+    - ps
+    - sea_level_pressure
 Output Control:
   Frequency: 3
   Frequency Units: nhours

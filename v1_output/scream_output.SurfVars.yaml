@@ -11,7 +11,6 @@ Fields:
     - surf_evap
     - surf_sens_flux
     - ps
-    - sea_level_pressure
     - surf_mom_flux
     - Tmid@bot
     - qv@bot
@@ -20,6 +19,7 @@ Fields:
     - SW_flux_dn@bot
     - LW_flux_up@bot
     - LW_flux_dn@bot
+    - z_mid@bot
 Output Control:
   Frequency: 15
   Frequency Units: nmins

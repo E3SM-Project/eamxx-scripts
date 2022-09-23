@@ -12,8 +12,8 @@ Fields:
     - LW_flux_up@tom
     - SW_flux_up_clr@tom
     - LW_flux_up_clr@tom
-    - SWCF
-    - LWCF
+    - ShortwaveCloudForcing
+    - LongwaveCloudForcing
 Output Control:
   Frequency: 15
   Frequency Units: nmins
