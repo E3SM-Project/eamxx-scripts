@@ -10,11 +10,11 @@ Fields:
     - SW_flux_up@tom
     - SW_flux_dn@tom
     - LW_flux_up@tom
-    - SW_flux_up_clr@tom
-    - LW_flux_up_clr@tom
+    - SW_clrsky_flux_up@tom
+    - LW_clrsky_flux_up@tom
     - ShortwaveCloudForcing
     - LongwaveCloudForcing
-Output Control:
+output_control:
   Frequency: 15
-  Frequency Units: nmins
+  frequency_units: nmins
   MPI Ranks in Filename: false
