@@ -20,7 +20,10 @@ Fields:
     - SW_flux_dn@bot
     - LW_flux_up@bot
     - LW_flux_dn@bot
-#    - VerticalLayerMidpoint@bot
+      #    - VerticalLayerMidpoint@bot
+    - surf_radiative_T
+    - T_2m
+    - wind_speed_10m
 output_control:
   Frequency: 15
   frequency_units: nmins

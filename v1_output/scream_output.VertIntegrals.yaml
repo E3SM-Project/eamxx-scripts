@@ -11,8 +11,9 @@ Fields:
     - RainWaterPath
     - RimeWaterPath
     - VapWaterPath
-#    - ZonalVapFlux
-#    - MeridionalVapFlux
+    - ZonalVapFlux
+    - MeridionalVapFlux
+    - cldtot
 output_control:
   Frequency: 15
   frequency_units: nmins
