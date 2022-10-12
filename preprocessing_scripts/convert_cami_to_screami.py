@@ -1,23 +1,25 @@
 #!/usr/bin/env python3
 import xarray, numpy, dask
+from subprocess import call
 
 def main(inputfile, topofile, gasfile, outputfile):
 
     # Stuff we need to get from cami file
-    screami_from_cami = {
+    screami_from_cami_coordvars = {  # These we want to be doubles
         'time': 'time',
-        'time_bnds': 'time_bnds',
-        'lat' : 'lat',
-        'lon' : 'lon',
         'hyam': 'hyam',
         'hybm': 'hybm',
         'hyai': 'hyai',
         'hybi': 'hybi',
+        'pref_mid': 'lev', #hybm
+        'lat' : 'lat',
+        'lon' : 'lon',
         'P0'  : 'P0',
+    }
+    screami_from_cami_datavars = {  # These can be floats
         'qv'  : 'Q',
         'ps'  : 'PS',
         'T_mid': 'T',
-        'pref_mid': 'lev', #hybm
         'qc': 'CLDLIQ',
         'qi': 'CLDICE',
         'qr': 'RAINQM',
@@ -25,11 +27,12 @@ def main(inputfile, topofile, gasfile, outputfile):
         'ni': 'NUMICE',
         'nr': 'NUMRAI',
     }
+    screami_from_cami = {**screami_from_cami_coordvars, **screami_from_cami_datavars}
 
     # Other things we need:
-    #   gas concentrations for trace gas constituents
+    #   gas concentrations for trace gas constituents (only o3 now)
     #   surface geopotential
-    gas_names = ('ch4', 'co', 'co2', 'n2', 'n2o', 'o2', 'o3')
+    gas_names = ('o3',)
 
     with xarray.open_dataset(inputfile, decode_cf=False) as ds_in:
 
@@ -72,7 +75,22 @@ def main(inputfile, topofile, gasfile, outputfile):
         print('Get trace gases')
         with xarray.open_dataset(gasfile, decode_cf=False).isel(time=0).drop('time') as ds_gas:
             for v in gas_names:
-                ds_out[v], *__ = xarray.broadcast(ds_gas[v], ds_out['ps'])
+                print(f'  get {v} from gas file...')
+                ds_out[v + '_volume_mix_ratio'] = xarray.DataArray(
+                    numpy.zeros([ncol, nlev], dtype=float), 
+                    dims=('ncol', 'lev'),
+                    attrs=ds_gas[v].attrs
+                )
+                ds_out[v + '_volume_mix_ratio'].values = ds_gas[v].transpose('ncol', 'lev').values
+                ds_out[v + '_volume_mix_ratio'], *__ = xarray.broadcast(ds_out[v + '_volume_mix_ratio'], ds_out['ps'])
+                ds_out[v + '_volume_mix_ratio'].attrs['units'] = 'mol/mol'
+                ds_out[v + '_volume_mix_ratio'].attrs['long_name'] = v + ' volume mixing ratio'
+
+        # Convert datavars to single precision float
+        for v in ds_out.data_vars.keys():
+            if v not in screami_from_cami_coordvars.keys():
+                print(f'convert {v} to float...')
+                ds_out[v] = ds_out[v].astype(numpy.float32)
 
         # Permute dimensions
         print('Permute dimensions')
@@ -84,8 +102,23 @@ def main(inputfile, topofile, gasfile, outputfile):
         except:
             print('  permute dimensions failed, but continuing anyways.')
 
+        # Apply clipping
+        for v in ('qv', 'qc', 'qi', 'qr', 'nc', 'ni', 'nr'):
+            if v in ds_out.variables.keys():
+                ds_out[v].data = numpy.where(ds_out[v] < 0, 0, ds_out[v])
+
+        # Check values
+        for v in ds_out.variables:
+            numnan = ds_out[v].isnull().sum().values
+            print(f'{v} numnan = {numnan}')
+
         print('Write to netcdf')
-        ds_out.to_netcdf(outputfile)
+        ds_out.to_netcdf(outputfile) #format="NETCDF3_64BIT")
+
+        # Convert to cdf5
+        print('Convert to cdf5')
+        call(f'ncks -5 {outputfile} {outputfile}.cdf5'.split(' '))
+        call(f'mv {outputfile}.cdf5 {outputfile}'.split(' '))
 
         print('Done.')
 
