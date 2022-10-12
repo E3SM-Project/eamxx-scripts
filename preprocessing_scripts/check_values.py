@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import xarray
 from subprocess import call
-def main(inputfile):
+def main(inputfile, *varnames):
 
     if True:
         # This would be nice but takes forever on big datasets
@@ -9,7 +9,11 @@ def main(inputfile):
 
             print('{:<25} {:<15} {:<15} {:<15}'.format('var', 'minval', 'maxval', 'numnan'))
             print(''.join(['-' for i in range(25+15+15+15)]))
-            for v in ds.variables:
+            if len(varnames) > 0:
+                vnames = varnames
+            else:
+                vnames = ds.variables
+            for v in vnames:
                 try:
                     minval = ds[v].min().values
                     maxval = ds[v].max().values
