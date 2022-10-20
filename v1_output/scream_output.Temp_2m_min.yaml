@@ -1,0 +1,13 @@
+%YAML 1.1
+---
+Casename: output.scream.Temp_2m
+Averaging Type: Min
+Max Snapshots Per File: 1
+Fields:
+  Physics PG2:
+    Field Names:
+    - T_2m
+output_control:
+  Frequency: 1
+  frequency_units: ndays
+  MPI Ranks in Filename: false
