@@ -12,17 +12,14 @@ Fields:
     - surf_sens_flux
     - ps
     - surf_mom_flux
-    - T_mid@bot
-    - T_mid@lev_126  # Recall, levels are 0-based
-    - qv@bot
     - horiz_winds@bot
     - SW_flux_up@bot
     - SW_flux_dn@bot
     - LW_flux_up@bot
     - LW_flux_dn@bot
-    - VerticalLayerMidpoint@bot
     - surf_radiative_T
     - T_2m
+    - qv_2m
     - wind_speed_10m
 output_control:
   Frequency: 15
