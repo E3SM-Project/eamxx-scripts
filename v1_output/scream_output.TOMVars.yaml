@@ -12,8 +12,6 @@ Fields:
     - LW_flux_up@tom
     - SW_clrsky_flux_up@tom
     - LW_clrsky_flux_up@tom
-    - ShortwaveCloudForcing
-    - LongwaveCloudForcing
 output_control:
   Frequency: 15
   frequency_units: nmins
