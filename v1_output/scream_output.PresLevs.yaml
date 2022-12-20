@@ -6,10 +6,10 @@ Max Snapshots Per File: 96
 Fields:
   Physics PG2:
     Field Names:
-    - RelativeHumidty@200mb
-    - RelativeHumidty@500mb
-    - RelativeHumidty@700mb
-    - RelativeHumidty@850mb
+    - RelativeHumidity@200mb
+    - RelativeHumidity@500mb
+    - RelativeHumidity@700mb
+    - RelativeHumidity@850mb
     - VerticalLayerInterface@200mb
     - VerticalLayerInterface@500mb
     - VerticalLayerInterface@700mb
