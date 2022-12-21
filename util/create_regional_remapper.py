@@ -46,13 +46,24 @@ import numpy as np
 import netCDF4
 
 class Grid:
-  lat      = np.array([])
-  lon      = np.array([])
+  lat       = np.array([])
+  lon       = np.array([])
+  chunk_idx = 0
+  size      = 0
+  filename  = ""
 
-  def __init__(self,filename):
-    f = netCDF4.Dataset(filename,"r")
-    self.lat = f["lat"][:].data
-    self.lon = f["lon"][:].data
+  def __init__(self,filename_):
+    self.filename = filename_
+    f = netCDF4.Dataset(self.filename,"r")
+    self.size = f.dimensions["ncol"].size
+    f.close()
+
+  def grab_chunk(self,chunk):
+    f = netCDF4.Dataset(self.filename,"r")
+    chunk_end = np.min([self.size,self.chunk_idx+chunk]);
+    self.lat  = f["lat"][self.chunk_idx:chunk_end].data
+    self.lon  = f["lon"][self.chunk_idx:chunk_end].data
+    self.chunk_idx = chunk_end
     f.close()
 
 class Site:
@@ -60,6 +71,8 @@ class Site:
   lon_bnds = np.zeros(2)
   lat_bnds = np.zeros(2)
   gids     = np.array([])
+  lon_gids = np.array([])
+  lat_gids = np.array([])
   lons     = np.array([])
   lats     = np.array([])
   offset   = 0
@@ -68,8 +81,15 @@ class Site:
 
   def __init__(self,name_,bnds):
     self.name = name_
-    self.lon_bnds = bnds[:2] #np.array([bnds[0],bnds[1]])
-    self.lat_bnds = bnds[2:] #np.array([bnds[2],bnds[3]])
+    self.lon_bnds = bnds[:2] 
+    self.lat_bnds = bnds[2:] 
+
+  def filter_gids(self):
+    mask_lon = np.in1d(self.lon_gids,self.lat_gids)
+    mask_lat = np.in1d(self.lat_gids,self.lon_gids)
+    self.gids = self.lon_gids[mask_lon]
+    self.lons = self.lons[mask_lon]
+    self.lats = self.lats[mask_lat]
 
 class Sites:
   m_sites = []
@@ -108,7 +128,7 @@ def construct_remap(casename,sites,grid):
 
   # Create remap netCDF file
   f = netCDF4.Dataset(casename+"_map.nc","w")
-  f.createDimension('n_a',len(grid.lat))
+  f.createDimension('n_a',grid.size)
   f.createDimension('n_b',offset)
   f.createDimension('n_s',offset)
 
@@ -148,6 +168,8 @@ def main():
                   help='Case name for regional remapping, this will used for the file names of output.')
   p.add_argument('neg_lon', default=False,
                   help='Are longitude values able to be negative, i.e. bound by [-180,180] rather than [0,360]')
+  p.add_argument('chunksize', type=int, default=48602,
+                  help='Option to read grid data in chunks, useful for large simulation grids')
   m_args = p.parse_args(); 
 
   # Load the data from args
@@ -158,17 +180,25 @@ def main():
   lon_adj = 0.0
   if m_args.neg_lon:
     lon_adj = 180.0
-  for idx, isite in enumerate(remap_sites.m_sites):
-    isite.lon_bnds = isite.lon_bnds + lon_adj
-    print("Finding gids for site: %s\n    with bounds [%f,%f] x [%f,%f]" %(isite.name,isite.lon_bnds[0],isite.lon_bnds[1],isite.lat_bnds[0],isite.lat_bnds[1]))
-    lids = np.where( (src_grid.lon >= isite.lon_bnds[0]) & 
-                     (src_grid.lon <= isite.lon_bnds[1]) & 
-                     (src_grid.lat >= isite.lat_bnds[0]) & 
-                     (src_grid.lat <= isite.lat_bnds[1]))
-    isite.gids = lids[0]
-    isite.lons = src_grid.lon[isite.gids]
-    isite.lats = src_grid.lat[isite.gids]
+  print("Finding global dof's that could fit site dimensions...")
+  while(src_grid.chunk_idx < src_grid.size):
+    print("  Searching cols: %12d - %12d, out of %12d total" %(src_grid.chunk_idx+1,np.amin([src_grid.chunk_idx+m_args.chunksize,src_grid.size]),src_grid.size))
+    chunk_idx = src_grid.chunk_idx
+    src_grid.grab_chunk(m_args.chunksize)
+    for idx, isite in enumerate(remap_sites.m_sites):
+      lids = np.where( (src_grid.lon >= isite.lon_bnds[0]+lon_adj) & 
+                       (src_grid.lon <= isite.lon_bnds[1]+lon_adj)) 
+      isite.lons     = np.append(isite.lons, src_grid.lon[lids[0]])
+      isite.lon_gids = np.append(isite.lon_gids, lids[0]+chunk_idx)
 
+      lids = np.where( (src_grid.lat >= isite.lat_bnds[0]) & 
+                       (src_grid.lat <= isite.lat_bnds[1]))
+      isite.lats = np.append(isite.lats, src_grid.lat[lids[0]])
+      isite.lat_gids = np.append(isite.lat_gids, lids[0]+chunk_idx)
+  # Consilidate the gids for each site
+  for idx, isite in enumerate(remap_sites.m_sites):
+      print("Setting gids for site: %s\n    with bounds [%f,%f] x [%f,%f]" %(isite.name,isite.lon_bnds[0],isite.lon_bnds[1],isite.lat_bnds[0],isite.lat_bnds[1]))
+      isite.filter_gids()
   # Construct output files
   construct_remap(m_args.casename,remap_sites.m_sites,src_grid)
 
