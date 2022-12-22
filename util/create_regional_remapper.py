@@ -51,18 +51,27 @@ class Grid:
   chunk_idx = 0
   size      = 0
   filename  = ""
+  lat_name  = ""  # Name for lat coordinate in file
+  lon_name  = ""  # Name for lon coordinate in file
 
-  def __init__(self,filename_):
+  def __init__(self,filename_,grid_filetype_):
     self.filename = filename_
     f = netCDF4.Dataset(self.filename,"r")
-    self.size = f.dimensions["ncol"].size
+    if grid_filetype_ == "scrip":
+      self.size     = f.dimensions["grid_size"].size
+      self.lat_name = "grid_center_lat"
+      self.lon_name = "grid_center_lon"
+    else:
+      self.size     = f.dimensions["ncol"].size
+      self.lat_name = "lat"
+      self.lon_name = "lon"
     f.close()
 
   def grab_chunk(self,chunk):
     f = netCDF4.Dataset(self.filename,"r")
     chunk_end = np.min([self.size,self.chunk_idx+chunk]);
-    self.lat  = f["lat"][self.chunk_idx:chunk_end].data
-    self.lon  = f["lon"][self.chunk_idx:chunk_end].data
+    self.lat  = f[self.lat_name][self.chunk_idx:chunk_end].data
+    self.lon  = f[self.lon_name][self.chunk_idx:chunk_end].data
     self.chunk_idx = chunk_end
     f.close()
 
@@ -152,7 +161,7 @@ def construct_remap(casename,sites,grid):
   with open(casename+"_key.csv","w") as csvfile:
     csvwriter = csv.writer(csvfile)
     for s in sites:
-      csvwriter.writerow([s.my_id,s.name,str(s.offset+1),str(s.length)])
+      csvwriter.writerow([s.my_id,s.name,str(s.offset+1),str(s.offset+s.length)])
   
 
 def main():
@@ -162,6 +171,8 @@ def main():
   p = argparse.ArgumentParser(description=help, formatter_class=argparse.RawTextHelpFormatter)
   p.add_argument('grid_file', type=str,
                   help='Path to a netCDF file containing the source grid information for remapping.')
+  p.add_argument('grid_filetype', type=str, default='scrip', choices=['scrip','init'],
+                  help='Type of grid file containing grid information.  This helps the tool recognize what the variable names are in the file')
   p.add_argument('site_info', type=str,
                   help='Path to a csv format file that contains the lat/lon bounds for regional remapping.')
   p.add_argument('casename', type=str,
@@ -173,7 +184,7 @@ def main():
   m_args = p.parse_args(); 
 
   # Load the data from args
-  src_grid    = Grid(m_args.grid_file)
+  src_grid    = Grid(m_args.grid_file,m_args.grid_filetype)
   remap_sites = Sites(m_args.site_info) 
 
   # Determine which gids in source grid match each site

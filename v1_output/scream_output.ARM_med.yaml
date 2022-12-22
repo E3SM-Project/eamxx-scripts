@@ -1,0 +1,28 @@
+%YAML 1.1
+---
+Casename: output.scream.ARM_med_dmn
+Averaging Type: Instant
+Max Snapshots Per File: 12
+remap_file: ${SCREAM_DOCS_DIR}/regional_output_sites/maps/ARM_sites_med_remap_ne1024pg2_map.nc
+Fields:
+  Physics PG2:
+    Field Names:
+      - qc
+      - nc
+      - qr
+      - nr
+      - qi
+      - ni
+      - qm
+      - bm
+      - cldfrac_tot
+      - cldfrac_ice
+      - cldfrac_liq
+      - T_mid
+      - RelativeHumidity
+      - horiz_winds
+      - omega
+output_control:
+  Frequency: 15
+  frequency_units: nminutes
+  MPI Ranks in Filename: false
