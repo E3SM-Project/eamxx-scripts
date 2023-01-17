@@ -18,6 +18,10 @@ Fields:
     - omega@500mb
     - omega@700mb
     - omega@850mb
+    - T_mid@200mb
+    - T_mid@500mb
+    - T_mid@700mb
+    - T_mid@850mb
 output_control:
   Frequency: 15
   frequency_units: nmins
