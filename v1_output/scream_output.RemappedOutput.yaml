@@ -1,0 +1,47 @@
+%YAML 1.1
+---
+Casename: output.scream.remapped_output
+Averaging Type: Instant
+Max Snapshots Per File: 1
+vertical_remap_file: ${DIN_LOC_ROOT}/atm/scream/maps/map_ne1024pg2_to_ne120pg2_nco_vert_remap_20230214.nc
+horiz_remap_file: ${DIN_LOC_ROOT}/atm/scream/maps/map_ne1024pg2_to_ne120pg2_nco_vert_remap_20230214.nc
+Fields:
+  Physics PG2:
+    Field Names:
+    # Full 3D Profile
+    - T_mid
+    - qv
+    - omega
+    - horiz_winds
+    - U
+    - V
+    # Surface
+    - surf_sens_flux
+    - surf_evap
+    - ps
+    - precip_liq_surf_mass
+    - precip_ice_surf_mass
+#    - PrecipLiqSurfMassFlux <These will replace precip vars when fixed>
+#    - PrecipIceSurfMassFlux <These will replace precip vars when fixed>
+    - surf_mom_flux_U
+    - surf_mom_flux_V
+    # Lowest Level
+    - U@bot
+    - V@bot
+    - T_mid@bot
+    - qv@bot
+    - qc@bot
+    - qi@bot
+    - qr@bot
+    - qm@bot
+    - bm@bot
+    - SW_flux_dn@bot
+    - SW_flux_up@bot
+    - LW_flux_dn@bot
+    - LW_flux_up@bot
+    - SW_flux_up@tom
+    - LW_flux_up@tom
+output_control:
+  Frequency: 3
+  frequency_units: nhours
+  MPI Ranks in Filename: false
