@@ -1,6 +1,6 @@
 %YAML 1.1
 ---
-Casename: output.scream.SurfVars
+filename_prefix: output.scream.SurfVars
 Averaging Type: Instant
 Max Snapshots Per File: 96
 Fields:

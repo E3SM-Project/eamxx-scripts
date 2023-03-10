@@ -1,6 +1,6 @@
 %YAML 1.1
 ---
-Casename: output.scream.VertIntegrals
+filename_prefix: output.scream.VertIntegrals
 Averaging Type: Instant
 Max Snapshots Per File: 96 #1 per day
 Fields:

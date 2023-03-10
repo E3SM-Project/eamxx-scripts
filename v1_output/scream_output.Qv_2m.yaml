@@ -1,6 +1,6 @@
 %YAML 1.1
 ---
-Casename: output.scream.Qv_2m
+filename_prefix: output.scream.Qv_2m
 Averaging Type: average
 Max Snapshots Per File: 1
 Fields:

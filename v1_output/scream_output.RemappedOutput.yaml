@@ -1,6 +1,6 @@
 %YAML 1.1
 ---
-Casename: output.scream.remapped_output
+filename_prefix: output.scream.remapped_output
 Averaging Type: Instant
 Max Snapshots Per File: 1
 vertical_remap_file: ${DIN_LOC_ROOT}/atm/scream/maps/map_ne1024pg2_to_ne120pg2_nco_vert_remap_20230214.nc

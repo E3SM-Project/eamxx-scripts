@@ -1,6 +1,6 @@
 %YAML 1.1
 ---
-Casename: output.scream.TOMVars
+filename_prefix: output.scream.TOMVars
 Averaging Type: Instant
 Max Snapshots Per File: 96
 Fields:
