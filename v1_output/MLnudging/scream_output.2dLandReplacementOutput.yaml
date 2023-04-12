@@ -1,0 +1,36 @@
+%YAML 1.1
+---
+filename_prefix: output.scream.remapped_output
+Averaging Type: Average
+Max Snapshots Per File: 56 #one file per week
+vertical_remap_file: /usr/gdata/climdat/eamxx-ml/maps/map_ne120pg2_to_ne30pg2_20230328_vert_enhanced.nc
+horiz_remap_file: /usr/gdata/climdat/eamxx-ml/maps/map_ne120pg2_to_ne30pg2_20230328_vert_enhanced.nc
+Fields:
+  Physics PG2:
+    Field Names:
+    # Directly Replaced Variables:
+    - sfc_flux_dir_nir
+    - sfc_flux_dir_vis
+    - sfc_flux_dif_nir
+    - sfc_flux_dif_vis
+    - sfc_flux_sw_net
+    - sfc_flux_lw_dn
+    - PrecipLiqSurfMassFlux
+    - PrecipIceSurfMassFlux
+   # Variables for Evaluation:
+    - ps
+    - surf_sens_flux
+    - surf_evap
+    - surf_mom_flux_U
+    - surf_mom_flux_V
+    - SW_flux_dn@bot
+    - SW_flux_up@bot
+    - LW_flux_dn@bot
+    - LW_flux_up@bot
+    - SW_flux_up@tom
+    - SW_flux_dn@tom
+    - LW_flux_up@tom
+output_control:
+  Frequency: 3
+  frequency_units: nhours
+  MPI Ranks in Filename: false
