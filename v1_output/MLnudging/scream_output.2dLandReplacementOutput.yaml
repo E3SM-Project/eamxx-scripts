@@ -1,10 +1,10 @@
 %YAML 1.1
 ---
-filename_prefix: output.scream.remapped_output
+filename_prefix: output.scream.remapped_output.2d
 Averaging Type: Average
 Max Snapshots Per File: 56 #one file per week
-vertical_remap_file: /usr/gdata/climdat/eamxx-ml/maps/map_ne120pg2_to_ne30pg2_20230328_vert_enhanced.nc
-horiz_remap_file: /usr/gdata/climdat/eamxx-ml/maps/map_ne120pg2_to_ne30pg2_20230328_vert_enhanced.nc
+vertical_remap_file: /usr/gdata/climdat/eamxx-ml/maps/map_ne120pg2_to_ne30pg2_20230605_vert_enhanced.nc
+horiz_remap_file: /usr/gdata/climdat/eamxx-ml/maps/map_ne120pg2_to_ne30pg2_20230605_vert_enhanced.nc
 Fields:
   Physics PG2:
     Field Names:
@@ -21,8 +21,8 @@ Fields:
     - ps
     - surf_sens_flux
     - surf_evap
-    - surf_mom_flux_U
-    - surf_mom_flux_V
+    - surf_mom_flux
+    - surf_radiative_T    
     - SW_flux_dn@bot
     - SW_flux_up@bot
     - LW_flux_dn@bot

@@ -1,24 +1,24 @@
 %YAML 1.1
 ---
-filename_prefix: output.scream.remapped_output
+filename_prefix: output.scream.remapped_output.3d
 Averaging Type: Average
 Max Snapshots Per File: 56 #one file per week
-vertical_remap_file: /usr/gdata/climdat/eamxx-ml/maps/map_ne120pg2_to_ne30pg2_20230328_vert_enhanced.nc
-horiz_remap_file: /usr/gdata/climdat/eamxx-ml/maps/map_ne120pg2_to_ne30pg2_20230328_vert_enhanced.nc
+vertical_remap_file: /usr/gdata/climdat/eamxx-ml/maps/map_ne120pg2_to_ne30pg2_20230605_vert_enhanced.nc
+horiz_remap_file: /usr/gdata/climdat/eamxx-ml/maps/map_ne120pg2_to_ne30pg2_20230605_vert_enhanced.nc
 Fields:
   Physics PG2:
     Field Names:
     #Variables for nudging:
     - T_mid
     - qv
-    - U
-    - V
+    - horiz_winds
     #Variables for eval:
     - qc
     - qr
     - qi
     - cldfrac_tot
     - cldfrac_liq
+    - pseudo_density
 output_control:
   Frequency: 3
   frequency_units: nhours
