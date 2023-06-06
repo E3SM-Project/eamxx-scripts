@@ -23,13 +23,13 @@ Fields:
     - surf_evap
     - surf_mom_flux
     - surf_radiative_T    
-    - SW_flux_dn@bot
-    - SW_flux_up@bot
-    - LW_flux_dn@bot
-    - LW_flux_up@bot
-    - SW_flux_up@tom
-    - SW_flux_dn@tom
-    - LW_flux_up@tom
+    - SW_flux_dn_at_model_bot
+    - SW_flux_up_at_model_bot
+    - LW_flux_dn_at_model_bot
+    - LW_flux_up_at_model_bot
+    - SW_flux_up_at_model_top
+    - SW_flux_dn_at_model_top
+    - LW_flux_up_at_model_top
 output_control:
   Frequency: 3
   frequency_units: nhours
