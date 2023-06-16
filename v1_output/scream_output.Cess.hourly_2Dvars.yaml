@@ -1,0 +1,14 @@
+%YAML 1.1
+---
+filename_prefix: output.scream.hourly2DVars
+Averaging Type: Instant
+Max Snapshots Per File: 720
+Fields:
+  Physics PG2:
+    Field Names:
+    - LW_flux_up_at_model_top
+    - PrecipLiqSurfMassFlux
+output_control:
+  Frequency: 1
+  frequency_units: nhours
+  MPI Ranks in Filename: false

@@ -1,0 +1,16 @@
+%YAML 1.1
+---
+filename_prefix: output.scream.23hourly_QrNrQmBm
+Averaging Type: Instant
+Max Snapshots Per File: 4
+Fields:
+  Physics PG2:
+    Field Names:
+    - qc
+    - qi
+    - qm
+    - bm
+output_control:
+  Frequency: 23
+  frequency_units: nhours
+  MPI Ranks in Filename: false
