@@ -1,0 +1,18 @@
+%YAML 1.1
+---
+filename_prefix: output.scream.Cess.3hourlyINST_ne120
+Averaging Type: Instant
+Max Snapshots Per File: 240 #one file per month
+Fields:
+  Physics PG2:
+    Field Names:
+    # For storm analysis
+    - SeaLevelPressure
+    - wind_speed_10m
+    - T_mid_at_400hPa
+    - z_mid_at_500hPa
+    - z_mid_at_200hPa
+output_control:
+  Frequency: 3
+  frequency_units: nhours
+  MPI Ranks in Filename: false
