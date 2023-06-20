@@ -35,8 +35,9 @@ Fields:
     - sfc_flux_sw_net
     - sfc_flux_lw_dn
     # Lowest Level
-    - U_at_model_bot
-    - V_at_model_bot
+    - horiz_winds_at_model_bot
+    #- V_at_model_bot
+    #- U_at_model_bot
     - T_mid_at_model_bot
     - qv_at_model_bot
     - qc_at_model_bot
