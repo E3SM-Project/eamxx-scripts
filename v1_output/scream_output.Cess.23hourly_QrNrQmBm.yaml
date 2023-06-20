@@ -6,8 +6,8 @@ Max Snapshots Per File: 4
 Fields:
   Physics PG2:
     Field Names:
-    - qc
-    - qi
+    - qr
+    - nr
     - qm
     - bm
 output_control:

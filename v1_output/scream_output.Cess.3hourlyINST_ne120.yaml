@@ -3,12 +3,12 @@
 filename_prefix: output.scream.Cess.3hourlyINST_ne120
 Averaging Type: Instant
 Max Snapshots Per File: 240 #one file per month
-horiz_remap_file: ${DIN_LOC_ROOT}/atm/scream/maps/map_ne1024pg2_to_ne120pg2_nco_vert_remap_20230214.nc
+horiz_remap_file: /lustre/orion/cli115/proj-shared/terai/Cess/v1_output/map_ne1024pg2_to_ne120pg2_nco.20230616.nc  # To be replaced with version others want
 Fields:
   Physics PG2:
     Field Names:
     # For storm analysis
-    - psl
+    - SeaLevelPressure
     - horiz_winds_at_model_bot
     - wind_speed_10m
     - horiz_winds_at_925hPa
@@ -46,7 +46,7 @@ Fields:
     - nc
     - qc
     - qi
-    - cldfrac_tot
+    - cldfrac_tot_for_analysis
     - cldfrac_liq
     - omega_at_500hPa
     - omega_at_700hPa
