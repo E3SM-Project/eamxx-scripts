@@ -7,7 +7,7 @@ Fields:
   Physics PG2:
     Field Names:
     - cldfrac_tot
-    - IceCloudMask
+    - cldfrac_ice_for_output
 output_control:
   Frequency: 3
   frequency_units: nhours
