@@ -7,7 +7,7 @@ Fields:
   Physics PG2:
     Field Names:
     - cldfrac_tot
-    - cldfrac_ice_for_output
+    - cldfrac_ice_for_analysis
 output_control:
   Frequency: 3
   frequency_units: nhours
