@@ -1,0 +1,35 @@
+%YAML 1.1
+---
+filename_prefix: output.scream.Cess.6hourlyINST_ne30
+Averaging Type: Average
+Max Snapshots Per File: 60
+vertical_remap_file: /lustre/orion/cli115/proj-shared/terai/Cess/v1_output/map_ne1024pg2_to_ne30pg2_20230630_vert_enhanced.nc
+horiz_remap_file: /lustre/orion/cli115/proj-shared/terai/Cess/v1_output/map_ne1024pg2_to_ne30pg2_20230630_vert_enhanced.nc  # Replaced with final version
+Fields:
+  Physics PG2:
+    Field Names:
+    # Full 3D Profile
+    - T_mid
+    - qv
+    - horiz_winds
+    - omega
+    - qc
+    - qr
+    - qi
+    - tke
+    - o3_volume_mix_ratio
+    - VapWaterPath
+    - LiqWaterPath
+    - IceWaterPath
+    - surf_radiative_T
+    - ps
+    - qv_2m
+    - T_2m
+    - ocnfrac
+    - landfrac
+output_control:
+  Frequency: 6
+  frequency_units: nhours
+  MPI Ranks in Filename: false
+Restart:
+  force_new_file: true

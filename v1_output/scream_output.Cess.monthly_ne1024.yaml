@@ -1,6 +1,6 @@
 %YAML 1.1
 ---
-filename_prefix: output.scream.monthly_Average
+filename_prefix: output.scream.Cess.monthly_Average
 Averaging Type: Average
 Max Snapshots Per File: 1
 Fields:
@@ -12,13 +12,19 @@ Fields:
     - RelativeHumidity
     - qc
     - qi
+    - qr
     - nc
     - ni
-    - cldfrac_tot
+    - nr
+    - cldfrac_tot_for_analysis
+    - cldfrac_ice_for_analysis
     - cldfrac_liq
     - omega
     - U
     - V
+    - z_mid
+    - p_mid
+    - tke
     #2D vars
     - SW_flux_up_at_model_top
     - SW_flux_dn_at_model_top
@@ -32,15 +38,27 @@ Fields:
     - LW_flux_dn_at_model_bot
     - LW_clrsky_flux_dn_at_model_bot
     - LW_flux_up_at_model_bot
+    - LongwaveCloudForcing
+    - ShortwaveCloudForcing
+    - ps
     - T_2m
+    - qv_2m
     - surf_radiative_T
+    - VapWaterPath
     - IceWaterPath
     - LiqWaterPath
     - RainWaterPath
+    - ZonalVapFlux
+    - MeridionalVapFlux
     - surf_evap
     - surf_sens_flux
     - PrecipLiqSurfMassFlux
     - PrecipIceSurfMassFlux
+    - landfrac
+    - ocnfrac
+    - PotentialTemperature_at_700hPa
+    - PotentialTemperature_at_1000hPa
+    - omega_at_500hPa
 output_control:
   Frequency: 1
   frequency_units: nmonths

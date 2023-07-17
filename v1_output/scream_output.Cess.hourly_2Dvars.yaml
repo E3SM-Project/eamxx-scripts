@@ -1,6 +1,6 @@
 %YAML 1.1
 ---
-filename_prefix: output.scream.hourly2DVars
+filename_prefix: output.scream.Cess.hourly2DVars
 Averaging Type: Instant
 Max Snapshots Per File: 720
 Fields:
@@ -8,6 +8,7 @@ Fields:
     Field Names:
     - LW_flux_up_at_model_top
     - PrecipLiqSurfMassFlux
+    - PrecipIceSurfMassFlux
 output_control:
   Frequency: 1
   frequency_units: nhours

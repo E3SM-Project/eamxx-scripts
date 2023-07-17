@@ -1,6 +1,6 @@
 %YAML 1.1
 ---
-filename_prefix: output.scream.Cess.23hourly_QcQiNcNi
+filename_prefix: output.scream.Cess.50hourly_QcQiNcNi
 Averaging Type: Instant
 Max Snapshots Per File: 1
 Fields:
@@ -11,6 +11,6 @@ Fields:
     - nc
     - ni
 output_control:
-  Frequency: 23
+  Frequency: 50
   frequency_units: nhours
   MPI Ranks in Filename: false

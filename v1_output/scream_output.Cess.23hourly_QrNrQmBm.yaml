@@ -1,8 +1,8 @@
 %YAML 1.1
 ---
-filename_prefix: output.scream.23hourly_QrNrQmBm
+filename_prefix: output.scream.Cess.23hourly_QrNrQmBm
 Averaging Type: Instant
-Max Snapshots Per File: 4
+Max Snapshots Per File: 1
 Fields:
   Physics PG2:
     Field Names:
