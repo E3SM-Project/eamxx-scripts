@@ -15,11 +15,11 @@ Fields:
     - homme_T_mid_tend
     - p3_qv_tend
     - shoc_qv_tend
-    - rrtmgp_qv_tend
     - homme_qv_tend
     # Surface
     - surf_sens_flux
     - surf_evap
+    - surface_upward_latent_heat_flux
     - ps
     - PrecipLiqSurfMassFlux
     - PrecipIceSurfMassFlux

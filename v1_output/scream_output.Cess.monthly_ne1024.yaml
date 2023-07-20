@@ -1,6 +1,6 @@
 %YAML 1.1
 ---
-filename_prefix: output.scream.Cess.monthly_Average
+filename_prefix: output.scream.Cess.monthly_ne1024
 Averaging Type: Average
 Max Snapshots Per File: 1
 Fields:
@@ -13,6 +13,7 @@ Fields:
     - qc
     - qi
     - qr
+    - qm
     - nc
     - ni
     - nr
@@ -52,6 +53,7 @@ Fields:
     - MeridionalVapFlux
     - surf_evap
     - surf_sens_flux
+    - surface_upward_latent_heat_flux
     - PrecipLiqSurfMassFlux
     - PrecipIceSurfMassFlux
     - landfrac

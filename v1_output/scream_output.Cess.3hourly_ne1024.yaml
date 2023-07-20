@@ -1,8 +1,8 @@
 %YAML 1.1
 ---
-filename_prefix: output.scream.Cess.3hourlyINST_ne120
+filename_prefix: output.scream.Cess.3hourlyINST_ne1024
 Averaging Type: Instant
-Max Snapshots Per File: 240 #one file per month
+Max Snapshots Per File: 120 #one file per month
 Fields:
   Physics PG2:
     Field Names:

@@ -7,8 +7,7 @@ Fields:
   Physics PG2:
     Field Names:
     - LW_flux_up_at_model_top
-    - PrecipLiqSurfMassFlux
-    - PrecipIceSurfMassFlux
+    - precip_total_surf_mass_flux
 output_control:
   Frequency: 1
   frequency_units: nhours
