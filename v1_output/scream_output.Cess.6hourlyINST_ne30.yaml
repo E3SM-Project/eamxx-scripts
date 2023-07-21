@@ -1,10 +1,10 @@
 %YAML 1.1
 ---
 filename_prefix: output.scream.Cess.6hourlyINST_ne30
-Averaging Type: Average
-Max Snapshots Per File: 60
-vertical_remap_file: /lustre/orion/cli115/proj-shared/terai/Cess/v1_output/map_ne1024pg2_to_ne30pg2_20230630_vert_enhanced.nc
-horiz_remap_file: /lustre/orion/cli115/proj-shared/terai/Cess/v1_output/map_ne1024pg2_to_ne30pg2_20230630_vert_enhanced.nc  # Replaced with final version
+Averaging Type: Instant
+Max Snapshots Per File: 12
+vertical_remap_file: /lustre/orion/cli115/world-shared/e3sm/inputdata/atm/scream/maps/map_ne1024pg2_to_ne30pg2_20230630_vert_enhanced.nc
+horiz_remap_file: /lustre/orion/cli115/world-shared/e3sm/inputdata/atm/scream/maps/map_ne1024pg2_to_ne30pg2_20230630_vert_enhanced.nc  # Replaced with final version
 Fields:
   Physics PG2:
     Field Names:

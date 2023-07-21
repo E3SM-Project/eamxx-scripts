@@ -1,0 +1,16 @@
+%YAML 1.1
+---
+filename_prefix: output.scream.Cess.monthly_COSP_ne1024
+Averaging Type: Average
+Max Snapshots Per File: 1
+Fields:
+  Physics PG2:
+    Field Names:
+    #COSP vars
+    - isccp_ctptau
+    - isccp_mask
+    - isccp_cldtot
+output_control:
+  Frequency: 1
+  frequency_units: nmonths
+  MPI Ranks in Filename: false
