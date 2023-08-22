@@ -11,6 +11,7 @@ Fields:
     # Full 3D Profile
     - T_mid
     - qv
+    - RelativeHumidity
     - horiz_winds
     - omega
     - qc
