@@ -16,8 +16,16 @@ Fields:
     - ps
     - cldfrac_tot_for_analysis
     - cldfrac_liq
+    - cldfrac_ice_for_analysis
     - omega
     - tke
+    - eff_radius_qc
+    - eff_radius_qi
+    - nc
+    - ni
+    - nr
+    - p_mid
+    - z_mid
 output_control:
   Frequency: 1
   frequency_units: nhours
