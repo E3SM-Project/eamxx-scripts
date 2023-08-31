@@ -323,10 +323,18 @@ runtime_options() {
     if [ ! -z "${START_DATE}" ]; then
 	./xmlchange RUN_STARTDATE=${START_DATE}
     fi
-
+    # Set temperature cut off in dycore threshold to 180K
     ./atmchange vtheta_thresh=180
     ./atmquery vtheta_thresh
 
+    # Turn on cosp and set default frequency
+    ./atmchange physics::atm_procs_list="(mac_aero_mic,rrtmgp,cosp)"
+    ./atmchange physics::cosp::cosp_frequency_units="hours"
+    ./atmchange physics::cosp::cosp_frequency=1
+    
+    # Turn on turbulent mountain stress
+    ./atmchange physics::mac_aero_mic::atm_procs_list="(tms,shoc,cldFraction,spa,p3)"
+    
     ./atmchange initial_conditions::Filename="/lustre/orion/cli115/world-shared/e3sm/inputdata/atm/scream/init/screami_ne1024np4L128_era5-20190801-topoadjx6t_20230620.nc"
 
     ./atmchange physics::mac_aero_mic::shoc::compute_tendencies=T_mid,qv
