@@ -335,7 +335,7 @@ runtime_options() {
     # Turn on turbulent mountain stress
     ./atmchange physics::mac_aero_mic::atm_procs_list="(tms,shoc,cldFraction,spa,p3)"
     
-    ./atmchange initial_conditions::Filename="/lustre/orion/cli115/proj-shared/terai/Cess/v1_output/screami_ne256np4L128_era5-20190801-topoadjx6t_20230620.nc"
+    ./atmchange initial_conditions::Filename="/lustre/orion/cli115/world-shared/e3sm/inputdata/atm/scream/init/screami_ne256np4L128_era5-20190801-topoadjx6t_20230620.nc"
 
     ./atmchange physics::mac_aero_mic::shoc::compute_tendencies=T_mid,qv
     ./atmchange physics::mac_aero_mic::p3::compute_tendencies=T_mid,qv
