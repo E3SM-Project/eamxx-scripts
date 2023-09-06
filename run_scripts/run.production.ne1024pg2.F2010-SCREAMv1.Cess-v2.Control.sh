@@ -353,12 +353,12 @@ runtime_options() {
     #specify land IC file
 cat << EOF >> user_nl_elm
  finidat='/lustre/orion/cli115/world-shared/e3sm/inputdata/lnd/clm2/initdata/20220928.I2010CRUELM.ne1024pg2_ICOS10.elm.r.2016-08-01-00000.nc'
-EOF
  hist_dov2xy = .true.,.true.
  hist_fincl2 = 'H2OSNO','SOILWATER_10CM'
  hist_mfilt = 1,365
  hist_nhtfrq = 0,-24
  hist_avgflag_pertape = 'A','A'
+EOF
 
 
     #./xmlchange RUN_STARTDATE='2019-08-01'
