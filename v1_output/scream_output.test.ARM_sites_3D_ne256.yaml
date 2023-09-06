@@ -1,0 +1,24 @@
+%YAML 1.1
+---
+filename_prefix: output.scream.Cess.ARMSite
+Averaging Type: Instant
+Max Snapshots Per File: 24
+horiz_remap_file: /lustre/orion/cli115/proj-shared/terai/Cess/v1_output/map_forCess_ne256pg2_to_ARM_sites.230705_map.nc
+Fields:
+  Physics PG2:
+    Field Names:
+    # 3D
+    - T_mid
+    - RelativeHumidity
+    - qc
+    - qi
+    - qr
+    - ps
+    - cldfrac_tot
+    - cldfrac_liq
+    - omega
+    - tke
+output_control:
+  Frequency: 1
+  frequency_units: nhours
+  MPI Ranks in Filename: false
