@@ -1,0 +1,61 @@
+%YAML 1.1
+---
+filename_prefix: output.scream.Cess.3hourlyINST_ne120
+Averaging Type: Instant
+Max Snapshots Per File: 24 #one file per 3days
+horiz_remap_file: /lustre/orion/cli115/world-shared/e3sm/inputdata/atm/scream/maps/map_ne30pg2_to_ne4pg2_nco_conservative.20230608.nc  # To be replaced with version others want
+Fields:
+  Physics PG2:
+    Field Names:
+    # For storm analysis
+    - SeaLevelPressure
+    - horiz_winds_at_model_bot
+    - wind_speed_10m
+    - horiz_winds_at_925hPa
+    - horiz_winds_at_850hPa
+    - horiz_winds_at_700hPa
+    - horiz_winds_at_500hPa
+    - horiz_winds_at_300hPa
+    - ZonalVapFlux
+    - MeridionalVapFlux
+    - T_2m
+    - qv_2m
+    - T_mid_at_925hPa
+    - T_mid_at_850hPa
+    - T_mid_at_700hPa
+    - T_mid_at_500hPa
+    - T_mid_at_300hPa
+    - RelativeHumidity_at_925hPa
+    - RelativeHumidity_at_850hPa
+    - RelativeHumidity_at_700hPa
+    - RelativeHumidity_at_500hPa
+    - RelativeHumidity_at_300hPa
+    - z_mid_at_925hPa
+    - z_mid_at_850hPa
+    - z_mid_at_700hPa
+    - z_mid_at_500hPa
+    - z_mid_at_300hPa
+    # For ACI diagnostics
+    - SW_clrsky_flux_up_at_model_top
+    - SW_flux_up_at_model_top
+    - SW_flux_dn_at_model_top
+    - LiqWaterPath
+    - PrecipLiqSurfMassFlux
+    - PrecipIceSurfMassFlux
+    - IceWaterPath
+    - nc
+    - qc
+    - qi
+    - cldfrac_tot_for_analysis
+    - cldfrac_liq
+    - omega_at_500hPa
+    - omega_at_700hPa
+    - omega_at_850hPa
+    - PotentialTemperature_at_700hPa
+    - PotentialTemperature_at_1000hPa
+    # For nudging
+    - horiz_winds
+output_control:
+  Frequency: 3
+  frequency_units: nhours
+  MPI Ranks in Filename: false
