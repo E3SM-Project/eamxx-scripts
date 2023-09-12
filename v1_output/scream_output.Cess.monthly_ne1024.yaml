@@ -54,8 +54,8 @@ Fields:
     - surf_evap
     - surf_sens_flux
     - surface_upward_latent_heat_flux
-    - PrecipLiqSurfMassFlux
-    - PrecipIceSurfMassFlux
+    - precip_liq_surf_mass_flux
+    - precip_ice_surf_mass_flux
     - landfrac
     - ocnfrac
     - PotentialTemperature_at_700hPa

@@ -21,8 +21,8 @@ Fields:
     - ps
     - precip_liq_surf_mass
     - precip_ice_surf_mass
-#    - PrecipLiqSurfMassFlux <These will replace precip vars when fixed>
-#    - PrecipIceSurfMassFlux <These will replace precip vars when fixed>
+#    - precip_liq_surf_mass_flux <These will replace precip vars when fixed>
+#    - precip_ice_surf_mass_flux <These will replace precip vars when fixed>
     - surf_mom_flux_U
     - surf_mom_flux_V
     # Lowest Level

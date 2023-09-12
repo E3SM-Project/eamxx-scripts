@@ -18,8 +18,8 @@ Fields:
     - surf_sens_flux
     - surf_evap
     - ps
-    - PrecipLiqSurfMassFlux
-    - PrecipIceSurfMassFlux
+    - precip_liq_surf_mass_flux
+    - precip_ice_surf_mass_flux
     - T_2m
     - qv_2m
     - VapWaterPath

@@ -40,8 +40,8 @@ Fields:
     - SW_flux_up_at_model_top
     - SW_flux_dn_at_model_top
     - LiqWaterPath
-    - PrecipLiqSurfMassFlux
-    - PrecipIceSurfMassFlux
+    - precip_liq_surf_mass_flux
+    - precip_ice_surf_mass_flux
     - IceWaterPath
     - nc
     - qc

@@ -24,8 +24,8 @@ Fields:
     - surf_sens_flux
     - surf_evap
     - ps
-    - PrecipLiqSurfMassFlux
-    - PrecipIceSurfMassFlux
+    - precip_liq_surf_mass_flux
+    - precip_ice_surf_mass_flux
     - surf_mom_flux
     - surf_radiative_T
     - sfc_flux_dir_nir

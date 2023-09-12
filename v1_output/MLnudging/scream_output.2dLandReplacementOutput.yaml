@@ -15,8 +15,8 @@ Fields:
     - sfc_flux_dif_vis
     - sfc_flux_sw_net
     - sfc_flux_lw_dn
-    - PrecipLiqSurfMassFlux
-    - PrecipIceSurfMassFlux
+    - precip_liq_surf_mass_flux
+    - precip_ice_surf_mass_flux
    # Variables for Evaluation:
     - ps
     - surf_sens_flux
