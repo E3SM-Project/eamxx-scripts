@@ -11,7 +11,7 @@ do_case_build=true
 do_case_submit=true
 
 readonly MACHINE="frontier-scream-gpu"
-readonly CHECKOUT="20230725"
+readonly CHECKOUT="20230907"
 readonly BRANCH="simulations/cess-v1"
 readonly CHERRY=( )
 readonly COMPILER="crayclang-scream"
@@ -62,7 +62,7 @@ readonly PELAYOUT="1536x6" # 192 nodes
 #readonly PELAYOUT="8192x6" # 1024 nodes
 #readonly PELAYOUT="15056x6" # 1882 nodes
 #readonly PELAYOUT="16384x6" # 2048 nodes
-readonly WALLTIME="00:29:00"
+readonly WALLTIME="00:36:00"
 readonly STOP_OPTION="ndays"
 readonly STOP_N="1"
 readonly REST_OPTION="ndays"
@@ -323,17 +323,19 @@ runtime_options() {
     if [ ! -z "${START_DATE}" ]; then
 	./xmlchange RUN_STARTDATE=${START_DATE}
     fi
+
     # Set temperature cut off in dycore threshold to 180K
     ./atmchange vtheta_thresh=180
     ./atmquery vtheta_thresh
 
     # Turn on cosp and set default frequency
-    ./atmchange physics::atm_procs_list="(mac_aero_mic,rrtmgp,cosp)"
+    ./atmchange physics::atm_procs_list=mac_aero_mic,rrtmgp,cosp
+    ./case.setup
     ./atmchange physics::cosp::cosp_frequency_units="hours"
     ./atmchange physics::cosp::cosp_frequency=1
     
     # Turn on turbulent mountain stress
-    ./atmchange physics::mac_aero_mic::atm_procs_list="(tms,shoc,cldFraction,spa,p3)"
+    ./atmchange physics::mac_aero_mic::atm_procs_list=tms,shoc,cldFraction,spa,p3
     
     ./atmchange initial_conditions::Filename="/lustre/orion/cli115/world-shared/e3sm/inputdata/atm/scream/init/screami_ne256np4L128_era5-20190801-topoadjx6t_20230620.nc"
 
@@ -410,8 +412,8 @@ EOF
     ./atmchange output_yaml_files=${SCREAMDOCS_ROOT}"/v1_output/scream_output.Cess.monthly_ne1024.yaml"
     ./atmchange output_yaml_files+=${SCREAMDOCS_ROOT}"/v1_output/scream_output.Cess.50hourly_QcQiNcNi.yaml"
     ./atmchange output_yaml_files+=${SCREAMDOCS_ROOT}"/v1_output/scream_output.Cess.50hourly_QrNrQmBm.yaml"
-    ./atmchange output_yaml_files+=${SCREAMDOCS_ROOT}"/v1_output/scream_output.test.3hourlyAVG_ne256tone120.yaml"
-    ./atmchange output_yaml_files+=${SCREAMDOCS_ROOT}"/v1_output/scream_output.test.3hourlyINST_ne256tone120.yaml"
+    ./atmchange output_yaml_files+=${SCREAMDOCS_ROOT}"/v1_output/scream_output.test.3hourlyAVG_ne256to120.yaml"
+    ./atmchange output_yaml_files+=${SCREAMDOCS_ROOT}"/v1_output/scream_output.test.3hourlyINST_ne256to120.yaml"
     ./atmchange output_yaml_files+=${SCREAMDOCS_ROOT}"/v1_output/scream_output.Cess.3hourly_ne1024.yaml"
     ./atmchange output_yaml_files+=${SCREAMDOCS_ROOT}"/v1_output/scream_output.Cess.hourly_2Dvars.yaml"
     ./atmchange output_yaml_files+=${SCREAMDOCS_ROOT}"/v1_output/scream_output.test.ARM_sites_2D_ne256.yaml"

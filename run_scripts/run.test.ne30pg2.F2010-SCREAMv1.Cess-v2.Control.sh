@@ -330,13 +330,13 @@ runtime_options() {
     ./atmquery vtheta_thresh
 
     # Turn on cosp and set default frequency
-    ./atmchange physics::atm_procs_list="(mac_aero_mic,rrtmgp,cosp)"
+    ./atmchange physics::atm_procs_list=mac_aero_mic,rrtmgp,cosp
     ./case.setup
     ./atmchange physics::cosp::cosp_frequency_units="hours"
     ./atmchange physics::cosp::cosp_frequency=1
     
     # Turn on turbulent mountain stress
-    ./atmchange physics::mac_aero_mic::atm_procs_list="(tms,shoc,cldFraction,spa,p3)"
+    ./atmchange physics::mac_aero_mic::atm_procs_list=tms,shoc,cldFraction,spa,p3
     
     ./atmchange initial_conditions::Filename="/lustre/orion/cli115/world-shared/e3sm/inputdata/atm/scream/init/screami_ne30np4L128_20221004.nc"
 
