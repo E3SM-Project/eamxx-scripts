@@ -91,13 +91,8 @@ class Site:
 
   def __init__(self,name_,bnds):
     self.name = name_
-    self.lat_bnds = bnds[2:] 
-    ## Need to make sure that the lon_bnds are on a grid [0,360]
-    for ii in range(2):
-        self.lon_bnds[ii] = bnds[ii] % 360
-    ## Check if the longitude range spans 360.
-    if self.lon_bnds[1] < self.lon_bnds[0]:
-        self.inv_lon_bnds = True;
+    self.lat_bnds = bnds[2:]
+    self.lon_bnds = bnds[:2]
 
   def filter_gids(self):
     mask_lon = np.in1d(self.lon_gids,self.lat_gids)
@@ -198,13 +193,14 @@ def main():
     chunk_idx = src_grid.chunk_idx
     src_grid.grab_chunk(m_args.chunksize)
     for idx, isite in enumerate(remap_sites.m_sites):
-      if (isite.inv_lon_bnds):
-        lids = np.where( (src_grid.lon >= isite.lon_bnds[1]) | 
-                         (src_grid.lon <= isite.lon_bnds[0])) 
+      isite.lon_bnds[0]=isite.lon_bnds[0] % 360
+      isite.lon_bnds[1]=isite.lon_bnds[1] % 360
+      if (isite.lon_bnds[0]>isite.lon_bnds[1]):
+        lids = np.where( (src_grid.lon >= isite.lon_bnds[0]) | 
+                         (src_grid.lon <= isite.lon_bnds[1])) 
       else:
         lids = np.where( (src_grid.lon >= isite.lon_bnds[0]) & 
                          (src_grid.lon <= isite.lon_bnds[1])) 
-      else:
       isite.lons     = np.append(isite.lons, src_grid.lon[lids[0]])
       isite.lon_gids = np.append(isite.lon_gids, lids[0]+chunk_idx)
 
