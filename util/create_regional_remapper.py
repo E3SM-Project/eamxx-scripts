@@ -202,7 +202,7 @@ def main():
         lids = np.where( (src_grid.lon >= isite.lon_bnds[1]) | 
                          (src_grid.lon <= isite.lon_bnds[0])) 
       else:
-        lids = np.where( (src_grid.lon >= isite.lon_bnds[0]) | 
+        lids = np.where( (src_grid.lon >= isite.lon_bnds[0]) & 
                          (src_grid.lon <= isite.lon_bnds[1])) 
       else:
       isite.lons     = np.append(isite.lons, src_grid.lon[lids[0]])
