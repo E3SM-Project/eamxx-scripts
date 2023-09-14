@@ -77,6 +77,7 @@ class Grid:
 
 class Site:
   name     = ""
+  inv_lon_bnds = False
   lon_bnds = np.zeros(2)
   lat_bnds = np.zeros(2)
   gids     = np.array([])
@@ -90,8 +91,8 @@ class Site:
 
   def __init__(self,name_,bnds):
     self.name = name_
-    self.lon_bnds = bnds[:2] 
-    self.lat_bnds = bnds[2:] 
+    self.lat_bnds = bnds[2:]
+    self.lon_bnds = bnds[:2]
 
   def filter_gids(self):
     mask_lon = np.in1d(self.lon_gids,self.lat_gids)
@@ -177,8 +178,6 @@ def main():
                   help='Path to a csv format file that contains the lat/lon bounds for regional remapping.')
   p.add_argument('casename', type=str,
                   help='Case name for regional remapping, this will used for the file names of output.')
-  p.add_argument('neg_lon', default=False,
-                  help='Are longitude values able to be negative, i.e. bound by [-180,180] rather than [0,360]')
   p.add_argument('chunksize', type=int, default=48602,
                   help='Option to read grid data in chunks, useful for large simulation grids')
   m_args = p.parse_args(); 
@@ -188,17 +187,20 @@ def main():
   remap_sites = Sites(m_args.site_info) 
 
   # Determine which gids in source grid match each site
-  lon_adj = 0.0
-  if m_args.neg_lon:
-    lon_adj = 180.0
   print("Finding global dof's that could fit site dimensions...")
   while(src_grid.chunk_idx < src_grid.size):
     print("  Searching cols: %12d - %12d, out of %12d total" %(src_grid.chunk_idx+1,np.amin([src_grid.chunk_idx+m_args.chunksize,src_grid.size]),src_grid.size))
     chunk_idx = src_grid.chunk_idx
     src_grid.grab_chunk(m_args.chunksize)
     for idx, isite in enumerate(remap_sites.m_sites):
-      lids = np.where( (src_grid.lon >= isite.lon_bnds[0]+lon_adj) & 
-                       (src_grid.lon <= isite.lon_bnds[1]+lon_adj)) 
+      isite.lon_bnds[0]=isite.lon_bnds[0] % 360
+      isite.lon_bnds[1]=isite.lon_bnds[1] % 360
+      if (isite.lon_bnds[0]>isite.lon_bnds[1]):
+        lids = np.where( (src_grid.lon >= isite.lon_bnds[0]) | 
+                         (src_grid.lon <= isite.lon_bnds[1])) 
+      else:
+        lids = np.where( (src_grid.lon >= isite.lon_bnds[0]) & 
+                         (src_grid.lon <= isite.lon_bnds[1])) 
       isite.lons     = np.append(isite.lons, src_grid.lon[lids[0]])
       isite.lon_gids = np.append(isite.lon_gids, lids[0]+chunk_idx)
 
