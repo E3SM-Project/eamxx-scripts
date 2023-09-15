@@ -3,7 +3,7 @@
 filename_prefix: output.scream.Cess.ARMSite_2D
 Averaging Type: Instant
 Max Snapshots Per File: 96
-horiz_remap_file: /lustre/orion/cli115/world-shared/e3sm/inputdata/atm/scream/maps/map_forCess_ne1024pg2_to_ARM_sites.230705_map.nc
+horiz_remap_file: /lustre/orion/cli115/world-shared/e3sm/inputdata/atm/scream/maps/20230912_ARM_site_for_Cess_map.nc
 Fields:
   Physics PG2:
     Field Names:
@@ -31,5 +31,3 @@ output_control:
   Frequency: 15
   frequency_units: nmins
   MPI Ranks in Filename: false
-Restart:
-  force_new_file: true
