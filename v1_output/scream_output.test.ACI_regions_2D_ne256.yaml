@@ -8,8 +8,8 @@ Fields:
   Physics PG2:
     Field Names:
     # 2D
-    - SW_flux_dn_at_model_bot
-    - SW_flux_up_at_model_bot
+    - SW_flux_dn_at_model_top
+    - SW_flux_up_at_model_top
     - LiqWaterPath
     - cdnc_at_cldtop
     - cldfrac_tot_at_cldtop
