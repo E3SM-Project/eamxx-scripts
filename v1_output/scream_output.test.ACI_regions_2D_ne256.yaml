@@ -1,0 +1,25 @@
+%YAML 1.1
+---
+filename_prefix: output.scream.Cess.ACIregions_2D
+Averaging Type: Instant
+Max Snapshots Per File: 24
+horiz_remap_file: /lustre/orion/cli115/world-shared/e3sm/inputdata/atm/scream/maps/20230914_ACI_regions_for_Cess_ne256_map.nc
+Fields:
+  Physics PG2:
+    Field Names:
+    # 2D
+    - SW_flux_dn_at_model_bot
+    - SW_flux_up_at_model_bot
+    - LiqWaterPath
+    - cdnc_at_cldtop
+    - cldfrac_tot_at_cldtop
+    - cldfrac_liq_at_cldtop
+    - cldfrac_ice_at_cldtop
+    - T_mid_at_cldtop
+    - precip_liq_surf_mass_flux
+    - eff_radius_qc_at_cldtop
+    - SW_clrsky_flux_up_at_model_top
+output_control:
+  Frequency: 3
+  frequency_units: nhours
+  MPI Ranks in Filename: false
