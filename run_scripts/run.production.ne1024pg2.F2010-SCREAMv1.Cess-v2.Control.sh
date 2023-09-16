@@ -11,8 +11,8 @@ do_case_build=true
 do_case_submit=true
 
 readonly MACHINE="frontier-scream-gpu"
-readonly CHECKOUT="20230725"
-readonly BRANCH="simulations/cess-v1"
+readonly CHECKOUT="20230916"
+readonly BRANCH="simulations/cess-production"
 readonly CHERRY=( )
 readonly COMPILER="crayclang-scream"
 readonly DEBUG_COMPILE=FALSE
@@ -29,7 +29,7 @@ readonly PROJECT="cli115"
 githash_eamxx=`git --git-dir ${CODE_ROOT}/.git rev-parse HEAD`
 githash_screamdocs=`git --git-dir ${SCREAMDOCS_ROOT}/.git rev-parse HEAD`
 
-readonly CASE_NAME=cess-v1-cntl.${RESOLUTION}.${COMPSET}.${CHECKOUT}
+readonly CASE_NAME=cess-v2-cntl.${RESOLUTION}.${COMPSET}.${CHECKOUT}
 
 readonly CASE_ROOT="/lustre/orion/cli115/proj-shared/terai/e3sm_scratch/${CASE_NAME}"
 
@@ -354,11 +354,14 @@ runtime_options() {
     #specify land IC file
 cat << EOF >> user_nl_elm
  finidat='/lustre/orion/cli115/world-shared/e3sm/inputdata/lnd/clm2/initdata/20220928.I2010CRUELM.ne1024pg2_ICOS10.elm.r.2016-08-01-00000.nc'
+
  hist_dov2xy = .true.,.true.
  hist_fincl2 = 'H2OSNO','SOILWATER_10CM'
  hist_mfilt = 1,365
  hist_nhtfrq = 0,-24
  hist_avgflag_pertape = 'A','A'
+
+ co2_ppmv = 410.5
 EOF
 
 
@@ -420,9 +423,9 @@ EOF
     ./atmchange output_yaml_files+=${SCREAMDOCS_ROOT}"/v1_output/scream_output.Cess.ARM_sites_2D.yaml"
     ./atmchange output_yaml_files+=${SCREAMDOCS_ROOT}"/v1_output/scream_output.Cess.ARM_sites_3D.yaml"
     ./atmchange output_yaml_files+=${SCREAMDOCS_ROOT}"/v1_output/scream_output.Cess.monthly_cosp_ne1024.yaml"
+    ./atmchange output_yaml_files+=${SCREAMDOCS_ROOT}"/v1_output/scream_output.Cess.ACI_regions_2D.yaml"
     
-    
-    ./xmlchange --file env_run.xml --id SSTICE_DATA_FILENAME --val "/lustre/orion/cli115/world-shared/e3sm/inputdata/atm/cam/sst/sst_ostia_ukmo-l4_ghrsst_3600x7200_20190731_20200901_c20230522.nc"
+    ./xmlchange --file env_run.xml --id SSTICE_DATA_FILENAME --val "/lustre/orion/cli115/world-shared/e3sm/inputdata/atm/cam/sst/sst_ostia_ukmo-l4_ghrsst_3600x7200_20190731_20200901_c20230913.nc"
     ./xmlchange --file env_run.xml --id  SSTICE_GRID_FILENAME --val "/lustre/orion/cli115/world-shared/e3sm/inputdata/ocn/docn7/domain.ocn.3600x7200.230522.nc"
     ./xmlchange --file env_run.xml --id SSTICE_YEAR_ALIGN --val 2019
     ./xmlchange --file env_run.xml --id SSTICE_YEAR_START --val 2019

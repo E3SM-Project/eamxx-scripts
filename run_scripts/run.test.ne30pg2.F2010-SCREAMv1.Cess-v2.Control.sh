@@ -11,8 +11,8 @@ do_case_build=true
 do_case_submit=true
 
 readonly MACHINE="frontier-scream-gpu"
-readonly CHECKOUT="20230725"
-readonly BRANCH="simulations/cess-v1"
+readonly CHECKOUT="20230916"
+readonly BRANCH="simulations/cess-production"
 readonly CHERRY=( )
 readonly COMPILER="crayclang-scream"
 readonly DEBUG_COMPILE=FALSE
@@ -23,7 +23,7 @@ readonly COMPSET="F2010-SCREAMv1"
 readonly RESOLUTION="ne30pg2_ne30pg2"
 
 readonly SCREAMDOCS_ROOT="/ccs/home/terai/scream-docs"
-readonly CODE_ROOT="/ccs/home/terai/SCREAM/code_for_frontier"
+readonly CODE_ROOT="/ccs/home/terai/SCREAM/code_for_frontier_wmastermerge"
 readonly PROJECT="cli115"
 
 githash_eamxx=`git --git-dir ${CODE_ROOT}/.git rev-parse HEAD`
@@ -66,10 +66,10 @@ readonly PELAYOUT="8x1"
 #readonly PELAYOUT="16384x6" # 2048 nodes
 readonly WALLTIME="00:29:00"
 readonly STOP_OPTION="ndays"
-readonly STOP_N="1"
+readonly STOP_N="5"
 readonly REST_OPTION="ndays"
-readonly REST_N="1"
-readonly RESUBMIT="0"
+readonly REST_N="5"
+readonly RESUBMIT="1"
 readonly DO_SHORT_TERM_ARCHIVING=false
 
 # Leave empty (unless you understand what it does)
@@ -360,6 +360,7 @@ cat << EOF >> user_nl_elm
  hist_mfilt = 1,365
  hist_nhtfrq = 0,-24
  hist_avgflag_pertape = 'A','A'
+ co2_ppmv = 410.5
 EOF
 
 
@@ -421,7 +422,7 @@ EOF
     ./atmchange output_yaml_files+=${SCREAMDOCS_ROOT}"/v1_output/scream_output.Cess.monthly_cosp_ne1024.yaml"
     
     
-    ./xmlchange --file env_run.xml --id SSTICE_DATA_FILENAME --val "/lustre/orion/cli115/world-shared/e3sm/inputdata/atm/cam/sst/sst_ostia_ukmo-l4_ghrsst_3600x7200_20190731_20200901_c20230522.nc"
+    ./xmlchange --file env_run.xml --id SSTICE_DATA_FILENAME --val "/lustre/orion/cli115/world-shared/e3sm/inputdata/atm/cam/sst/sst_ostia_ukmo-l4_ghrsst_3600x7200_20190731_20200901_c20230913.nc"
     ./xmlchange --file env_run.xml --id  SSTICE_GRID_FILENAME --val "/lustre/orion/cli115/world-shared/e3sm/inputdata/ocn/docn7/domain.ocn.3600x7200.230522.nc"
     ./xmlchange --file env_run.xml --id SSTICE_YEAR_ALIGN --val 2019
     ./xmlchange --file env_run.xml --id SSTICE_YEAR_START --val 2019
