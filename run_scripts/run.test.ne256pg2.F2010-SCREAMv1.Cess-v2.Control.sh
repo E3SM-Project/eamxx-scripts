@@ -62,12 +62,12 @@ readonly PELAYOUT="1536x6" # 192 nodes
 #readonly PELAYOUT="8192x6" # 1024 nodes
 #readonly PELAYOUT="15056x6" # 1882 nodes
 #readonly PELAYOUT="16384x6" # 2048 nodes
-readonly WALLTIME="00:36:00"
+readonly WALLTIME="00:59:00"
 readonly STOP_OPTION="ndays"
-readonly STOP_N="1"
+readonly STOP_N="2"
 readonly REST_OPTION="ndays"
-readonly REST_N="1"
-readonly RESUBMIT="0"
+readonly REST_N="2"
+readonly RESUBMIT="1"
 readonly DO_SHORT_TERM_ARCHIVING=false
 
 # Leave empty (unless you understand what it does)
@@ -348,6 +348,8 @@ runtime_options() {
     ./atmchange ch4vmr=1877.0e-9
     ./atmchange n2ovmr=332.0e-9
     ./atmchange orbital_year=2019
+    # use CO2 the same in land model
+    ./xmlchange CCSM_CO2_PPMV=410.5
     #write out DAG
     ./atmchange atmosphere_dag_verbosity_level=5
 
@@ -357,12 +359,11 @@ cat << EOF >> user_nl_elm
  finidat='/lustre/orion/cli115/world-shared/e3sm/inputdata/lnd/clm2/initdata/20230522.I2010CRUELM.ne256pg2.elm.r.2013-08-01-00000.nc'
 
  hist_dov2xy = .true.,.true.
- hist_fincl2 = 'H2OSNO','SOILWATER_10CM'
- hist_mfilt = 1,365
+ hist_fincl2 = 'H2OSNO','SOILWATER_10CM','TG'
+ hist_mfilt = 1,120
  hist_nhtfrq = 0,-24
  hist_avgflag_pertape = 'A','A'
 
- co2_ppmv = 410.5
 EOF
 
 
@@ -422,7 +423,7 @@ EOF
     ./atmchange output_yaml_files+=${SCREAMDOCS_ROOT}"/v1_output/scream_output.test.ARM_sites_2D_ne256.yaml"
     ./atmchange output_yaml_files+=${SCREAMDOCS_ROOT}"/v1_output/scream_output.test.ARM_sites_3D_ne256.yaml"
     ./atmchange output_yaml_files+=${SCREAMDOCS_ROOT}"/v1_output/scream_output.Cess.monthly_cosp_ne1024.yaml"
-    ./atmchange output_yaml_files+=${SCREAMDOCS_ROOT}"/v1_output/scream_output.test.ACI_regions_ne256.yaml"
+    ./atmchange output_yaml_files+=${SCREAMDOCS_ROOT}"/v1_output/scream_output.test.ACI_regions_2D_ne256.yaml"
     
     
     ./xmlchange --file env_run.xml --id SSTICE_DATA_FILENAME --val "/lustre/orion/cli115/world-shared/e3sm/inputdata/atm/cam/sst/sst_ostia_ukmo-l4_ghrsst_3600x7200_20190731_20200901_c20230913.nc"

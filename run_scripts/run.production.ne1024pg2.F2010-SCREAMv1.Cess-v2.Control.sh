@@ -347,6 +347,8 @@ runtime_options() {
     ./atmchange ch4vmr=1877.0e-9
     ./atmchange n2ovmr=332.0e-9
     ./atmchange orbital_year=2019
+    # use same GHG for land model
+    ./xmlchange CCSM_CO2_PPMV=410.5
     #write out DAG
     ./atmchange atmosphere_dag_verbosity_level=5
 
@@ -356,12 +358,11 @@ cat << EOF >> user_nl_elm
  finidat='/lustre/orion/cli115/world-shared/e3sm/inputdata/lnd/clm2/initdata/20220928.I2010CRUELM.ne1024pg2_ICOS10.elm.r.2016-08-01-00000.nc'
 
  hist_dov2xy = .true.,.true.
- hist_fincl2 = 'H2OSNO','SOILWATER_10CM'
- hist_mfilt = 1,365
+ hist_fincl2 = 'H2OSNO','SOILWATER_10CM','TG'
+ hist_mfilt = 1,120
  hist_nhtfrq = 0,-24
  hist_avgflag_pertape = 'A','A'
 
- co2_ppmv = 410.5
 EOF
 
 

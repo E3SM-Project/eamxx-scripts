@@ -11,7 +11,7 @@ do_case_build=true
 do_case_submit=true
 
 readonly MACHINE="frontier-scream-gpu"
-readonly CHECKOUT="20230916"
+readonly CHECKOUT="20230918"
 readonly BRANCH="simulations/cess-production"
 readonly CHERRY=( )
 readonly COMPILER="crayclang-scream"
@@ -23,7 +23,7 @@ readonly COMPSET="F2010-SCREAMv1"
 readonly RESOLUTION="ne30pg2_ne30pg2"
 
 readonly SCREAMDOCS_ROOT="/ccs/home/terai/scream-docs"
-readonly CODE_ROOT="/ccs/home/terai/SCREAM/code_for_frontier_wmastermerge"
+readonly CODE_ROOT="/ccs/home/terai/SCREAM/code_for_frontier"
 readonly PROJECT="cli115"
 
 githash_eamxx=`git --git-dir ${CODE_ROOT}/.git rev-parse HEAD`
@@ -66,9 +66,9 @@ readonly PELAYOUT="8x1"
 #readonly PELAYOUT="16384x6" # 2048 nodes
 readonly WALLTIME="00:29:00"
 readonly STOP_OPTION="ndays"
-readonly STOP_N="5"
+readonly STOP_N="3"
 readonly REST_OPTION="ndays"
-readonly REST_N="5"
+readonly REST_N="3"
 readonly RESUBMIT="1"
 readonly DO_SHORT_TERM_ARCHIVING=false
 
@@ -349,6 +349,8 @@ runtime_options() {
     ./atmchange ch4vmr=1877.0e-9
     ./atmchange n2ovmr=332.0e-9
     ./atmchange orbital_year=2019
+    # use CO2
+    ./xmlchange CCSM_CO2_PPMV=410.5
     #write out DAG
     ./atmchange atmosphere_dag_verbosity_level=5
 
@@ -356,11 +358,10 @@ runtime_options() {
     #specify land IC file
 cat << EOF >> user_nl_elm
  hist_dov2xy = .true.,.true.
- hist_fincl2 = 'H2OSNO','SOILWATER_10CM'
- hist_mfilt = 1,365
+ hist_fincl2 = 'H2OSNO','SOILWATER_10CM','TG'
+ hist_mfilt = 1,120
  hist_nhtfrq = 0,-24
  hist_avgflag_pertape = 'A','A'
- co2_ppmv = 410.5
 EOF
 
 
