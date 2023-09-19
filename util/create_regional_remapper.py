@@ -137,7 +137,7 @@ def construct_remap(casename,sites,grid):
     idx += 1
 
   # Create remap netCDF file
-  f = netCDF4.Dataset(casename+"_map.nc","w")
+  f = netCDF4.Dataset(casename+"_map.nc","w",format="NETCDF3_CLASSIC")
   f.createDimension('n_a',grid.size)
   f.createDimension('n_b',offset)
   f.createDimension('n_s',offset)
