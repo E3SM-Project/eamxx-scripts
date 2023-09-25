@@ -124,8 +124,8 @@ user_nl() {
 fetch_code() {
 
     if [ "${do_fetch_code,,}" != "true" ]; then
-	echo $'\n----- Skipping fetch_code -----\n'
-	return
+        echo $'\n----- Skipping fetch_code -----\n'
+        return
     fi
 
     echo $'\n----- Starting fetch_code -----\n'
@@ -134,8 +134,8 @@ fetch_code() {
 
     echo "Cloning $repo repository branch $BRANCH under $path"
     if [ -d "${path}" ]; then
-	echo "ERROR: Directory already exists. Not overwriting"
-	exit 20
+        echo "ERROR: Directory already exists. Not overwriting"
+        exit 20
     fi
     mkdir -p ${path}
     pushd ${path}
@@ -154,13 +154,13 @@ fetch_code() {
 
     # Custom addition
     if [ "${CHERRY}" != "" ]; then
-	echo ----- WARNING: adding git cherry-pick -----
-	for commit in "${CHERRY[@]}"
-	do
-	    echo ${commit}
-	    git cherry-pick ${commit}
-	done
-	echo -------------------------------------------
+        echo ----- WARNING: adding git cherry-pick -----
+        for commit in "${CHERRY[@]}"
+        do
+            echo ${commit}
+            git cherry-pick ${commit}
+        done
+        echo -------------------------------------------
     fi
 
     # Bring in all submodule components
@@ -173,23 +173,23 @@ fetch_code() {
 create_newcase() {
 
     if [ "${do_create_newcase,,}" != "true" ]; then
-	echo $'\n----- Skipping create_newcase -----\n'
-	return
+        echo $'\n----- Skipping create_newcase -----\n'
+        return
     fi
 
     echo $'\n----- Starting create_newcase -----\n'
 
     # Base arguments
     args=" --case ${CASE_NAME} \
-	--output-root ${CASE_ROOT} \
-	--script-root ${CASE_SCRIPTS_DIR} \
-	--handle-preexisting-dirs u \
-	--compset ${COMPSET} \
-	--res ${RESOLUTION} \
-	--machine ${MACHINE} \
-	--compiler ${COMPILER} \
-	--walltime ${WALLTIME} \
-	--pecount ${PELAYOUT}"
+        --output-root ${CASE_ROOT} \
+        --script-root ${CASE_SCRIPTS_DIR} \
+        --handle-preexisting-dirs u \
+        --compset ${COMPSET} \
+        --res ${RESOLUTION} \
+        --machine ${MACHINE} \
+        --compiler ${COMPILER} \
+        --walltime ${WALLTIME} \
+        --pecount ${PELAYOUT}"
 
     # Oprional arguments
     if [ ! -z "${PROJECT}" ]; then
@@ -217,8 +217,8 @@ create_newcase() {
 case_setup() {
 
     if [ "${do_case_setup,,}" != "true" ]; then
-	echo $'\n----- Skipping case_setup -----\n'
-	return
+        echo $'\n----- Skipping case_setup -----\n'
+        return
     fi
 
     echo $'\n----- Starting case_setup -----\n'
@@ -241,7 +241,7 @@ case_setup() {
     ./xmlchange --file env_mach_pes.xml NTHRDS="1"
     ./xmlchange --file env_mach_pes.xml NTHRDS_ATM="1"
     ./xmlchange --file env_mach_pes.xml NTHRDS_LND="6"
-    ./xmlchange --file env_mach_pes.xml NTHRDS_ICE="1"
+    ./xmlchange --file env_mach_pes.xml NTHRDS_ICE="6"
     ./xmlchange --file env_mach_pes.xml NTHRDS_OCN="1"
     ./xmlchange --file env_mach_pes.xml NTHRDS_ROF="1"
     ./xmlchange --file env_mach_pes.xml NTHRDS_CPL="1"
@@ -268,45 +268,45 @@ case_build() {
     # do_case_build = false
     if [ "${do_case_build,,}" != "true" ]; then
 
-	echo $'\n----- case_build -----\n'
+        echo $'\n----- case_build -----\n'
 
-	if [ "${OLD_EXECUTABLE}" == "" ]; then
-	    # Ues previously built executable, make sure it exists
-	    if [ -x ${CASE_BUILD_DIR}/e3sm.exe ]; then
-		echo 'Skipping build because $do_case_build = '${do_case_build}
-	    else
-		echo 'ERROR: $do_case_build = '${do_case_build}' but no executable exists for this case.'
-		exit 297
-	    fi
-	else
-	    # If absolute pathname exists and is executable, reuse pre-exiting executable
-	    if [ -x ${OLD_EXECUTABLE} ]; then
-		echo 'Using $OLD_EXECUTABLE = '${OLD_EXECUTABLE}
-		cp -fp ${OLD_EXECUTABLE} ${CASE_BUILD_DIR}/
-	    else
-		echo 'ERROR: $OLD_EXECUTABLE = '$OLD_EXECUTABLE' does not exist or is not an executable file.'
-		exit 297
-	    fi
-	fi
-	echo 'WARNING: Setting BUILD_COMPLETE = TRUE.  This is a little risky, but trusting the user.'
-	./xmlchange BUILD_COMPLETE=TRUE
+        if [ "${OLD_EXECUTABLE}" == "" ]; then
+            # Ues previously built executable, make sure it exists
+            if [ -x ${CASE_BUILD_DIR}/e3sm.exe ]; then
+                echo 'Skipping build because $do_case_build = '${do_case_build}
+            else
+                echo 'ERROR: $do_case_build = '${do_case_build}' but no executable exists for this case.'
+                exit 297
+            fi
+        else
+            # If absolute pathname exists and is executable, reuse pre-exiting executable
+            if [ -x ${OLD_EXECUTABLE} ]; then
+                echo 'Using $OLD_EXECUTABLE = '${OLD_EXECUTABLE}
+                cp -fp ${OLD_EXECUTABLE} ${CASE_BUILD_DIR}/
+            else
+                echo 'ERROR: $OLD_EXECUTABLE = '$OLD_EXECUTABLE' does not exist or is not an executable file.'
+                exit 297
+            fi
+        fi
+        echo 'WARNING: Setting BUILD_COMPLETE = TRUE.  This is a little risky, but trusting the user.'
+        ./xmlchange BUILD_COMPLETE=TRUE
 
     # do_case_build = true
     else
 
-	echo $'\n----- Starting case_build -----\n'
+        echo $'\n----- Starting case_build -----\n'
 
-	# Turn on debug compilation option if requested
-	if [ "${DEBUG_COMPILE}" == "TRUE" ]; then
-	    ./xmlchange DEBUG=${DEBUG_COMPILE}
-	fi
+        # Turn on debug compilation option if requested
+        if [ "${DEBUG_COMPILE}" == "TRUE" ]; then
+            ./xmlchange DEBUG=${DEBUG_COMPILE}
+        fi
 
-	# Run CIME case.build
-	./case.build
+        # Run CIME case.build
+        ./case.build
 
-	# Some user_nl settings won't be updated to *_in files under the run directory
-	# Call preview_namelists to make sure *_in and user_nl files are consistent.
-	./preview_namelists
+        # Some user_nl settings won't be updated to *_in files under the run directory
+        # Call preview_namelists to make sure *_in and user_nl files are consistent.
+        ./preview_namelists
 
     fi
 
@@ -321,21 +321,20 @@ runtime_options() {
 
     # Set simulation start date
     if [ ! -z "${START_DATE}" ]; then
-	./xmlchange RUN_STARTDATE=${START_DATE}
+        ./xmlchange RUN_STARTDATE=${START_DATE}
     fi
     # Set temperature cut off in dycore threshold to 180K
     ./atmchange vtheta_thresh=180
     ./atmquery vtheta_thresh
 
     # Turn on cosp and set default frequency
-    ./atmchange physics::atm_procs_list=mac_aero_mic,rrtmgp,cosp
-    ./case.setup
+    ./atmchange physics::atm_procs_list="mac_aero_mic,rrtmgp,cosp"
     ./atmchange physics::cosp::cosp_frequency_units="hours"
     ./atmchange physics::cosp::cosp_frequency=1
-    
+
     # Turn on turbulent mountain stress
-    ./atmchange physics::mac_aero_mic::atm_procs_list=tms,shoc,cldFraction,spa,p3
-    
+    ./atmchange physics::mac_aero_mic::atm_procs_list="tms,shoc,cldFraction,spa,p3"
+
     ./atmchange initial_conditions::Filename="/lustre/orion/cli115/world-shared/e3sm/inputdata/atm/scream/init/screami_ne1024np4L128_era5-20190801-topoadjx6t_20230620.nc"
 
     ./atmchange physics::mac_aero_mic::shoc::compute_tendencies=T_mid,qv
@@ -366,8 +365,6 @@ cat << EOF >> user_nl_elm
 EOF
 
 
-    #./xmlchange RUN_STARTDATE='2019-08-01'
-
     # Segment length
     ./xmlchange STOP_OPTION=${STOP_OPTION,,},STOP_N=${STOP_N}
 
@@ -382,56 +379,70 @@ EOF
 
     # Set resubmissions
     if (( RESUBMIT > 0 )); then
-	./xmlchange RESUBMIT=${RESUBMIT}
+        ./xmlchange RESUBMIT=${RESUBMIT}
     fi
 
     # Run type
     # Start from default of user-specified initial conditions
     if [ "${MODEL_START_TYPE,,}" == "initial" ]; then
-	./xmlchange RUN_TYPE="startup"
-	./xmlchange CONTINUE_RUN="FALSE"
+        ./xmlchange RUN_TYPE="startup"
+        ./xmlchange CONTINUE_RUN="FALSE"
 
     # Continue existing run
     elif [ "${MODEL_START_TYPE,,}" == "continue" ]; then
-	./xmlchange CONTINUE_RUN="TRUE"
+        ./xmlchange CONTINUE_RUN="TRUE"
 
     elif [ "${MODEL_START_TYPE,,}" == "branch" ] || [ "${MODEL_START_TYPE,,}" == "hybrid" ]; then
-	./xmlchange RUN_TYPE=${MODEL_START_TYPE,,}
-	./xmlchange GET_REFCASE=${GET_REFCASE}
-	./xmlchange RUN_REFDIR=${RUN_REFDIR}
-	./xmlchange RUN_REFCASE=${RUN_REFCASE}
-	./xmlchange RUN_REFDATE=${RUN_REFDATE}
-	echo 'Warning: $MODEL_START_TYPE = '${MODEL_START_TYPE}
-	echo '$RUN_REFDIR = '${RUN_REFDIR}
-	echo '$RUN_REFCASE = '${RUN_REFCASE}
-	echo '$RUN_REFDATE = '${START_DATE}
+        ./xmlchange RUN_TYPE=${MODEL_START_TYPE,,}
+        ./xmlchange GET_REFCASE=${GET_REFCASE}
+        ./xmlchange RUN_REFDIR=${RUN_REFDIR}
+        ./xmlchange RUN_REFCASE=${RUN_REFCASE}
+        ./xmlchange RUN_REFDATE=${RUN_REFDATE}
+        echo 'Warning: $MODEL_START_TYPE = '${MODEL_START_TYPE}
+        echo '$RUN_REFDIR = '${RUN_REFDIR}
+        echo '$RUN_REFCASE = '${RUN_REFCASE}
+        echo '$RUN_REFDATE = '${START_DATE}
 
     else
-	echo 'ERROR: $MODEL_START_TYPE = '${MODEL_START_TYPE}' is unrecognized. Exiting.'
-	exit 380
+        echo 'ERROR: $MODEL_START_TYPE = '${MODEL_START_TYPE}' is unrecognized. Exiting.'
+        exit 380
     fi
 
 
-    ./atmchange output_yaml_files=${SCREAMDOCS_ROOT}"/v1_output/scream_output.Cess.monthly_ne1024.yaml"
-    ./atmchange output_yaml_files+=${SCREAMDOCS_ROOT}"/v1_output/scream_output.Cess.50hourly_QcQiNcNi.yaml"
-    ./atmchange output_yaml_files+=${SCREAMDOCS_ROOT}"/v1_output/scream_output.Cess.50hourly_QrNrQmBm.yaml"
-    ./atmchange output_yaml_files+=${SCREAMDOCS_ROOT}"/v1_output/scream_output.Cess.6hourlyINST_ne30.yaml"
-    ./atmchange output_yaml_files+=${SCREAMDOCS_ROOT}"/v1_output/scream_output.Cess.6hourlyAVG_ne30.yaml"
-    ./atmchange output_yaml_files+=${SCREAMDOCS_ROOT}"/v1_output/scream_output.Cess.3hourlyAVG_ne120.yaml"
-    ./atmchange output_yaml_files+=${SCREAMDOCS_ROOT}"/v1_output/scream_output.Cess.3hourlyINST_ne120.yaml"
-    ./atmchange output_yaml_files+=${SCREAMDOCS_ROOT}"/v1_output/scream_output.Cess.3hourly_ne1024.yaml"
-    ./atmchange output_yaml_files+=${SCREAMDOCS_ROOT}"/v1_output/scream_output.Cess.hourly_2Dvars.yaml"
-    ./atmchange output_yaml_files+=${SCREAMDOCS_ROOT}"/v1_output/scream_output.Cess.ARM_sites_2D.yaml"
-    ./atmchange output_yaml_files+=${SCREAMDOCS_ROOT}"/v1_output/scream_output.Cess.ARM_sites_3D.yaml"
-    ./atmchange output_yaml_files+=${SCREAMDOCS_ROOT}"/v1_output/scream_output.Cess.monthly_cosp_ne1024.yaml"
-    ./atmchange output_yaml_files+=${SCREAMDOCS_ROOT}"/v1_output/scream_output.Cess.ACI_regions_2D.yaml"
-    
+    cp ${SCREAMDOCS_ROOT}"/v1_output/scream_output.Cess.monthly_ne1024.yaml" .
+    cp ${SCREAMDOCS_ROOT}"/v1_output/scream_output.Cess.50hourly_QcQiNcNi.yaml" .
+    cp ${SCREAMDOCS_ROOT}"/v1_output/scream_output.Cess.50hourly_QrNrQmBm.yaml" .
+    cp ${SCREAMDOCS_ROOT}"/v1_output/scream_output.Cess.6hourlyINST_ne30.yaml" .
+    cp ${SCREAMDOCS_ROOT}"/v1_output/scream_output.Cess.6hourlyAVG_ne30.yaml" .
+    cp ${SCREAMDOCS_ROOT}"/v1_output/scream_output.Cess.3hourlyAVG_ne120.yaml" .
+    cp ${SCREAMDOCS_ROOT}"/v1_output/scream_output.Cess.3hourlyINST_ne120.yaml" .
+    cp ${SCREAMDOCS_ROOT}"/v1_output/scream_output.Cess.3hourly_ne1024.yaml" .
+    cp ${SCREAMDOCS_ROOT}"/v1_output/scream_output.Cess.hourly_2Dvars.yaml" .
+    cp ${SCREAMDOCS_ROOT}"/v1_output/scream_output.Cess.ARM_sites_2D.yaml" .
+    cp ${SCREAMDOCS_ROOT}"/v1_output/scream_output.Cess.ARM_sites_3D.yaml" .
+    cp ${SCREAMDOCS_ROOT}"/v1_output/scream_output.Cess.monthly_cosp_ne1024.yaml" .
+    cp ${SCREAMDOCS_ROOT}"/v1_output/scream_output.Cess.ACI_regions_2D.yaml" .
+
+    ./atmchange output_yaml_files="./scream_output.Cess.monthly_ne1024.yaml"
+    ./atmchange output_yaml_files+="./scream_output.Cess.50hourly_QcQiNcNi.yaml"
+    ./atmchange output_yaml_files+="./scream_output.Cess.50hourly_QrNrQmBm.yaml"
+    ./atmchange output_yaml_files+="./scream_output.Cess.6hourlyINST_ne30.yaml"
+    ./atmchange output_yaml_files+="./scream_output.Cess.6hourlyAVG_ne30.yaml"
+    ./atmchange output_yaml_files+="./scream_output.Cess.3hourlyAVG_ne120.yaml"
+    ./atmchange output_yaml_files+="./scream_output.Cess.3hourlyINST_ne120.yaml"
+    ./atmchange output_yaml_files+="./scream_output.Cess.3hourly_ne1024.yaml"
+    ./atmchange output_yaml_files+="./scream_output.Cess.hourly_2Dvars.yaml"
+    ./atmchange output_yaml_files+="./scream_output.Cess.ARM_sites_2D.yaml"
+    ./atmchange output_yaml_files+="./scream_output.Cess.ARM_sites_3D.yaml"
+    ./atmchange output_yaml_files+="./scream_output.Cess.monthly_cosp_ne1024.yaml"
+    ./atmchange output_yaml_files+="./scream_output.Cess.ACI_regions_2D.yaml"
+
     ./xmlchange --file env_run.xml --id SSTICE_DATA_FILENAME --val "/lustre/orion/cli115/world-shared/e3sm/inputdata/atm/cam/sst/sst_ostia_ukmo-l4_ghrsst_3600x7200_20190731_20200901_c20230913.nc"
     ./xmlchange --file env_run.xml --id  SSTICE_GRID_FILENAME --val "/lustre/orion/cli115/world-shared/e3sm/inputdata/ocn/docn7/domain.ocn.3600x7200.230522.nc"
     ./xmlchange --file env_run.xml --id SSTICE_YEAR_ALIGN --val 2019
     ./xmlchange --file env_run.xml --id SSTICE_YEAR_START --val 2019
     ./xmlchange --file env_run.xml --id SSTICE_YEAR_END --val 2020
-    
+
     popd
 }
 
@@ -439,8 +450,8 @@ EOF
 case_submit() {
 
     if [ "${do_case_submit,,}" != "true" ]; then
-	echo $'\n----- Skipping case_submit -----\n'
-	return
+        echo $'\n----- Skipping case_submit -----\n'
+        return
     fi
 
     echo $'\n----- Starting case_submit -----\n'
