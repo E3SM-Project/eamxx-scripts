@@ -42,6 +42,7 @@ Fields:
     - LongwaveCloudForcing
     - ShortwaveCloudForcing
     - ps
+    - SeaLevelPressure
     - T_2m
     - qv_2m
     - surf_radiative_T
@@ -61,6 +62,7 @@ Fields:
     - PotentialTemperature_at_700hPa
     - PotentialTemperature_at_1000hPa
     - omega_at_500hPa
+    - RelativeHumidity_at_700hPa
 output_control:
   Frequency: 1
   frequency_units: nmonths
