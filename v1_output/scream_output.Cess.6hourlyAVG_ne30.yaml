@@ -16,6 +16,10 @@ Fields:
     - p3_qv_tend
     - shoc_qv_tend
     - homme_qv_tend
+    - SW_flux_dn
+    - SW_flux_up
+    - LW_flux_dn
+    - LW_flux_up
     # Surface
     - surf_sens_flux
     - surf_evap
@@ -40,3 +44,5 @@ output_control:
   Frequency: 6
   frequency_units: nhours
   MPI Ranks in Filename: false
+Restart:
+  force_new_file: true

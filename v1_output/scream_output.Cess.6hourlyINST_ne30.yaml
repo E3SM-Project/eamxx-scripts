@@ -32,3 +32,4 @@ output_control:
   Frequency: 6
   frequency_units: nhours
   MPI Ranks in Filename: false
+- SW_flux_dn_at_model
