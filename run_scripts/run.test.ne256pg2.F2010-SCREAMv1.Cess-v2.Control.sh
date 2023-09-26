@@ -56,7 +56,8 @@ readonly CASE_ARCHIVE_DIR=${CASE_ROOT}/archive
 
 readonly CASE_SCRIPTS_DIR=${CASE_ROOT}/case_scripts
 readonly CASE_RUN_DIR=${CASE_ROOT}/run
-readonly PELAYOUT="1536x6" # 192 nodes
+readonly PELAYOUT="768x6" # 96 nodes
+#readonly PELAYOUT="1536x6" # 192 nodes
 #readonly PELAYOUT="3072x6" # 384 nodes
 #readonly PELAYOUT="4096x6" # 512 nodes
 #readonly PELAYOUT="8192x6" # 1024 nodes
@@ -124,8 +125,8 @@ user_nl() {
 fetch_code() {
 
     if [ "${do_fetch_code,,}" != "true" ]; then
-        echo $'\n----- Skipping fetch_code -----\n'
-        return
+	echo $'\n----- Skipping fetch_code -----\n'
+	return
     fi
 
     echo $'\n----- Starting fetch_code -----\n'
@@ -134,8 +135,8 @@ fetch_code() {
 
     echo "Cloning $repo repository branch $BRANCH under $path"
     if [ -d "${path}" ]; then
-        echo "ERROR: Directory already exists. Not overwriting"
-        exit 20
+	echo "ERROR: Directory already exists. Not overwriting"
+	exit 20
     fi
     mkdir -p ${path}
     pushd ${path}
@@ -154,13 +155,13 @@ fetch_code() {
 
     # Custom addition
     if [ "${CHERRY}" != "" ]; then
-        echo ----- WARNING: adding git cherry-pick -----
-        for commit in "${CHERRY[@]}"
-        do
-            echo ${commit}
-            git cherry-pick ${commit}
-        done
-        echo -------------------------------------------
+	echo ----- WARNING: adding git cherry-pick -----
+	for commit in "${CHERRY[@]}"
+	do
+	    echo ${commit}
+	    git cherry-pick ${commit}
+	done
+	echo -------------------------------------------
     fi
 
     # Bring in all submodule components
@@ -173,23 +174,23 @@ fetch_code() {
 create_newcase() {
 
     if [ "${do_create_newcase,,}" != "true" ]; then
-        echo $'\n----- Skipping create_newcase -----\n'
-        return
+	echo $'\n----- Skipping create_newcase -----\n'
+	return
     fi
 
     echo $'\n----- Starting create_newcase -----\n'
 
     # Base arguments
     args=" --case ${CASE_NAME} \
-        --output-root ${CASE_ROOT} \
-        --script-root ${CASE_SCRIPTS_DIR} \
-        --handle-preexisting-dirs u \
-        --compset ${COMPSET} \
-        --res ${RESOLUTION} \
-        --machine ${MACHINE} \
-        --compiler ${COMPILER} \
-        --walltime ${WALLTIME} \
-        --pecount ${PELAYOUT}"
+	--output-root ${CASE_ROOT} \
+	--script-root ${CASE_SCRIPTS_DIR} \
+	--handle-preexisting-dirs u \
+	--compset ${COMPSET} \
+	--res ${RESOLUTION} \
+	--machine ${MACHINE} \
+	--compiler ${COMPILER} \
+	--walltime ${WALLTIME} \
+	--pecount ${PELAYOUT}"
 
     # Oprional arguments
     if [ ! -z "${PROJECT}" ]; then
@@ -217,8 +218,8 @@ create_newcase() {
 case_setup() {
 
     if [ "${do_case_setup,,}" != "true" ]; then
-        echo $'\n----- Skipping case_setup -----\n'
-        return
+	echo $'\n----- Skipping case_setup -----\n'
+	return
     fi
 
     echo $'\n----- Starting case_setup -----\n'
@@ -268,45 +269,45 @@ case_build() {
     # do_case_build = false
     if [ "${do_case_build,,}" != "true" ]; then
 
-        echo $'\n----- case_build -----\n'
+	echo $'\n----- case_build -----\n'
 
-        if [ "${OLD_EXECUTABLE}" == "" ]; then
-            # Ues previously built executable, make sure it exists
-            if [ -x ${CASE_BUILD_DIR}/e3sm.exe ]; then
-                echo 'Skipping build because $do_case_build = '${do_case_build}
-            else
-                echo 'ERROR: $do_case_build = '${do_case_build}' but no executable exists for this case.'
-                exit 297
-            fi
-        else
-            # If absolute pathname exists and is executable, reuse pre-exiting executable
-            if [ -x ${OLD_EXECUTABLE} ]; then
-                echo 'Using $OLD_EXECUTABLE = '${OLD_EXECUTABLE}
-                cp -fp ${OLD_EXECUTABLE} ${CASE_BUILD_DIR}/
-            else
-                echo 'ERROR: $OLD_EXECUTABLE = '$OLD_EXECUTABLE' does not exist or is not an executable file.'
-                exit 297
-            fi
-        fi
-        echo 'WARNING: Setting BUILD_COMPLETE = TRUE.  This is a little risky, but trusting the user.'
-        ./xmlchange BUILD_COMPLETE=TRUE
+	if [ "${OLD_EXECUTABLE}" == "" ]; then
+	    # Ues previously built executable, make sure it exists
+	    if [ -x ${CASE_BUILD_DIR}/e3sm.exe ]; then
+		echo 'Skipping build because $do_case_build = '${do_case_build}
+	    else
+		echo 'ERROR: $do_case_build = '${do_case_build}' but no executable exists for this case.'
+		exit 297
+	    fi
+	else
+	    # If absolute pathname exists and is executable, reuse pre-exiting executable
+	    if [ -x ${OLD_EXECUTABLE} ]; then
+		echo 'Using $OLD_EXECUTABLE = '${OLD_EXECUTABLE}
+		cp -fp ${OLD_EXECUTABLE} ${CASE_BUILD_DIR}/
+	    else
+		echo 'ERROR: $OLD_EXECUTABLE = '$OLD_EXECUTABLE' does not exist or is not an executable file.'
+		exit 297
+	    fi
+	fi
+	echo 'WARNING: Setting BUILD_COMPLETE = TRUE.  This is a little risky, but trusting the user.'
+	./xmlchange BUILD_COMPLETE=TRUE
 
     # do_case_build = true
     else
 
-        echo $'\n----- Starting case_build -----\n'
+	echo $'\n----- Starting case_build -----\n'
 
-        # Turn on debug compilation option if requested
-        if [ "${DEBUG_COMPILE}" == "TRUE" ]; then
-            ./xmlchange DEBUG=${DEBUG_COMPILE}
-        fi
+	# Turn on debug compilation option if requested
+	if [ "${DEBUG_COMPILE}" == "TRUE" ]; then
+	    ./xmlchange DEBUG=${DEBUG_COMPILE}
+	fi
 
-        # Run CIME case.build
-        ./case.build
+	# Run CIME case.build
+	./case.build
 
-        # Some user_nl settings won't be updated to *_in files under the run directory
-        # Call preview_namelists to make sure *_in and user_nl files are consistent.
-        ./preview_namelists
+	# Some user_nl settings won't be updated to *_in files under the run directory
+	# Call preview_namelists to make sure *_in and user_nl files are consistent.
+	./preview_namelists
 
     fi
 
@@ -321,7 +322,7 @@ runtime_options() {
 
     # Set simulation start date
     if [ ! -z "${START_DATE}" ]; then
-        ./xmlchange RUN_STARTDATE=${START_DATE}
+	./xmlchange RUN_STARTDATE=${START_DATE}
     fi
 
     # Set temperature cut off in dycore threshold to 180K
@@ -381,33 +382,33 @@ EOF
 
     # Set resubmissions
     if (( RESUBMIT > 0 )); then
-        ./xmlchange RESUBMIT=${RESUBMIT}
+	./xmlchange RESUBMIT=${RESUBMIT}
     fi
 
     # Run type
     # Start from default of user-specified initial conditions
     if [ "${MODEL_START_TYPE,,}" == "initial" ]; then
-        ./xmlchange RUN_TYPE="startup"
-        ./xmlchange CONTINUE_RUN="FALSE"
+	./xmlchange RUN_TYPE="startup"
+	./xmlchange CONTINUE_RUN="FALSE"
 
     # Continue existing run
     elif [ "${MODEL_START_TYPE,,}" == "continue" ]; then
-        ./xmlchange CONTINUE_RUN="TRUE"
+	./xmlchange CONTINUE_RUN="TRUE"
 
     elif [ "${MODEL_START_TYPE,,}" == "branch" ] || [ "${MODEL_START_TYPE,,}" == "hybrid" ]; then
-        ./xmlchange RUN_TYPE=${MODEL_START_TYPE,,}
-        ./xmlchange GET_REFCASE=${GET_REFCASE}
-        ./xmlchange RUN_REFDIR=${RUN_REFDIR}
-        ./xmlchange RUN_REFCASE=${RUN_REFCASE}
-        ./xmlchange RUN_REFDATE=${RUN_REFDATE}
-        echo 'Warning: $MODEL_START_TYPE = '${MODEL_START_TYPE}
-        echo '$RUN_REFDIR = '${RUN_REFDIR}
-        echo '$RUN_REFCASE = '${RUN_REFCASE}
-        echo '$RUN_REFDATE = '${START_DATE}
+	./xmlchange RUN_TYPE=${MODEL_START_TYPE,,}
+	./xmlchange GET_REFCASE=${GET_REFCASE}
+	./xmlchange RUN_REFDIR=${RUN_REFDIR}
+	./xmlchange RUN_REFCASE=${RUN_REFCASE}
+	./xmlchange RUN_REFDATE=${RUN_REFDATE}
+	echo 'Warning: $MODEL_START_TYPE = '${MODEL_START_TYPE}
+	echo '$RUN_REFDIR = '${RUN_REFDIR}
+	echo '$RUN_REFCASE = '${RUN_REFCASE}
+	echo '$RUN_REFDATE = '${START_DATE}
 
     else
-        echo 'ERROR: $MODEL_START_TYPE = '${MODEL_START_TYPE}' is unrecognized. Exiting.'
-        exit 380
+	echo 'ERROR: $MODEL_START_TYPE = '${MODEL_START_TYPE}' is unrecognized. Exiting.'
+	exit 380
     fi
 
 
@@ -449,8 +450,8 @@ EOF
 case_submit() {
 
     if [ "${do_case_submit,,}" != "true" ]; then
-        echo $'\n----- Skipping case_submit -----\n'
-        return
+	echo $'\n----- Skipping case_submit -----\n'
+	return
     fi
 
     echo $'\n----- Starting case_submit -----\n'
