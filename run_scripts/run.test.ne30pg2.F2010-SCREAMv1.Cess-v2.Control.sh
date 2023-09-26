@@ -413,8 +413,9 @@ EOF
     cp ${SCREAMDOCS_ROOT}"/v1_output/scream_output.test.3hourlyINST_ne30tone4.yaml" .
     cp ${SCREAMDOCS_ROOT}"/v1_output/scream_output.Cess.3hourly_ne1024.yaml" .
     cp ${SCREAMDOCS_ROOT}"/v1_output/scream_output.Cess.hourly_2Dvars.yaml" .
-    cp ${SCREAMDOCS_ROOT}"/v1_output/scream_output.test.ARM_sites_2D_ne30tone4.yaml" .
-    cp ${SCREAMDOCS_ROOT}"/v1_output/scream_output.test.ARM_sites_3D_ne30tone4.yaml" .
+    cp ${SCREAMDOCS_ROOT}"/v1_output/scream_output.test.ARM_sites_2D_ne30.yaml" .
+    cp ${SCREAMDOCS_ROOT}"/v1_output/scream_output.test.ARM_sites_3D_ne30.yaml" .
+    cp ${SCREAMDOCS_ROOT}"/v1_output/scream_output.test.ACI_regions_2D_ne30.yaml" .
     cp ${SCREAMDOCS_ROOT}"/v1_output/scream_output.Cess.monthly_cosp_ne1024.yaml" .
 
     ./atmchange output_yaml_files="./scream_output.Cess.monthly_ne1024.yaml"
@@ -426,8 +427,9 @@ EOF
     ./atmchange output_yaml_files+="./scream_output.test.3hourlyINST_ne30tone4.yaml"
     ./atmchange output_yaml_files+="./scream_output.Cess.3hourly_ne1024.yaml"
     ./atmchange output_yaml_files+="./scream_output.Cess.hourly_2Dvars.yaml"
-    ./atmchange output_yaml_files+="./scream_output.test.ARM_sites_2D_ne30tone4.yaml"
-    ./atmchange output_yaml_files+="./scream_output.test.ARM_sites_3D_ne30tone4.yaml"
+    ./atmchange output_yaml_files+="./scream_output.test.ARM_sites_2D_ne30.yaml"
+    ./atmchange output_yaml_files+="./scream_output.test.ARM_sites_3D_ne30.yaml"
+    ./atmchange output_yaml_files+="./scream_output.test.ACI_regions_2D_ne30.yaml"
     ./atmchange output_yaml_files+="./scream_output.Cess.monthly_cosp_ne1024.yaml"
 
     ./xmlchange --file env_run.xml --id SSTICE_DATA_FILENAME --val "/lustre/orion/cli115/world-shared/e3sm/inputdata/atm/cam/sst/sst_ostia_ukmo-l4_ghrsst_3600x7200_20190731_20200901_c20230913.nc"
