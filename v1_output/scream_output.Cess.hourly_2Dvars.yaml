@@ -2,7 +2,7 @@
 ---
 filename_prefix: output.scream.Cess.hourly2DVars
 Averaging Type: Instant
-Max Snapshots Per File: 720
+Max Snapshots Per File: 96
 Fields:
   Physics PG2:
     Field Names:
@@ -12,3 +12,5 @@ output_control:
   Frequency: 1
   frequency_units: nhours
   MPI Ranks in Filename: false
+Restart:
+  force_new_file: true
