@@ -3,8 +3,8 @@
 filename_prefix: output.scream.Cess.6hourlyAVG_ne30
 Averaging Type: Average
 Max Snapshots Per File: 12
-vertical_remap_file: /lustre/orion/cli115/world-shared/e3sm/inputdata/atm/scream/maps/vrt_remapping_p_levs_20230717.nc
-horiz_remap_file: /lustre/orion/cli115/world-shared/e3sm/inputdata/atm/scream/maps/map_ne1024pg2_to_ne30pg2_mono.20230901.nc 
+vertical_remap_file: ${DIN_LOC_ROOT}/atm/scream/maps/vrt_remapping_p_levs_20230717.nc
+horiz_remap_file: ${DIN_LOC_ROOT}/atm/scream/maps/map_ne1024pg2_to_ne30pg2_mono.20230901.nc 
 Fields:
   Physics PG2:
     Field Names:

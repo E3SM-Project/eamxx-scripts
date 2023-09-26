@@ -3,7 +3,7 @@
 filename_prefix: output.scream.Cess.3hourlyINST_ne120
 Averaging Type: Instant
 Max Snapshots Per File: 24 #one file per 3days
-horiz_remap_file: /lustre/orion/cli115/world-shared/e3sm/inputdata/atm/scream/maps/map_ne1024pg2_to_ne120pg2_mono.20230901.nc
+horiz_remap_file: ${DIN_LOC_ROOT}/atm/scream/maps/map_ne1024pg2_to_ne120pg2_mono.20230901.nc
 Fields:
   Physics PG2:
     Field Names:

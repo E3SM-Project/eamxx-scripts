@@ -3,7 +3,7 @@
 filename_prefix: output.scream.Cess.ARMSite_3D_tone4
 Averaging Type: Instant
 Max Snapshots Per File: 24
-horiz_remap_file: /lustre/orion/cli115/world-shared/e3sm/inputdata/atm/scream/maps/map_ne30pg2_to_ne4pg2_nco_conservative.20230608.nc
+horiz_remap_file: ${DIN_LOC_ROOT}/atm/scream/maps/map_ne30pg2_to_ne4pg2_nco_conservative.20230608.nc
 Fields:
   Physics PG2:
     Field Names:
