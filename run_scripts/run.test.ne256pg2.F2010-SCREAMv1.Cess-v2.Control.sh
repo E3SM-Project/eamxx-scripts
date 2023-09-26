@@ -415,6 +415,8 @@ EOF
     cp ${SCREAMDOCS_ROOT}"/v1_output/scream_output.Cess.monthly_ne1024.yaml" .
     cp ${SCREAMDOCS_ROOT}"/v1_output/scream_output.Cess.50hourly_QcQiNcNi.yaml" .
     cp ${SCREAMDOCS_ROOT}"/v1_output/scream_output.Cess.50hourly_QrNrQmBm.yaml" .
+    cp ${SCREAMDOCS_ROOT}"/v1_output/scream_output.test.6hourlyAVG_ne256tone30.yaml" .
+    cp ${SCREAMDOCS_ROOT}"/v1_output/scream_output.test.6hourlyINST_ne256tone30.yaml" .
     cp ${SCREAMDOCS_ROOT}"/v1_output/scream_output.test.3hourlyAVG_ne256to120.yaml" .
     cp ${SCREAMDOCS_ROOT}"/v1_output/scream_output.test.3hourlyINST_ne256to120.yaml" .
     cp ${SCREAMDOCS_ROOT}"/v1_output/scream_output.Cess.3hourly_ne1024.yaml" .
@@ -427,6 +429,8 @@ EOF
     ./atmchange output_yaml_files="./scream_output.Cess.monthly_ne1024.yaml"
     ./atmchange output_yaml_files+="./scream_output.Cess.50hourly_QcQiNcNi.yaml"
     ./atmchange output_yaml_files+="./scream_output.Cess.50hourly_QrNrQmBm.yaml"
+    ./atmchange output_yaml_files+="./scream_output.test.6hourlyAVG_ne256tone30.yaml"
+    ./atmchange output_yaml_files+="./scream_output.test.6hourlyINST_ne256tone30.yaml"
     ./atmchange output_yaml_files+="./scream_output.test.3hourlyAVG_ne256to120.yaml"
     ./atmchange output_yaml_files+="./scream_output.test.3hourlyINST_ne256to120.yaml"
     ./atmchange output_yaml_files+="./scream_output.Cess.3hourly_ne1024.yaml"
