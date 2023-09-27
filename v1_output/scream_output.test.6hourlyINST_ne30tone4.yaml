@@ -3,7 +3,7 @@
 filename_prefix: output.scream.Cess.6hourlyINST_ne30
 Averaging Type: Instant
 Max Snapshots Per File: 12
-vertical_remap_file: ${DIN_LOC_ROOT}/atm/scream/maps/vrt_remapping_p_levs_20230717.nc
+vertical_remap_file: ${DIN_LOC_ROOT}/atm/scream/maps/vrt_remapping_p_levs_20230926.nc
 horiz_remap_file: ${DIN_LOC_ROOT}/atm/scream/maps/map_ne30pg2_to_ne4pg2_nco_conservative.20230608.nc  # Replaced with final version
 Fields:
   Physics PG2:
