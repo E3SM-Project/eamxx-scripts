@@ -29,7 +29,7 @@ readonly PROJECT="cli115"
 githash_eamxx=`git --git-dir ${CODE_ROOT}/.git rev-parse HEAD`
 githash_screamdocs=`git --git-dir ${SCREAMDOCS_ROOT}/.git rev-parse HEAD`
 
-readonly CASE_NAME=cess-v2-cntl.${RESOLUTION}.${COMPSET}.${CHECKOUT}
+readonly CASE_NAME=cess-cntl.${RESOLUTION}.${COMPSET}.${CHECKOUT}
 
 readonly CASE_ROOT="/lustre/orion/cli115/proj-shared/terai/e3sm_scratch/${CASE_NAME}"
 
