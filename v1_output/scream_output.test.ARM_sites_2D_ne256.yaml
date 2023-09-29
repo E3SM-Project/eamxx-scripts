@@ -2,7 +2,7 @@
 ---
 filename_prefix: output.scream.Cess.ARMSite_2D
 Averaging Type: Instant
-Max Snapshots Per File: 96
+Max Snapshots Per File: 288
 horiz_remap_file: ${DIN_LOC_ROOT}/atm/scream/maps/20230925_ARM_site_for_Cess_ne256_map.nc
 Fields:
   Physics PG2:
