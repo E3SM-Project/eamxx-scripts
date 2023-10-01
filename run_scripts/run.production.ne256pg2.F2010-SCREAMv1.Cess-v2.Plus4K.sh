@@ -65,7 +65,7 @@ readonly PELAYOUT="768x6" # 96 nodes
 #readonly PELAYOUT="16384x6" # 2048 nodes
 readonly WALLTIME="00:59:00"
 readonly STOP_OPTION="ndays"
-readonly STOP_N="2"
+readonly STOP_N="10"
 readonly REST_OPTION="ndays"
 readonly REST_N="2"
 readonly RESUBMIT="1"
@@ -443,7 +443,7 @@ EOF
     ./atmchange output_yaml_files+="./scream_output.test.ACI_regions_2D_ne256.yaml"
 
 
-    ./xmlchange --file env_run.xml --id SSTICE_DATA_FILENAME --val "/lustre/orion/cli115/world-shared/e3sm/inputdata/atm/cam/sst/sst_ostia_ukmo-l4_ghrsst_3600x7200_20190731_20200901_plus4K_c20230913.nc"
+    ./xmlchange --file env_run.xml --id SSTICE_DATA_FILENAME --val "/lustre/orion/cli115/world-shared/e3sm/inputdata/atm/cam/sst/sst_ostia_ukmo-l4_ghrsst_3600x7200_20190731_20200901_plus4K_c20230916.nc"
     ./xmlchange --file env_run.xml --id  SSTICE_GRID_FILENAME --val "/lustre/orion/cli115/world-shared/e3sm/inputdata/ocn/docn7/domain.ocn.3600x7200.230522.nc"
     ./xmlchange --file env_run.xml --id SSTICE_YEAR_ALIGN --val 2019
     ./xmlchange --file env_run.xml --id SSTICE_YEAR_START --val 2019
