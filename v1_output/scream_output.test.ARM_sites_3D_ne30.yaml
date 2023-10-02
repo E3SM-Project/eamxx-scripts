@@ -2,7 +2,7 @@
 ---
 filename_prefix: output.scream.Cess.ARMSite
 Averaging Type: Instant
-Max Snapshots Per File: 24
+Max Snapshots Per File: 72
 horiz_remap_file: ${DIN_LOC_ROOT}/atm/scream/maps/20230925_ARM_site_for_Cess_ne30_map.nc
 Fields:
   Physics PG2:
@@ -10,12 +10,21 @@ Fields:
     # 3D
     - T_mid
     - RelativeHumidity
+    - eff_radius_qc
+    - eff_radius_qi
+    - nc
+    - ni
+    - nr
+    - p_mid
+    - z_mid
+    - ps
+    - cldfrac_tot_for_analysis
+    - cldfrac_ice_for_analysis
+    - cldfrac_liq
     - qc
     - qi
     - qr
     - ps
-    - cldfrac_tot
-    - cldfrac_liq
     - omega
     - tke
 output_control:
