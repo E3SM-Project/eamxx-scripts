@@ -13,8 +13,16 @@ Fields:
     - qc
     - qi
     - qr
+    - eff_radius_qc
+    - eff_radius_qi
+    - nc
+    - ni
+    - nr
+    - p_mid
+    - z_mid
     - ps
-    - cldfrac_tot
+    - cldfrac_tot_for_analysis
+    - cldfrac_ice_for_analysis
     - cldfrac_liq
     - omega
     - tke
