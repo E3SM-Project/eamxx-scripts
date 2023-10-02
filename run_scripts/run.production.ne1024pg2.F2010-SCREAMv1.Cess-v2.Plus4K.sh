@@ -325,16 +325,18 @@ runtime_options() {
     ./atmchange vtheta_thresh=180
     ./atmquery vtheta_thresh
 
-    # Turn on cosp and set default frequency
+    # Turn on cosp 
     ./atmchange physics::atm_procs_list="mac_aero_mic,rrtmgp,cosp"
+    ./case.setup
+    
+    # Set cosp default frequency
     ./atmchange physics::cosp::cosp_frequency_units="hours"
     ./atmchange physics::cosp::cosp_frequency=1
-
-    # Turn on turbulent mountain stress
-    ./atmchange physics::mac_aero_mic::atm_procs_list="tms,shoc,cldFraction,spa,p3"
-
+    # Set atmos IC file
     ./atmchange initial_conditions::Filename="/lustre/orion/cli115/world-shared/e3sm/inputdata/atm/scream/init/screami_ne1024np4L128_era5-20190801-topoadjx6t_20230620.nc"
-
+    # Set shoc tuning for lambda_high
+    ./atmchange lambda_high=0.08
+    # Allow for tendency outputs
     ./atmchange physics::mac_aero_mic::shoc::compute_tendencies=T_mid,qv
     ./atmchange physics::mac_aero_mic::p3::compute_tendencies=T_mid,qv
     ./atmchange physics::rrtmgp::compute_tendencies=T_mid
@@ -361,6 +363,11 @@ cat << EOF >> user_nl_elm
  hist_avgflag_pertape = 'A','A'
 
 EOF
+
+cat << EOF >> user_nl_cpl
+ ocn_surface_flux_scheme = 2
+EOF
+
 
 
     # Segment length
