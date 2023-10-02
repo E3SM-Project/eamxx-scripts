@@ -2,7 +2,7 @@
 ---
 filename_prefix: output.scream.Cess.3hourlyINST_ne30
 Averaging Type: Instant
-Max Snapshots Per File: 240 #one file per month
+Max Snapshots Per File: 24 #one file per month
 horiz_remap_file: ${DIN_LOC_ROOT}/atm/scream/maps/map_ne256pg2_to_ne120pg2_nco.20230629.nc
 Fields:
   Physics PG2:

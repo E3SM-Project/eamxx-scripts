@@ -2,7 +2,7 @@
 ---
 filename_prefix: output.scream.Cess.3hourlyAVG_ne120
 Averaging Type: Average
-Max Snapshots Per File: 240
+Max Snapshots Per File: 24
 vertical_remap_file: ${DIN_LOC_ROOT}/atm/scream/maps/vrt_remapping_p_levs_20230926.nc
 horiz_remap_file: ${DIN_LOC_ROOT}/atm/scream/maps/map_ne256pg2_to_ne120pg2_nco.20230629.nc
 Fields:
