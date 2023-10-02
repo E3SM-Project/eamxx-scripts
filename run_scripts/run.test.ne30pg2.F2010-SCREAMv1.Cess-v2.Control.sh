@@ -325,7 +325,6 @@ runtime_options() {
 
     # Turn on cosp and set default frequency
     ./atmchange physics::atm_procs_list="mac_aero_mic,rrtmgp,cosp"
-    ./case.setup
     
     # Turn on turbulent mountain stress
     ./atmchange physics::cosp::cosp_frequency_units="hours"

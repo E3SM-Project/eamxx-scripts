@@ -326,7 +326,6 @@ runtime_options() {
 
     # Turn on cosp 
     ./atmchange physics::atm_procs_list="mac_aero_mic,rrtmgp,cosp"
-    ./case.setup
     
     # Set cosp default frequency
     ./atmchange physics::cosp::cosp_frequency_units="hours"
