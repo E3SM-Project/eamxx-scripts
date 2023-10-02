@@ -11,25 +11,25 @@ do_case_build=true
 do_case_submit=true
 
 readonly MACHINE="frontier-scream-gpu"
-readonly CHECKOUT="20230918"
+readonly CHECKOUT="20231002"
 readonly BRANCH="simulations/cess-production"
 readonly CHERRY=( )
 readonly COMPILER="crayclang-scream"
 readonly DEBUG_COMPILE=FALSE
-readonly Q=regular
+readonly Q=batch
 
 # Simulation
 readonly COMPSET="F2010-SCREAMv1"
 readonly RESOLUTION="ne30pg2_ne30pg2"
 
 readonly SCREAMDOCS_ROOT="/ccs/home/terai/scream-docs"
-readonly CODE_ROOT="/ccs/home/terai/SCREAM/code_for_frontier"
+readonly CODE_ROOT="/ccs/home/terai/SCREAM/code_simulations_cess_production"
 readonly PROJECT="cli115"
 
 githash_eamxx=`git --git-dir ${CODE_ROOT}/.git rev-parse HEAD`
 githash_screamdocs=`git --git-dir ${SCREAMDOCS_ROOT}/.git rev-parse HEAD`
 
-readonly CASE_NAME=cess-v2-test.${RESOLUTION}.${COMPSET}.${CHECKOUT}
+readonly CASE_NAME=cess-cntl.finaltestconfig.${RESOLUTION}.${COMPSET}.${CHECKOUT}
 
 readonly CASE_ROOT="/lustre/orion/cli115/proj-shared/terai/e3sm_scratch/${CASE_NAME}"
 
@@ -325,12 +325,12 @@ runtime_options() {
 
     # Turn on cosp and set default frequency
     ./atmchange physics::atm_procs_list="mac_aero_mic,rrtmgp,cosp"
+    ./case.setup
+    
+    # Turn on turbulent mountain stress
     ./atmchange physics::cosp::cosp_frequency_units="hours"
     ./atmchange physics::cosp::cosp_frequency=1
-
-    # Turn on turbulent mountain stress
-    ./atmchange physics::mac_aero_mic::atm_procs_list="tms,shoc,cldFraction,spa,p3"
-
+    ./atmchange lambda_high=0.08
     ./atmchange initial_conditions::Filename="/lustre/orion/cli115/world-shared/e3sm/inputdata/atm/scream/init/screami_ne30np4L128_20221004.nc"
 
     ./atmchange physics::mac_aero_mic::shoc::compute_tendencies=T_mid,qv
@@ -357,6 +357,10 @@ cat << EOF >> user_nl_elm
  hist_mfilt = 1,120
  hist_nhtfrq = 0,-24
  hist_avgflag_pertape = 'A','A'
+EOF
+
+cat << EOF >> user_nl_cpl
+ ocn_surface_flux_scheme = 2
 EOF
 
 
@@ -438,6 +442,9 @@ EOF
     ./xmlchange --file env_run.xml --id SSTICE_YEAR_START --val 2019
     ./xmlchange --file env_run.xml --id SSTICE_YEAR_END --val 2020
 
+    #atmchange --all \
+    # internal_diagnostics_level=1 \
+    # atmosphere_processes::internal_diagnostics_level=0
     popd
 }
 
