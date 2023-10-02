@@ -95,7 +95,6 @@ runtime_options
 copy_script
 
 # Submit
-#case_submit -a="--qos=${Q}"
 case_submit
 
 # All done
@@ -346,7 +345,7 @@ runtime_options() {
     ./atmchange ch4vmr=1877.0e-9
     ./atmchange n2ovmr=332.0e-9
     ./atmchange orbital_year=2019
-    # use same GHG for land model
+    # use CO2 the same in land model
     ./xmlchange CCSM_CO2_PPMV=410.5
     #write out DAG
     ./atmchange atmosphere_dag_verbosity_level=5
