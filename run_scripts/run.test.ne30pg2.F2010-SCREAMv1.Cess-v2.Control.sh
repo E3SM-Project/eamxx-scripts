@@ -16,7 +16,7 @@ readonly BRANCH="simulations/cess-production"
 readonly CHERRY=( )
 readonly COMPILER="crayclang-scream"
 readonly DEBUG_COMPILE=FALSE
-readonly Q=batch
+readonly Q=regular
 
 # Simulation
 readonly COMPSET="F2010-SCREAMv1"
@@ -93,7 +93,6 @@ runtime_options
 copy_script
 
 # Submit
-#case_submit -a="--qos=${Q}"
 case_submit
 
 # All done
@@ -319,14 +318,13 @@ runtime_options() {
     if [ ! -z "${START_DATE}" ]; then
 	./xmlchange RUN_STARTDATE=${START_DATE}
     fi
+
     # Set temperature cut off in dycore threshold to 180K
     ./atmchange vtheta_thresh=180
     ./atmquery vtheta_thresh
 
     # Turn on cosp and set default frequency
     ./atmchange physics::atm_procs_list="mac_aero_mic,rrtmgp,cosp"
-    
-    # Turn on turbulent mountain stress
     ./atmchange physics::cosp::cosp_frequency_units="hours"
     ./atmchange physics::cosp::cosp_frequency=1
     ./atmchange lambda_high=0.08
@@ -341,7 +339,7 @@ runtime_options() {
     ./atmchange ch4vmr=1877.0e-9
     ./atmchange n2ovmr=332.0e-9
     ./atmchange orbital_year=2019
-    # use CO2
+    # use CO2 the same in land model
     ./xmlchange CCSM_CO2_PPMV=410.5
     #write out DAG
     ./atmchange atmosphere_dag_verbosity_level=5
@@ -361,7 +359,6 @@ EOF
 cat << EOF >> user_nl_cpl
  ocn_surface_flux_scheme = 2
 EOF
-
 
     # Segment length
     ./xmlchange STOP_OPTION=${STOP_OPTION,,},STOP_N=${STOP_N}
@@ -441,9 +438,6 @@ EOF
     ./xmlchange --file env_run.xml --id SSTICE_YEAR_START --val 2019
     ./xmlchange --file env_run.xml --id SSTICE_YEAR_END --val 2020
 
-    #atmchange --all \
-    # internal_diagnostics_level=1 \
-    # atmosphere_processes::internal_diagnostics_level=0
     popd
 }
 

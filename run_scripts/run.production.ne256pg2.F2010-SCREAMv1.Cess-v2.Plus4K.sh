@@ -98,7 +98,6 @@ runtime_options
 copy_script
 
 # Submit
-#case_submit -a="--qos=${Q}"
 case_submit
 
 # All done
@@ -328,8 +327,8 @@ runtime_options() {
     # Set temperature cut off in dycore threshold to 180K
     ./atmchange vtheta_thresh=180
     ./atmquery vtheta_thresh
-    
-    # Turn on cosp 
+
+    # Turn on cosp and set default frequency
     ./atmchange physics::atm_procs_list="mac_aero_mic,rrtmgp,cosp"
     
     # Set cosp default frequency
@@ -353,9 +352,9 @@ runtime_options() {
     ./xmlchange CCSM_CO2_PPMV=410.5
     #write out DAG
     ./atmchange atmosphere_dag_verbosity_level=5
-    #./atmchange --all \
-    #   internal_diagnostics_level=1 \
-    #   atmosphere_processes::internal_diagnostics_level=0
+
+    #./atmchange BfbHash=1
+    #./atmchange --all internal_diagnostics_level=1 atmosphere_processes::internal_diagnostics_level=1
 
     #specify land IC file
 cat << EOF >> user_nl_elm
