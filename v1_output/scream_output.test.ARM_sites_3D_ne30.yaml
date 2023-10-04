@@ -24,7 +24,6 @@ Fields:
     - qc
     - qi
     - qr
-    - ps
     - omega
     - tke
 output_control:
