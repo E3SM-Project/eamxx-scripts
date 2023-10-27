@@ -104,7 +104,9 @@ def find_bad_text(ln):
                 'terminated with signal', '(core dumped)', 'Backtrace for this error:',
                 'An error occurred in MPI_Init',
                 'MPI_ERRORS_ARE_FATAL (processes in this communicator will now abort',
-                'Shutting down jsmd because of a received shutdown signal']
+                'MPIDI_OFI_handle_cq_error',
+                'Segmentation fault',
+                'Aborting since the error handler was set to PIO_INTERNAL_ERROR']
     for b in bad_strs:
         if b in ln:
             return b
