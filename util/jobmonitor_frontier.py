@@ -14,6 +14,21 @@ class JobState:
     exited = 'EXIT'
     unknown = 'UNKNOWN'
 
+def get_file_time_delta(fname):
+    clock_time = time.clock_gettime(0)
+    file_time = None
+    try:
+        file_time = os.path.getmtime(fname)
+    except:
+        print('Could not get timestamp of {}'.format(fname))
+    if file_time is None:
+        # The likeliest issue is the file hasn't been created yet or the network
+        # file system temporarily has lost access. Neither of these is
+        # associated with a hang condition, so return 0.
+        return 0
+    else:
+        return clock_time - file_time
+
 class E3smLogReader:
     nofile = 'NOFILE'
     ok = 'OK'
@@ -21,14 +36,20 @@ class E3smLogReader:
     done = 'DONE'
     unknown = 'UNKNOWN'
 
-    def __init__(self, rundir, jobid):
+    def __init__(self, rundir, jobid, atm_log_timeout=7200):
         self.rundir = rundir
         self.jobid = jobid
         self.seek = 0 # At each call to study(), read only new text.
-        self.fname = None
+        self.e3sm_log_fname = None
+        self.atm_log_fname = None
+        self.atm_log_timeout = atm_log_timeout
+        print(('Initializing E3smLogReader with run directory {}\n' +
+               '  job ID {}\n' +
+               '  atm.log timeout {}').format(
+                   self.rundir, self.jobid, self.atm_log_timeout))
 
     def study(self):
-        if self.fname is None:
+        if self.e3sm_log_fname is None:
             # Construct the e3sm.log file name.
             fnames = glob.glob(self.rundir + '/' + 'e3sm.log.' + str(self.jobid) + '*')
             if len(fnames) > 1:
@@ -38,19 +59,21 @@ class E3smLogReader:
             elif len(fnames) == 0:
                 return self.nofile, ''
             else:
-                self.fname = fnames[0]
-                print('Found {}'.format(self.fname))
+                self.e3sm_log_fname = fnames[0]
+                self.atm_log_fname = self.e3sm_log_fname.replace('e3sm.log.', 'atm.log.')
+                print('Found {}'.format(self.e3sm_log_fname))
         # Before proceeding, check if the e3sm.log file has been gzipped.
         try:
-            os.stat(self.fname + '.gz')
+            os.stat(self.e3sm_log_fname + '.gz')
             # It has. The job is nearly done.
             return self.done, ''
         except:
             # It has not.
             pass
-        # Main work: Check for strings indicating a failed job.
+        # Main work:
+        # 1. Check for strings indicating a failed job.
         try:
-            with open(self.fname, 'r') as f:
+            with open(self.e3sm_log_fname, 'r') as f:
                 f.seek(self.seek)
                 for ln in f:
                     self.seek += len(ln)
@@ -58,8 +81,15 @@ class E3smLogReader:
                     if bad_text is not None:
                         return self.failed, bad_text
         except:
-            print('Could not read {}'.format(self.fname))
+            print('Could not read {}'.format(self.e3sm_log_fname))
             return self.unknown, ''
+        # 2. Check that atm.log has been written sufficiently recently.
+        dt = get_file_time_delta(self.atm_log_fname)
+        if dt > self.atm_log_timeout:
+            print('{} has not been written for {} seconds but timeout is {}'.
+                  format(self.atm_log_fname, dt, self.atm_log_timeout))
+            return self.failed, 'atm.log is not being written'
+        # Everything is fine.
         return self.ok, ''
 
 def find_bad_text(ln):
@@ -74,7 +104,9 @@ def find_bad_text(ln):
                 'terminated with signal', '(core dumped)', 'Backtrace for this error:',
                 'An error occurred in MPI_Init',
                 'MPI_ERRORS_ARE_FATAL (processes in this communicator will now abort',
-                'Shutting down jsmd because of a received shutdown signal']
+                'MPIDI_OFI_handle_cq_error',
+                'Segmentation fault',
+                'Aborting since the error handler was set to PIO_INTERNAL_ERROR']
     for b in bad_strs:
         if b in ln:
             return b
@@ -108,11 +140,11 @@ def call_job_killer(jobid):
         print('{}: {} {}'.format(' '.join(cmd), str(sp.stdout, 'utf-8'),
                                  str(sp.stderr, 'utf-8')))
 
-def monitor(rundir, jobid, sleep=300):
+def monitor(rundir, jobid, sleep=300, atm_log_timeout=7200):
     "Run the job monitoring loop."
     print(f'Monitoring {rundir:s} {jobid:s} with sleep {sleep:d}')
     kill_job = False
-    elr = E3smLogReader(rundir, jobid)
+    elr = E3smLogReader(rundir, jobid, atm_log_timeout=atm_log_timeout)
     while True:
         job_state = call_job_lister(jobid)
         print('{} {} {}'.format(str(datetime.datetime.now())[0:-7], jobid, job_state))
@@ -153,8 +185,8 @@ def main():
 
     Example: Suppose you want to monitor two jobs. In a shell, issue these
     commands in sequence:
-       nohup python jobmonitor.py ${path_to_run_dir1} ${jobid1} > job.1.txt &
-       nohup python jobmonitor.py ${path_to_run_dir2} ${jobid2} > job.2.txt &
+       nohup python jobmonitor_frontier.py ${path_to_run_dir1} ${jobid1} > job.1.txt &
+       nohup python jobmonitor_frontier.py ${path_to_run_dir2} ${jobid2} > job.2.txt &
     These jobs run in the background, and you can look at job.1.txt and
     job.2.txt for messages about what the job monitor has done so far.
     ${path_to_run_dir1} is something like
@@ -170,17 +202,23 @@ def main():
                    help='Job ID: slurm job ID field.')
     p.add_argument('--sleep', type=int, default='60',
                    help='Time length in seconds to sleep between checks.')
+    p.add_argument('--atmlog-timeout', type=int, default='7200',
+                   help=textwrap.dedent("""\
+                   Maximum permitted time, in seconds, between atm.log writes;
+                   if exceeded, assume the job has hung.
+                   """))
     p.add_argument('--test', default=False, action='store_true',
                    help=textwrap.dedent("""\
                    Test mode. Set up an e3sm.log.${jobid}.* file and test.txt.
-                   Put slurm-like messages in test.txt for jobmonitor.py to read.
+                   Put slurm-like messages in test.txt for jobmonitor_frontier.py
+                   to read.
                    """))
     o = p.parse_args()
 
     global TESTING
     TESTING = o.test
 
-    monitor(o.rundir, o.jobid, sleep=o.sleep)
+    monitor(o.rundir, o.jobid, sleep=o.sleep, atm_log_timeout=o.atmlog_timeout)
 
 if __name__ == '__main__':
     main()
