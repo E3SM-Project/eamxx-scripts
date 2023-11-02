@@ -3,6 +3,7 @@
 filename_prefix: output.scream.Cess.monthly_ne1024
 Averaging Type: Average
 Max Snapshots Per File: 1
+track_fill: true
 Fields:
   Physics PG2:
     Field Names:
