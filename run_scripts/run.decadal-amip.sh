@@ -5,34 +5,39 @@
 main() {
 
 do_fetch_code=false
-do_create_newcase=true
+do_create_newcase=false
 do_case_setup=true
-do_case_build=false
-do_case_submit=false
+do_case_build=true
+do_case_submit=true
 
-readonly MACHINE="frontier-scream-gpu"
+readonly MACHINE="chrysalis" #"frontier-scream-gpu"
 readonly CHECKOUT="add-F20TR-SCREAMv1"
 readonly BRANCH="brhillman/add-F20TR-SCREAMv1"
 readonly CHERRY=( )
-readonly COMPILER="crayclang-scream"
+readonly COMPILER="intel" #"crayclang-scream"
 readonly DEBUG_COMPILE=FALSE
 readonly Q=regular
 
 # Simulation
 readonly COMPSET="F20TR-SCREAMv1"
-readonly RESOLUTION="ne1024pg2_ne1024pg2"
+readonly RESOLUTION="ne30pg2_oECv3" #"ne1024pg2_ne1024pg2"
 
-readonly SCREAMDOCS_ROOT="/ccs/home/${USER}/codes/scream-docs/branches/add-decadal-runscript"
-readonly CODE_ROOT="/ccs/home/${USER}/codes/scream/branches/add-F20TR-SCREAMv1"
-readonly PROJECT="cli115"
+readonly SCREAMDOCS_ROOT="${HOME}/codes/scream-docs/branches/add-decadal-runscript"
+readonly CODE_ROOT="${HOME}/codes/scream/branches/add-F20TR-SCREAMv1"
+readonly PROJECT="e3sm" #"cli115"
 
 githash_eamxx=`git --git-dir ${CODE_ROOT}/.git rev-parse HEAD`
 githash_screamdocs=`git --git-dir ${SCREAMDOCS_ROOT}/.git rev-parse HEAD`
 
 readonly CASE_NAME=decadal-amip.${RESOLUTION}.${COMPSET}.${CHECKOUT}
-
-readonly CASE_ROOT="/lustre/orion/cli115/proj-shared/$USER/e3sm_scratch/${CASE_NAME}"
-
+if [ "${MACHINE}" == "frontier-scream-gpu" ]; then
+    readonly CASE_ROOT="/lustre/orion/cli115/proj-shared/$USER/e3sm_scratch/${CASE_NAME}"
+elif [ "${MACHINE}" == "chrysalis" ]; then
+    readonly CASE_ROOT="/lcrc/group/e3sm/ac.brhillman/scratch/chrys/${CASE_NAME}"
+else
+    echo "Need to set CASE_ROOT default for ${MACHINE}"
+    exit 1
+fi
 readonly CASE_GROUP=""
 
 # History file frequency (if using default above)
@@ -50,19 +55,21 @@ readonly RUN_REFCASE=""
 readonly RUN_REFDATE=""   # same as MODEL_START_DATE for 'branch', can be different for 'hybrid'
 
 # Sub-directories
-
 readonly CASE_SCRIPTS_DIR=${CASE_ROOT}/case_scripts
+
+# PE-layout
+# These are for frontier...
 #readonly PELAYOUT="1536x6" # 192 nodes
 #readonly PELAYOUT="3072x6" # 384 nodes
 #readonly PELAYOUT="4096x6" # 512 nodes
 #readonly PELAYOUT="8192x6" # 1024 nodes
 #readonly PELAYOUT="15056x6" # 1882 nodes
-readonly PELAYOUT="16384x6" # 2048 nodes
-readonly WALLTIME="00:29:00"
-readonly STOP_OPTION="ndays"
-readonly STOP_N="1"
-readonly REST_OPTION="ndays"
-readonly REST_N="1"
+#readonly PELAYOUT="16384x6" # 2048 nodes
+readonly WALLTIME="01:29:00"
+readonly STOP_OPTION="nmonths"
+readonly STOP_N="2"
+readonly REST_OPTION="nmonths"
+readonly REST_N="2"
 readonly RESUBMIT="0"
 
 # Make directories created by this script world-readable
@@ -90,7 +97,11 @@ else
 fi
 
 # Build
-case_build
+if [ "${do_case_build}" == "true" ]; then
+    case_build
+else
+    echo $'\n----- Skipping case_build -----\n'
+fi
 
 # Configure runtime options
 runtime_options
@@ -99,7 +110,11 @@ runtime_options
 copy_script
 
 # Submit
-case_submit
+if [ "${do_case_submit}" == "true" ]; then
+    case_submit
+else
+    echo $'\n----- Skipping case_submit -----\n'
+fi
 
 # All done
 echo $'\n----- All done -----\n'
@@ -171,17 +186,19 @@ create_newcase() {
 
     # Base arguments
     args=" --case ${CASE_NAME} \
-	--output-root ${CASE_ROOT} \
-	--script-root ${CASE_SCRIPTS_DIR} \
-	--handle-preexisting-dirs u \
-	--compset ${COMPSET} \
-	--res ${RESOLUTION} \
-	--machine ${MACHINE} \
-	--compiler ${COMPILER} \
-	--walltime ${WALLTIME} \
-	--pecount ${PELAYOUT}"
+           --output-root ${CASE_ROOT} \
+           --script-root ${CASE_SCRIPTS_DIR} \
+           --handle-preexisting-dirs u \
+           --compset ${COMPSET} \
+           --res ${RESOLUTION} \
+           --machine ${MACHINE} \
+           --compiler ${COMPILER} \
+           --walltime ${WALLTIME} "
 
-    # Oprional arguments
+    # Optional arguments
+    if [ ! -z "${PELAYOUT}" ]; then
+        args="${args} --pecount ${PELAYOUT}"
+    fi
     if [ ! -z "${PROJECT}" ]; then
       args="${args} --project ${PROJECT}"
     fi
@@ -210,7 +227,7 @@ case_setup() {
     pushd ${CASE_SCRIPTS_DIR}
 
     # Extracts input_data_dir in case it is needed for user edits to the namelist later
-    local input_data_dir=`./xmlquery DIN_LOC_ROOT --value`
+    input_data_dir=`./xmlquery DIN_LOC_ROOT --value`
 
     # Custom user_nl
     user_nl
@@ -308,19 +325,26 @@ runtime_options() {
 
 
     #specify land IC file
+    if [ "${RESOLUTION}" == "ne1024pg2_ne1024pg2" ]; then
 cat << EOF >> user_nl_elm
-
  ! Set input data paths
  finidat = "${input_data_dir}/lnd/clm2/initdata/20231226.I2010CRUELM.ne1024pg2_ICOS10.elm.r.1994-10-01-00000.nc"
  flanduse_timeseries = "${input_data_dir}/lnd/clm2/surfdata_map/landuse.timeseries_ne1024pg2_historical_simyr1990-2014_c240109.nc"
  fsurdat = "${input_data_dir}/lnd/clm2/surfdata_map/landuse.timeseries_ne1024pg2_historical_simyr1990-2014_c240109.nc"
- 
+
  ! Override consistency checks since we know our surface data is inconsistent
  check_finidat_fsurdat_consistency = .false.
  check_finidat_year_consistency = .false.
  check_finidat_pct_consistency = .false.
  check_dynpft_consistency = .false.
+EOF
+    fi
 
+cat << EOF >> user_nl_elm
+
+ ! Make sure we do transient PFTs
+ do_transient_pfts = .true.
+ 
  hist_dov2xy = .true.,.true.
  hist_fincl2 = 'H2OSNO','SOILWATER_10CM','TG'
  hist_mfilt = 1,120
