@@ -351,7 +351,7 @@ runtime_options() {
     # use CO2 the same in land model
     ./xmlchange CCSM_CO2_PPMV=410.5
     #write out DAG
-    ./atmchange atmosphere_dag_verbosity_level=5
+    #./atmchange atmosphere_dag_verbosity_level=5
 
     #./atmchange BfbHash=1
     #./atmchange --all internal_diagnostics_level=1 atmosphere_processes::internal_diagnostics_level=1

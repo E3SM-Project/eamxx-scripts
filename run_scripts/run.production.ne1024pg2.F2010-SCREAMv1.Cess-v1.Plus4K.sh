@@ -339,7 +339,7 @@ runtime_options() {
     ./atmchange n2ovmr=332.0e-9
     ./atmchange orbital_year=2019
     #write out DAG
-    ./atmchange atmosphere_dag_verbosity_level=5
+    #./atmchange atmosphere_dag_verbosity_level=5
 
 
     #specify land IC file
