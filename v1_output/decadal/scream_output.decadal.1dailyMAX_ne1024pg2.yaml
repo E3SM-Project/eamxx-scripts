@@ -1,0 +1,14 @@
+%YAML 1.1
+---
+filename_prefix: output.scream.decadal.1dailyMAX_ne1024pg2
+Averaging Type: Max
+Max Snapshots Per File: 1
+Fields:
+  Physics PG2:
+    Field Names:
+    - T_2m
+    - precip_tot_surf_mass_flux
+output_control:
+  Frequency: 1
+  frequency_units: ndays
+  MPI Ranks in Filename: false
