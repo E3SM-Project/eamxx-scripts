@@ -416,19 +416,19 @@ EOF
     fi
 
 
-    cp ${SCREAMDOCS_ROOT}"/v1_output/scream_output.Cess.monthly_ne1024.yaml" .
-    cp ${SCREAMDOCS_ROOT}"/v1_output/scream_output.Cess.50hourly_QcQiNcNi.yaml" .
-    cp ${SCREAMDOCS_ROOT}"/v1_output/scream_output.Cess.50hourly_QrNrQmBm.yaml" .
-    cp ${SCREAMDOCS_ROOT}"/v1_output/scream_output.test.6hourlyAVG_ne256tone30.yaml" .
-    cp ${SCREAMDOCS_ROOT}"/v1_output/scream_output.test.6hourlyINST_ne256tone30.yaml" .
-    cp ${SCREAMDOCS_ROOT}"/v1_output/scream_output.test.3hourlyAVG_ne256to120.yaml" .
-    cp ${SCREAMDOCS_ROOT}"/v1_output/scream_output.test.3hourlyINST_ne256to120.yaml" .
-    cp ${SCREAMDOCS_ROOT}"/v1_output/scream_output.Cess.3hourly_ne1024.yaml" .
-    cp ${SCREAMDOCS_ROOT}"/v1_output/scream_output.Cess.hourly_2Dvars.yaml" .
-    cp ${SCREAMDOCS_ROOT}"/v1_output/scream_output.test.ARM_sites_2D_ne256.yaml" .
-    cp ${SCREAMDOCS_ROOT}"/v1_output/scream_output.test.ARM_sites_3D_ne256.yaml" .
-    cp ${SCREAMDOCS_ROOT}"/v1_output/scream_output.Cess.monthly_cosp_ne1024.yaml" .
-    cp ${SCREAMDOCS_ROOT}"/v1_output/scream_output.test.ACI_regions_2D_ne256.yaml" .
+    cp ${SCREAMDOCS_ROOT}"/v1_output/cess/scream_output.Cess.monthly_ne1024.yaml" .
+    cp ${SCREAMDOCS_ROOT}"/v1_output/cess/scream_output.Cess.50hourly_QcQiNcNi.yaml" .
+    cp ${SCREAMDOCS_ROOT}"/v1_output/cess/scream_output.Cess.50hourly_QrNrQmBm.yaml" .
+    cp ${SCREAMDOCS_ROOT}"/v1_output/cess/scream_output.test.6hourlyAVG_ne256tone30.yaml" .
+    cp ${SCREAMDOCS_ROOT}"/v1_output/cess/scream_output.test.6hourlyINST_ne256tone30.yaml" .
+    cp ${SCREAMDOCS_ROOT}"/v1_output/cess/scream_output.test.3hourlyAVG_ne256to120.yaml" .
+    cp ${SCREAMDOCS_ROOT}"/v1_output/cess/scream_output.test.3hourlyINST_ne256to120.yaml" .
+    cp ${SCREAMDOCS_ROOT}"/v1_output/cess/scream_output.Cess.3hourly_ne1024.yaml" .
+    cp ${SCREAMDOCS_ROOT}"/v1_output/cess/scream_output.Cess.hourly_2Dvars.yaml" .
+    cp ${SCREAMDOCS_ROOT}"/v1_output/cess/scream_output.test.ARM_sites_2D_ne256.yaml" .
+    cp ${SCREAMDOCS_ROOT}"/v1_output/cess/scream_output.test.ARM_sites_3D_ne256.yaml" .
+    cp ${SCREAMDOCS_ROOT}"/v1_output/cess/scream_output.Cess.monthly_cosp_ne1024.yaml" .
+    cp ${SCREAMDOCS_ROOT}"/v1_output/cess/scream_output.test.ACI_regions_2D_ne256.yaml" .
 
     ./atmchange output_yaml_files="./scream_output.Cess.monthly_ne1024.yaml"
     ./atmchange output_yaml_files+="./scream_output.Cess.50hourly_QcQiNcNi.yaml"
