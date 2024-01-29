@@ -3,7 +3,7 @@
 filename_prefix: output.scream.AutoCalibr.dailyAVG_ne30
 Averaging Type: Average
 Max Snapshots Per File: 2
-vertical_remap_file: ${DIN_LOC_ROOT}/atm/scream/maps/vrt_remapping_p_levs_20230926.nc <-NEED TO CHANGE THIS!!!!????
+vertical_remap_file: ${DIN_LOC_ROOT}/atm/scream/maps/vrt_prs_era5.nc 
 horiz_remap_file: ${DIN_LOC_ROOT}/atm/scream/maps/map_ne1024pg2_to_ne30pg2_mono.20230901.nc 
 Fields:
   Physics PG2:
