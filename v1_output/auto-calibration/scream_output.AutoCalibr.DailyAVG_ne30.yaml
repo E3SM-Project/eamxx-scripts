@@ -3,28 +3,32 @@
 filename_prefix: output.scream.AutoCalibr.dailyAVG_ne30
 Averaging Type: Average
 Max Snapshots Per File: 2
-vertical_remap_file: ${DIN_LOC_ROOT}/atm/scream/maps/vrt_remapping_p_levs_20230926.nc <-NEED TO CHANGE THIS!!!!????
+vertical_remap_file: ${DIN_LOC_ROOT}/atm/scream/maps/vrt_prs_era5.nc 
 horiz_remap_file: ${DIN_LOC_ROOT}/atm/scream/maps/map_ne1024pg2_to_ne30pg2_mono.20230901.nc 
 Fields:
   Physics PG2:
     Field Names:
     #For Cost Function:
     - precip_total_surf_mass_flux
-    - SW_flux_net_at_model_top   <- is net right??????
+    - SW_flux_up_at_model_top
+    - SW_flux_dn_at_model_top
     - LW_flux_up_at_model_top
     - SW_flux_up_at_model_bot
     - LW_flux_up_at_model_bot
     - SW_flux_dn_at_model_bot
     - LW_flux_dn_at_model_bot
+    - LongwaveCloudForcing
+    - ShortwaveCloudForcing
     - T_2m
     - LiqWaterPath
     - RainWaterPath
+    - IceWaterPath
+    - ZonalVapFlux
+    - MeridionalVapFlux
+    - qv_2m
     #For Further Analysis:
     - eff_radius_qc_at_cldtop
     - eff_radius_qi_at_cldtop
-    
-
-
 # Full 3D Profile
     - p3_T_mid_tend
     - shoc_T_mid_tend
@@ -37,6 +41,17 @@ Fields:
     - SW_flux_up
     - LW_flux_dn
     - LW_flux_up
+    - qc
+    - qi
+    - qr
+    - qm
+    - nc
+    - ni
+    - nr
+    - bm
+    - U
+    - V
+    - omega 
     # Surface
     - surf_sens_flux
     - surf_evap
@@ -48,15 +63,6 @@ Fields:
     - surf_radiative_T
     # Lowest Level
     - horiz_winds_at_model_bot
-    #- V_at_model_bot
-    #- U_at_model_bot
-    - SW_flux_dn_at_model_bot
-    - SW_flux_up_at_model_bot
-    - LW_flux_dn_at_model_bot
-    - LW_flux_up_at_model_bot
-    - SW_flux_up_at_model_top
-    - SW_flux_dn_at_model_top
-    - LW_flux_up_at_model_top
 output_control:
   Frequency: 1
   frequency_units: ndays
