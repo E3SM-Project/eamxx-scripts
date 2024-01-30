@@ -15,6 +15,9 @@ Fields:
     - z_mid_at_200hPa
     # For wind turbine study
     - wind_speed_at_100m_above_surface
+    # For atmospheric rivers
+    - ZonalVapFlux
+    - MeridionalVapFlux
 output_control:
   Frequency: 6
   frequency_units: nhours
