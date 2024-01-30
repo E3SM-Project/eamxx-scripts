@@ -1,0 +1,13 @@
+%YAML 1.1
+---
+filename_prefix: output.scream.decadal.1dailyAVG_ne1024pg2
+Averaging Type: Average
+Max Snapshots Per File: 1
+Fields:
+  Physics PG2:
+    Field Names:
+    - snow_depth_land
+output_control:
+  Frequency: 1
+  frequency_units: ndays
+  MPI Ranks in Filename: false
