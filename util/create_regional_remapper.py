@@ -44,6 +44,7 @@
 import argparse, textwrap, csv
 import numpy as np
 import netCDF4
+import sys
 
 class Grid:
   lat       = np.array([])
@@ -89,10 +90,17 @@ class Site:
   length   = 0
   my_id    = -1
 
-  def __init__(self,name_,bnds):
+  def __init__(self,name_,bnds,bnds_type):
     self.name = name_
-    self.lat_bnds = bnds[2:]
-    self.lon_bnds = bnds[:2]
+    if bnds_type == "box":
+      self.lat_bnds = bnds[2:]
+      self.lon_bnds = bnds[:2]
+    elif bnds_type == "radius":
+      slon = bnds[0]
+      slat = bnds[1]
+      srad = bnds[2]
+      self.lat_bnds = slat + np.array([-1,1])*srad
+      self.lon_bnds = slon + np.array([-1,1])*srad
 
   def filter_gids(self):
     mask_lon = np.in1d(self.lon_gids,self.lat_gids)
@@ -109,7 +117,14 @@ class Sites:
       csv_in = csv.reader(csvfile, delimiter=',')
       for row in csv_in:
         bnds = np.array([float(x) for x in row[1:]])
-        l_site = Site(row[0],bnds)
+        if len(row[1:])==4:
+            # Then a full box has been defined
+            l_site = Site(row[0],bnds,"box")
+        elif len(row[1:])==3:
+            # Then a site location plus radius is defined
+            l_site = Site(row[0],bnds,"radius")
+        else:
+            raise
         self.m_sites.append(l_site)
 
 def construct_remap(casename,sites,grid):
@@ -191,7 +206,7 @@ def main():
   while(src_grid.chunk_idx < src_grid.size):
     chnk_start = src_grid.chunk_idx+1
     chnk_end   = np.amin([src_grid.chunk_idx+m_args.chunksize,src_grid.size])
-    chnk_perc  = np.round(chnk_end/src_grid.size,decimals=2)
+    chnk_perc  = np.round(chnk_end/src_grid.size*100,decimals=2)
     print("  Searching cols (%4.2f%%): %12d - %12d, out of %12d total" %(chnk_perc,chnk_start,chnk_end,src_grid.size))
     chunk_idx = src_grid.chunk_idx
     src_grid.grab_chunk(m_args.chunksize)
