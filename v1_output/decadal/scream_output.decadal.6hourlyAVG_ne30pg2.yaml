@@ -28,6 +28,7 @@ Fields:
     - precip_ice_surf_mass_flux
     - surf_mom_flux
     - surf_radiative_T
+    - T_2m
     # Lowest Level
     - horiz_winds_at_model_bot
     - SW_flux_dn_at_model_bot
