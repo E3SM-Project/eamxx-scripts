@@ -14,9 +14,11 @@ Fields:
     - horiz_winds
     - omega
     - qc
+    - nc
     - qr
     - qi
     - tke
+    - o3_volume_mix_ratio
     # 2D fields
     - VapWaterPath
     - LiqWaterPath
