@@ -64,6 +64,7 @@ Fields:
     - PotentialTemperature_at_700hPa
     - PotentialTemperature_at_1000hPa
     - omega_at_500hPa
+    - omega_at_850hPa
     - RelativeHumidity_at_700hPa
     # COSP
     - isccp_ctptau
