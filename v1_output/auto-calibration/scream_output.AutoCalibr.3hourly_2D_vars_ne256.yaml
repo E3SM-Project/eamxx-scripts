@@ -13,9 +13,6 @@ Fields:
     - T_mid_at_400hPa
     - z_mid_at_500hPa
     - z_mid_at_200hPa
-    # For optical depth analysis
-    - isccp_ctptau 
-    - isccp_mask
     #precip and cloud
     - precip_total_surf_mass_flux
     - LiqWaterPath
