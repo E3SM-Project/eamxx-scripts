@@ -50,10 +50,6 @@ Fields:
     - omega_at_850hPa
     - PotentialTemperature_at_700hPa
     - PotentialTemperature_at_1000hPa
-    # 3D vars for ACI diagnostics
-    - nc
-    - qc
-    - qi
     # 3D vars for nudging
     - U
     - V
