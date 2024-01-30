@@ -4,11 +4,11 @@ set -e
 branch="add-F20TR-SCREAMv1"
 code_root=${HOME}/codes/scream/branches/${branch}
 res=ne30pg2_EC30to60E2r2
-compset=F20TR
-machine="frontier-scream-gpu" #chrysalis
-compiler="crayclang-scream" #intel
-project="cli115"
-casename=${branch}.${res}.${compset}.${machine}_${compiler}.test_sstice1
+compset=F20TR-SCREAMv1
+machine=chrysalis #"frontier-scream-gpu" #chrysalis
+compiler=intel #"crayclang-scream" #intel
+project=e3sm #"cli115"
+casename=${branch}.${res}.${compset}.${machine}_${compiler}.debug_cessSST
 caseroot=${HOME}/codes/scream/cases/${casename}
 #readonly pecount="1536x6" # 192 nodes
 #readonly pecount="3072x6" # 384 nodes
@@ -16,10 +16,11 @@ caseroot=${HOME}/codes/scream/cases/${casename}
 #readonly pecount="8192x6" # 1024 nodes
 #readonly pecount="15056x6" # 1882 nodes
 if [ "${res}" == "ne1024pg2_ne1024pg2" ]; then
-    readonly pecount="16384x6" # 2048 nodes
+    pecount="16384x6" # 2048 nodes
 elif [ "${res}" == "ne30pg2_EC30to60E2r2" ]; then
-    readonly pecount="16x6"
+    pecount="16x6"
 fi
+pecount=5540x1 #128x1
 mkdir -p `dirname ${caseroot}`
 ${code_root}/cime/scripts/create_newcase \
     --case ${caseroot} \
@@ -30,6 +31,7 @@ ${code_root}/cime/scripts/create_newcase \
     --walltime 01:00:00
 
 cd ${caseroot}
+./case.setup
 
 # Extract input_data_dir for user edits to the namelist
 input_data_dir=`./xmlquery DIN_LOC_ROOT --value`
@@ -117,48 +119,51 @@ fi
 # Namelist options for ELM
 if [ "${res}" == "ne3pg2_EC30to60E2r2" ]; then
 cat << EOF > user_nl_elm
-fsurdat = "$DIN_LOC_ROOT/lnd/clm2/surfdata_map/surfdata_ne30pg2_simyr1950_c210729.nc"
-finidat = "$DIN_LOC_ROOT/lnd/clm2/initdata/20210802.ICRUELM-1950.ne30pg2_EC30to60E2r2.elm.r.0051-01-01-00000.nc"
+  fsurdat = "$DIN_LOC_ROOT/lnd/clm2/surfdata_map/surfdata_ne30pg2_simyr1950_c210729.nc"
+  finidat = "$DIN_LOC_ROOT/lnd/clm2/initdata/20210802.ICRUELM-1950.ne30pg2_EC30to60E2r2.elm.r.0051-01-01-00000.nc"
 EOF
 fi
 
 # Specify land initial condition and surface datasets
 if [ "${RESOLUTION}" == "ne1024pg2_ne1024pg2" ]; then
 cat << EOF >> user_nl_elm
- ! Set input data paths
- finidat = "${DIN_LOC_ROOT}/lnd/clm2/initdata/20231226.I2010CRUELM.ne1024pg2_ICOS10.elm.r.1994-10-01-00000.nc"
- flanduse_timeseries = "${DIN_LOC_ROOT}/lnd/clm2/surfdata_map/landuse.timeseries_ne1024pg2_historical_simyr1990-2014_c240109.nc"
- fsurdat = "${DIN_LOC_ROOT}/lnd/clm2/surfdata_map/landuse.timeseries_ne1024pg2_historical_simyr1990-2014_c240109.nc"
+  ! Set input data paths
+  finidat = "${DIN_LOC_ROOT}/lnd/clm2/initdata/20231226.I2010CRUELM.ne1024pg2_ICOS10.elm.r.1994-10-01-00000.nc"
+  flanduse_timeseries = "${DIN_LOC_ROOT}/lnd/clm2/surfdata_map/landuse.timeseries_ne1024pg2_historical_simyr1990-2014_c240109.nc"
+  fsurdat = "${DIN_LOC_ROOT}/lnd/clm2/surfdata_map/landuse.timeseries_ne1024pg2_historical_simyr1990-2014_c240109.nc"
 EOF
 elif [ "${RESOLUTION}" == "ne30pg2_EC30to60E2r2" ]; then
 cat << EOF >> user_nl_elm
- flanduse_timeseries = '${DIN_LOC_ROOT}/lnd/clm2/surfdata_map/landuse.timeseries_ne30np4.pg2_hist_simyr1850-2015_c210113.nc'
- fsurdat = '${DIN_LOC_ROOT}/lnd/clm2/surfdata_map/surfdata_ne30pg2_simyr1850_c230417_with_TOP.nc'
+  flanduse_timeseries = '${DIN_LOC_ROOT}/lnd/clm2/surfdata_map/landuse.timeseries_ne30np4.pg2_hist_simyr1850-2015_c210113.nc'
+  fsurdat = '${DIN_LOC_ROOT}/lnd/clm2/surfdata_map/surfdata_ne30pg2_simyr1850_c230417_with_TOP.nc'
 EOF
 fi
 
 # Additional settings for land
-# TODO: add output fields
+# TODO: revisit whether or not we need daily means?
 cat << EOF >> user_nl_elm
- ! Override consistency checks since we know our surface data is inconsistent
- check_finidat_fsurdat_consistency = .false.
- check_finidat_year_consistency = .false.
- check_finidat_pct_consistency = .false.
- check_dynpft_consistency = .false.
+  ! Override consistency checks since we know our surface data is inconsistent
+  check_finidat_fsurdat_consistency = .false.
+  check_finidat_year_consistency = .false.
+  check_finidat_pct_consistency = .false.
+  check_dynpft_consistency = .false.
 
- ! Make sure we do transient PFTs
- do_transient_pfts = .true.
+  ! Make sure we do transient PFTs
+  do_transient_pfts = .true.
  
- hist_dov2xy = .true.,.true.
- hist_fincl2 = 'H2OSNO','SOILWATER_10CM','TG'
- hist_mfilt = 1,120
- hist_nhtfrq = 0,-24
- hist_avgflag_pertape = 'A','A'
+  hist_dov2xy = .true.,.true.
+  hist_mfilt = 1,120
+  hist_nhtfrq = 0,-24
+  hist_avgflag_pertape = 'A','A'
+  hist_fincl1 = 'FIRE', 'GPP', 'QDRAI', 'QRUNOFF', 'ZWT', 'FSAT', 'H2OSOI', 'EFLX_LH_TOT',
+                'QVEGT', 'QVEGE', 'FSH', 'ALBD', 'ALBI', 'TBOT', 'QBOT', 'RAIN', 'SNOW',
+                'FSDS', 'FSDSND', 'FSDSNI', 'FSDSVD', 'FSDSVI', 'FLDS'
+  hist_fincl2 = 'H2OSNO','SOILWATER_10CM','TG'
 EOF
 
 # Coupler settings; new surface flux scheme
 cat << EOF >> user_nl_cpl
- ocn_surface_flux_scheme = 2
+  ocn_surface_flux_scheme = 2
 EOF
 
 # Point to new SST forcing
@@ -168,6 +173,12 @@ if [ 1 -eq 0 ]; then
 ./xmlchange --file env_run.xml --id SSTICE_YEAR_ALIGN --val 1994
 ./xmlchange --file env_run.xml --id SSTICE_YEAR_START --val 1994
 ./xmlchange --file env_run.xml --id SSTICE_YEAR_END --val 2015
+else
+./xmlchange --file env_run.xml --id SSTICE_DATA_FILENAME --val "\${DIN_LOC_ROOT}/atm/cam/sst/sst_ostia_ukmo-l4_ghrsst_3600x7200_20190731_20200901_c20230522.nc"
+./xmlchange --file env_run.xml --id SSTICE_GRID_FILENAME --val "\${DIN_LOC_ROOT}/ocn/docn7/domain.ocn.3600x7200.230522.nc"
+./xmlchange --file env_run.xml --id SSTICE_YEAR_ALIGN --val 2019
+./xmlchange --file env_run.xml --id SSTICE_YEAR_START --val 2019
+./xmlchange --file env_run.xml --id SSTICE_YEAR_END --val 2020
 fi
 
 # Setup, build, run
