@@ -170,6 +170,11 @@ cat << EOF >> user_nl_elm
   hist_fincl2 = 'H2OSNO','SOILWATER_10CM','TG'
 EOF
 
+# Set MOSART initial condition
+cat << EOF >> user_nl_mosart
+  finidat_rtm = "\${DIN_LOC_ROOT}/rof/mosart/initdata/20231226.I2010CRUELM.ne1024pg2_ICOS10.mosart.r.1994-10-01-00000.nc"
+EOF
+
 # Coupler settings; new surface flux scheme
 cat << EOF >> user_nl_cpl
   ocn_surface_flux_scheme = 2
