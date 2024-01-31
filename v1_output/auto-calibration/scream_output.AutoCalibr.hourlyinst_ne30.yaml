@@ -23,12 +23,12 @@ Fields:
     - LiqWaterPath
     - RainWaterPath
     - IceWaterPath
-    - ZonalVapFlux
-    - MeridionalVapFlux
     - qv_2m
     #For Further Analysis:
     - eff_radius_qc_at_cldtop
     - eff_radius_qi_at_cldtop
+    - ZonalVapFlux
+    - MeridionalVapFlux
 # Full 3D Profile
     - p3_T_mid_tend
     - shoc_T_mid_tend
