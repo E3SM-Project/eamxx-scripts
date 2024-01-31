@@ -164,7 +164,7 @@ cat << EOF >> user_nl_elm
   hist_mfilt = 1,120
   hist_nhtfrq = 0,-24
   hist_avgflag_pertape = 'A','A'
-  hist_fincl1 = 'FIRE', 'GPP', 'QDRAI', 'QRUNOFF', 'ZWT', 'FSAT', 'H2OSOI', 'EFLX_LH_TOT',
+  hist_fincl1 = 'FIRE', 'FPSN', 'QDRAI', 'QRUNOFF', 'ZWT', 'FSAT', 'H2OSOI', 'EFLX_LH_TOT',
                 'QVEGT', 'QVEGE', 'FSH', 'ALBD', 'ALBI', 'TBOT', 'QBOT', 'RAIN', 'SNOW',
                 'FSDS', 'FSDSND', 'FSDSNI', 'FSDSVD', 'FSDSVI', 'FLDS'
   hist_fincl2 = 'H2OSNO','SOILWATER_10CM','TG'
