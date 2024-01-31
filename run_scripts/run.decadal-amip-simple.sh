@@ -3,12 +3,12 @@ set -e
 
 branch="add-F20TR-SCREAMv1"
 code_root=${HOME}/codes/scream/branches/${branch}
-res=ne1024pg2_ne1024pg2 #ne30pg2_EC30to60E2r2
+res=ne256pg2_ne256pg2 #ne1024pg2_ne1024pg2 #ne30pg2_EC30to60E2r2
 compset=F20TR-SCREAMv1
 machine="frontier-scream-gpu" #chrysalis
 compiler="crayclang-scream" #intel
 project="cli115"
-casename=${branch}.${res}.${compset}.${machine}_${compiler}.debug2
+casename=${branch}.${res}.${compset}.${machine}_${compiler}.debugMOSART
 caseroot=${HOME}/codes/scream/cases/${casename}
 #readonly pecount="1536x6" # 192 nodes
 #readonly pecount="3072x6" # 384 nodes
@@ -17,6 +17,8 @@ caseroot=${HOME}/codes/scream/cases/${casename}
 #readonly pecount="15056x6" # 1882 nodes
 if [ "${res}" == "ne1024pg2_ne1024pg2" ]; then
     pecount="16384x6" # 2048 nodes
+elif [ "${res}" == "ne256pg2_ne256pg2" ]; then
+    pecount="768x6" # 96 nodes
 elif [ "${res}" == "ne30pg2_EC30to60E2r2" ]; then
     pecount="16x6"
     #pecount=5540x1 #128x1
@@ -51,7 +53,7 @@ if [ "${machine}" == "frontier-scream-gpu" ]; then
 fi
 
 # Change run length
-./xmlchange STOP_OPTION=ndays,STOP_N=1
+./xmlchange STOP_OPTION=nhours,STOP_N=1
 ./xmlchange RESUBMIT=0
 ./xmlchange RUN_STARTDATE="1994-10-01"
 
@@ -70,6 +72,8 @@ fi
 # Namelist options for EAMxx
 if [ "${res}" == "ne1024pg2_ne1024pg2" ]; then
     ./atmchange initial_conditions::Filename="\${DIN_LOC_ROOT}/atm/scream/init/screami_ne1024np4L128_era5-19941001-topoadjx6t_20240123.nc"
+elif [ "${res}" == "ne256pg2_ne256pg2" ]; then
+    ./atmchange initial_conditions::Filename="\${DIN_LOC_ROOT}/atm/scream/init/screami_ne256np4L128_era5-19941001-topoadjx6t_20240123.nc"
 fi
 
 # Turn on cosp and set frequency
@@ -128,6 +132,13 @@ cat << EOF >> user_nl_elm
   finidat = "\${DIN_LOC_ROOT}/lnd/clm2/initdata/20231226.I2010CRUELM.ne1024pg2_ICOS10.elm.r.1994-10-01-00000.nc"
   flanduse_timeseries = "\${DIN_LOC_ROOT}/lnd/clm2/surfdata_map/landuse.timeseries_ne1024pg2_historical_simyr1990-2014_c240109.nc"
   fsurdat = "\${DIN_LOC_ROOT}/lnd/clm2/surfdata_map/surfdata_ne1024pg2_simyr2010_c211021.nc"
+EOF
+elif [ "${res}" == "ne256pg2_ne256pg2" ]; then
+cat << EOF >> user_nl_elm
+  ! Set input data paths
+  finidat = "\${DIN_LOC_ROOT}/lnd/clm2/initdata/20240104.I2010CRUELM.ne256pg2.elm.r.1994-10-01-00000.nc"
+  flanduse_timeseries = "\${DIN_LOC_ROOT}/lnd/clm2/surfdata_map/landuse.timeseries_ne256pg2_hist_simyr1850-2015_c240131.nc"
+  fsurdat = "\${DIN_LOC_ROOT}/lnd/clm2/surfdata_map/surfdata_ne256pg2_simyr1850_c240131.nc"
 EOF
 elif [ "${res}" == "ne30pg2_EC30to60E2r2" ]; then
 cat << EOF >> user_nl_elm
