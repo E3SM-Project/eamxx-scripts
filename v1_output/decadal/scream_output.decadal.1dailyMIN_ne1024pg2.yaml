@@ -1,0 +1,13 @@
+%YAML 1.1
+---
+filename_prefix: output.scream.decadal.1dailyMIN_ne1024pg2
+Averaging Type: Min
+Max Snapshots Per File: 1
+Fields:
+  Physics PG2:
+    Field Names:
+    - T_2m
+output_control:
+  Frequency: 1
+  frequency_units: ndays
+  MPI Ranks in Filename: false

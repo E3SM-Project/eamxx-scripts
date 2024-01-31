@@ -1,0 +1,26 @@
+%YAML 1.1
+---
+filename_prefix: output.scream.decadal.6hourlyINST_ne1024pg2
+Averaging Type: Instant
+Max Snapshots Per File: 12 # one file per 3 days
+Fields:
+  Physics PG2:
+    Field Names:
+    # For cloud morphology
+    - SW_flux_up_at_model_top
+    # For storm analysis
+    - SeaLevelPressure
+    - wind_speed_10m
+    - z_mid_at_500hPa
+    - z_mid_at_200hPa
+    # For wind turbine study
+    - wind_speed_at_100m_above_surface
+    # For atmospheric rivers
+    - ZonalVapFlux
+    - MeridionalVapFlux
+output_control:
+  Frequency: 6
+  frequency_units: nhours
+  MPI Ranks in Filename: false
+Restart:
+  force_new_file: true

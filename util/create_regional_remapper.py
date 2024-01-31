@@ -189,7 +189,10 @@ def main():
   # Determine which gids in source grid match each site
   print("Finding global dof's that could fit site dimensions...")
   while(src_grid.chunk_idx < src_grid.size):
-    print("  Searching cols: %12d - %12d, out of %12d total" %(src_grid.chunk_idx+1,np.amin([src_grid.chunk_idx+m_args.chunksize,src_grid.size]),src_grid.size))
+    chnk_start = src_grid.chunk_idx+1
+    chnk_end   = np.amin([src_grid.chunk_idx+m_args.chunksize,src_grid.size])
+    chnk_perc  = np.round(chnk_end/src_grid.size,decimals=2)
+    print("  Searching cols (%4.2f%%): %12d - %12d, out of %12d total" %(chnk_perc,chnk_start,chnk_end,src_grid.size))
     chunk_idx = src_grid.chunk_idx
     src_grid.grab_chunk(m_args.chunksize)
     for idx, isite in enumerate(remap_sites.m_sites):

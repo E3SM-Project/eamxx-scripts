@@ -339,7 +339,7 @@ runtime_options() {
     ./atmchange n2ovmr=332.0e-9
     ./atmchange orbital_year=2019
     #write out DAG
-    ./atmchange atmosphere_dag_verbosity_level=5
+    #./atmchange atmosphere_dag_verbosity_level=5
 
 
     #specify land IC file
@@ -393,18 +393,18 @@ EOF
     fi
 
 
-    ./atmchange output_yaml_files=${SCREAMDOCS_ROOT}"/v1_output/scream_output.Cess.monthly_ne1024.yaml"
-    ./atmchange output_yaml_files+=${SCREAMDOCS_ROOT}"/v1_output/scream_output.Cess.50hourly_QcQiNcNi.yaml"
-    ./atmchange output_yaml_files+=${SCREAMDOCS_ROOT}"/v1_output/scream_output.Cess.50hourly_QrNrQmBm.yaml"
-    ./atmchange output_yaml_files+=${SCREAMDOCS_ROOT}"/v1_output/scream_output.Cess.6hourlyINST_ne30.yaml"
-    ./atmchange output_yaml_files+=${SCREAMDOCS_ROOT}"/v1_output/scream_output.Cess.6hourlyAVG_ne30.yaml"
-    ./atmchange output_yaml_files+=${SCREAMDOCS_ROOT}"/v1_output/scream_output.Cess.3hourlyAVG_ne120.yaml"
-    ./atmchange output_yaml_files+=${SCREAMDOCS_ROOT}"/v1_output/scream_output.Cess.3hourlyINST_ne120.yaml"
-    ./atmchange output_yaml_files+=${SCREAMDOCS_ROOT}"/v1_output/scream_output.Cess.3hourly_ne1024.yaml"
-    ./atmchange output_yaml_files+=${SCREAMDOCS_ROOT}"/v1_output/scream_output.Cess.hourly_2Dvars.yaml"
-    ./atmchange output_yaml_files+=${SCREAMDOCS_ROOT}"/v1_output/scream_output.Cess.ARM_sites_2D.yaml"
-    ./atmchange output_yaml_files+=${SCREAMDOCS_ROOT}"/v1_output/scream_output.Cess.ARM_sites_3D.yaml"
-    ./atmchange output_yaml_files+=${SCREAMDOCS_ROOT}"/v1_output/scream_output.Cess.monthly_cosp_ne1024.yaml"
+    ./atmchange output_yaml_files=${SCREAMDOCS_ROOT}"/v1_output/cess/scream_output.Cess.monthly_ne1024.yaml"
+    ./atmchange output_yaml_files+=${SCREAMDOCS_ROOT}"/v1_output/cess/scream_output.Cess.50hourly_QcQiNcNi.yaml"
+    ./atmchange output_yaml_files+=${SCREAMDOCS_ROOT}"/v1_output/cess/scream_output.Cess.50hourly_QrNrQmBm.yaml"
+    ./atmchange output_yaml_files+=${SCREAMDOCS_ROOT}"/v1_output/cess/scream_output.Cess.6hourlyINST_ne30.yaml"
+    ./atmchange output_yaml_files+=${SCREAMDOCS_ROOT}"/v1_output/cess/scream_output.Cess.6hourlyAVG_ne30.yaml"
+    ./atmchange output_yaml_files+=${SCREAMDOCS_ROOT}"/v1_output/cess/scream_output.Cess.3hourlyAVG_ne120.yaml"
+    ./atmchange output_yaml_files+=${SCREAMDOCS_ROOT}"/v1_output/cess/scream_output.Cess.3hourlyINST_ne120.yaml"
+    ./atmchange output_yaml_files+=${SCREAMDOCS_ROOT}"/v1_output/cess/scream_output.Cess.3hourly_ne1024.yaml"
+    ./atmchange output_yaml_files+=${SCREAMDOCS_ROOT}"/v1_output/cess/scream_output.Cess.hourly_2Dvars.yaml"
+    ./atmchange output_yaml_files+=${SCREAMDOCS_ROOT}"/v1_output/cess/scream_output.Cess.ARM_sites_2D.yaml"
+    ./atmchange output_yaml_files+=${SCREAMDOCS_ROOT}"/v1_output/cess/scream_output.Cess.ARM_sites_3D.yaml"
+    ./atmchange output_yaml_files+=${SCREAMDOCS_ROOT}"/v1_output/cess/scream_output.Cess.monthly_cosp_ne1024.yaml"
     
     
     ./xmlchange --file env_run.xml --id SSTICE_DATA_FILENAME --val "/lustre/orion/cli115/world-shared/e3sm/inputdata/atm/cam/sst/sst_ostia_ukmo-l4_ghrsst_3600x7200_20190731_20200901_c20230522.nc"
