@@ -53,7 +53,7 @@ Fields:
     - V
     - omega 
     - eddy_diff_mom
-    - sys_buoy_flux
+    - sgs_buoy_flux
     # Surface
     - surf_sens_flux
     - surf_evap
