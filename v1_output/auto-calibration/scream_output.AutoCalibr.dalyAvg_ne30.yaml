@@ -1,8 +1,8 @@
 %YAML 1.1
 ---
-filename_prefix: output.scream.AutoCalibr.hourlyAvg_ne30
+filename_prefix: output.scream.AutoCalibr.dailyAvg_ne30
 Averaging Type: Average
-Max Snapshots Per File: 24
+Max Snapshots Per File: 1
 vertical_remap_file: ${DIN_LOC_ROOT}/atm/scream/maps/vrt_prs_era5.nc 
 horiz_remap_file: ${DIN_LOC_ROOT}/atm/scream/maps/map_ne1024pg2_to_ne30pg2_mono.20230901.nc 
 Fields:
@@ -66,7 +66,7 @@ Fields:
     # Lowest Level
     - horiz_winds_at_model_bot
 output_control:
-  Frequency: 1
+  Frequency: 24
   frequency_units: nhours
   MPI Ranks in Filename: false
 Restart:
