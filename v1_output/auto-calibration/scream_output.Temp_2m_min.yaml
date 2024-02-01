@@ -1,6 +1,6 @@
 %YAML 1.1
 ---
-filename_prefix: output.scream.Temp_2m
+filename_prefix: output.scream.Temp_2m_min
 Averaging Type: Min
 Max Snapshots Per File: 1
 Fields:
