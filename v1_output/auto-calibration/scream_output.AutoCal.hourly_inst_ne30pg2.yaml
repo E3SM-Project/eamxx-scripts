@@ -1,7 +1,7 @@
 %YAML 1.1
 ---
-filename_prefix: output.scream.AutoCalibr.hourlyAvg_ne30
-Averaging Type: Average
+filename_prefix: output.scream.AutoCal.hourly_inst_ne30pg2
+Averaging Type: Instant
 Max Snapshots Per File: 24
 vertical_remap_file: ${DIN_LOC_ROOT}/atm/scream/maps/vrt_prs_era5.nc 
 horiz_remap_file: ${DIN_LOC_ROOT}/atm/scream/maps/map_ne1024pg2_to_ne30pg2_mono.20230901.nc 
@@ -29,7 +29,7 @@ Fields:
     - ZonalVapFlux
     - MeridionalVapFlux
     - qv_2m
-# Full 3D Profile
+    # Full 3D Profile
     - p3_T_mid_tend
     - shoc_T_mid_tend
     - rrtmgp_T_mid_tend

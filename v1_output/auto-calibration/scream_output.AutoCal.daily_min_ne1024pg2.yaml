@@ -1,13 +1,12 @@
 %YAML 1.1
 ---
-filename_prefix: output.scream.Temp_2m
-Averaging Type: Max
+filename_prefix: output.scream.AutoCal.daily_min_ne1024pg2
+Averaging Type: Min
 Max Snapshots Per File: 1
 Fields:
   Physics PG2:
     Field Names:
     - T_2m
-    - precip_total_surf_mass_flux
 output_control:
   Frequency: 1
   frequency_units: ndays

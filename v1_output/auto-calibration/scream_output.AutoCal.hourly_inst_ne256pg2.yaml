@@ -1,6 +1,6 @@
 %YAML 1.1
 ---
-filename_prefix: output.scream.Cess.hourlyINST_ne256
+filename_prefix: output.scream.AutoCal.hourly_inst_ne256pg2
 Averaging Type: Instant
 horiz_remap_file: ${DIN_LOC_ROOT}/atm/scream/maps/map_ne1024pg2_to_ne256pg.nc 
 Max Snapshots Per File: 24 #one file per day
