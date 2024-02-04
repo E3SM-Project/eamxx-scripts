@@ -13,12 +13,13 @@ Fields:
     - T_mid_at_400hPa
     - z_mid_at_500hPa
     - z_mid_at_200hPa
-    #precip and cloud
+    # precip and cloud
     - precip_total_surf_mass_flux
+    - VapWaterPath
     - LiqWaterPath
     - IceWaterPath
     - RainWaterPath
-    #radiation
+    # radiation
     - LW_flux_up_at_model_top
     - SW_flux_dn_at_model_top
     - SW_flux_up_at_model_bot

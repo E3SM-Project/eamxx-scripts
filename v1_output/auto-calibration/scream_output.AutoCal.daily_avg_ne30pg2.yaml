@@ -8,7 +8,7 @@ horiz_remap_file: ${DIN_LOC_ROOT}/atm/scream/maps/map_ne1024pg2_to_ne30pg2_mono.
 Fields:
   Physics PG2:
     Field Names:
-    #For Cost Function:
+    # For Cost Function:
     - precip_total_surf_mass_flux
     - SW_flux_up_at_model_top
     - SW_flux_dn_at_model_top
@@ -20,10 +20,11 @@ Fields:
     - LongwaveCloudForcing
     - ShortwaveCloudForcing
     - T_2m
+    - VapWaterPath
     - LiqWaterPath
     - RainWaterPath
     - IceWaterPath
-    #For Further Analysis:
+    # For Further Analysis:
     - eff_radius_qc_at_cldtop
     - eff_radius_qi_at_cldtop
     - ZonalVapFlux
