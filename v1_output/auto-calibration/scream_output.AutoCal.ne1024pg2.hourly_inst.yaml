@@ -2,13 +2,11 @@
 ---
 filename_prefix: output.scream.AutoCal.hourly_inst_ne1024pg2
 Averaging Type: Instant
-Max Snapshots Per File: 24 #one file per 3 days
+Max Snapshots Per File: 24 # one file per day
 Fields:
   Physics PG2:
     Field Names:
-    # For optical depth analysis
-    - isccp_ctptau 
-    - isccp_mask
+    - precip_total_surf_mass_flux
 output_control:
   Frequency: 1
   frequency_units: nhours

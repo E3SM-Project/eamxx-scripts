@@ -2,9 +2,9 @@
 ---
 filename_prefix: output.scream.AutoCal.hourly_inst_ne30pg2
 Averaging Type: Instant
-Max Snapshots Per File: 24
+Max Snapshots Per File: 24 # one file per day
 vertical_remap_file: ${DIN_LOC_ROOT}/atm/scream/maps/vrt_prs_era5.nc 
-horiz_remap_file: ${DIN_LOC_ROOT}/atm/scream/maps/map_ne256pg2_to_ne30pg2_nco.20230629.nc 
+horiz_remap_file: ${DIN_LOC_ROOT}/atm/scream/maps/map_ne1024pg2_to_ne30pg2_mono_20240206.nc
 Fields:
   Physics PG2:
     Field Names:
@@ -30,18 +30,9 @@ Fields:
     - ZonalVapFlux
     - MeridionalVapFlux
     - qv_2m
-    # Full 3D Profile
-    - p3_T_mid_tend
-    - shoc_T_mid_tend
-    - rrtmgp_T_mid_tend
-    - homme_T_mid_tend
-    - p3_qv_tend
-    - shoc_qv_tend
-    - homme_qv_tend
-    - SW_flux_dn
-    - SW_flux_up
-    - LW_flux_dn
-    - LW_flux_up
+    # 3D state variables
+    - T_mid
+    - qv
     - qc
     - qi
     - qr
@@ -52,20 +43,33 @@ Fields:
     - bm
     - U
     - V
-    - omega 
+    - omega
+    # 3D Radiation Tendencies
+    - SW_flux_dn
+    - SW_flux_up
+    - LW_flux_dn
+    - LW_flux_up
+    # 3D Physics Tendencies
+    - p3_T_mid_tend
+    - shoc_T_mid_tend
+    - rrtmgp_T_mid_tend
+    - homme_T_mid_tend
+    - p3_qv_tend
+    - shoc_qv_tend
+    - homme_qv_tend
     - eddy_diff_mom
     - sgs_buoy_flux
     # Surface
+    - ps
     - surf_sens_flux
     - surf_evap
     - surface_upward_latent_heat_flux
-    - ps
     - precip_liq_surf_mass_flux
     - precip_ice_surf_mass_flux
     - surf_mom_flux
     - surf_radiative_T
     # Lowest Level
-    - horiz_winds_at_model_bot
+    - horiz_winds_at_model_bot    
 output_control:
   Frequency: 1
   frequency_units: nhours
