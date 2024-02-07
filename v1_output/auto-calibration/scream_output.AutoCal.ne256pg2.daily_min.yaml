@@ -1,6 +1,6 @@
 %YAML 1.1
 ---
-filename_prefix: output.scream.AutoCal.daily_min_ne1024pg2
+filename_prefix: output.scream.AutoCal.daily_min_ne256pg2
 Averaging Type: Min
 Max Snapshots Per File: 1 # one file per day
 Fields:

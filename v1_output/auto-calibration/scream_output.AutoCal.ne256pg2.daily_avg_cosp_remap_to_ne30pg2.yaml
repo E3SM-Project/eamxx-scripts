@@ -1,0 +1,18 @@
+%YAML 1.1
+---
+filename_prefix: output.scream.AutoCal.daily_avg_cosp_ne30pg2
+Averaging Type: Average
+Max Snapshots Per File: 1 # one file per day
+horiz_remap_file: ${DIN_LOC_ROOT}/atm/scream/maps/map_ne256pg2_to_ne30pg2_mono_20240206.nc
+Fields:
+  Physics PG2:
+    Field Names:
+    - isccp_ctptau 
+    - isccp_mask
+output_control:
+  Frequency: 24
+  frequency_units: nhours
+  MPI Ranks in Filename: false
+Restart:
+  force_new_file: true
+  Perform Restart: false

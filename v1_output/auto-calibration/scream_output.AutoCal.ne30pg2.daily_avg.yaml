@@ -69,9 +69,6 @@ Fields:
     - surf_radiative_T
     # Lowest Level
     - horiz_winds_at_model_bot
-    # COSP output
-    - isccp_ctptau 
-    - isccp_mask
 output_control:
   Frequency: 24
   frequency_units: nhours

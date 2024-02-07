@@ -1,15 +1,16 @@
 %YAML 1.1
 ---
-filename_prefix: output.scream.AutoCal.daily_min_ne30pg2
-Averaging Type: Min
+filename_prefix: output.scream.AutoCal.daily_avg_cosp_ne30pg2
+Averaging Type: Average
 Max Snapshots Per File: 1 # one file per day
 Fields:
   Physics PG2:
     Field Names:
-    - T_2m
+    - isccp_ctptau 
+    - isccp_mask
 output_control:
-  Frequency: 1
-  frequency_units: ndays
+  Frequency: 24
+  frequency_units: nhours
   MPI Ranks in Filename: false
 Restart:
   force_new_file: true
