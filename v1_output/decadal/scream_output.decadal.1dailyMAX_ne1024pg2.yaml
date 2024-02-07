@@ -7,7 +7,7 @@ Fields:
   Physics PG2:
     Field Names:
     - T_2m
-    - precip_tot_surf_mass_flux
+    - precip_total_surf_mass_flux
 output_control:
   Frequency: 1
   frequency_units: ndays
