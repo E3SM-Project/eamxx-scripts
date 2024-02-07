@@ -2,7 +2,7 @@
 ---
 filename_prefix: output.scream.AutoCal.3hourly_avg_ne120pg2
 Averaging Type: Average
-horiz_remap_file: ${DIN_LOC_ROOT}/atm/scream/maps/map_ne256pg2_to_ne120pg2_trmono.20240206.nc
+horiz_remap_file: ${DIN_LOC_ROOT}/atm/scream/maps/map_ne256pg2_to_ne120pg2_trfv2fv_flx.20240206.nc
 Max Snapshots Per File: 8 # one file per day
 Fields:
   Physics PG2:
