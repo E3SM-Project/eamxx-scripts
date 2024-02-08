@@ -18,6 +18,14 @@
 #        site 1, 10.0, 20.0, -10.0, 10.0
 #        site 2, -20.0, -10.0, -10.0, 10.0
 #        ...
+#      If instead of a box the user desires a circular boundary around
+#      a center point the CSV file can have the following format,
+#              site_name, lon, lat, radius
+#      e.g.
+#        site 1, 35.0, 20.0, 5.0
+#      Finally, it is okay to have a CSV file with a mix of these two
+#      formats.  Any row with 3 real values will be interpreted as a
+#      circular domain.  4 real values will result in a box.
 #   3. case_name:
 #      A string that will be used to for the file names of the output
 #
