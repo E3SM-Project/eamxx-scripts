@@ -30,7 +30,8 @@ Fields:
     - surf_radiative_T
     - T_2m
     # Lowest Level
-    - horiz_winds_at_model_bot
+    - U_at_model_bot
+    - V_at_model_bot
     - SW_flux_dn_at_model_bot
     - SW_flux_up_at_model_bot
     - LW_flux_dn_at_model_bot

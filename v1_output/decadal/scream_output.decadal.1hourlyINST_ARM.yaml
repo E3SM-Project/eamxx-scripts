@@ -28,7 +28,8 @@ Fields:
     - bm
     - p_mid
     - z_mid
-    - horiz_winds
+    - U
+    - V
     - landfrac
 output_control:
   Frequency: 1
