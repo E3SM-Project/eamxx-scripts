@@ -11,7 +11,8 @@ Fields:
     - T_mid
     - qv
     - RelativeHumidity
-    - horiz_winds
+    - U
+    - V
     - omega
     - qc
     - nc
