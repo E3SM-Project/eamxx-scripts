@@ -9,13 +9,19 @@ Fields:
     Field Names:
     # 2D vars for storm analysis
     - SeaLevelPressure
-    - horiz_winds_at_model_bot
+    - U_at_model_bot
+    - V_at_model_bot
     - wind_speed_10m
-    - horiz_winds_at_925hPa
-    - horiz_winds_at_850hPa
-    - horiz_winds_at_700hPa
-    - horiz_winds_at_500hPa
-    - horiz_winds_at_300hPa
+    - U_at_925hPa
+    - V_at_925hPa
+    - U_at_850hPa
+    - V_at_850hPa
+    - U_at_700hPa
+    - V_at_700hPa
+    - U_at_500hPa
+    - V_at_500hPa
+    - U_at_300hPa
+    - V_at_300hPa
     - ZonalVapFlux
     - MeridionalVapFlux
     - T_2m
