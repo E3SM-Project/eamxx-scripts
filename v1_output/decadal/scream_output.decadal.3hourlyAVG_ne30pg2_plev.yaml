@@ -3,7 +3,6 @@
 filename_prefix: output.scream.decadal.3hourlyAVG_ne30pg2_plev
 Averaging Type: Average
 Max Snapshots Per File: 24 # one per 3 days
-vertical_remap_file: ${DIN_LOC_ROOT}/atm/scream/maps/vrt_remapping_p_levs_20230926.nc
 horiz_remap_file: ${DIN_LOC_ROOT}/atm/scream/maps/map_ne1024pg2_to_ne30pg2_mono.20230901.nc
 Fields:
   Physics PG2:
