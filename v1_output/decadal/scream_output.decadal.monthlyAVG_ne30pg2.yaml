@@ -28,7 +28,7 @@ Fields:
     - p_mid
     - tke
     # 2D fields
-    - W_flux_up_at_model_top
+    - SW_flux_up_at_model_top
     - SW_flux_dn_at_model_top
     - LW_flux_up_at_model_top
     - SW_clrsky_flux_up_at_model_top
