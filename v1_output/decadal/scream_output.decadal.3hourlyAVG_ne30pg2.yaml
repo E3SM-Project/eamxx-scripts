@@ -1,6 +1,6 @@
 %YAML 1.1
 ---
-filename_prefix: output.scream.decadal.3hourlyAVG_ne30pg2_plev
+filename_prefix: output.scream.decadal.3hourlyAVG_ne30pg2
 Averaging Type: Average
 Max Snapshots Per File: 24 # one per 3 days
 horiz_remap_file: ${DIN_LOC_ROOT}/atm/scream/maps/map_ne1024pg2_to_ne30pg2_mono.20230901.nc
