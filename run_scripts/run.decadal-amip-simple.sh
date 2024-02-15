@@ -11,7 +11,7 @@ machine="frontier-scream-gpu" #chrysalis
 compiler="crayclang-scream" #intel
 project="cli115"
 walltime="01:00:00"
-casename=${branch}.${res}.${compset}.${machine}_${compiler}.newO3
+casename=${branch}.${res}.${compset}.${machine}_${compiler}.newO3debug2
 caseroot=${HOME}/codes/scream/cases/${casename}
 #readonly pecount="1536x6" # 192 nodes
 #readonly pecount="3072x6" # 384 nodes
@@ -19,8 +19,8 @@ caseroot=${HOME}/codes/scream/cases/${casename}
 #readonly pecount="8192x6" # 1024 nodes
 #readonly pecount="15056x6" # 1882 nodes
 if [ "${res}" == "ne1024pg2_ne1024pg2" ]; then
-    pecount="2560x6" # 320 nodes 
-    #pecount="16384x6" # 2048 nodes
+    #pecount="2560x6" # 320 nodes 
+    pecount="16384x6" # 2048 nodes
 elif [ "${res}" == "ne256pg2_ne256pg2" ]; then
     pecount="768x6" # 96 nodes
 elif [ "${res}" == "ne30pg2_EC30to60E2r2" ]; then
