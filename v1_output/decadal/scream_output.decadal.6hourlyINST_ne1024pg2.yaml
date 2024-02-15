@@ -18,6 +18,9 @@ Fields:
     # For atmospheric rivers
     - ZonalVapFlux
     - MeridionalVapFlux
+    # Others
+    - omega_at_500hPa
+    - omega_at_850hPa
 output_control:
   Frequency: 6
   frequency_units: nhours
