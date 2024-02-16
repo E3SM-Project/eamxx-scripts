@@ -4,14 +4,15 @@ umask 022
 
 branch="add-F20TR-SCREAMv1"
 code_root=${HOME}/codes/scream/branches/${branch}
-screamdocs_root=${HOME}/codes/scream-docs/branches/add-decadal-runscript
+screamdocs_root=${HOME}/codes/scream-docs/branches/add-decadal-outputs
 res=ne1024pg2_ne1024pg2 #ne1024pg2_ne1024pg2 #ne30pg2_EC30to60E2r2
 compset=F20TR-SCREAMv1
 machine="frontier-scream-gpu" #chrysalis
 compiler="crayclang-scream" #intel
 project="cli115"
-walltime="01:00:00"
-casename=${branch}.${res}.${compset}.${machine}_${compiler}.newO3debug2
+walltime="12:00:00"
+datestring="20240215"
+casename=decadal-amip.${res}.${compset}.${datestring}
 caseroot=${HOME}/codes/scream/cases/${casename}
 #readonly pecount="1536x6" # 192 nodes
 #readonly pecount="3072x6" # 384 nodes
@@ -57,8 +58,8 @@ if [ "${machine}" == "frontier-scream-gpu" ]; then
 fi
 
 # Change run length
-./xmlchange STOP_OPTION=ndays,STOP_N=1
-./xmlchange REST_OPTION=never  # BRHDEBUG!
+./xmlchange STOP_OPTION=ndays,STOP_N=30
+./xmlchange REST_OPTION=ndays,REST_N=10
 ./xmlchange RESUBMIT=0
 ./xmlchange RUN_STARTDATE="1994-10-01"
 
@@ -195,5 +196,5 @@ EOF
 # Setup, build, run
 ./case.setup
 ./case.build
-./case.submit -a="--job-name=${casename} -t ${walltime} --mail-type=END --mail-user=bhillma@sandia.gov"
+./case.submit -a="--job-name=${casename} -t ${walltime} --mail-type=ALL --mail-user=bhillma@sandia.gov"
 echo "${caseroot}"
