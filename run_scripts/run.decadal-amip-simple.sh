@@ -10,9 +10,9 @@ compset=F20TR-SCREAMv1
 machine="frontier-scream-gpu" #chrysalis
 compiler="crayclang-scream" #intel
 project="cli115"
-walltime="12:00:00"
-datestring="20240215"
-casename=decadal-amip.${res}.${compset}.${datestring}
+walltime="02:00:00"
+datestring="20240216"
+casename=decadal-amip.${res}.${compset}.${datestring}-testDaily
 caseroot=${HOME}/codes/scream/cases/${casename}
 #readonly pecount="1536x6" # 192 nodes
 #readonly pecount="3072x6" # 384 nodes
@@ -58,7 +58,7 @@ if [ "${machine}" == "frontier-scream-gpu" ]; then
 fi
 
 # Change run length
-./xmlchange STOP_OPTION=ndays,STOP_N=30
+./xmlchange STOP_OPTION=ndays,STOP_N=5
 ./xmlchange REST_OPTION=ndays,REST_N=10
 ./xmlchange RESUBMIT=0
 ./xmlchange RUN_STARTDATE="1994-10-01"
@@ -192,6 +192,9 @@ EOF
 ./xmlchange --file env_run.xml --id SSTICE_YEAR_ALIGN --val 1994
 ./xmlchange --file env_run.xml --id SSTICE_YEAR_START --val 1994
 ./xmlchange --file env_run.xml --id SSTICE_YEAR_END --val 2015
+
+# Link to rundir
+ln -s `./xmlquery --value RUNDIR` run
 
 # Setup, build, run
 ./case.setup
