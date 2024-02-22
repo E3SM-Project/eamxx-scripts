@@ -235,7 +235,7 @@ runtime_options() {
     ./atmchange physics::atm_procs_list="mac_aero_mic,rrtmgp,cosp,nudging"
     ./atmchange physics::cosp::cosp_frequency_units="hours"
     ./atmchange physics::cosp::cosp_frequency=3
-    ./atmchange initial_conditions::Filename="/lustre/orion/cli115/proj-shared/hannah6/HICCUP/data/HICCUP-IC.atm_era5.2016-08-01.ne256np4.L128.nc"
+    ./atmchange initial_conditions::Filename="/lustre/orion/cli115/proj-shared/hannah6/HICCUP/data/HICCUP-IC.atm_era5.2016-08-01.ne256np4.L128.converted.nc"
 
     ./atmchange physics::mac_aero_mic::shoc::compute_tendencies=T_mid,qv,qc
     ./atmchange physics::mac_aero_mic::p3::compute_tendencies=T_mid,qv,qc,qr,qi
@@ -256,18 +256,17 @@ EOF
 
     ./atmchange lambda_high=0.08
 
-    ./atmchange nudging::nudging_filename="/lustre/orion/cli115/proj-shared/hannah6/scream_scratch/nudge_data/HICCUP.nudging_uv_era5.2020-01-20.ne128pg2.L128.nc"
-    ./atmchange nudging::nudging_filename+="/lustre/orion/cli115/proj-shared/hannah6/scream_scratch/nudge_data/HICCUP.nudging_uv_era5.2020-01-21.ne128pg2.L128.nc"
-    ./atmchange nudging::nudging_filename+="/lustre/orion/cli115/proj-shared/hannah6/scream_scratch/nudge_data/HICCUP.nudging_uv_era5.2020-01-22.ne128pg2.L128.nc"
-    ./atmchange nudging::nudging_filename+="/lustre/orion/cli115/proj-shared/hannah6/scream_scratch/nudge_data/HICCUP.nudging_uv_era5.2020-01-23.ne128pg2.L128.nc"
-    ./atmchange nudging::nudging_filename+="/lustre/orion/cli115/proj-shared/hannah6/scream_scratch/nudge_data/HICCUP.nudging_uv_era5.2020-01-24.ne128pg2.L128.nc"
-    ./atmchange nudging::nudging_filename+="/lustre/orion/cli115/proj-shared/hannah6/scream_scratch/nudge_data/HICCUP.nudging_uv_era5.2020-01-25.ne128pg2.L128.nc"
-    ./atmchange nudging::nudging_filename+="/lustre/orion/cli115/proj-shared/hannah6/scream_scratch/nudge_data/HICCUP.nudging_uv_era5.2020-01-26.ne128pg2.L128.nc"
+    ./atmchange nudging::nudging_filename="/lustre/orion/cli115/proj-shared/hannah6/scream_scratch/nudge_data/HICCUP.nudging_uv_era5.2016-08-01.ne128pg2.L128.nc"
+    ./atmchange nudging::nudging_filename+="/lustre/orion/cli115/proj-shared/hannah6/scream_scratch/nudge_data/HICCUP.nudging_uv_era5.2016-08-02.ne128pg2.L128.nc"
+    ./atmchange nudging::nudging_filename+="/lustre/orion/cli115/proj-shared/hannah6/scream_scratch/nudge_data/HICCUP.nudging_uv_era5.2016-08-03.ne128pg2.L128.nc"
+    ./atmchange nudging::nudging_filename+="/lustre/orion/cli115/proj-shared/hannah6/scream_scratch/nudge_data/HICCUP.nudging_uv_era5.2016-08-04.ne128pg2.L128.nc"
+    ./atmchange nudging::nudging_filename+="/lustre/orion/cli115/proj-shared/hannah6/scream_scratch/nudge_data/HICCUP.nudging_uv_era5.2016-08-05.ne128pg2.L128.nc"
+    # ./atmchange nudging::nudging_filename+="/lustre/orion/cli115/proj-shared/hannah6/scream_scratch/nudge_data/HICCUP.nudging_uv_era5.2016-08-06.ne128pg2.L128.nc"
 
     ./atmchange nudging::source_pressure_type=TIME_DEPENDENT_3D_PROFILE
     ./atmchange nudging::nudging_fields=U,V
     ./atmchange nudging::nudging_timescale=21600 #  6-hr
-    ./atmchange nudging::nudging_refine_remap_mapfile='/lustre/orion/cli115/proj-shared/hannah6/HICCUP/files_map/map_ne128pg2_to_ne1024pg2_trbilin.20240201.nc'
+    ./atmchange nudging::nudging_refine_remap_mapfile='/lustre/orion/cli115/proj-shared/hannah6/HICCUP/files_map/map_ne128pg2_to_ne256pg2_trbilin.20240201.nc'
 
     # Segment length
     ./xmlchange STOP_OPTION=${STOP_OPTION,,},STOP_N=${STOP_N}
