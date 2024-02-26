@@ -28,7 +28,7 @@ readonly PROJECT="cli115"
 githash_eamxx=`git --git-dir ${CODE_ROOT}/.git rev-parse HEAD`
 githash_screamdocs=`git --git-dir /lustre/orion/cli115/proj-shared/noel/wacmy/scream-docs/.git rev-parse HEAD`
 
-readonly CASE_NAME=SCREAM.2024-autocal-00.ne256pg2
+readonly CASE_NAME="SCREAM.2024-autocal-00.ne256pg2"
 readonly CASE_ROOT="/lustre/orion/cli115/proj-shared/noel/e3sm_scratch/${CHECKOUT}/${EXPERIMENT}/${SHARK}/${CASE_NAME}"
 
 readonly CASE_GROUP=""
@@ -245,14 +245,13 @@ runtime_options() {
     #specify land IC file
 cat << EOF >> user_nl_elm
  finidat='/lustre/orion/cli115/world-shared/e3sm/inputdata/lnd/clm2/initdata/20230522.I2010CRUELM.ne256pg2.elm.r.2013-08-01-00000.nc'
+ check_finidat_year_consistency = .false.
  hist_empty_htapes=.true.
 EOF
 
 cat << EOF >> user_nl_cpl
  ocn_surface_flux_scheme = 2
 EOF
-
-    # things that are different in Walters nudging case:
 
     ./atmchange lambda_high=0.08
 
@@ -326,6 +325,7 @@ EOF
     ./atmchange output_yaml_files+="./scream_output.AutoCal.ne256pg2.hourly_inst.yaml"
     ./atmchange output_yaml_files+="./scream_output.AutoCal.ne256pg2.hourly_inst_remap_to_ne30pg2.yaml"
     ./atmchange output_yaml_files+="./scream_output.AutoCal.ne256pg2.daily_avg_cosp_remap_to_ne30pg2.yaml"
+
 
     ./xmlchange --file env_run.xml --id SSTICE_DATA_FILENAME --val "/lustre/orion/cli115/world-shared/e3sm/inputdata/atm/cam/sst/sst_ifs_2560x5136_20160725_20160916_c201013.nc"
     ./xmlchange --file env_run.xml --id SSTICE_GRID_FILENAME --val "/lustre/orion/cli115/world-shared/e3sm/inputdata/ocn/docn7/domain.ocn.2560x5136.201027.nc"

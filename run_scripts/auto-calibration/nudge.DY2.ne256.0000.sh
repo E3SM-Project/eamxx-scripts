@@ -28,7 +28,7 @@ readonly PROJECT="cli115"
 githash_eamxx=`git --git-dir ${CODE_ROOT}/.git rev-parse HEAD`
 githash_screamdocs=`git --git-dir /lustre/orion/cli115/proj-shared/noel/wacmy/scream-docs/.git rev-parse HEAD`
 
-readonly CASE_NAME=SCREAM.2024-autocal-00.ne256pg2
+readonly CASE_NAME="SCREAM.2024-autocal-00.ne256pg2"
 readonly CASE_ROOT="/lustre/orion/cli115/proj-shared/noel/e3sm_scratch/${CHECKOUT}/${EXPERIMENT}/${SHARK}/${CASE_NAME}"
 
 readonly CASE_GROUP=""
@@ -90,22 +90,22 @@ user_nl() {
 create_newcase() {
 
     if [ "${do_create_newcase,,}" != "true" ]; then
-  echo $'\n----- Skipping create_newcase -----\n'
-  return
+	echo $'\n----- Skipping create_newcase -----\n'
+	return
     fi
 
     echo $'\n----- Starting create_newcase -----\n'
 
     args=" --case ${CASE_NAME} \
-  --output-root ${CASE_ROOT} \
-  --script-root ${CASE_SCRIPTS_DIR} \
-  --handle-preexisting-dirs u \
-  --compset ${COMPSET} \
-  --res ${RESOLUTION} \
-  --machine ${MACHINE} \
-  --compiler ${COMPILER} \
-  --walltime ${WALLTIME} \
-  --pecount ${PELAYOUT}"
+	--output-root ${CASE_ROOT} \
+	--script-root ${CASE_SCRIPTS_DIR} \
+	--handle-preexisting-dirs u \
+	--compset ${COMPSET} \
+	--res ${RESOLUTION} \
+	--machine ${MACHINE} \
+	--compiler ${COMPILER} \
+	--walltime ${WALLTIME} \
+	--pecount ${PELAYOUT}"
 
     if [ ! -z "${PROJECT}" ]; then
       args="${args} --project ${PROJECT}"
@@ -132,8 +132,8 @@ create_newcase() {
 case_setup() {
 
     if [ "${do_case_setup,,}" != "true" ]; then
-  echo $'\n----- Skipping case_setup -----\n'
-  return
+	echo $'\n----- Skipping case_setup -----\n'
+	return
     fi
 
     echo $'\n----- Starting case_setup -----\n'
@@ -173,44 +173,44 @@ case_build() {
     # do_case_build = false
     if [ "${do_case_build,,}" != "true" ]; then
 
-  echo $'\n----- case_build -----\n'
+	echo $'\n----- case_build -----\n'
 
-  if [ "${OLD_EXECUTABLE}" == "" ]; then
-      # Uses previously built executable, make sure it exists
-      if [ -x ${CASE_BUILD_DIR}/e3sm.exe ]; then
-    echo 'Skipping build because $do_case_build = '${do_case_build}
-      else
-    echo 'ERROR: $do_case_build = '${do_case_build}' but no executable exists for this case.'
-    exit 297
-      fi
-  else
-      # If absolute pathname exists and is executable, reuse pre-exiting executable
-      if [ -x ${OLD_EXECUTABLE} ]; then
-    echo 'Using $OLD_EXECUTABLE = '${OLD_EXECUTABLE}
-    cp -fp ${OLD_EXECUTABLE} ${CASE_BUILD_DIR}/
-      else
-    echo 'ERROR: $OLD_EXECUTABLE = '$OLD_EXECUTABLE' does not exist or is not an executable file.'
-    exit 297
-      fi
-  fi
-  echo 'WARNING: Setting BUILD_COMPLETE = TRUE.  This is a little risky, but trusting the user.'
-  ./xmlchange BUILD_COMPLETE=TRUE
+	if [ "${OLD_EXECUTABLE}" == "" ]; then
+	    # Uses previously built executable, make sure it exists
+	    if [ -x ${CASE_BUILD_DIR}/e3sm.exe ]; then
+		echo 'Skipping build because $do_case_build = '${do_case_build}
+	    else
+		echo 'ERROR: $do_case_build = '${do_case_build}' but no executable exists for this case.'
+		exit 297
+	    fi
+	else
+	    # If absolute pathname exists and is executable, reuse pre-exiting executable
+	    if [ -x ${OLD_EXECUTABLE} ]; then
+		echo 'Using $OLD_EXECUTABLE = '${OLD_EXECUTABLE}
+		cp -fp ${OLD_EXECUTABLE} ${CASE_BUILD_DIR}/
+	    else
+		echo 'ERROR: $OLD_EXECUTABLE = '$OLD_EXECUTABLE' does not exist or is not an executable file.'
+		exit 297
+	    fi
+	fi
+	echo 'WARNING: Setting BUILD_COMPLETE = TRUE.  This is a little risky, but trusting the user.'
+	./xmlchange BUILD_COMPLETE=TRUE
 
     # do_case_build = true
     else
 
-  echo $'\n----- Starting case_build -----\n'
+	echo $'\n----- Starting case_build -----\n'
 
-  if [ "${DEBUG_COMPILE}" == "TRUE" ]; then
-      ./xmlchange DEBUG=${DEBUG_COMPILE}
-  fi
+	if [ "${DEBUG_COMPILE}" == "TRUE" ]; then
+	    ./xmlchange DEBUG=${DEBUG_COMPILE}
+	fi
 
-  # Run CIME case.build
-  ./case.build
+	# Run CIME case.build
+	./case.build
 
-  # Some user_nl settings won't be updated to *_in files under the run directory
-  # Call preview_namelists to make sure *_in and user_nl files are consistent.
-  ./preview_namelists
+	# Some user_nl settings won't be updated to *_in files under the run directory
+	# Call preview_namelists to make sure *_in and user_nl files are consistent.
+	./preview_namelists
 
     fi
 
@@ -225,7 +225,7 @@ runtime_options() {
 
     # Set simulation start date
     if [ ! -z "${START_DATE}" ]; then
-  ./xmlchange RUN_STARTDATE=${START_DATE}
+	./xmlchange RUN_STARTDATE=${START_DATE}
     fi
     # Set temperature cut off in dycore threshold to 180K
     ./atmchange vtheta_thresh=180
@@ -245,14 +245,13 @@ runtime_options() {
     #specify land IC file
 cat << EOF >> user_nl_elm
  finidat='/lustre/orion/cli115/world-shared/e3sm/inputdata/lnd/clm2/initdata/20230522.I2010CRUELM.ne256pg2.elm.r.2013-08-01-00000.nc'
+ check_finidat_year_consistency = .false.
  hist_empty_htapes=.true.
 EOF
 
 cat << EOF >> user_nl_cpl
  ocn_surface_flux_scheme = 2
 EOF
-
-    # things that are different in Walters nudging case:
 
     ./atmchange lambda_high=0.08
 
@@ -283,32 +282,32 @@ EOF
 
     # Set resubmissions
     if (( RESUBMIT > 0 )); then
-  ./xmlchange RESUBMIT=${RESUBMIT}
+	./xmlchange RESUBMIT=${RESUBMIT}
     fi
 
     # Start from default of user-specified initial conditions
     if [ "${MODEL_START_TYPE,,}" == "initial" ]; then
-  ./xmlchange RUN_TYPE="startup"
-  ./xmlchange CONTINUE_RUN="FALSE"
+	./xmlchange RUN_TYPE="startup"
+	./xmlchange CONTINUE_RUN="FALSE"
 
     # Continue existing run
     elif [ "${MODEL_START_TYPE,,}" == "continue" ]; then
-  ./xmlchange CONTINUE_RUN="TRUE"
+	./xmlchange CONTINUE_RUN="TRUE"
 
     elif [ "${MODEL_START_TYPE,,}" == "branch" ] || [ "${MODEL_START_TYPE,,}" == "hybrid" ]; then
-  ./xmlchange RUN_TYPE=${MODEL_START_TYPE,,}
-  ./xmlchange GET_REFCASE=${GET_REFCASE}
-  ./xmlchange RUN_REFDIR=${RUN_REFDIR}
-  ./xmlchange RUN_REFCASE=${RUN_REFCASE}
-  ./xmlchange RUN_REFDATE=${RUN_REFDATE}
-  echo 'Warning: $MODEL_START_TYPE = '${MODEL_START_TYPE}
-  echo '$RUN_REFDIR = '${RUN_REFDIR}
-  echo '$RUN_REFCASE = '${RUN_REFCASE}
-  echo '$RUN_REFDATE = '${START_DATE}
+	./xmlchange RUN_TYPE=${MODEL_START_TYPE,,}
+	./xmlchange GET_REFCASE=${GET_REFCASE}
+	./xmlchange RUN_REFDIR=${RUN_REFDIR}
+	./xmlchange RUN_REFCASE=${RUN_REFCASE}
+	./xmlchange RUN_REFDATE=${RUN_REFDATE}
+	echo 'Warning: $MODEL_START_TYPE = '${MODEL_START_TYPE}
+	echo '$RUN_REFDIR = '${RUN_REFDIR}
+	echo '$RUN_REFCASE = '${RUN_REFCASE}
+	echo '$RUN_REFDATE = '${START_DATE}
 
     else
-  echo 'ERROR: $MODEL_START_TYPE = '${MODEL_START_TYPE}' is unrecognized. Exiting.'
-  exit 380
+	echo 'ERROR: $MODEL_START_TYPE = '${MODEL_START_TYPE}' is unrecognized. Exiting.'
+	exit 380
     fi
 
 
@@ -342,8 +341,8 @@ EOF
 case_submit() {
 
     if [ "${do_case_submit,,}" != "true" ]; then
-  echo $'\n----- Skipping case_submit -----\n'
-  return
+	echo $'\n----- Skipping case_submit -----\n'
+	return
     fi
 
     echo $'\n----- Starting case_submit -----\n'
