@@ -8,7 +8,7 @@ do_case_build=true
 do_case_submit=true
 
 readonly MACHINE="frontier-scream-gpu"
-readonly CHECKOUT="whannah_2024-autocal-spinup"
+readonly CHECKOUT="your_checkout"
 readonly BRANCH="master"
 readonly COMPILER="crayclang-scream"
 readonly DEBUG_COMPILE=FALSE
@@ -17,8 +17,8 @@ readonly Q=regular
 readonly COMPSET="F2010-SCREAMv1"
 readonly RESOLUTION="ne256pg2_ne256pg2"
 
-readonly EXPERIMENT='d256'
-readonly SHARK='nudgec'
+readonly EXPERIMENT='dy2-ne256'
+readonly SHARK='nudge'
 readonly jobname="${EXPERIMENT}.${SHARK}.${RESOLUTION}.${COMPSET}.${CHECKOUT}"
 
 readonly SCREAMDOCS_ROOT="/lustre/orion/cli115/proj-shared/noel/wacmy/scream-docs/v1_output/auto-calibration"
@@ -255,13 +255,15 @@ EOF
 
     ./atmchange lambda_high=0.08
 
-    ./atmchange nudging::nudging_filename="/lustre/orion/cli115/proj-shared/hannah6/scream_scratch/nudge_data/HICCUP.nudging_uv_era5.2020-01-20.ne128pg2.L128.nc"
-    ./atmchange nudging::nudging_filename+="/lustre/orion/cli115/proj-shared/hannah6/scream_scratch/nudge_data/HICCUP.nudging_uv_era5.2020-01-21.ne128pg2.L128.nc"
-    ./atmchange nudging::nudging_filename+="/lustre/orion/cli115/proj-shared/hannah6/scream_scratch/nudge_data/HICCUP.nudging_uv_era5.2020-01-22.ne128pg2.L128.nc"
-    ./atmchange nudging::nudging_filename+="/lustre/orion/cli115/proj-shared/hannah6/scream_scratch/nudge_data/HICCUP.nudging_uv_era5.2020-01-23.ne128pg2.L128.nc"
-    ./atmchange nudging::nudging_filename+="/lustre/orion/cli115/proj-shared/hannah6/scream_scratch/nudge_data/HICCUP.nudging_uv_era5.2020-01-24.ne128pg2.L128.nc"
-    ./atmchange nudging::nudging_filename+="/lustre/orion/cli115/proj-shared/hannah6/scream_scratch/nudge_data/HICCUP.nudging_uv_era5.2020-01-25.ne128pg2.L128.nc"
-    ./atmchange nudging::nudging_filename+="/lustre/orion/cli115/proj-shared/hannah6/scream_scratch/nudge_data/HICCUP.nudging_uv_era5.2020-01-26.ne128pg2.L128.nc"
+    #./atmchange nudging::nudging_filename="/lustre/orion/cli115/proj-shared/hannah6/scream_scratch/nudge_data/HICCUP.nudging_uv_era5.2020-01-20.ne128pg2.L128.nc"
+    #./atmchange nudging::nudging_filename+="/lustre/orion/cli115/proj-shared/hannah6/scream_scratch/nudge_data/HICCUP.nudging_uv_era5.2020-01-21.ne128pg2.L128.nc"
+    #./atmchange nudging::nudging_filename+="/lustre/orion/cli115/proj-shared/hannah6/scream_scratch/nudge_data/HICCUP.nudging_uv_era5.2020-01-22.ne128pg2.L128.nc"
+    #./atmchange nudging::nudging_filename+="/lustre/orion/cli115/proj-shared/hannah6/scream_scratch/nudge_data/HICCUP.nudging_uv_era5.2020-01-23.ne128pg2.L128.nc"
+    #./atmchange nudging::nudging_filename+="/lustre/orion/cli115/proj-shared/hannah6/scream_scratch/nudge_data/HICCUP.nudging_uv_era5.2020-01-24.ne128pg2.L128.nc"
+    #./atmchange nudging::nudging_filename+="/lustre/orion/cli115/proj-shared/hannah6/scream_scratch/nudge_data/HICCUP.nudging_uv_era5.2020-01-25.ne128pg2.L128.nc"
+    #./atmchange nudging::nudging_filename+="/lustre/orion/cli115/proj-shared/hannah6/scream_scratch/nudge_data/HICCUP.nudging_uv_era5.2020-01-26.ne128pg2.L128.nc"
+
+    ./atmchange nudging_filenames_patterns="/lustre/orion/cli115/proj-shared/hannah6/scream_scratch/nudge_data/HICCUP.nudging_uv_era5.2020-01-2*.ne128pg2.L128.nc"
 
     ./atmchange nudging::source_pressure_type=TIME_DEPENDENT_3D_PROFILE
     ./atmchange nudging::nudging_fields=U,V
