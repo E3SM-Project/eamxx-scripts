@@ -236,7 +236,7 @@ runtime_options() {
     ./atmchange physics::atm_procs_list="mac_aero_mic,rrtmgp,cosp,nudging"
     ./atmchange physics::cosp::cosp_frequency_units="hours"
     ./atmchange physics::cosp::cosp_frequency=3
-    ./atmchange initial_conditions::Filename="/lustre/orion/cli115/world-shared/e3sm/inputdata/atm/scream/init/screami_ne1024np4L128_ifs-20200120-topoadjx6t_20221011.nc"
+    ./atmchange initial_conditions::Filename="/lustre/orion/cli115/world-shared/e3sm/inputdata/atm/scream/init/screami_ne1024np4L128_ifs-20160801-topoadjx6t_20221011.nc"
 
     ./atmchange physics::mac_aero_mic::shoc::compute_tendencies=T_mid,qv,qc
     ./atmchange physics::mac_aero_mic::p3::compute_tendencies=T_mid,qv,qc,qr,qi
@@ -245,7 +245,7 @@ runtime_options() {
 
     #specify land IC file
 cat << EOF >> user_nl_elm
- finidat='/lustre/orion/cli115/world-shared/e3sm/inputdata/lnd/clm2/initdata/20221218.F2010-CICE.ne30pg2_ne1024pg2.elm.r.2020-01-20-00000.nc'
+ finidat='/lustre/orion/cli115/world-shared/e3sm/inputdata/lnd/clm2/initdata/20220928.I2010CRUELM.ne1024pg2_ICOS10.elm.r.2016-08-01-00000.nc'
  hist_empty_htapes=.true.
 EOF
 
