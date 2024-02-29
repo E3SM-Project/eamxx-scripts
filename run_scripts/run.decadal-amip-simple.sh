@@ -13,7 +13,7 @@ compiler="crayclang-scream" #intel
 project="cli115"
 walltime="01:00:00"
 datestring="20240216"
-casename=decadal-amip.${res}.${compset}.${datestring}-testRestartFixed
+casename=decadal-amip.${res}.${compset}.${datestring}-testRestartFixed2
 caseroot=${HOME}/codes/scream/cases/${casename}
 #readonly pecount="1536x6" # 192 nodes
 #readonly pecount="3072x6" # 384 nodes
@@ -137,8 +137,8 @@ for file in ${output_yaml_files[@]}; do
         ./atmchange output_yaml_files+="./`basename ${file}`"
     fi
     # Replace remap files
-    sed -i "s|horiz_remap_file:*._to_ne30.*|horiz_remap_file: ${map_to_ne30}|" ./`basename ${file}`
-    sed -i "s|horiz_remap_file:*._to_DecadalSites.*|horiz_remap_file: ${map_to_DecadalSites}|" ./`basename ${file}`
+    sed -i "s|horiz_remap_file:.*_to_ne30.*|horiz_remap_file: ${map_to_ne30}|" ./`basename ${file}`
+    sed -i "s|horiz_remap_file:.*_to_DecadalSites.*|horiz_remap_file: ${map_to_DecadalSites}|" ./`basename ${file}`
 done
 #BRHDEBUG
 #./atmchange output_yaml_files="./output_debug.yaml"
