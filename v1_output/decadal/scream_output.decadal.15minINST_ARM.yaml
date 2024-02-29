@@ -2,7 +2,7 @@
 ---
 filename_prefix: output.scream.decadal.15minINST_ARM
 Averaging Type: Instant
-Max Snapshots Per File: 288  # one per 3 days
+Max Snapshots Per File: 96  # one file per day
 horiz_remap_file: ${DIN_LOC_ROOT}/atm/scream/maps/map_ne1024pg2_to_DecadalSites_c20240130.nc
 Fields:
   Physics PG2:
