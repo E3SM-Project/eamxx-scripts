@@ -2,17 +2,18 @@
 set -e
 umask 022
 
+script_root=${PWD}
 branch="add-F20TR-SCREAMv1"
 code_root=${HOME}/codes/scream/branches/${branch}
 screamdocs_root=${HOME}/codes/scream-docs/branches/add-decadal-outputs
-res=ne1024pg2_ne1024pg2 #ne1024pg2_ne1024pg2 #ne30pg2_EC30to60E2r2
+res=ne256pg2_ne256pg2 #ne1024pg2_ne1024pg2 #ne1024pg2_ne1024pg2 #ne30pg2_EC30to60E2r2
 compset=F20TR-SCREAMv1
 machine="frontier-scream-gpu" #chrysalis
 compiler="crayclang-scream" #intel
 project="cli115"
-walltime="02:00:00"
+walltime="01:00:00"
 datestring="20240216"
-casename=decadal-amip.${res}.${compset}.${datestring}-testDaily
+casename=decadal-amip.${res}.${compset}.${datestring}-testRestartFixed
 caseroot=${HOME}/codes/scream/cases/${casename}
 #readonly pecount="1536x6" # 192 nodes
 #readonly pecount="3072x6" # 384 nodes
@@ -20,8 +21,8 @@ caseroot=${HOME}/codes/scream/cases/${casename}
 #readonly pecount="8192x6" # 1024 nodes
 #readonly pecount="15056x6" # 1882 nodes
 if [ "${res}" == "ne1024pg2_ne1024pg2" ]; then
-    #pecount="2560x6" # 320 nodes 
-    pecount="16384x6" # 2048 nodes
+    pecount="2560x6" # 320 nodes 
+    #pecount="16384x6" # 2048 nodes
 elif [ "${res}" == "ne256pg2_ne256pg2" ]; then
     pecount="768x6" # 96 nodes
 elif [ "${res}" == "ne30pg2_EC30to60E2r2" ]; then
@@ -58,13 +59,16 @@ if [ "${machine}" == "frontier-scream-gpu" ]; then
 fi
 
 # Change run length
-./xmlchange STOP_OPTION=ndays,STOP_N=5
-./xmlchange REST_OPTION=ndays,REST_N=10
-./xmlchange RESUBMIT=0
+./xmlchange STOP_OPTION=nhours,STOP_N=1
+./xmlchange REST_OPTION=nhours,REST_N=1
+./xmlchange RESUBMIT=1
 ./xmlchange RUN_STARTDATE="1994-10-01"
 
 # For big data
 ./xmlchange PIO_NETCDF_FORMAT="64bit_data"
+if [ "${pecount}" == "2560x6" ]; then
+    ./xmlchange PIO_STRIDE=4  #BRHDEBUG only needed for small node counts
+fi
 
 # Run setup before configuring components
 ./case.setup
@@ -111,6 +115,16 @@ fi
 ./atmchange atmosphere_dag_verbosity_level=5
 
 # Copy output stream yaml files
+if [ "${res}" == "ne1024pg2_ne1024pg2" ]; then
+    map_to_ne30="${DIN_LOC_ROOT}/atm/scream/maps/map_ne1024pg2_to_ne30pg2_mono.20230901.nc"
+    map_to_DecadalSites="${DIN_LOC_ROOT}/atm/scream/maps/map_ne1024pg2_to_DecadalSites_c20240130.nc"
+elif [ "${res}" == "ne256pg2_ne256pg2" ]; then
+    map_to_ne30="${DIN_LOC_ROOT}/atm/scream/maps/map_ne256pg2_to_ne30pg2_traave.20240206.nc"
+    map_to_DecadalSites="${DIN_LOC_ROOT}/atm/scream/maps/map_ne256pg2_to_DecadalSites_c20240130.nc"
+else
+    echo "Unsupported res for horiz maps"
+    exit 1
+fi
 output_yaml_files=(`ls ${screamdocs_root}/v1_output/decadal/*.yaml`)
 for file in ${output_yaml_files[@]}; do
     # TODO: add remap file replacement for different grids
@@ -122,7 +136,29 @@ for file in ${output_yaml_files[@]}; do
         # Append to output list
         ./atmchange output_yaml_files+="./`basename ${file}`"
     fi
+    # Replace remap files
+    sed -i "s|horiz_remap_file:*._to_ne30.*|horiz_remap_file: ${map_to_ne30}|" ./`basename ${file}`
+    sed -i "s|horiz_remap_file:*._to_DecadalSites.*|horiz_remap_file: ${map_to_DecadalSites}|" ./`basename ${file}`
 done
+#BRHDEBUG
+#./atmchange output_yaml_files="./output_debug.yaml"
+#cat << EOF >> ./output_debug.yaml
+#%YAML 1.1
+#---
+#filename_prefix: output.scream.decadal.monthlyAVG_ne30pg2
+#Averaging Type: Average
+#Max Snapshots Per File: 1
+#horiz_remap_file: ${DIN_LOC_ROOT}/atm/scream/maps/map_ne1024pg2_to_ne30pg2_mono.20230901.nc
+#Fields:
+#  Physics PG2:
+#    Field Names:
+#    - PotentialTemperature_at_700hPa
+#output_control:
+#  Frequency: 1
+#  frequency_units: nmonths
+#  MPI Ranks in Filename: false
+#EOF
+#BRHDEBUG
 
 # Namelist options for ELM
 # Specify land initial condition and surface datasets
@@ -195,6 +231,9 @@ EOF
 
 # Link to rundir
 ln -s `./xmlquery --value RUNDIR` run
+
+# Copy runscript to case dir
+cp ${script_root}/`basename $0` ./
 
 # Setup, build, run
 ./case.setup
