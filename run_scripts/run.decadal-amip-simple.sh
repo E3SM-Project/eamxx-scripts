@@ -13,7 +13,7 @@ compiler="crayclang-scream" #intel
 project="cli115"
 walltime="01:00:00"
 datestring="20240216"
-casename=decadal-amip.${res}.${compset}.${datestring}-testRestartFixed2
+casename=decadal-amip.${res}.${compset}.${datestring}-testELMDefaults
 caseroot=${HOME}/codes/scream/cases/${casename}
 #readonly pecount="1536x6" # 192 nodes
 #readonly pecount="3072x6" # 384 nodes
@@ -111,8 +111,6 @@ fi
 ./atmchange orbital_year=-9999
 # use CO2 the same in land model
 ./xmlchange CCSM_CO2_PPMV=377.2
-# write out DAG
-./atmchange atmosphere_dag_verbosity_level=5
 
 # Copy output stream yaml files
 if [ "${res}" == "ne1024pg2_ne1024pg2" ]; then
