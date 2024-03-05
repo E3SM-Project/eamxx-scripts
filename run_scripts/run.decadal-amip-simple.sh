@@ -3,17 +3,17 @@ set -e
 umask 022
 
 script_root=${PWD}
-branch="add-F20TR-SCREAMv1"
+branch="decadal-production" #"scorpio-update"
 code_root=${HOME}/codes/scream/branches/${branch}
 screamdocs_root=${HOME}/codes/scream-docs/branches/add-decadal-outputs
-res=ne256pg2_ne256pg2 #ne1024pg2_ne1024pg2 #ne1024pg2_ne1024pg2 #ne30pg2_EC30to60E2r2
+res=ne1024pg2_ne1024pg2 #ne1024pg2_ne1024pg2 #ne1024pg2_ne1024pg2 #ne30pg2_EC30to60E2r2
 compset=F20TR-SCREAMv1
 machine="frontier-scream-gpu" #chrysalis
 compiler="crayclang-scream" #intel
 project="cli115"
 walltime="01:00:00"
-datestring="20240216"
-casename=decadal-amip.${res}.${compset}.${datestring}-testELMDefaults
+datestring="20240305"
+casename=${branch}-${datestring}.${res}.${compset}.fullOutputs2 #debugOutputSet7
 caseroot=${HOME}/codes/scream/cases/${casename}
 #readonly pecount="1536x6" # 192 nodes
 #readonly pecount="3072x6" # 384 nodes
@@ -21,8 +21,8 @@ caseroot=${HOME}/codes/scream/cases/${casename}
 #readonly pecount="8192x6" # 1024 nodes
 #readonly pecount="15056x6" # 1882 nodes
 if [ "${res}" == "ne1024pg2_ne1024pg2" ]; then
-    pecount="2560x6" # 320 nodes 
-    #pecount="16384x6" # 2048 nodes
+    #pecount="2560x6" # 320 nodes 
+    pecount="16384x6" # 2048 nodes
 elif [ "${res}" == "ne256pg2_ne256pg2" ]; then
     pecount="768x6" # 96 nodes
 elif [ "${res}" == "ne30pg2_EC30to60E2r2" ]; then
@@ -69,6 +69,10 @@ fi
 if [ "${pecount}" == "2560x6" ]; then
     ./xmlchange PIO_STRIDE=4  #BRHDEBUG only needed for small node counts
 fi
+
+# Change to non-parallel netcdf
+sed -i 's|<command name="load">cray-hdf5-parallel.*|<command name="load">cray-hdf5/1.12.1.5</command>|' env_mach_specific.xml
+sed -i 's|<command name="load">cray-netcdf-hdf5parallel.*|<command name="load">cray-netcdf/4.8.1.5</command>|' env_mach_specific.xml
 
 # Run setup before configuring components
 ./case.setup
@@ -138,6 +142,18 @@ for file in ${output_yaml_files[@]}; do
     sed -i "s|horiz_remap_file:.*_to_ne30.*|horiz_remap_file: ${map_to_ne30}|" ./`basename ${file}`
     sed -i "s|horiz_remap_file:.*_to_DecadalSites.*|horiz_remap_file: ${map_to_DecadalSites}|" ./`basename ${file}`
 done
+#BRHDEBUG
+#scream_output.decadal.15minINST_ARM.yaml        scream_output.decadal.1hourlyINST_ARM.yaml        scream_output.decadal.6hourlyAVG_ne30pg2.yaml
+#scream_output.decadal.1dailyAVG_ne1024pg2.yaml  scream_output.decadal.1hourlyINST_ne1024pg2.yaml  scream_output.decadal.6hourlyINST_ne1024pg2.yaml
+#scream_output.decadal.1dailyMAX_ne1024pg2.yaml  scream_output.decadal.3hourlyAVG_ne30pg2.yaml     scream_output.decadal.6hourlyINST_ne30pg2.yaml
+#scream_output.decadal.1dailyMIN_ne1024pg2.yaml  scream_output.decadal.3hourlyINST_ne30pg2.yaml    scream_output.decadal.monthlyAVG_ne30pg2.yaml
+#./atmchange output_yaml_files=./scream_output.decadal.15minINST_ARM.yaml,./scream_output.decadal.1dailyAVG_ne1024pg2.yaml,./scream_output.decadal.1dailyMAX_ne1024pg2.yaml,./scream_output.decadal.1dailyMIN_ne1024pg2.yaml,./scream_output.decadal.1hourlyINST_ARM.yaml,./scream_output.decadal.1hourlyINST_ne1024pg2.yaml,./scream_output.decadal.3hourlyAVG_ne30pg2.yaml,./scream_output.decadal.3hourlyINST_ne30pg2.yaml  # Set2
+#./atmchange output_yaml_files=./scream_output.decadal.6hourlyAVG_ne30pg2.yaml,./scream_output.decadal.6hourlyINST_ne1024pg2.yaml,./scream_output.decadal.6hourlyINST_ne30pg2.yaml,./scream_output.decadal.monthlyAVG_ne30pg2.yaml  # Set3
+#./atmchange output_yaml_files=./scream_output.decadal.1hourlyINST_ARM.yaml,./scream_output.decadal.1hourlyINST_ne1024pg2.yaml,./scream_output.decadal.3hourlyAVG_ne30pg2.yaml,./scream_output.decadal.3hourlyINST_ne30pg2.yaml  # Set4
+#./atmchange output_yaml_files=./scream_output.decadal.3hourlyAVG_ne30pg2.yaml  # Set5
+#./atmchange output_yaml_files=./scream_output.decadal.1hourlyINST_ARM.yaml  # Set6
+#./atmchange output_yaml_files=./scream_output.decadal.1hourlyINST_ne1024pg2.yaml  # Set7
+#./atmchange output_yaml_files=./scream_output.decadal.3hourlyINST_ne30pg2.yaml  # Set8
 #BRHDEBUG
 #./atmchange output_yaml_files="./output_debug.yaml"
 #cat << EOF >> ./output_debug.yaml
