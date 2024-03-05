@@ -18,7 +18,7 @@ readonly COMPSET="F2010-SCREAMv1"
 readonly RESOLUTION="ne256pg2_ne256pg2"
 
 readonly EXPERIMENT='dy1-ne256'
-readonly SHARK='nudge'
+readonly SHARK='seed'
 readonly jobname="${EXPERIMENT}.${SHARK}.${RESOLUTION}.${COMPSET}.${CHECKOUT}"
 
 readonly SCREAMDOCS_ROOT="/lustre/orion/cli115/proj-shared/noel/wacmy/scream-docs/v1_output/auto-calibration"
@@ -49,8 +49,8 @@ readonly CASE_ARCHIVE_DIR=${CASE_ROOT}/archive
 readonly CASE_SCRIPTS_DIR=${CASE_ROOT}/case_scripts
 readonly CASE_RUN_DIR=${CASE_ROOT}/run
 
-readonly PELAYOUT="384x6" # 48 nodes 8 MPI's per node
-readonly WALLTIME="00:59:00"
+readonly PELAYOUT="192x6" # 24 nodes 8 MPI's per node
+readonly WALLTIME="01:39:00"
 
 readonly STOP_OPTION="ndays"
 readonly STOP_N="5"
@@ -155,6 +155,7 @@ case_setup() {
     ./xmlchange --file env_mach_pes.xml NTHRDS_ICE="6"
 
     ./xmlchange PIO_NETCDF_FORMAT="64bit_data"
+    ./xmlchange PIO_STRIDE="4"
 
     ./case.setup --reset
 
@@ -255,14 +256,7 @@ EOF
 
     ./atmchange lambda_high=0.08
 
-    #./atmchange nudging::nudging_filename="/lustre/orion/cli115/proj-shared/hannah6/scream_scratch/nudge_data/HICCUP.nudging_uv_era5.2016-08-01.ne128pg2.L128.nc"
-    #./atmchange nudging::nudging_filename+="/lustre/orion/cli115/proj-shared/hannah6/scream_scratch/nudge_data/HICCUP.nudging_uv_era5.2016-08-02.ne128pg2.L128.nc"
-    #./atmchange nudging::nudging_filename+="/lustre/orion/cli115/proj-shared/hannah6/scream_scratch/nudge_data/HICCUP.nudging_uv_era5.2016-08-03.ne128pg2.L128.nc"
-    #./atmchange nudging::nudging_filename+="/lustre/orion/cli115/proj-shared/hannah6/scream_scratch/nudge_data/HICCUP.nudging_uv_era5.2016-08-04.ne128pg2.L128.nc"
-    #./atmchange nudging::nudging_filename+="/lustre/orion/cli115/proj-shared/hannah6/scream_scratch/nudge_data/HICCUP.nudging_uv_era5.2016-08-05.ne128pg2.L128.nc"
-    #./atmchange nudging::nudging_filename+="/lustre/orion/cli115/proj-shared/hannah6/scream_scratch/nudge_data/HICCUP.nudging_uv_era5.2016-08-06.ne128pg2.L128.nc"
-
-    ./atmchange nudging_filenames_patterns="/lustre/orion/cli115/proj-shared/hannah6/scream_scratch/nudge_data/HICCUP.nudging_uv_era5.2016-08-0*.ne128pg2.L128.nc"
+    ./atmchange nudging::nudging_filenames_patterns="/lustre/orion/cli115/proj-shared/hannah6/scream_scratch/nudge_data/DY1/HICCUP.nudging_uv_era5.2016-08-??.ne128pg2.L128.nc"
 
     ./atmchange nudging::source_pressure_type=TIME_DEPENDENT_3D_PROFILE
     ./atmchange nudging::nudging_fields=U,V

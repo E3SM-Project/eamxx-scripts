@@ -264,14 +264,6 @@ EOF
 
     ./atmchange lambda_high=0.08
 
-    #./atmchange nudging::nudging_filename="/lustre/orion/cli115/proj-shared/hannah6/scream_scratch/nudge_data/HICCUP.nudging_uv_era5.2020-01-20.ne128pg2.L128.nc"
-    #./atmchange nudging::nudging_filename+="/lustre/orion/cli115/proj-shared/hannah6/scream_scratch/nudge_data/HICCUP.nudging_uv_era5.2020-01-21.ne128pg2.L128.nc"
-    #./atmchange nudging::nudging_filename+="/lustre/orion/cli115/proj-shared/hannah6/scream_scratch/nudge_data/HICCUP.nudging_uv_era5.2020-01-22.ne128pg2.L128.nc"
-    #./atmchange nudging::nudging_filename+="/lustre/orion/cli115/proj-shared/hannah6/scream_scratch/nudge_data/HICCUP.nudging_uv_era5.2020-01-23.ne128pg2.L128.nc"
-    #./atmchange nudging::nudging_filename+="/lustre/orion/cli115/proj-shared/hannah6/scream_scratch/nudge_data/HICCUP.nudging_uv_era5.2020-01-24.ne128pg2.L128.nc"
-    #./atmchange nudging::nudging_filename+="/lustre/orion/cli115/proj-shared/hannah6/scream_scratch/nudge_data/HICCUP.nudging_uv_era5.2020-01-25.ne128pg2.L128.nc"
-    #./atmchange nudging::nudging_filename+="/lustre/orion/cli115/proj-shared/hannah6/scream_scratch/nudge_data/HICCUP.nudging_uv_era5.2020-01-26.ne128pg2.L128.nc"
-
     ./atmchange nudging::nudging_filenames_patterns="/lustre/orion/cli115/proj-shared/hannah6/scream_scratch/nudge_data/HICCUP.nudging_uv_era5.2020-01-2*.ne128pg2.L128.nc"
 
     ./atmchange nudging::source_pressure_type=TIME_DEPENDENT_3D_PROFILE
