@@ -37,7 +37,7 @@ readonly HIST_OPTION="never"
 readonly HIST_N="1"
 
 readonly MODEL_START_TYPE="initial"  # "initial", "continue", "branch", "hybrid"
-readonly START_DATE="2020-01-20"
+readonly START_DATE="2020-01-20"     # "" for default, or explicit "0001-01-01"
 
 readonly GET_REFCASE=false
 readonly RUN_REFDIR=""
@@ -249,8 +249,6 @@ runtime_options() {
     ./atmchange orbital_year=2020
     # use CO2 the same in land model
     ./xmlchange CCSM_CO2_PPMV=412.5
-    #write out DAG
-    #./atmchange atmosphere_dag_verbosity_level=5
 
     #specify land IC file
 cat << EOF >> user_nl_elm
@@ -265,7 +263,7 @@ EOF
 
     ./atmchange lambda_high=0.08
 
-    ./atmchange nudging_filenames_patterns="/lustre/orion/cli115/proj-shared/hannah6/scream_scratch/nudge_data/HICCUP.nudging_uv_era5.2020-01-2?.ne128pg2.L128.nc"
+    ./atmchange nudging::nudging_filenames_patterns="/lustre/orion/cli115/proj-shared/hannah6/scream_scratch/nudge_data/HICCUP.nudging_uv_era5.2020-01-2?.ne128pg2.L128.nc"
 
     ./atmchange nudging::source_pressure_type=TIME_DEPENDENT_3D_PROFILE
     ./atmchange nudging::nudging_fields=U,V
@@ -336,7 +334,6 @@ EOF
     ./xmlchange --file env_run.xml --id SSTICE_YEAR_ALIGN --val 2020
     ./xmlchange --file env_run.xml --id SSTICE_YEAR_START --val 2020
     ./xmlchange --file env_run.xml --id SSTICE_YEAR_END --val 2020
-
 
     popd
 }

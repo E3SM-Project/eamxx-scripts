@@ -322,13 +322,11 @@ EOF
     ./atmchange output_yaml_files+="./scream_output.AutoCal.ne256pg2.hourly_inst_remap_to_ne30pg2.yaml"
     ./atmchange output_yaml_files+="./scream_output.AutoCal.ne256pg2.daily_avg_cosp_remap_to_ne30pg2.yaml"
 
-
     ./xmlchange --file env_run.xml --id SSTICE_DATA_FILENAME --val "/lustre/orion/cli115/world-shared/e3sm/inputdata/atm/cam/sst/sst_ifs_2560x5136_20160725_20160916_c201013.nc"
     ./xmlchange --file env_run.xml --id SSTICE_GRID_FILENAME --val "/lustre/orion/cli115/world-shared/e3sm/inputdata/ocn/docn7/domain.ocn.2560x5136.201027.nc"
     ./xmlchange --file env_run.xml --id SSTICE_YEAR_ALIGN --val 2016
     ./xmlchange --file env_run.xml --id SSTICE_YEAR_START --val 2016
     ./xmlchange --file env_run.xml --id SSTICE_YEAR_END --val 2016
-
 
     popd
 }
