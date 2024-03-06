@@ -3,8 +3,8 @@
 filename_prefix: output.scream.remapped_output
 Averaging Type: Instant
 Max Snapshots Per File: 1
-vertical_remap_file: ${DIN_LOC_ROOT}/atm/scream/maps/map_ne1024pg2_to_ne120pg2_nco_vert_remap_20230214.nc
-horiz_remap_file: ${DIN_LOC_ROOT}/atm/scream/maps/map_ne1024pg2_to_ne120pg2_nco_vert_remap_20230214.nc
+vertical_remap_file: ${DIN_LOC_ROOT}/atm/scream/maps/vrt_remapping_p_levs_20230926.nc
+horiz_remap_file: ${DIN_LOC_ROOT}/atm/scream/maps/map_ne1024pg2_to_ne120pg2_mono.20230901.nc
 Fields:
   Physics PG2:
     Field Names:
