@@ -59,8 +59,8 @@ if [ "${machine}" == "frontier-scream-gpu" ]; then
 fi
 
 # Change run length
-./xmlchange STOP_OPTION=nhours,STOP_N=1
-./xmlchange REST_OPTION=nhours,REST_N=1
+./xmlchange STOP_OPTION=ndays,STOP_N=1
+./xmlchange REST_OPTION=ndays,REST_N=1
 ./xmlchange RESUBMIT=1
 ./xmlchange RUN_STARTDATE="1994-10-01"
 
