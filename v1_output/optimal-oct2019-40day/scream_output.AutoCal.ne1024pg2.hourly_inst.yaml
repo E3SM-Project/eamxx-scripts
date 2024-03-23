@@ -1,0 +1,14 @@
+%YAML 1.1
+---
+filename_prefix: output.scream.AutoCal.hourly_inst_ne1024pg2
+Averaging Type: Instant
+Max Snapshots Per File: 24 # one file per day
+Fields:
+  Physics PG2:
+    Field Names:
+    - precip_total_surf_mass_flux
+output_control:
+  Frequency: 1
+  frequency_units: nhours
+  MPI Ranks in Filename: false
+flush_frequency: 1

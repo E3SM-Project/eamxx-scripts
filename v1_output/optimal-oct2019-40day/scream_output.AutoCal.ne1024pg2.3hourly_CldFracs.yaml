@@ -1,0 +1,15 @@
+%YAML 1.1
+---
+filename_prefix: output.scream.CldFracs
+Averaging Type: Instant
+Max Snapshots Per File: 8 #1 file per day
+Fields:
+  Physics PG2:
+    Field Names:
+    - cldfrac_liq
+    - cldfrac_tot_for_analysis
+output_control:
+  Frequency: 3
+  frequency_units: nhours
+  MPI Ranks in Filename: false
+flush_frequency: 1

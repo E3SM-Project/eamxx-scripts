@@ -1,0 +1,29 @@
+%YAML 1.1
+---
+filename_prefix: output.scream.PresLevs
+Averaging Type: Instant
+Max Snapshots Per File: 96
+Fields:
+  Physics PG2: 
+    Field Names:
+    - RelativeHumidity_at_200hPa
+    - RelativeHumidity_at_500hPa
+    - RelativeHumidity_at_700hPa
+    - RelativeHumidity_at_850hPa
+    - z_int_at_200hPa
+    - z_int_at_500hPa
+    - z_int_at_700hPa
+    - z_int_at_850hPa
+    - omega_at_200hPa
+    - omega_at_500hPa
+    - omega_at_700hPa
+    - omega_at_850hPa
+    - T_mid_at_200hPa
+    - T_mid_at_500hPa
+    - T_mid_at_700hPa
+    - T_mid_at_850hPa
+output_control:
+  Frequency: 15
+  frequency_units: nmins
+  MPI Ranks in Filename: false
+flush_frequency: 1

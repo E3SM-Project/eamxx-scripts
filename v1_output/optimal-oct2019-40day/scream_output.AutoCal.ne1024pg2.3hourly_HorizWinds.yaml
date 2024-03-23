@@ -1,0 +1,15 @@
+%YAML 1.1
+---
+filename_prefix: output.scream.HorizWinds
+Averaging Type: Instant
+Max Snapshots Per File: 8
+Fields:
+  Physics PG2:
+    Field Names:
+    - U
+    - V
+output_control:
+  Frequency: 3
+  frequency_units: nhours
+  MPI Ranks in Filename: false
+flush_frequency: 1

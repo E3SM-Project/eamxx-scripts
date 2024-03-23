@@ -1,0 +1,28 @@
+%YAML 1.1
+---
+filename_prefix: output.scream.SurfVars
+Averaging Type: Instant
+Max Snapshots Per File: 96
+Fields:
+  Physics PG2:
+    Field Names:
+    - precip_liq_surf_mass_flux
+    - precip_ice_surf_mass_flux
+    - surf_evap
+    - surf_sens_flux
+    - ps
+    - surf_mom_flux
+    - horiz_winds_at_model_bot
+    - SW_flux_up_at_model_bot
+    - SW_flux_dn_at_model_bot
+    - LW_flux_up_at_model_bot
+    - LW_flux_dn_at_model_bot
+    - surf_radiative_T
+    - T_2m
+    - qv_2m
+    - wind_speed_10m
+output_control:
+  Frequency: 15
+  frequency_units: nmins
+  MPI Ranks in Filename: false
+flush_frequency: 1

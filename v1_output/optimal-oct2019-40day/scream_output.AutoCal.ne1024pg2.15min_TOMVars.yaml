@@ -1,0 +1,19 @@
+%YAML 1.1
+---
+filename_prefix: output.scream.TOMVars
+Averaging Type: Instant
+Max Snapshots Per File: 96
+Fields:
+  Physics PG2:
+    Field Names:
+    - horiz_winds_at_model_top
+    - SW_flux_up_at_model_top
+    - SW_flux_dn_at_model_top
+    - LW_flux_up_at_model_top
+    - SW_clrsky_flux_up_at_model_top
+    - LW_clrsky_flux_up_at_model_top
+output_control:
+  Frequency: 15
+  frequency_units: nmins
+  MPI Ranks in Filename: false
+flush_frequency: 1
