@@ -69,7 +69,8 @@ Fields:
     - surf_mom_flux
     - surf_radiative_T
     # Lowest Level
-    - horiz_winds_at_model_bot    
+    - U_at_model_bot
+    - V_at_model_bot
 output_control:
   Frequency: 1
   frequency_units: nhours

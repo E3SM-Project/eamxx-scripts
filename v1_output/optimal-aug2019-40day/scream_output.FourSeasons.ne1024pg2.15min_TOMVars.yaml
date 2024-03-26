@@ -6,7 +6,8 @@ Max Snapshots Per File: 96
 Fields:
   Physics PG2:
     Field Names:
-    - horiz_winds_at_model_top
+    - U_at_model_top
+    - V_at_model_top
     - SW_flux_up_at_model_top
     - SW_flux_dn_at_model_top
     - LW_flux_up_at_model_top

@@ -12,7 +12,8 @@ Fields:
     - surf_sens_flux
     - ps
     - surf_mom_flux
-    - horiz_winds_at_model_bot
+    - U_at_model_bot
+    - V_at_model_bot
     - SW_flux_up_at_model_bot
     - SW_flux_dn_at_model_bot
     - LW_flux_up_at_model_bot
