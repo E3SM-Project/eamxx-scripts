@@ -1,6 +1,7 @@
 %YAML 1.1
 ---
 filename_prefix: output.scream.decadal.1dailyMAX_ne1024pg2
+iotype: pnetcdf
 Averaging Type: Max
 Max Snapshots Per File: 1
 Fields:

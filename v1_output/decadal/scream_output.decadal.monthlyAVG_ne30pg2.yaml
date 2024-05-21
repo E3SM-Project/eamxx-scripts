@@ -1,6 +1,7 @@
 %YAML 1.1
 ---
 filename_prefix: output.scream.decadal.monthlyAVG_ne30pg2
+iotype: pnetcdf
 Averaging Type: Average
 Max Snapshots Per File: 1
 horiz_remap_file: ${DIN_LOC_ROOT}/atm/scream/maps/map_ne1024pg2_to_ne30pg2_mono.20230901.nc 
@@ -68,6 +69,7 @@ Fields:
     - RelativeHumidity_at_700hPa
     # COSP
     - isccp_ctptau
+    - modis_ctptau
     - isccp_mask
     - isccp_cldtot
 

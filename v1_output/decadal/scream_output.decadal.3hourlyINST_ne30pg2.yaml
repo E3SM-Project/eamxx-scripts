@@ -1,6 +1,7 @@
 %YAML 1.1
 ---
 filename_prefix: output.scream.decadal.3hourlyINST_ne30pg2
+iotype: pnetcdf
 Averaging Type: Instant
 Max Snapshots Per File: 8  # one file per day
 horiz_remap_file: ${DIN_LOC_ROOT}/atm/scream/maps/map_ne1024pg2_to_ne30pg2_mono.20230901.nc
