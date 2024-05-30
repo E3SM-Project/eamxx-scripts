@@ -1,0 +1,56 @@
+#!/usr/bin/env python3
+
+import sys
+
+###########################################
+# REPLACE WITH YOUR EAMXX INSTALL FOLDERS #
+###########################################
+
+sys.path.append('/home/lbertag/workdir/scream/scream-src/master/components/eamxx/ctest-build/full_debug/src/share/python')
+sys.path.append('/home/lbertag/workdir/scream/scream-src/master/components/eamxx/ctest-build/full_debug/src/physics/p3/python')
+
+from mpi4py import MPI
+import pyscream as ps
+import pyp3 as P3
+from pathlib import Path
+
+#######################################
+def run ():
+#########################################
+
+    # Create a comm, and print specs
+    comm = MPI.COMM_WORLD
+    print (f"hello from rank{comm.Get_rank()}/{comm.Get_size()}")
+
+    # Create a physics-like grid
+    ncols = 218
+    nlevs = 72
+    grid = ps.Grid("Physics",ncols,nlevs)
+
+    # Todo: make configurable based on machine
+    ic_dir = Path('/home/lbertag/workdir/e3sm/e3sm-data/inputdata/atm/scream/init')
+    ic_file = ic_dir / 'screami_unit_tests_ne2np4L72_20220822.nc'
+
+    # Create an init p3
+    p3 = P3.P3(grid)
+    p3.read_ic(str(ic_file))
+
+    T_mid = p3.get_arr("T_mid")
+    print (T_mid)
+
+    p3.initialize()
+
+    print ("all done...\n")
+
+#######################################
+def main ():
+#######################################
+    # This level of indirection ensures all pybind structs are destroyed
+    # before we finalize eamxx (and hence kokkos)
+    ps.init()
+    run ()
+    ps.finalize()
+
+####################################
+if  __name__  == "__main__":
+    main()
