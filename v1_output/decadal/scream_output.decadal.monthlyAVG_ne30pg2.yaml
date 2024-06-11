@@ -63,16 +63,27 @@ Fields:
     - landfrac
     - ocnfrac
     - PotentialTemperature_at_700hPa
+    - PotentialTemperature_at_850hPa
     - PotentialTemperature_at_1000hPa
+    - PotentialTemperature_at_2m_above_surface
     - omega_at_500hPa
     - omega_at_700hPa
     - omega_at_850hPa
     - RelativeHumidity_at_700hPa
+    - RelativeHumidity_at_1000hPa
+    - RelativeHumidity_at_2m_above_surface
     - wind_speed_10m
+    - z_mid_at_700hPa
+    - z_mid_at_1000hPa
+    - T_mid_at_850hPa
+    # For SST advection
+    - U_at_10m_above_surface
+    - V_at_10m_above_surface
     # COSP
     - isccp_ctptau
     - modis_ctptau
-    - isccp_mask
+    - misr_cthtau
+    - cosp_sunlit
     - isccp_cldtot
 
 output_control:
