@@ -76,6 +76,7 @@ Fields:
     - z_mid_at_700hPa
     - z_mid_at_1000hPa
     - T_mid_at_850hPa
+    - T_mid_at_700hPa
     # For SST advection
     - U_at_10m_above_surface
     - V_at_10m_above_surface
