@@ -7,8 +7,6 @@ Max Snapshots Per File: 4  # one file per day
 Fields:
   Physics PG2:
     Field Names:
-    # For cloud morphology
-    - SW_flux_up_at_model_top
     # For storm analysis
     - SeaLevelPressure
     - wind_speed_10m
