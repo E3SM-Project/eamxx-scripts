@@ -64,6 +64,9 @@ fi
 ./xmlchange RESUBMIT=0
 ./xmlchange RUN_STARTDATE="1994-10-01"
 
+# Turn on budget reporting
+./xmlchange BUDGETS=TRUE
+
 # For big data
 ./xmlchange PIO_NETCDF_FORMAT="64bit_data"
 ./xmlchange PIO_TYPENAME=adios #adios #,PIO_TYPENAME_ATM=adios
