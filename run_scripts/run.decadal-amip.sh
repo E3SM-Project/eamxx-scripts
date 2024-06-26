@@ -3,17 +3,17 @@ set -e
 umask 022
 
 script_root=${PWD}
-branch="decadal-production" #"scorpio-update"
+branch="decadal-production-run6" #"decadal-production-run4" #"fix-nanobug-in-horiz-remap" #"decadal-production-run4" #"scorpio-update"
 code_root=${HOME}/codes/scream/branches/${branch}
-screamdocs_root=${HOME}/codes/scream-docs/branches/add-decadal-outputs
+screamdocs_root=${HOME}/codes/scream-decadal/scream-docs
 res=ne1024pg2_ne1024pg2 #ne1024pg2_ne1024pg2 #ne1024pg2_ne1024pg2 #ne30pg2_EC30to60E2r2
 compset=F20TR-SCREAMv1
 machine="frontier-scream-gpu" #chrysalis
 compiler="crayclang-scream" #intel
 project="cli115"
-walltime="01:00:00"
-datestring="20240305"
-casename=${branch}-${datestring}.${res}.${compset}.fullOutputs2 #debugOutputSet7
+walltime="08:00:00"
+datestring="20240620"
+casename=${branch}-${datestring}.${res}.${compset}.adios #debugOutputSet7
 caseroot=${HOME}/codes/scream/cases/${casename}
 #readonly pecount="1536x6" # 192 nodes
 #readonly pecount="3072x6" # 384 nodes
@@ -59,13 +59,15 @@ if [ "${machine}" == "frontier-scream-gpu" ]; then
 fi
 
 # Change run length
-./xmlchange STOP_OPTION=ndays,STOP_N=1
-./xmlchange REST_OPTION=ndays,REST_N=1
-./xmlchange RESUBMIT=1
+./xmlchange STOP_OPTION=ndays,STOP_N=30
+./xmlchange REST_OPTION=never,REST_N=15
+./xmlchange RESUBMIT=0
 ./xmlchange RUN_STARTDATE="1994-10-01"
 
 # For big data
 ./xmlchange PIO_NETCDF_FORMAT="64bit_data"
+./xmlchange PIO_TYPENAME=adios #adios #,PIO_TYPENAME_ATM=adios
+./xmlchange PIO_REARRANGER=3  # use PIO_REARRANGER=3, for ADIOS; PIO_REARRANGER=1 for pnetcdf
 if [ "${pecount}" == "2560x6" ]; then
     ./xmlchange PIO_STRIDE=4  #BRHDEBUG only needed for small node counts
 fi
@@ -83,12 +85,21 @@ sed -i 's|<command name="load">cray-netcdf-hdf5parallel.*|<command name="load">c
 #./xmlchange MPIRUN_RETRY_REGEX=''
 #./xmlchange MPIRUN_RETRY_COUNT=1
 
+# Extra diagnostics for non-determinism debugging
+#./atmchange --all \
+#    internal_diagnostics_level=1 \
+#    atmosphere_processes::internal_diagnostics_level=0 \
+#    ctl_nl::internal_diagnostics_level=0
+
 # Namelist options for EAMxx
 if [ "${res}" == "ne1024pg2_ne1024pg2" ]; then
     ./atmchange initial_conditions::Filename="${DIN_LOC_ROOT}/atm/scream/init/screami_ne1024np4L128_era5-19941001-topoadjx6t_20240214.nc"
 elif [ "${res}" == "ne256pg2_ne256pg2" ]; then
     ./atmchange initial_conditions::Filename="${DIN_LOC_ROOT}/atm/scream/init/screami_ne256np4L128_era5-19941001-topoadjx6t_20240123.nc"
 fi
+
+# Run with bugfixed SPA file
+./atmchange spa_data_file="${DIN_LOC_ROOT}/atm/scream/init/spa_v3.LR.F2010.2011-2025.c_20240405.nc"
 
 # Turn on cosp and set frequency
 ./atmchange physics::atm_procs_list="mac_aero_mic,rrtmgp,cosp"
@@ -141,6 +152,14 @@ for file in ${output_yaml_files[@]}; do
     # Replace remap files
     sed -i "s|horiz_remap_file:.*_to_ne30.*|horiz_remap_file: ${map_to_ne30}|" ./`basename ${file}`
     sed -i "s|horiz_remap_file:.*_to_DecadalSites.*|horiz_remap_file: ${map_to_DecadalSites}|" ./`basename ${file}`
+    # Comment out iotype
+    #sed -i "s|iotype: pnetcdf|#iotype: pnetcdf|" ./`basename ${file}`
+    # Append iotype for pnetcdf
+    #echo "iotype: pnetcdf" >> ${file}
+    # BRHDEBUG: remove new COSP diags for run3 version of code
+    #sed -i "s|\(.*modis.*\)|#\1|" ./`basename ${file}`
+    #sed -i "s|\(.*misr.*\)|#\1|" ./`basename ${file}`
+    #sed -i "s|cosp_sunlit|isccp_mask|" ./`basename ${file}`
 done
 #BRHDEBUG
 #scream_output.decadal.15minINST_ARM.yaml        scream_output.decadal.1hourlyINST_ARM.yaml        scream_output.decadal.6hourlyAVG_ne30pg2.yaml
@@ -154,24 +173,6 @@ done
 #./atmchange output_yaml_files=./scream_output.decadal.1hourlyINST_ARM.yaml  # Set6
 #./atmchange output_yaml_files=./scream_output.decadal.1hourlyINST_ne1024pg2.yaml  # Set7
 #./atmchange output_yaml_files=./scream_output.decadal.3hourlyINST_ne30pg2.yaml  # Set8
-#BRHDEBUG
-#./atmchange output_yaml_files="./output_debug.yaml"
-#cat << EOF >> ./output_debug.yaml
-#%YAML 1.1
-#---
-#filename_prefix: output.scream.decadal.monthlyAVG_ne30pg2
-#Averaging Type: Average
-#Max Snapshots Per File: 1
-#horiz_remap_file: ${DIN_LOC_ROOT}/atm/scream/maps/map_ne1024pg2_to_ne30pg2_mono.20230901.nc
-#Fields:
-#  Physics PG2:
-#    Field Names:
-#    - PotentialTemperature_at_700hPa
-#output_control:
-#  Frequency: 1
-#  frequency_units: nmonths
-#  MPI Ranks in Filename: false
-#EOF
 #BRHDEBUG
 
 # Namelist options for ELM
@@ -211,7 +212,7 @@ cat << EOF >> user_nl_elm
   do_transient_pfts = .true.
  
   hist_dov2xy = .true.,.true.
-  hist_mfilt = 1,120
+  hist_mfilt = 1,1
   hist_nhtfrq = 0,-24
   hist_avgflag_pertape = 'A','A'
   hist_fincl1 = 'FIRE', 'FPSN', 'QDRAI', 'QRUNOFF', 'ZWT', 'FSAT', 'H2OSOI', 'EFLX_LH_TOT',
