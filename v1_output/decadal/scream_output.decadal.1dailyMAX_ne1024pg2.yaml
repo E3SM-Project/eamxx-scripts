@@ -13,3 +13,5 @@ output_control:
   Frequency: 1
   frequency_units: ndays
   MPI Ranks in Filename: false
+Restart:
+  force_new_file: true

@@ -44,3 +44,5 @@ output_control:
   Frequency: 6
   frequency_units: nhours
   MPI Ranks in Filename: false
+Restart:
+  force_new_file: true
