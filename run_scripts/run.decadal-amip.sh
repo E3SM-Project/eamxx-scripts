@@ -6,14 +6,14 @@ script_root=${PWD}
 branch="decadal-production-run6" #"decadal-production-run4" #"fix-nanobug-in-horiz-remap" #"decadal-production-run4" #"scorpio-update"
 code_root=${HOME}/codes/scream/branches/${branch}
 screamdocs_root=${HOME}/codes/scream-decadal/scream-docs
-res=ne1024pg2_ne1024pg2 #ne1024pg2_ne1024pg2 #ne1024pg2_ne1024pg2 #ne30pg2_EC30to60E2r2
+res=ne1024pg2_ne1024pg2  #ne1024pg2_ne1024pg2 #ne1024pg2_ne1024pg2 #ne30pg2_EC30to60E2r2
 compset=F20TR-SCREAMv1
 machine="frontier-scream-gpu" #chrysalis
 compiler="crayclang-scream" #intel
 project="cli115"
-walltime="08:00:00"
-datestring="20240620"
-casename=${branch}-${datestring}.${res}.${compset}.adios #debugOutputSet7
+walltime="05:00:00"
+datestring="20240708"
+casename=${branch}-${datestring}.${res}.${compset}.pnetcdf #debugOutputSet7
 caseroot=${HOME}/codes/scream/cases/${casename}
 #readonly pecount="1536x6" # 192 nodes
 #readonly pecount="3072x6" # 384 nodes
@@ -59,8 +59,8 @@ if [ "${machine}" == "frontier-scream-gpu" ]; then
 fi
 
 # Change run length
-./xmlchange STOP_OPTION=ndays,STOP_N=30
-./xmlchange REST_OPTION=never,REST_N=15
+./xmlchange STOP_OPTION=ndays,STOP_N=5
+./xmlchange REST_OPTION=ndays,REST_N=5
 ./xmlchange RESUBMIT=0
 ./xmlchange RUN_STARTDATE="1994-10-01"
 
@@ -69,15 +69,15 @@ fi
 
 # For big data
 ./xmlchange PIO_NETCDF_FORMAT="64bit_data"
-./xmlchange PIO_TYPENAME=adios #adios #,PIO_TYPENAME_ATM=adios
-./xmlchange PIO_REARRANGER=3  # use PIO_REARRANGER=3, for ADIOS; PIO_REARRANGER=1 for pnetcdf
+./xmlchange PIO_TYPENAME=pnetcdf #adios #,PIO_TYPENAME_ATM=adios
+./xmlchange PIO_REARRANGER=1  # use PIO_REARRANGER=3, for ADIOS; PIO_REARRANGER=1 for pnetcdf
 if [ "${pecount}" == "2560x6" ]; then
     ./xmlchange PIO_STRIDE=4  #BRHDEBUG only needed for small node counts
 fi
 
 # Change to non-parallel netcdf
-sed -i 's|<command name="load">cray-hdf5-parallel.*|<command name="load">cray-hdf5/1.12.1.5</command>|' env_mach_specific.xml
-sed -i 's|<command name="load">cray-netcdf-hdf5parallel.*|<command name="load">cray-netcdf/4.8.1.5</command>|' env_mach_specific.xml
+#sed -i 's|<command name="load">cray-hdf5-parallel.*|<command name="load">cray-hdf5/1.12.1.5</command>|' env_mach_specific.xml
+#sed -i 's|<command name="load">cray-netcdf-hdf5parallel.*|<command name="load">cray-netcdf/4.8.1.5</command>|' env_mach_specific.xml
 
 # Run setup before configuring components
 ./case.setup
