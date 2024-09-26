@@ -60,6 +60,8 @@ Fields:
     # 3D vars for nudging
     - U
     - V
+    # Surface pressure needed to calculate pressure levels
+    - ps
 output_control:
   Frequency: 3
   frequency_units: nhours
