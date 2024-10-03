@@ -1,5 +1,6 @@
 %YAML 1.1
 ---
+flush_frequency: 1
 filename_prefix: output.scream.decadal.monthlyAVG_ne30pg2
 iotype: pnetcdf
 Averaging Type: Average
