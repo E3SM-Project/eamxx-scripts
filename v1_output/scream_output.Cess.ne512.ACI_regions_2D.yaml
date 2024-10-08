@@ -1,0 +1,27 @@
+%YAML 1.1
+---
+filename_prefix: output.scream.Cess.ACIregions_2D
+Averaging Type: Instant
+Max Snapshots Per File: 8
+horiz_remap_file: ${DIN_LOC_ROOT}/atm/scream/maps/20241002_ACI_regions_for_Cess_ne512_map.nc
+Fields:
+  Physics PG2:
+    Field Names:
+    # 2D
+    - SW_flux_dn_at_model_top
+    - SW_flux_up_at_model_top
+    - LiqWaterPath
+    - cdnc_at_cldtop
+    - cldfrac_tot_at_cldtop
+    - cldfrac_liq_at_cldtop
+    - cldfrac_ice_at_cldtop
+    - T_mid_at_cldtop
+    - precip_liq_surf_mass_flux
+    - eff_radius_qc_at_cldtop
+    - SW_clrsky_flux_up_at_model_top
+output_control:
+  Frequency: 3
+  frequency_units: nhours
+  MPI Ranks in Filename: false
+Restart:
+  force_new_file: true

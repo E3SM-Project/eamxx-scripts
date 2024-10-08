@@ -1,0 +1,34 @@
+%YAML 1.1
+---
+filename_prefix: output.scream.Cess.ARMSite_3D
+Averaging Type: Instant
+Max Snapshots Per File: 24
+horiz_remap_file: ${DIN_LOC_ROOT}/atm/scream/maps/20241002_ARM_site_for_Cess_ne512_map.nc
+Fields:
+  Physics PG2:
+    Field Names:
+    # 3D
+    - T_mid
+    - RelativeHumidity
+    - qc
+    - qi
+    - qr
+    - ps
+    - cldfrac_tot_for_analysis
+    - cldfrac_liq
+    - cldfrac_ice_for_analysis
+    - omega
+    - tke
+    - eff_radius_qc
+    - eff_radius_qi
+    - nc
+    - ni
+    - nr
+    - p_mid
+    - z_mid
+output_control:
+  Frequency: 1
+  frequency_units: nhours
+  MPI Ranks in Filename: false
+Restart:
+  force_new_file: true

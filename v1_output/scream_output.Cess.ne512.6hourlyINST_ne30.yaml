@@ -1,0 +1,36 @@
+%YAML 1.1
+---
+filename_prefix: output.scream.Cess.6hourlyINST_ne30
+Averaging Type: Instant
+Max Snapshots Per File: 4
+vertical_remap_file: ${DIN_LOC_ROOT}/atm/scream/maps/vrt_remapping_p_levs_20230926.nc
+horiz_remap_file: ${DIN_LOC_ROOT}/atm/scream/maps/map_ne512pg2_to_ne30pg2_traave.20241002.nc
+Fields:
+  Physics PG2:
+    Field Names:
+    # Full 3D Profile
+    - T_mid
+    - qv
+    - RelativeHumidity
+    - horiz_winds
+    - omega
+    - qc
+    - qr
+    - qi
+    - tke
+    - o3_volume_mix_ratio
+    - VapWaterPath
+    - LiqWaterPath
+    - IceWaterPath
+    - surf_radiative_T
+    - ps
+    - qv_2m
+    - T_2m
+    - ocnfrac
+    - landfrac
+output_control:
+  Frequency: 6
+  frequency_units: nhours
+  MPI Ranks in Filename: false
+Restart:
+  force_new_file: true
