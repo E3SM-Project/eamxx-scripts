@@ -1,4 +1,4 @@
-averaging_type: Average
+averaging_type: average
 fields:
   physics_pg2:
     field_names:
