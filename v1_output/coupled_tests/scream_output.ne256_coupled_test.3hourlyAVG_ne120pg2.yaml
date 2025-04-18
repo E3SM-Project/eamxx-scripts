@@ -18,7 +18,7 @@ max_snapshots_per_file: 8
 restart:
   force_new_file: true
 filename_prefix: output.ne256_coupled_test.3hourlyAVG_ne120pg2
-horiz_remap_file: /global/cfs/cdirs/e3sm/inputdata/atm/scream/maps/map_ne256pg2_to_ne120pg2_traave.20240206.nc
+horiz_remap_file: ${DIN_LOC_ROOT}/atm/scream/maps/map_ne256pg2_to_ne120pg2_traave.20240206.nc
 iotype: pnetcdf
 output_control:
   frequency: 3
