@@ -1,0 +1,22 @@
+averaging_type: Average
+fields:
+  physics_pg2:
+    field_names:
+    - snow_depth_land
+    - ps
+    - precip_total_surf_mass_flux
+    - U_at_200hPa
+    - V_at_200hPa
+    - U_at_850hPa
+    - V_at_850hPa
+    - T_2m
+    - qv_2m
+max_snapshots_per_file: 8
+restart:
+  force_new_file: true
+filename_prefix: output.scream.ne256_coupled_test.1dailyAVG
+iotype: pnetcdf
+output_control:
+  frequency: 1
+  mpi_ranks_in_filename: false
+  frequency_units: ndays
