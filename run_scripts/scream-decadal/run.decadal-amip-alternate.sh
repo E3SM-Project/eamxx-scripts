@@ -9,13 +9,15 @@ screamdocs_root=${HOME}/codes/scream-decadal/scream-docs
 res=ne1024pg2_ne1024pg2  #ne1024pg2_ne1024pg2 #ne1024pg2_ne1024pg2 #ne30pg2_EC30to60E2r2
 compset=F20TR-SCREAMv1
 machine="frontier-scream-gpu" #chrysalis
-compiler="crayclang-scream" #"craygnuamdgpu" #"crayclang-scream" #intel
+compiler="craygnuamdgpu" #"crayclang-scream" #"craygnuamdgpu" #"crayclang-scream" #intel
 project="cli115"
-walltime="12:00:00"
+walltime="01:00:00"
 datestring="20240708"
-RUN_REFDATE="1998-09-01"; RUN_REFTOD="00000"
-casename=${branch}-${datestring}.${res}.${compset}.pnetcdf #debugOutputSet7
-caseroot=${HOME}/codes/scream/cases/scream-decadal/${compiler}-section2/${casename}
+RUN_REFDATE="1999-04-05"; RUN_REFTOD="00000"
+#RUN_REFDATE="1998-09-01"; RUN_REFTOD="00000"
+casename=${branch}-${datestring}.${res}.${compset}.pnetcdf # NOTE: cannot change this for pseudo-branch
+casebase=${compiler}-branch # Need a unique id to tell us where to write run and bld so we do not overwrite original
+caseroot=${HOME}/codes/scream/cases/scream-decadal/${casebase}/${casename}
 #readonly pecount="1536x6" # 192 nodes
 #readonly pecount="3072x6" # 384 nodes
 #readonly pecount="4096x6" # 512 nodes
@@ -31,7 +33,7 @@ elif [ "${res}" == "ne30pg2_EC30to60E2r2" ]; then
     #pecount=5540x1 #128x1
 fi
 mkdir -p `dirname ${caseroot}`
-if [ 1 -eq 0 ]; then
+if [ 1 -eq 1 ]; then
 ${code_root}/cime/scripts/create_newcase \
     --case=${caseroot} \
     --res=${res} \
@@ -48,8 +50,8 @@ cd ${caseroot}
 DIN_LOC_ROOT=`./xmlquery DIN_LOC_ROOT --value`
 
 # Change run and bld directories so we can use the same casename for a pseudo-branch run
-./xmlchange RUNDIR=/lustre/orion/cli115/proj-shared/brhillman/e3sm_scratch/scream-decadal/${compiler}-section2/${casename}/run
-./xmlchange EXEROOT=/lustre/orion/cli115/proj-shared/brhillman/e3sm_scratch/scream-decadal/${compiler}-section2/${casename}/bld
+./xmlchange RUNDIR=/lustre/orion/cli115/proj-shared/brhillman/e3sm_scratch/scream-decadal/${casebase}/${casename}/run
+./xmlchange EXEROOT=/lustre/orion/cli115/proj-shared/brhillman/e3sm_scratch/scream-decadal/${casebase}/${casename}/bld
 
 # Link to rundir
 #ln -s `./xmlquery --value RUNDIR` run
@@ -69,42 +71,49 @@ if [ "${machine}" == "frontier-scream-gpu" ]; then
 fi
 
 # Change run length
-./xmlchange STOP_OPTION=ndays,STOP_N=60
-./xmlchange REST_OPTION=ndays,REST_N=10
+./xmlchange STOP_OPTION=ndays,STOP_N=1
+./xmlchange REST_OPTION=ndays,REST_N=1
 ./xmlchange RESUBMIT=0
 ./xmlchange RUN_STARTDATE="1994-10-01"
 
 # Configure for (pseudo) branch run
-RUN_REFDIR="/lustre/orion/cli115/proj-shared/brhillman/e3sm_scratch/decadal-production-run6-20240708.ne1024pg2_ne1024pg2.F20TR-SCREAMv1.pnetcdf/run"
-./xmlchange RUN_TYPE="startup"
-#./xmlchange RUN_REFCASE="decadal-production-run6-20240708.ne1024pg2_ne1024pg2.F20TR-SCREAMv1.pnetcdf"
-#./xmlchange RUN_REFDIR=${RUN_REFDIR}
-#./xmlchange RUN_REFDATE=${RUN_REFDATE}
-#./xmlchange RUN_REFTOD=${RUN_REFTOD}
-#./xmlchange GET_REFCASE="FALSE"
-./xmlchange CONTINUE_RUN=TRUE
-# Copy files ourselves
-RUNDIR=`./xmlquery --value RUNDIR`
-mkdir -p ${RUNDIR}
-cp ${RUN_REFDIR}/rpointer.??? ${RUNDIR}
-for file in ${RUNDIR}/rpointer.???; do
-    cp -v ${file} ${file}~
-    sed -i "s/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-00000/${RUN_REFDATE}-${RUN_REFTOD}/" ${file}
-    for f in `cat ${file}`; do
-        echo ${f}
-        if [ -f ${RUN_REFDIR}/${f} ] && [ ! -f ${RUNDIR}/`basename ${f}` ]; then
-            #cp -v ${RUN_REFDIR}/`basename ${f}` ${RUNDIR}/`basename ${f}`
-            ln -s ${RUN_REFDIR}/`basename ${f}` ${RUNDIR}/`basename ${f}`
+if [ 1 -eq 1 ]; then
+    RUN_REFDIR="/lustre/orion/cli115/proj-shared/brhillman/e3sm_scratch/decadal-production-run6-20240708.ne1024pg2_ne1024pg2.F20TR-SCREAMv1.pnetcdf/run"
+    ./xmlchange RUN_TYPE="startup"
+    #./xmlchange RUN_REFCASE="decadal-production-run6-20240708.ne1024pg2_ne1024pg2.F20TR-SCREAMv1.pnetcdf"
+    #./xmlchange RUN_REFDIR=${RUN_REFDIR}
+    #./xmlchange RUN_REFDATE=${RUN_REFDATE}
+    #./xmlchange RUN_REFTOD=${RUN_REFTOD}
+    #./xmlchange GET_REFCASE="FALSE"
+    ./xmlchange CONTINUE_RUN=TRUE 
+    # Copy files ourselves
+    RUNDIR=`./xmlquery --value RUNDIR`
+    mkdir -p ${RUNDIR}
+    cp ${RUN_REFDIR}/rpointer.??? ${RUNDIR}
+    for file in ${RUNDIR}/rpointer.???; do
+        sed -i "s/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-00000/${RUN_REFDATE}-${RUN_REFTOD}/" ${file}
+        for f in `cat ${file}`; do
+            echo ${f}
+            if [ -f ${RUN_REFDIR}/${f} ] && [ ! -f ${RUNDIR}/`basename ${f}` ]; then
+                ln -s ${RUN_REFDIR}/`basename ${f}` ${RUNDIR}/`basename ${f}`
+            fi
+        done
+    done
+    # Also need to copy the rh files, which might not be picked up in rpointer files
+    for file in ${RUN_REFDIR}/*.rh[0-9].${RUN_REFDATE}-${RUN_REFTOD}.nc; do
+        if [ ! -f ${RUNDIR}/`basename ${file}` ]; then
+            ln -s ${file} ${RUNDIR}/
         fi
     done
-done
-# Also need to copy the rh files, which might not be picked up in rpointer files
-for file in ${RUN_REFDIR}/*.rh[0-9].${RUN_REFDATE}-${RUN_REFTOD}.nc; do
-    if [ ! -f ${RUNDIR}/`basename ${file}` ]; then
-        #cp -v ${file} ${RUNDIR}/
+    # And copy .bin file from correct dummy case
+    RUN_REFDIR="/lustre/orion/cli115/proj-shared/brhillman/e3sm_scratch/scream-decadal/craygnuamdgpu-gen-docn/decadal-production-run6-20240708.ne1024pg2_ne1024pg2.F20TR-SCREAMv1.pnetcdf/run"
+    for file in ${RUN_REFDIR}/*.${RUN_REFDATE}-${RUN_REFTOD}.bin; do
+        if [ -e ${RUNDIR}/`basename ${file}` ]; then
+            rm ${RUNDIR}/`basename ${file}`
+        fi
         ln -s ${file} ${RUNDIR}/
-    fi
-done
+    done
+fi
 
 # Turn on budget reporting
 ./xmlchange BUDGETS=TRUE
@@ -275,5 +284,5 @@ cp ${script_root}/`basename $0` ./
 ./case.setup
 ./case.build
 #./case.submit -a="--job-name=decadal-amip -t 12:00:00  --mail-type=ALL --mail-user=bhillma@sandia.gov -x frontier08656 --account=cli115" # --gpu-srange=800-1600"
-./case.submit -a="--job-name=decadal-amip -t 12:00:00 --mail-type=ALL --mail-user=bhillma@sandia.gov -x frontier08656 --account=cli115" # --gpu-srange=800-1600"
+./case.submit -a="--job-name=decadal-amip -t ${walltime} --qos=debug --mail-type=ALL --mail-user=bhillma@sandia.gov -x frontier08656 --account=cli115" # --gpu-srange=800-1600"
 echo "${caseroot}"
