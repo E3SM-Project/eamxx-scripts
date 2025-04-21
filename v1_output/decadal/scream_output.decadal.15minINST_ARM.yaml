@@ -1,0 +1,36 @@
+%YAML 1.1
+---
+filename_prefix: output.scream.decadal.15minINST_ARM
+iotype: pnetcdf
+Averaging Type: Instant
+Max Snapshots Per File: 96  # one file per day
+horiz_remap_file: ${DIN_LOC_ROOT}/atm/scream/maps/map_ne1024pg2_to_DecadalSites_c20240130.nc
+Fields:
+  Physics PG2:
+    Field Names:
+    # 2D
+    - SW_flux_dn_at_model_bot
+    - SW_flux_up_at_model_bot
+    - LW_flux_dn_at_model_bot
+    - LW_flux_up_at_model_bot
+    - SW_flux_up_at_model_top
+    - LW_flux_up_at_model_top
+    - SW_flux_dn_at_model_top
+    - surf_sens_flux
+    - surf_evap
+    - ps
+    - precip_liq_surf_mass_flux
+    - precip_ice_surf_mass_flux
+    - T_2m
+    - qv_2m
+    - VapWaterPath
+    - LiqWaterPath
+    - IceWaterPath
+    - RainWaterPath
+    - wind_speed_10m
+output_control:
+  Frequency: 15
+  frequency_units: nmins
+  MPI Ranks in Filename: false
+Restart:
+  force_new_file: true
