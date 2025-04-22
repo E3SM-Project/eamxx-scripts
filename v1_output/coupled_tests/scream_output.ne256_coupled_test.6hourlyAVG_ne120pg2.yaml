@@ -23,7 +23,7 @@ fields:
     - T_mid_at_200hPa
     - T_mid_at_500hPa
     - z_mid_at_700hPa
-    - geopotential_at_700hPa
+    - geopotential_mid_at_700hPa
     - U_at_model_bot
     - V_at_model_bot
     - SW_flux_dn_at_model_bot
