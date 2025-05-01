@@ -2,12 +2,12 @@
 ---
 filename_prefix: output.scream.decadal.15minINST_ARM
 iotype: pnetcdf
-Averaging Type: Instant
-Max Snapshots Per File: 96  # one file per day
+averaging_type: instant
+max_snapshots_per_file: 96  # one file per day
 horiz_remap_file: ${DIN_LOC_ROOT}/atm/scream/maps/map_ne1024pg2_to_DecadalSites_c20240130.nc
-Fields:
-  Physics PG2:
-    Field Names:
+fields:
+  physics_pg2:
+    field_names:
     # 2D
     - SW_flux_dn_at_model_bot
     - SW_flux_up_at_model_bot
@@ -29,8 +29,7 @@ Fields:
     - RainWaterPath
     - wind_speed_10m
 output_control:
-  Frequency: 15
+  frequency: 15
   frequency_units: nmins
-  MPI Ranks in Filename: false
-Restart:
+restart:
   force_new_file: true
