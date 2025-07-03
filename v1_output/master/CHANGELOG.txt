@@ -1,0 +1,1 @@
+* Jul 3, 2025: change "Key Name" to "key_name" in yaml files, following recent E3SM change
