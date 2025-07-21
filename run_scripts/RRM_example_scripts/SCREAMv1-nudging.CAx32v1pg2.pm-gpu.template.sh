@@ -42,7 +42,7 @@ readonly RESOLUTION="CAx32v1pg2_CAx32v1pg2"
 
 # Directory to where your YAML (output) files are located. Do a search for "YAML_ROOT"
 #   to find the location in this script where you will specify the individual files.
-readonly YAML_ROOT="/global/homes/b/bogensch/scream_v1_scripts/yaml_output_files"
+readonly YAML_ROOT="/pscratch/sd/b/bogensch/dp_scream/codes/eamxx-scripts/v1_output"
 
 # Directory where your nudging data is located
 readonly NUDGING_ROOT="/pscratch/sd/z/zhang73/DATA/data_hiccup/L128.mono_CAx32v1pg2.UVTQ.pres.cdsnew.240929/"
@@ -448,8 +448,12 @@ runtime_options() {
 	exit 380
     fi
 
-    cp ${YAML_ROOT}"/scream_output.monthly.yaml" .
-    ./atmchange output_yaml_files="./scream_output.monthly.yaml"
+#    Below is an example of how to add two output streams.  Note that you will likely need
+#     to change these for your needs.  These are simply here as an example/placeholder.
+    cp ${YAML_ROOT}"/scream_output.Cess.monthly_ne1024.yaml" .
+    cp ${YAML_ROOT}"/scream_output.Cess.hourly_2Dvars.yaml" .
+    ./atmchange output_yaml_files="./scream_output.Cess.monthly_ne1024.yaml"
+    ./atmchange output_yaml_files+="./scream_output.Cess.hourly_2Dvars.yaml"
 
     popd
 }
