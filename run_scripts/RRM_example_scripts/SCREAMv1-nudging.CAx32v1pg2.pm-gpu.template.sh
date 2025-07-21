@@ -365,7 +365,7 @@ runtime_options() {
     
     # Set nudging
     ./case.setup
-    ./atmchange mac_aero_mic::atm_procs_list=tms,shoc,cldFraction,spa,p3,nudging
+    ./atmchange mac_aero_mic::atm_procs_list=tms,shoc,cld_fraction,spa,p3,nudging
     ./case.setup 
     # make sure that ``time'' is set to unlimited o/w we'll receive SIGSEGV: "invalid memory reference without other clues"
     ./atmchange physics::mac_aero_mic::nudging::nudging_filenames_patterns=${NUDGING_ROOT}/HICCUP.atm_era5.20100???_??.mono_CAx32v1pg2.L128.nc
