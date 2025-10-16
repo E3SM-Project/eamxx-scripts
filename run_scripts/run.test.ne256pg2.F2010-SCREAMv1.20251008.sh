@@ -342,10 +342,10 @@ runtime_options() {
     # Set shoc tuning for lambda_high
     ./atmchange lambda_high=0.08
     # Allow for tendency outputs
-    #./atmchange physics::mac_aero_mic::shoc::compute_tendencies=T_mid,qv
-    #./atmchange physics::mac_aero_mic::p3::compute_tendencies=T_mid,qv
-    #./atmchange physics::rrtmgp::compute_tendencies=T_mid
-    #./atmchange homme::compute_tendencies=T_mid,qv
+    ./atmchange physics::mac_aero_mic::shoc::compute_tendencies=T_mid,qv
+    ./atmchange physics::mac_aero_mic::p3::compute_tendencies=T_mid,qv
+    ./atmchange physics::rrtmgp::compute_tendencies=T_mid
+    ./atmchange homme::compute_tendencies=T_mid,qv
     # use GHG levels more appropriate for 2019
     ./atmchange co2vmr=410.5e-6
     ./atmchange ch4vmr=1877.0e-9
