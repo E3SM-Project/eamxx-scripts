@@ -510,7 +510,6 @@ fields:
     - z_mid_at_1000hPa
     - T_mid_at_850hPa
     - T_mid_at_700hPa
-    - qc2qi_berg
     - p3_qv_tend
     # For SST advection
     - U_at_10m_above_surface
