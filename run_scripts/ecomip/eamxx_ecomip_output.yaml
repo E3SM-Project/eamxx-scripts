@@ -1,0 +1,42 @@
+%YAML 1.2
+---
+averaging_type: average
+fields:
+  physics_pg2:
+    field_names:
+    # For Earthcare simulators
+    - z_mid
+    - p_int
+    - p_mid
+    - T_mid
+    - horiz_winds
+    - tracers
+    - cldfrac_tot
+    - precip_total_surf_mass_flux
+    - precip_liq_surf_mass_flux
+    - precip_ice_surf_mass_flux
+    - omega
+#   - convective_mass_flux # Conditional diagnostic
+    - surf_radiative_T #skin_temperature
+    - wind_speed_10m
+    - sea_level_pressure
+    - U_at_10m
+    - V_at_10m
+    - pseudo_density
+    # For diagnosis
+    - sw_flux_up_at_model_top
+    - sw_flux_dn_at_model_top
+    - lw_flux_up_at_model_top
+    - lw_flux_dn_at_model_top
+    - sw_clrsky_flux_up_at_model_top
+    - lw_clrsky_flux_up_at_model_top
+    - IceWaterPath
+    - LiqWaterPath
+    - VapWaterPath
+    #- precip_accumulated_over_30min
+filename_prefix: ecomip.eamxx.h
+output_control:
+  frequency: 1 #${HIST_N}
+  frequency_units: nhours #${HIST_OPTION}
+  skip_t0_output: 'false'
+...
