@@ -3,18 +3,18 @@ set -e
 umask 022
 
 script_root=${PWD}
-branch="brhillman" #"decadal-production-run4" #"fix-nanobug-in-horiz-remap" #"decadal-production-run4" #"scorpio-update"
+branch="master" #"decadal-production-run4" #"fix-nanobug-in-horiz-remap" #"decadal-production-run4" #"scorpio-update"
 code_root=${HOME}/codes/e3sm/branches/${branch}
-res=ne4pg2_ne4pg2 #ne1024pg2_ne1024pg2  #ne1024pg2_ne1024pg2 #ne1024pg2_ne1024pg2 #ne30pg2_EC30to60E2r2
+res=ne1024pg2_ne1024pg2 #ne30pg2_ne30pg2 #ne1024pg2_ne1024pg2  #ne1024pg2_ne1024pg2 #ne1024pg2_ne1024pg2 #ne30pg2_EC30to60E2r2
 compset=F2010-SCREAMv1
 machine="pm-gpu" #chrysalis
 compiler="gnugpu" #intel
 project="e3sm"
-walltime="00:10:00"
-datestring="20250929"
-casename=${branch}.${res}.${compset}.${datestring}
+walltime="01:00:00"
+datestring=20251111 #`date +'%Y%m%d'` #"20251031"
+casename=ecomip.${res}.${compset}.${datestring}
 caseroot=${SCRATCH}/e3sm/cases/${casename}
-pecount=32x1
+#pecount=32x1
 
 mkdir -p `dirname ${caseroot}`
 ${code_root}/cime/scripts/create_newcase \
@@ -23,7 +23,6 @@ ${code_root}/cime/scripts/create_newcase \
     --compset=${compset} \
     --machine=${machine} \
     --compiler=${compiler} \
-    --pecount=${pecount} \
     --project=${project} \
     --walltime=${walltime}
 
@@ -33,19 +32,19 @@ cd ${caseroot}
 DIN_LOC_ROOT=`./xmlquery DIN_LOC_ROOT --value`
 
 # Change run length
-./xmlchange STOP_OPTION=ndays,STOP_N=3
-./xmlchange REST_OPTION=ndays,REST_N=3
+./xmlchange STOP_OPTION=ndays,STOP_N=2
+./xmlchange REST_OPTION=ndays,REST_N=2
 ./xmlchange RESUBMIT=0
-./xmlchange RUN_STARTDATE="2024-08-01"
+./xmlchange RUN_STARTDATE="2024-09-02"
+#./xmlchange ATM_NCPL=48
 
 # Run setup before configuring components
 ./case.setup
 
 # Namelist options for EAMxx
 if [ "${res}" == "ne1024pg2_ne1024pg2" ]; then
-    ./atmchange initial_conditions::Filename="${DIN_LOC_ROOT}/atm/scream/init/screami_ne1024np4L128_era5-19941001-topoadjx6t_20240214.nc"
-elif [ "${res}" == "ne256pg2_ne256pg2" ]; then
-    ./atmchange initial_conditions::Filename="${DIN_LOC_ROOT}/atm/scream/init/screami_ne256np4L128_era5-19941001-topoadjx6t_20240123.nc"
+    #./atmchange initial_conditions::filename="${DIN_LOC_ROOT}/atm/scream/init/screami_ne1024np4L128_era5-19941001-topoadjx6t_20240214.nc"
+    ./atmchange initial_conditions::filename="/global/cfs/cdirs/e3sm/bhillma/ecomip/ecomip_ifs_od-0001_analysis20240902T0000Z_0.05deg_ml.ne1024np4.surface_adjusted.L128.temperature_adjusted.nc"
 fi
 
 # Turn on cosp and set frequency
