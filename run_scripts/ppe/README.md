@@ -10,7 +10,7 @@ Note that these were performed on pm-gpu and might need modifications for runnin
 When running the python script, provide it with flags pointing to the json file with the tuning parameters, the template script to make each of the ensemble cases, and the location of the e3sm.exe.
 
 ```bash
-python create_ensembles.py --json ./normranked_LH_sampling_base10.json --template ./run.forENS.ne32pg2.F2010-SCREAMv1.pm-gpu.sh --old-exe /pscratch/sd/t/terai/e3sm_scratch/pm-gpu/PPEensemble_1node.ne32pg2_ne32pg2.F2010-SCREAMv1.20260319/build/e3sm.exe
+python create_ensembles.py --json ./normranked_LH_sampling_base10.json --template ./run.forENS.ne32pg2.F2010-SCREAMv1.pm-gpu.sh --old-exe /pscratch/sd/t/terai/e3sm_scratch/pm-gpu/PPEensemble_1node.ne32pg2_ne32pg2.F2010-SCREAMv1.20260319/build
 ```
 
 4) Modify the case directory, case name, GPU counts, job time, username, and in the bundle script (`submit_ensemble_bundle_256.sh`) and submit.
