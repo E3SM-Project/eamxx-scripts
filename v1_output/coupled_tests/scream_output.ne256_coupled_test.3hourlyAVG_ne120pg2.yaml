@@ -1,0 +1,26 @@
+averaging_type: average
+fields:
+  physics_pg2:
+    field_names:
+    - precip_liq_surf_mass_flux
+    - precip_ice_surf_mass_flux
+    - precip_total_surf_mass_flux
+    - SW_flux_up_at_model_top
+    - SW_flux_dn_at_model_top
+    - LW_flux_up_at_model_top
+    - SW_clrsky_flux_up_at_model_top
+    - LW_clrsky_flux_up_at_model_top
+    - SW_flux_dn_at_model_bot
+    - SW_flux_up_at_model_bot
+    - LW_flux_dn_at_model_bot
+    - LW_flux_up_at_model_bot
+max_snapshots_per_file: 8
+restart:
+  force_new_file: true
+filename_prefix: output.ne256_coupled_test.3hourlyAVG_ne120pg2
+horiz_remap_file: ${DIN_LOC_ROOT}/atm/scream/maps/map_ne256pg2_to_ne120pg2_traave.20240206.nc
+iotype: pnetcdf
+output_control:
+  frequency: 3
+  mpi_ranks_in_filename: false
+  frequency_units: nhours
