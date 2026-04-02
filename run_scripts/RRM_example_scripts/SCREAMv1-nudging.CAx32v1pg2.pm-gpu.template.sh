@@ -40,11 +40,9 @@ readonly Q=regular
 readonly COMPSET="F2010-SCREAMv1"
 readonly RESOLUTION="CAx32v1pg2_CAx32v1pg2"
 
-# Directory to where your YAML (output) files are located. Do a search for "YAML_ROOT"
-#   to find the location in this script where you will specify the individual files.
-readonly YAML_ROOT="/global/homes/b/bogensch/scream_v1_scripts/yaml_output_files"
+# Define the path to your sample EAMxx output yaml files
+# readonly YAML_ROOT="<path-to-your-output-yaml-fies>"
 
-# Directory where your nudging data is located
 readonly NUDGING_ROOT="/pscratch/sd/z/zhang73/DATA/data_hiccup/L128.mono_CAx32v1pg2.UVTQ.pres.cdsnew.240929/"
 
 # Directory where your code is
@@ -365,7 +363,7 @@ runtime_options() {
     
     # Set nudging
     ./case.setup
-    ./atmchange mac_aero_mic::atm_procs_list=tms,shoc,cldFraction,spa,p3,nudging
+    ./atmchange mac_aero_mic::atm_procs_list=tms,shoc,cld_fraction,spa,p3,nudging
     ./case.setup 
     # make sure that ``time'' is set to unlimited o/w we'll receive SIGSEGV: "invalid memory reference without other clues"
     ./atmchange physics::mac_aero_mic::nudging::nudging_filenames_patterns=${NUDGING_ROOT}/HICCUP.atm_era5.20100???_??.mono_CAx32v1pg2.L128.nc
@@ -448,8 +446,13 @@ runtime_options() {
 	exit 380
     fi
 
-    cp ${YAML_ROOT}"/scream_output.monthly.yaml" .
-    ./atmchange output_yaml_files="./scream_output.monthly.yaml"
+   # Copy the EAMxx output yaml files and add them via ./atmchange
+   #
+   # cp ${YAML_ROOT}"/output-1.yaml" .
+   # cp ${YAML_ROOT}"/output-2.yaml" .
+   #
+   # ./atmchange output_yaml_files="./output-1.yaml"
+   # ./atmchange output_yaml_files+="./output-2.yaml"
 
     popd
 }
