@@ -7,14 +7,24 @@ branch="master" #"decadal-production-run4" #"fix-nanobug-in-horiz-remap" #"decad
 code_root=${HOME}/codes/e3sm/branches/${branch}
 res=ne1024pg2_ne1024pg2 #ne30pg2_ne30pg2 #ne1024pg2_ne1024pg2  #ne1024pg2_ne1024pg2 #ne1024pg2_ne1024pg2 #ne30pg2_EC30to60E2r2
 compset=F2010-SCREAMv1
-machine="pm-gpu" #chrysalis
-compiler="gnugpu" #intel
-project="e3sm"
-walltime="01:00:00"
-datestring=20251111 #`date +'%Y%m%d'` #"20251031"
+machine="frontier" #"pm-gpu" #chrysalis
+compiler="craygnu-mphipcc" #"gnugpu" #intel
+project="cli115" #"e3sm"
+walltime="02:00:00"
+datestring=20260422 #`date +'%Y%m%d'` #"20251031"
 casename=ecomip.${res}.${compset}.${datestring}
-caseroot=${SCRATCH}/e3sm/cases/${casename}
+caseroot=/lustre/orion/cli115/proj-shared/brhillman/e3sm/cases/${casename}
 #pecount=32x1
+
+if [ "${res}" == "ne1024pg2_ne1024pg2" ]; then
+    #pecount="2560x6" # 320 nodes
+    pecount="16384x6" # 2048 nodes
+elif [ "${res}" == "ne256pg2_ne256pg2" ]; then
+    pecount="768x6" # 96 nodes
+elif [ "${res}" == "ne30pg2_EC30to60E2r2" ]; then
+    pecount="16x6"
+    #pecount=5540x1 #128x1
+fi
 
 mkdir -p `dirname ${caseroot}`
 ${code_root}/cime/scripts/create_newcase \
@@ -23,6 +33,7 @@ ${code_root}/cime/scripts/create_newcase \
     --compset=${compset} \
     --machine=${machine} \
     --compiler=${compiler} \
+    --pecount=${pecount} \
     --project=${project} \
     --walltime=${walltime}
 
@@ -43,14 +54,15 @@ DIN_LOC_ROOT=`./xmlquery DIN_LOC_ROOT --value`
 
 # Namelist options for EAMxx
 if [ "${res}" == "ne1024pg2_ne1024pg2" ]; then
-    #./atmchange initial_conditions::filename="${DIN_LOC_ROOT}/atm/scream/init/screami_ne1024np4L128_era5-19941001-topoadjx6t_20240214.nc"
-    ./atmchange initial_conditions::filename="/global/cfs/cdirs/e3sm/bhillma/ecomip/ecomip_ifs_od-0001_analysis20240902T0000Z_0.05deg_ml.ne1024np4.surface_adjusted.L128.temperature_adjusted.nc"
+    ./atmchange initial_conditions::filename="/lustre/orion/cli115/proj-shared/brhillman/scream/data/ecomip_ifs_od-0001_analysis20240902T0000Z_0.05deg_ml.ne1024np4L128.eamxx.nc"
 fi
 
 # Turn on cosp and set frequency
+if [ 1 -eq 0 ]; then
 ./atmchange physics::atm_procs_list="mac_aero_mic,rrtmgp,cosp"
 ./atmchange physics::cosp::cosp_frequency_units="hours"
 ./atmchange physics::cosp::cosp_frequency=1
+fi
 
 output_yaml_files=(`ls ${script_root}/*.yaml`)
 for file in ${output_yaml_files[@]}; do
@@ -88,12 +100,11 @@ EOF
 fi
 
 # Point to new SST forcing
-# TODO: need new SST data for 2024
-#./xmlchange --file env_run.xml --id SSTICE_DATA_FILENAME --val "${DIN_LOC_ROOT}/atm/cam/sst/sst_ostia_3600x7200_19940930_20151231_c20240125.nc"
-#./xmlchange --file env_run.xml --id SSTICE_GRID_FILENAME --val "${DIN_LOC_ROOT}/ocn/docn7/domain.ocn.3600x7200.230522.nc"
-#./xmlchange --file env_run.xml --id SSTICE_YEAR_ALIGN --val 1994
-#./xmlchange --file env_run.xml --id SSTICE_YEAR_START --val 1994
-#./xmlchange --file env_run.xml --id SSTICE_YEAR_END --val 2015
+./xmlchange --file env_run.xml --id SSTICE_DATA_FILENAME --val "/lustre/orion/cli115/proj-shared/brhillman/scream/data/sst_ice.ecomip_ifs_od-0001_analysis20240902T0000Z_0.05deg_sfc.3600x7200wst.cdocon.nc"
+./xmlchange --file env_run.xml --id SSTICE_GRID_FILENAME --val "/lustre/orion/cli115/proj-shared/brhillman/scream/data/domain.ecomip_ifs_od_0.05deg.3600x7200wst.nc"
+./xmlchange --file env_run.xml --id SSTICE_YEAR_ALIGN --val 2024
+./xmlchange --file env_run.xml --id SSTICE_YEAR_START --val 2024
+./xmlchange --file env_run.xml --id SSTICE_YEAR_END --val 2025
 
 # Link to rundir
 ln -s `./xmlquery --value RUNDIR` run

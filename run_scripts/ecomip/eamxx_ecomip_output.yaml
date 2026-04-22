@@ -1,6 +1,7 @@
 %YAML 1.2
 ---
 averaging_type: instant
+max_snapshots_per_file: 1
 fields:
   physics_pg2:
     field_names:
@@ -10,8 +11,10 @@ fields:
     - p_int
     - p_mid
     - T_mid
-    - horiz_winds
-    - tracers
+    #- horiz_winds
+    - U
+    - V
+    #- tracers
     - qv
     - qc
     - qi
