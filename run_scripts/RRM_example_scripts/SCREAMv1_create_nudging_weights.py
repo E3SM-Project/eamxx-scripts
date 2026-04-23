@@ -124,8 +124,8 @@ def create_nudging_weights(opt):
                       (Val1_n*Val2_n*Val3_n*Val4_n),
                       (Val1_n*Val2_n*Val3_p*Val4_p))
 
-   phi_s                = Nudge_Hwin_lat0 - Nudge_Hwin_lonWidthH 
-   phi_n                = Nudge_Hwin_lat0 + Nudge_Hwin_lonWidthH 
+   phi_s                = Nudge_Hwin_lat0 - Nudge_Hwin_latWidthH 
+   phi_n                = Nudge_Hwin_lat0 + Nudge_Hwin_latWidthH 
    delta_phi_ns         = Nudge_Hwin_latDelta
    phi_w                = Nudge_Hwin_lon0 - Nudge_Hwin_lonWidthH  
    phi_e                = Nudge_Hwin_lon0 + Nudge_Hwin_lonWidthH  
