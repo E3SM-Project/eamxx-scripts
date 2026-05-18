@@ -4,6 +4,14 @@ Implement qv_sat formula from Flatau et al (1992):
 https://journals.ametsoc.org/doi/abs/10.1175/1520-0450%281992%29031%3C1507%3APFTSVP%3E2.0.CO%3B2)
 in python to make sure it matches our result in C++.
 
+[BSINGH: Extended the original code to add new test cases along with Murphy and Koop specific
+print statements. Test cases are obtained from Murphy and Koop (2005) paper (accessed 07/05/2020):
+https://pdfs.semanticscholar.org/519c/bb52a54c5abadff7263bf98678fccce5b594.pdf
+
+Added control variables "print_flatau" and "print_murphyKoop" to decide whether to
+print Flatau specific or MurphyKoop specific (or both) print statements]
+
+
 #Notes: 
 1. Units of output from Flatau are never given. They end up being hPa, which can be computed by 
 looking at output when T=T0 => es=a1 = 6.12... which is 100x smaller than the 612 Pa we know is the
@@ -35,6 +43,12 @@ operations, which provides substantial potential for differences relative to the
 #=============================
 import numpy as np
 import pylab as pl
+
+#Setting print_* variables to "True" would print values of that scheme
+#currently implemented schemes are "Flatau" and "Murphy and Koop"
+print_flatau     = True
+print_murphyKoop = True
+
 
 #DATA USED IN CALCULATIONS:
 #=============================
@@ -103,7 +117,7 @@ def polysvp_liq(T):
           +a_liq[7]*(T-T0)**7.\
           +a_liq[8]*(T-T0)**8.
     """
-    dt=T-T0
+    dt=max(T-T0,-80.0)
     esat=a_liq[0]\
           +dt*(a_liq[1]\
                +dt*(a_liq[2]\
@@ -134,7 +148,7 @@ def polysvp_ice_naive(T):
         return polysvp_liq(T)
     else:
 
-        dt=(T-T0)
+        dt=max(T-T0, -80.0)
 
         esat=a_ice[0]\
               +a_ice[1]*dt\
@@ -158,7 +172,7 @@ def polysvp_ice(T):
     if T>=T0: #C++ and F90 assume ice takes liq value at T0.
         return polysvp_liq(T)
     else:
-        dt=T-T0
+        dt=max(T-T0, -80.0)
         esat=a_ice[0]\
               +dt*(a_ice[1]\
                    +dt*(a_ice[2]\
@@ -360,8 +374,8 @@ def MurphyKoop_esi(t):
 #allowing us to read the expected value directly off the table. Multiplying by 100 b/c 
 #table values are in hPa.
 
-print 'When T=T0, polysvp should exactly match 1st Flatau coef. Diff = ',polysvp_liq(T0) - a_liq[0]*100.
-print '\n'
+print('When T=T0, polysvp should exactly match 1st Flatau coef. Diff = '+str(polysvp_liq(T0) - a_liq[0]*100.))
+print('\n')
 
 #unfortunately, polysvp uses liquid saturation at exactly T=T0, so this test is expected to fail.
 #print('polysvp_ice(T0) - a_ice[0] = ',polysvp_ice(T0) - a_ice[0]*100.)
@@ -388,15 +402,45 @@ T303_data=[303.15, 1e5, 4242.757341329608, 4242.757341329608,\
 T243P500_data=[243.15, 5e4, 37.98530141245404, 50.98455924912173,\
            0.00023634717905493638,  0.0003172707211143376]
 
+#Following Test values are directly coming from Murphy and Koop (2005) paper
+#Table C1, titled "VALUES RECOMMENDED FOR CHECKING COMPUTER CODES"
+
+#DEFINITIONS:ice vapor pressure(ivp); liquid vapor pressure(lvp)
+#"expected values" for ivp and lvp are from the paper
+#There are some unknown data for the following data arrays and "None" are used for that data.
+
+#Format of the data arrays below is the following:
+#[T, pres, expected ivp from the paper, expected lvp from the paper, missing data, missing data]
+
+#Test values @150  @ 1e5 Pa
+T150_data    = [150,    1e5, 6.106e-6, 1.562e-5, None, None]
+
+#Test values @180  @ 1e5 Pa
+T180_data    = [180,    1e5, 0.0053975, 0.011239, None, None]
+
+#Test values @210  @ 1e5 Pa
+T210_data    = [210,    1e5, 0.70202,   1.2335, None, None]
+
+#Test values @240  @ 1e5 Pa
+T240_data    = [240,    1e5, 27.272,    37.667, None, None]
+
+#Test values @273.16  @ 1e5 Pa
+T273_16_data = [273.16, 1e5, 611.657,   611.657, None, None]
+
+#Test values @300  @ 1e5 Pa (expected value for ivp is not mentioned below as temp is 300K)
+T300_data    = [300,    1e5, None,      3536.8, None, None]
+
+
 #The last line in this loop prints stuff to copy/paste into C++ tests.
 #Tell users what that data consists of:
 print('Below, "data to copy" is: [sat ice pres, sat liq pres, qsat_ice, qsat_liq]' )
 
 
 ind=0
-for data in [tmelt_data,T243_data,T303_data, T243P500_data]:
+for data in [tmelt_data,T243_data,T303_data, T243P500_data, T150_data, T180_data,
+             T210_data, T240_data, T273_16_data, T300_data]:
     ind+=1
-    print "Case %i: T=%5.2f p=%5.1f mb"%(ind,data[0],data[1]/100.)
+    print("Case %i: T=%5.2f p=%5.1f mb"%(ind,data[0],data[1]/100.))
 
     #SATURATION VAPOR PRESSURE CHECKS:
     #---------------------------------
@@ -407,15 +451,6 @@ for data in [tmelt_data,T243_data,T303_data, T243P500_data]:
     e_ice_GG=GoffGratch_esi(data[0])
     e_liq_MK=MurphyKoop_esl(data[0])
     e_ice_MK=MurphyKoop_esi(data[0])
-    #print('  Naive minus old expected e_ice='+str(e_ice_f - data[2]))
-    #print('  New minus old expected e_ice='+str(e_ice - data[2]))
-    print('  F90 ice p vs naive ice p='+str(e_ice - e_ice_f))
-    print('  Flatau vs GoffGratch ice p='+str(e_ice_GG - e_ice))
-    print('  Flatau vs MurphyKoop ice p='+str(e_liq_MK - e_ice))
-
-    print('  Flatau vs GoffGratch liq p='+str(e_liq_GG - e_liq))
-    print('  Flatau vs MurphyKoop liq p='+str(e_liq_MK - e_liq))
-    #print('  actual minus old expected e_liq='+str(e_liq - data[3]))
 
     #SATURATION MIXING RATIO CHECKS:
     #---------------------------------
@@ -424,33 +459,71 @@ for data in [tmelt_data,T243_data,T303_data, T243P500_data]:
     qsat_l_MK=vap2mix(e_liq_MK,data[1])
     qsat_exact_l=qs_exact(data[0],data[1],is_ice=False)
     qsat_num_l = qs_numeric(data[0],data[1],is_ice=False)
-    #print('  actual minus old expected qsat_liq='+str(qsat_l - data[5]))
-    print('  exact minus numerical qsat_liq='+str(qsat_exact_l - qsat_num_l))
-    print('  exact minus Flatau qsat_liq='+str(qsat_exact_l - qsat_l))
-    print('  Percent error in Flatau liq = %e'%((qsat_exact_l - qsat_l)/qsat_exact_l*100.) )
-    print('  Percent error in GoffGratch liq = %e'%((qsat_exact_l - qsat_l_GG)/qsat_exact_l*100.) )
-    print('  Percent error in MurphyKoop liq = %e'%((qsat_exact_l - qsat_l_MK)/qsat_exact_l*100.) )
-
     #if above freezing, don't bother with expensive repeat calculations
-    if data[0]<T0: 
+    if data[0]<T0:
         qsat_i=vap2mix(e_ice,data[1])
         qsat_i_GG=vap2mix(e_ice_GG,data[1])
         qsat_i_MK=vap2mix(e_ice_MK,data[1])
         qsat_exact_i=qs_exact(data[0],data[1],is_ice=True)
         qsat_num_i = qs_numeric(data[0],data[1],is_ice=True)
-        #print('  actual minus old expected qsat_ice='+str(qsat_i - data[4]))
-        print('  exact minus numerical qsat_ice='+str(qsat_exact_i - qsat_num_i))
-        print('  exact minus Flatau qsat_ice='+str(qsat_exact_i - qsat_i))
-        print('  Percent error in Flatau ice = %e'%((qsat_exact_i - qsat_i)/qsat_exact_i*100.) )
-        print('  Percent error in GoffGratch ice = %e'%((qsat_exact_i - qsat_i_GG)/qsat_exact_i*100.) )
-        print('  Percent error in MurphyKoop ice = %e'%((qsat_exact_i - qsat_i_MK)/qsat_exact_i*100.) )
     else:
-        qsat_i=qsat_l
+        qsat_i    = qsat_l
+        qsat_i_MK = qsat_l_MK
 
+    if(print_flatau):
+        print('----------------------------------------------------------')
+        print('--                Flatau                                --')
+        print('----------------------------------------------------------')
+        #print('  Naive minus old expected e_ice='+str(e_ice_f - data[2]))
+        #print('  New minus old expected e_ice='+str(e_ice - data[2]))
+        print('  F90 ice p vs naive ice p='+str(e_ice - e_ice_f))
+        print('  Flatau vs GoffGratch ice p='+str(e_ice_GG - e_ice))
+        print('  Flatau vs MurphyKoop ice p='+str(e_liq_MK - e_ice))
+
+        print('  Flatau vs GoffGratch liq p='+str(e_liq_GG - e_liq))
+        print('  Flatau vs MurphyKoop liq p='+str(e_liq_MK - e_liq))
+        #print('  actual minus old expected qsat_liq='+str(qsat_l - data[5]))
+        print('  exact minus numerical qsat_liq='+str(qsat_exact_l - qsat_num_l))
+        print('  exact minus Flatau qsat_liq='+str(qsat_exact_l - qsat_l))
+        print('  Percent error in Flatau liq = %e'%((qsat_exact_l - qsat_l)/qsat_exact_l*100.) )
+        print('  Percent error in GoffGratch liq = %e'%((qsat_exact_l - qsat_l_GG)/qsat_exact_l*100.) )
+        print('  Percent error in MurphyKoop liq = %e'%((qsat_exact_l - qsat_l_MK)/qsat_exact_l*100.) )
+        #print('  actual minus old expected e_liq='+str(e_liq - data[3]))
+        if data[0]<T0:
+            #print('  actual minus old expected qsat_ice='+str(qsat_i - data[4]))
+            print('  exact minus numerical qsat_ice='+str(qsat_exact_i - qsat_num_i))
+            print('  exact minus Flatau qsat_ice='+str(qsat_exact_i - qsat_i))
+            print('  Percent error in Flatau ice = %e'%((qsat_exact_i - qsat_i)/qsat_exact_i*100.) )
+            print('  Percent error in GoffGratch ice = %e'%((qsat_exact_i - qsat_i_GG)/qsat_exact_i*100.) )
+            print('  Percent error in MurphyKoop ice = %e'%((qsat_exact_i - qsat_i_MK)/qsat_exact_i*100.) )
     #PRINT DATA TO COPY
     #---------------------------------
-    print '  Data to copy: ',e_ice,e_liq,qsat_i,qsat_l 
+        print('  Data to copy: ',e_ice,e_liq,qsat_i,qsat_l)
+    if(print_murphyKoop):
+        print('----------------------------------------------------------')
+        print('--             Murphy and Koop                          --')
+        print('----------------------------------------------------------')
+        #print('  F90 ice p vs naive ice p='+str(e_ice - e_ice_f))
+        print('  MurphyKoop vs GoffGratch ice p='+str(e_ice_GG - e_ice_MK))
+        print('  MurphyKoop vs Flatau     ice p='+str(e_ice    - e_ice_MK))
 
+        print('  MurphyKoop vs GoffGratch liq p='+str(e_liq_GG - e_liq_MK))
+        print('  MurphyKoop vs Flatau     liq p='+str(e_liq    - e_liq_MK))
+        print('  exact minus numerical qsat_liq='+str(qsat_exact_l - qsat_num_l))
+        print('  exact minus MurphyKoop qsat_liq='+str(qsat_exact_l - qsat_l_MK))
+        print('  Percent error in MurphyKoop liq = %e'%((qsat_exact_l - qsat_l_MK)/qsat_exact_l*100.) )
+        print('  Percent error in GoffGratch liq = %e'%((qsat_exact_l - qsat_l_GG)/qsat_exact_l*100.) )
+        print('  Percent error in Flatau     liq = %e'%((qsat_exact_l - qsat_l)/qsat_exact_l*100.) )
+        if data[0]<T0:
+            #print('  actual minus old expected qsat_ice='+str(qsat_i - data[4]))
+            print('  exact minus numerical qsat_ice='+str(qsat_exact_i - qsat_num_i))
+            print('  exact minus MurphyKoop qsat_ice='+str(qsat_exact_i - qsat_i_MK))
+            print('  Percent error in MurphyKoop ice = %e'%((qsat_exact_i - qsat_i_MK)/qsat_exact_i*100.) )
+            print('  Percent error in GoffGratch ice = %e'%((qsat_exact_i - qsat_i_GG)/qsat_exact_i*100.) )
+            print('  Percent error in Flatau ice = %e'%((qsat_exact_i - qsat_i)/qsat_exact_i*100.) )
+    #PRINT DATA TO COPY
+    #---------------------------------
+        print('  Data to copy: ',e_ice_MK,e_liq_MK,qsat_i_MK,qsat_l_MK)
 
 #CHECK THAT Pressure CLAUSIUS-CLAPEYRON FORMULATION IS RIGHT
 #=============================
