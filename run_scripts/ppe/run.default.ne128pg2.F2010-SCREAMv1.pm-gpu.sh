@@ -333,6 +333,9 @@ runtime_options() {
     # Set atmos IC file
     ./atmchange initial_conditions::filename="/global/cfs/projectdirs/e3sm/whannah/HICCUP/HICCUP.atm_era5.2019-08-01.ne128np4.L128.nc"
 
+    #updated spa file
+    ./atmchange spa_data_file="${input_data_dir}/atm/scream/init/spa_v3.LR.F2010.2011-2025.c_20240405.nc"
+
     #set sst inputs   
       ./xmlchange --file env_run.xml --id SSTICE_DATA_FILENAME --val "${input_data_dir}/atm/cam/sst/sst_ostia_ukmo-l4_ghrsst_3600x7200_20190731_20210309_c20240506.nc"
 
@@ -348,15 +351,12 @@ runtime_options() {
     
 #land
 cat <<EOF > user_nl_elm
-finidat='/pscratch/sd/m/meng/e3sm_scratch/ne128.ielm/run/ne128.ielm.elm.r.2015-01-01-00000.nc'
+!finidat='/pscratch/sd/m/meng/e3sm_scratch/ne128.ielm/run/ne128.ielm.elm.r.2015-01-01-00000.nc'
+finidat="${input_data_dir}/lnd/clm2/initdata_map/ne128pg2.elm.r.2013-08-01-00000.64bit.nc"
 check_finidat_fsurdat_consistency = .false.
 check_finidat_year_consistency = .false.
 check_finidat_pct_consistency = .false.
 check_dynpft_consistency = .false.
-EOF
-
-cat <<EOF > user_nl_cpl
-ocn_surface_flux_scheme = 2
 EOF
 
 cat << EOF > user_nl_cice

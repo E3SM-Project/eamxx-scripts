@@ -328,6 +328,8 @@ runtime_options() {
     # Set atmos IC file
     ./atmchange initial_conditions::filename="/global/cfs/projectdirs/e3sm/whannah/HICCUP/HICCUP.atm_era5.2019-08-01.ne32np4.L128.nc"
 
+    #updated spa file
+    ./atmchange spa_data_file="${input_data_dir}/atm/scream/init/spa_v3.LR.F2010.2011-2025.c_20240405.nc"
     #set sst inputs   
       ./xmlchange --file env_run.xml --id SSTICE_DATA_FILENAME --val "${input_data_dir}/atm/cam/sst/sst_ostia_ukmo-l4_ghrsst_3600x7200_20190731_20210309_c20240506.nc"
 
@@ -481,9 +483,49 @@ output_control:
 restart:
   force_new_file: true
 EOF
-
+cat <<EOF >> 3ha_ne32pg2.yaml
+averaging_type: average
+fields:
+  physics_pg2:
+    field_names:
+    - precip_total_surf_mass_flux
+    - U_at_850hPa
+    - V_at_850hPa
+    - LW_flux_up_at_model_top
+max_snapshots_per_file: 8
+filename_prefix: 3ha_ne32pg2
+iotype: pnetcdf
+output_control:
+  frequency: 3
+  frequency_units: nhours
+restart:
+  force_new_file: false
+EOF
+cat <<EOF >> 51hi.yaml
+averaging_type: instant
+fields:
+  physics_pg2:
+    field_names:
+    - LW_flux_up_at_model_top
+    - SW_flux_up_at_model_top
+    - precip_total_surf_mass_flux
+    - T_2m
+    - VapWaterPath
+    - IceWaterPath
+    - LiqWaterPath
+    - RainWaterPath
+max_snapshots_per_file: 8
+filename_prefix: 1hi
+iotype: pnetcdf
+output_control:
+  frequency: 51
+  frequency_units: nhours
+restart:
+  force_new_file: false
+EOF
     ./atmchange output_yaml_files="./1ma_ne32pg2.yaml"
-    
+    ./atmchange output_yaml_files+="./3ha_ne32pg2.yaml"
+    ./atmchange output_yaml_files+="./51hi.yaml" 
     
     popd
 }
