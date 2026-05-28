@@ -7,7 +7,7 @@ main() {
 do_fetch_code=false
 do_create_newcase=true
 do_case_setup=true
-do_case_build=true
+do_case_build=false
 do_case_submit=true
 
 readonly MACHINE="pm-gpu"
@@ -16,7 +16,8 @@ readonly BRANCH="master"
 readonly CHERRY=( )
 readonly COMPILER="gnugpu"
 readonly DEBUG_COMPILE=FALSE
-readonly Q=debug
+#readonly Q=debug
+readonly Q=regular
 
 # Simulation
 readonly COMPSET="F2010-SCREAMv1"
@@ -58,10 +59,10 @@ readonly CASE_SCRIPTS_DIR=${CASE_ROOT}/case_scripts
 readonly CASE_RUN_DIR=${CASE_ROOT}/run
 
 readonly PELAYOUT="4x1"
-readonly WALLTIME="00:29:00"
-readonly STOP_OPTION="ndays"
-readonly STOP_N="3"
-readonly REST_OPTION="ndays"
+readonly WALLTIME="15:00:00"
+readonly STOP_OPTION="nmonths"
+readonly STOP_N="13"
+readonly REST_OPTION="nmonths"
 readonly REST_N="3"
 readonly RESUBMIT="0"
 readonly DO_SHORT_TERM_ARCHIVING=false
@@ -542,7 +543,7 @@ case_submit() {
     pushd ${CASE_SCRIPTS_DIR}
 
     # Run CIME case.submit
-    ./case.submit -a="-t ${WALLTIME} --qos=${Q} --mail-type=ALL --mail-user=terai1@llnl.gov"
+    ./case.submit -a="-t ${WALLTIME} --qos=${Q} --mail-type=ALL --mail-user=beydoun1@llnl.gov"
     #./case.submit -a="--qos=${Q}"
 
     popd
