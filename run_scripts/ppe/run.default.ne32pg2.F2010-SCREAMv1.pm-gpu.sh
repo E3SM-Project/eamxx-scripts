@@ -11,7 +11,7 @@ do_case_build=true
 do_case_submit=true
 
 readonly MACHINE="pm-gpu"
-readonly CHECKOUT="20260330"
+readonly CHECKOUT="20260515"
 readonly BRANCH="master"
 readonly CHERRY=( )
 readonly COMPILER="gnugpu"
@@ -23,7 +23,7 @@ readonly COMPSET="F2010-SCREAMv1"
 readonly RESOLUTION="ne32pg2_ne32pg2"
 
 readonly SCREAMDOCS_ROOT="/global/homes/t/terai/scream-docs"
-readonly CODE_ROOT="/pscratch/sd/b/beydoun/e3sm_repo_03302026/E3SM"
+readonly CODE_ROOT="/pscratch/sd/b/beydoun/e3sm_repo_05152026/E3SM"
 readonly PROJECT="e3sm"
 
 githash_eamxx=`git --git-dir ${CODE_ROOT}/.git rev-parse HEAD`
@@ -31,7 +31,7 @@ githash_eamxx=`git --git-dir ${CODE_ROOT}/.git rev-parse HEAD`
 
 readonly CASE_NAME=PPEensemble_1node.${RESOLUTION}.${COMPSET}.${CHECKOUT}
 
-readonly CASE_ROOT="${SCRATCH}/e3sm_scratch/pm-gpu/ne32_ppe_3/${CASE_NAME}"
+readonly CASE_ROOT="${SCRATCH}/e3sm_scratch/pm-gpu/ne32_ppe_prod/${CASE_NAME}"
 
 readonly CASE_GROUP=""
 
@@ -331,7 +331,7 @@ runtime_options() {
     #updated spa file
     ./atmchange spa_data_file="${input_data_dir}/atm/scream/init/spa_v3.LR.F2010.2011-2025.c_20240405.nc"
     #set sst inputs   
-      ./xmlchange --file env_run.xml --id SSTICE_DATA_FILENAME --val "${input_data_dir}/atm/cam/sst/sst_ostia_ukmo-l4_ghrsst_3600x7200_20190731_20210309_c20240506.nc"
+    ./xmlchange --file env_run.xml --id SSTICE_DATA_FILENAME --val "${input_data_dir}/atm/cam/sst/sst_ostia_ukmo-l4_ghrsst_3600x7200_20190731_20210309_c20240506.nc"
 
     ./xmlchange --file env_run.xml --id SSTICE_GRID_FILENAME --val "${input_data_dir}/ocn/docn7/domain.ocn.3600x7200.230522.nc" 
     ./xmlchange --file env_run.xml --id SSTICE_YEAR_ALIGN --val 2019

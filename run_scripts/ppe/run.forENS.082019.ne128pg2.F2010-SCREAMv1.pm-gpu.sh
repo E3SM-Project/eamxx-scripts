@@ -33,7 +33,7 @@ MEMBER_ID="${MEMBER_ID:-m000}"
 githash_eamxx=`git --git-dir ${CODE_ROOT}/.git rev-parse HEAD`
 #githash_screamdocs=`git --git-dir ${SCREAMDOCS_ROOT}/.git rev-parse HEAD`
 
-CASE_NAME="${CASE_NAME:-PPEensemble_1node_full256.${RESOLUTION}.${COMPSET}.${CHECKOUT}.${MEMBER_ID}}"
+CASE_NAME="${CASE_NAME:-PPEensemble_16node_full256.${RESOLUTION}.${COMPSET}.${CHECKOUT}.${MEMBER_ID}}"
 
 CASE_ROOT_BASE="${CASE_ROOT_BASE:-/pscratch/sd/b/beydoun/e3sm_scratch/pm-gpu/ne128_ppe_test}"
 CASE_ROOT="${CASE_ROOT:-${CASE_ROOT_BASE}/${CASE_NAME}}"

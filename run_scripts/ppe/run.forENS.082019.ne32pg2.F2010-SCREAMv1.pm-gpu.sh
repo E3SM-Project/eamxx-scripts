@@ -11,7 +11,7 @@ do_case_build="${do_case_build:-false}"
 do_case_submit="${do_case_submit:-false}"
 
 readonly MACHINE="pm-gpu"
-readonly CHECKOUT="20260410"
+readonly CHECKOUT="20260515"
 readonly BRANCH="master"
 readonly CHERRY=( )
 readonly COMPILER="gnugpu"
@@ -22,7 +22,7 @@ readonly Q=regular
 readonly COMPSET="F2010-SCREAMv1"
 readonly RESOLUTION="ne32pg2_ne32pg2"
 
-readonly CODE_ROOT="/pscratch/sd/b/beydoun/e3sm_repo_03302026/E3SM"
+readonly CODE_ROOT="/pscratch/sd/b/beydoun/e3sm_repo_05152026/E3SM"
 readonly PROJECT="e3sm"
 
 # Add required member id (or provide default)
@@ -372,8 +372,8 @@ runtime_options() {
     # SECTION TO MAKE CHANGES FOR ENSEMBLES
    
     #apply random perturbations
-    ./atmchange initial_conditions::perturbed_fields='T_mid'
-    ./atmchange initial_conditions::perturbation_random_seed='2'
+    #./atmchange initial_conditions::perturbed_fields='T_mid'
+    #./atmchange initial_conditions::perturbation_random_seed='2'
  
     # use GHG levels more appropriate for 2019
     

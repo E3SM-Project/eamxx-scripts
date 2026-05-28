@@ -30,7 +30,7 @@ readonly PROJECT="e3sm"
 githash_eamxx=`git --git-dir ${CODE_ROOT}/.git rev-parse HEAD`
 #githash_screamdocs=`git --git-dir ${SCREAMDOCS_ROOT}/.git rev-parse HEAD`
 
-readonly CASE_NAME=PPEensemble_4node.${RESOLUTION}.${COMPSET}.${CHECKOUT}
+readonly CASE_NAME=PPEensemble_16node.${RESOLUTION}.${COMPSET}.${CHECKOUT}
 
 readonly CASE_ROOT="${SCRATCH}/e3sm_scratch/pm-gpu/ne128_ppe/${CASE_NAME}"
 
