@@ -32,7 +32,7 @@ githash_eamxx=`git --git-dir ${CODE_ROOT}/.git rev-parse HEAD`
 
 CASE_NAME="${CASE_NAME:-PPEensemble_1node_full256.${RESOLUTION}.${COMPSET}.${CHECKOUT}.${MEMBER_ID}}"
 
-CASE_ROOT_BASE="${CASE_ROOT_BASE:-/pscratch/sd/b/beydoun/e3sm_scratch/pm-gpu/ne32_ppe_3}"
+CASE_ROOT_BASE="${CASE_ROOT_BASE:-/pscratch/sd/b/beydoun/e3sm_scratch/pm-gpu/ne32_ppe_prod}"
 CASE_ROOT="${CASE_ROOT:-${CASE_ROOT_BASE}/${CASE_NAME}}"
 
 readonly CASE_GROUP=""
@@ -311,6 +311,9 @@ runtime_options() {
 
     # Set atmos IC file
     ./atmchange initial_conditions::filename="/global/cfs/projectdirs/e3sm/whannah/HICCUP/HICCUP.atm_era5.2019-08-01.ne32np4.L128.nc"
+
+     #updated spa file
+    ./atmchange spa_data_file="${input_data_dir}/atm/scream/init/spa_v3.LR.F2010.2011-2025.c_20240405.nc"
 
     #set sst inputs   
     ./xmlchange --file env_run.xml --id SSTICE_DATA_FILENAME --val "${input_data_dir}/atm/cam/sst/sst_ostia_ukmo-l4_ghrsst_3600x7200_20190731_20210309_plus4k_c20240506.nc"
