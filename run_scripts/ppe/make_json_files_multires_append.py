@@ -16,10 +16,10 @@ SEED = 42
 
 ENFORCE_LAMBDA_ORDER = True
 
-OUT_NE256 = "append_nested_ne256_128_lhs.json"
-OUT_NE128 = "append_nested_ne128_256_lhs.json"
-OUT_NE32 = "append_nested_ne32_1024_lhs.json"
-OUT_META = "append_nested_lhs_metadata.json"
+OUT_NE256 = "append_nested_ne256_128_lhs_v2.json"
+OUT_NE128 = "append_nested_ne128_256_lhs_v2.json"
+OUT_NE32 = "append_nested_ne32_1024_lhs_v2.json"
+OUT_META = "append_nested_lhs_metadata_v2.json"
 
 
 @dataclass(frozen=True)
@@ -33,10 +33,10 @@ class Parameter:
 PARAMETERS = [
     Parameter("thl2tune", 0.1, 10.0, "linear"),
     Parameter("qw2tune", 0.1, 10.0, "linear"),
-    Parameter("length_fac", 0.1, 2.0, "linear"),
+    Parameter("length_fac", 0.1, 1.15, "linear"),
     Parameter("c_diag_3rd_mom", 0.01, 10.0, "log"),
     Parameter("coeff_kh", 0.01, 0.2, "log"),
-    Parameter("coeff_km", 0.01, 0.2, "log"),
+    Parameter("coeff_km", 0.03, 0.2, "log"),
     Parameter("lambda_low", 0.0001, 0.1, "linear"),
     Parameter("lambda_high", 0.0001, 0.1, "linear"),
     Parameter("spa_ccn_to_nc_factor", 100.0, 4000.0, "linear"),
