@@ -322,17 +322,28 @@ runtime_options() {
     if [ ! -z "${START_DATE}" ]; then
 	./xmlchange RUN_STARTDATE=${START_DATE}
     fi
-    # Set temperature cut off in dycore threshold to 180K
-    ./atmchange vtheta_thresh=180
-    ./atmquery vtheta_thresh
 
     # Set atmos IC file
-    ./atmchange initial_conditions::filename="/global/cfs/projectdirs/e3sm/whannah/HICCUP/HICCUP.atm_era5.2019-08-01.ne32np4.L128.nc"
+    # ./atmchange initial_conditions::filename="/global/cfs/projectdirs/e3sm/whannah/HICCUP/HICCUP.atm_era5.2019-08-01.ne32np4.L128.nc"
+
+	# NOTE - there are two versions of the new L128v4 IF files
+	#   - 20260825 => created before PR#8606 to change the horiz_winds => U/V
+	#   - 20260911 => these reflect the new format from PR#8606
+    ./atmchange -b vertical_coordinate_filename="${input_data_dir}/atm/scream/init/vertical_coordinates_L128v4_c20260820.nc"
+    # ./atmchange -b initial_conditions::filename="${input_data_dir}/atm/scream/init/eamxxi_ne32np4L128v4_v3.LR.amip_0101.eam.i.2000-01-01-00000.20260911.nc"
+	./atmchange -b initial_conditions::filename="${input_data_dir}/atm/scream/init/eamxxi_ne32np4L128v4_v3.LR.amip_0101.eam.i.2000-01-01-00000.20260825.nc"
+	
+
+	# Add ZM and SPC
+	./atmchange -b physics::atm_procs_list="zm,mac_aero_mic,spc,rrtmgp"
 
     #updated spa file
-    ./atmchange spa_data_file="${input_data_dir}/atm/scream/init/spa_v3.LR.F2010.2011-2025.c_20240405.nc"
+    ./atmchange -b spa_data_file="${input_data_dir}/atm/scream/init/spa_v3.LR.F2010.2011-2025.c_20240405.nc"
 
-    ./atmchange set_cld_frac_r_to_one=True
+	# various other parameter updates
+    ./atmchange -b set_cld_frac_r_to_one=True
+	./atmchange -b pgrad_correction=0
+	./atmchange -b theta_advect_form=2
 
     #set sst inputs   
     ./xmlchange --file env_run.xml --id SSTICE_DATA_FILENAME --val "${input_data_dir}/atm/cam/sst/sst_ostia_ukmo-l4_ghrsst_3600x7200_20190731_20210309_c20240506.nc"
