@@ -62,25 +62,48 @@ class Grid:
   filename  = ""
   lat_name  = ""  # Name for lat coordinate in file
   lon_name  = ""  # Name for lon coordinate in file
+  grid_type = ""  # Type of grid file
+  # Additional SCRIP variables
+  area      = np.array([])
+  corner_lat = np.array([])
+  corner_lon = np.array([])
+  imask     = np.array([])
+  dims      = np.array([])
+  num_corners = 0
 
   def __init__(self,filename_,grid_filetype_):
     self.filename = filename_
+    self.grid_type = grid_filetype_
     f = netCDF4.Dataset(self.filename,"r")
     if grid_filetype_ == "scrip":
       self.size     = f.dimensions["grid_size"].size
       self.lat_name = "grid_center_lat"
       self.lon_name = "grid_center_lon"
+      if "grid_corners" in f.dimensions:
+        self.num_corners = f.dimensions["grid_corners"].size
     else:
       self.size     = f.dimensions["ncol"].size
       self.lat_name = "lat"
       self.lon_name = "lon"
     f.close()
 
-  def grab_chunk(self,chunk):
+  def grab_chunk(self,chunk,load_full_scrip=False):
     f = netCDF4.Dataset(self.filename,"r")
     chunk_end = np.min([self.size,self.chunk_idx+chunk]);
     self.lat  = f[self.lat_name][self.chunk_idx:chunk_end].data
     self.lon  = f[self.lon_name][self.chunk_idx:chunk_end].data
+    
+    # Load additional SCRIP variables if requested
+    if load_full_scrip and self.grid_type == "scrip":
+      self.area = f["grid_area"][self.chunk_idx:chunk_end].data
+      if "grid_corner_lat" in f.variables:
+        self.corner_lat = f["grid_corner_lat"][self.chunk_idx:chunk_end,:].data
+        self.corner_lon = f["grid_corner_lon"][self.chunk_idx:chunk_end,:].data
+      if "grid_imask" in f.variables:
+        self.imask = f["grid_imask"][self.chunk_idx:chunk_end].data
+      if self.chunk_idx == 0 and "grid_dims" in f.variables:
+        self.dims = f["grid_dims"][:].data
+    
     self.chunk_idx = chunk_end
     f.close()
 
@@ -97,6 +120,20 @@ class Site:
   offset   = 0
   length   = 0
   my_id    = -1
+  # Additional SCRIP grid data for regional output (separate for lon and lat filtering)
+  lon_areas    = np.array([])
+  lon_imasks   = np.array([])
+  lon_corner_lats = np.array([])
+  lon_corner_lons = np.array([])
+  lat_areas    = np.array([])
+  lat_imasks   = np.array([])
+  lat_corner_lats = np.array([])
+  lat_corner_lons = np.array([])
+  # Final filtered SCRIP data
+  areas    = np.array([])
+  corner_lats = np.array([])
+  corner_lons = np.array([])
+  imasks   = np.array([])
 
   def __init__(self,name_,bnds,bnds_type):
     self.name = name_
@@ -110,12 +147,30 @@ class Site:
       self.lat_bnds = slat + np.array([-1,1])*srad
       self.lon_bnds = slon + np.array([-1,1])*srad
 
-  def filter_gids(self):
-    mask_lon = np.in1d(self.lon_gids,self.lat_gids)
-    mask_lat = np.in1d(self.lat_gids,self.lon_gids)
+  def filter_gids(self,filter_scrip=False):
+    mask_lon = np.isin(self.lon_gids,self.lat_gids)
+    mask_lat = np.isin(self.lat_gids,self.lon_gids)
     self.gids = self.lon_gids[mask_lon]
     self.lons = self.lons[mask_lon]
     self.lats = self.lats[mask_lat]
+    if filter_scrip:
+      self.areas = self.lon_areas[mask_lon]
+      self.imasks = self.lon_imasks[mask_lon]
+      if len(self.lon_corner_lats) > 0:
+        self.corner_lats = self.lon_corner_lats[mask_lon,:]
+        self.corner_lons = self.lon_corner_lons[mask_lon,:]
+    
+    # Sort by global IDs to preserve original grid order
+    sort_idx = np.argsort(self.gids)
+    self.gids = self.gids[sort_idx]
+    self.lons = self.lons[sort_idx]
+    self.lats = self.lats[sort_idx]
+    if filter_scrip:
+      self.areas = self.areas[sort_idx]
+      self.imasks = self.imasks[sort_idx]
+      if len(self.corner_lats) > 0:
+        self.corner_lats = self.corner_lats[sort_idx,:]
+        self.corner_lons = self.corner_lons[sort_idx,:]
 
 class Sites:
   m_sites = []
@@ -186,6 +241,82 @@ def construct_remap(casename,sites,grid):
     csvwriter = csv.writer(csvfile)
     for s in sites:
       csvwriter.writerow([s.my_id,s.name,str(s.offset+1),str(s.offset+s.length)])
+
+def construct_regional_grid(casename,sites,grid):
+  """Create a SCRIP format grid file containing only the regional subset."""
+  # Combine all sites into a single regional grid
+  total_size = sum(s.length for s in sites)
+  
+  # Allocate arrays
+  lats = np.zeros(total_size)
+  lons = np.zeros(total_size)
+  areas = np.zeros(total_size)
+  imasks = np.zeros(total_size, dtype=np.int32)
+  has_corners = any(len(s.corner_lats) > 0 for s in sites)
+  num_corners = sites[0].corner_lats.shape[1] if has_corners else 0
+  corner_lats = np.zeros((total_size, num_corners)) if has_corners else None
+  corner_lons = np.zeros((total_size, num_corners)) if has_corners else None
+  
+  # Fill arrays from sites
+  offset = 0
+  for s in sites:
+    n = s.length
+    lats[offset:offset+n] = s.lats
+    lons[offset:offset+n] = s.lons
+    areas[offset:offset+n] = s.areas
+    imasks[offset:offset+n] = s.imasks
+    if has_corners:
+      corner_lats[offset:offset+n,:] = s.corner_lats
+      corner_lons[offset:offset+n,:] = s.corner_lons
+    offset += n
+  
+  # Create regional grid netCDF file in SCRIP format
+  f = netCDF4.Dataset(casename+"_regional_grid.nc","w",format="NETCDF3_CLASSIC")
+  f.createDimension('grid_size', total_size)
+  if has_corners:
+    f.createDimension('grid_corners', num_corners)
+  f.createDimension('grid_rank', 1)
+  
+  # Create variables
+  v_area = f.createVariable('grid_area', np.float64, ('grid_size',))
+  v_area.units = "radians^2"
+  
+  v_clat = f.createVariable('grid_center_lat', np.float64, ('grid_size',), fill_value=9.96920996838687e+36)
+  v_clat.units = "degrees"
+  
+  v_clon = f.createVariable('grid_center_lon', np.float64, ('grid_size',), fill_value=9.96920996838687e+36)
+  v_clon.units = "degrees"
+  
+  if has_corners:
+    v_cornlat = f.createVariable('grid_corner_lat', np.float64, ('grid_size', 'grid_corners'), fill_value=9.96920996838687e+36)
+    v_cornlat.units = "degrees"
+    
+    v_cornlon = f.createVariable('grid_corner_lon', np.float64, ('grid_size', 'grid_corners'), fill_value=9.96920996838687e+36)
+    v_cornlon.units = "degrees"
+  
+  v_imask = f.createVariable('grid_imask', np.int32, ('grid_size',))
+  
+  v_dims = f.createVariable('grid_dims', np.int32, ('grid_rank',))
+  
+  # Write data
+  v_area[:] = areas
+  v_clat[:] = lats
+  v_clon[:] = lons
+  if has_corners:
+    v_cornlat[:,:] = corner_lats
+    v_cornlon[:,:] = corner_lons
+  v_imask[:] = imasks
+  v_dims[:] = [total_size]
+  
+  # Add global attributes
+  f.api_version = 5.0
+  f.version = 5.0
+  f.floating_point_word_size = 8
+  f.file_size = 0
+  
+  f.close()
+  print(f"Regional grid file created: {casename}_regional_grid.nc")
+  print(f"  Total grid cells: {total_size}")
   
 
 def main():
@@ -203,6 +334,8 @@ def main():
                   help='Case name for regional remapping, this will used for the file names of output.')
   p.add_argument('chunksize', type=int, default=48602,
                   help='Option to read grid data in chunks, useful for large simulation grids')
+  p.add_argument('--output-regional-grid', action='store_true',
+                  help='Output a SCRIP format grid file containing only the regional subset')
   m_args = p.parse_args(); 
 
   # Load the data from args
@@ -210,6 +343,7 @@ def main():
   remap_sites = Sites(m_args.site_info) 
 
   # Determine which gids in source grid match each site
+  load_scrip = m_args.output_regional_grid and src_grid.grid_type == "scrip"
   print("Finding global dof's that could fit site dimensions...")
   while(src_grid.chunk_idx < src_grid.size):
     chnk_start = src_grid.chunk_idx+1
@@ -217,7 +351,7 @@ def main():
     chnk_perc  = np.round(chnk_end/src_grid.size*100,decimals=2)
     print("  Searching cols (%4.2f%%): %12d - %12d, out of %12d total" %(chnk_perc,chnk_start,chnk_end,src_grid.size))
     chunk_idx = src_grid.chunk_idx
-    src_grid.grab_chunk(m_args.chunksize)
+    src_grid.grab_chunk(m_args.chunksize, load_full_scrip=load_scrip)
     for idx, isite in enumerate(remap_sites.m_sites):
       isite.lon_bnds[0]=isite.lon_bnds[0] % 360
       isite.lon_bnds[1]=isite.lon_bnds[1] % 360
@@ -229,17 +363,49 @@ def main():
                          (src_grid.lon <= isite.lon_bnds[1])) 
       isite.lons     = np.append(isite.lons, src_grid.lon[lids[0]])
       isite.lon_gids = np.append(isite.lon_gids, lids[0]+chunk_idx)
+      
+      # Store SCRIP data for lon matches
+      if load_scrip:
+        isite.lon_areas = np.append(isite.lon_areas, src_grid.area[lids[0]])
+        isite.lon_imasks = np.append(isite.lon_imasks, src_grid.imask[lids[0]])
+        if len(src_grid.corner_lat) > 0:
+          if len(isite.lon_corner_lats) == 0:
+            isite.lon_corner_lats = src_grid.corner_lat[lids[0],:]
+            isite.lon_corner_lons = src_grid.corner_lon[lids[0],:]
+          else:
+            isite.lon_corner_lats = np.vstack([isite.lon_corner_lats, src_grid.corner_lat[lids[0],:]])
+            isite.lon_corner_lons = np.vstack([isite.lon_corner_lons, src_grid.corner_lon[lids[0],:]])
 
       lids = np.where( (src_grid.lat >= isite.lat_bnds[0]) & 
                        (src_grid.lat <= isite.lat_bnds[1]))
       isite.lats = np.append(isite.lats, src_grid.lat[lids[0]])
       isite.lat_gids = np.append(isite.lat_gids, lids[0]+chunk_idx)
+      
+      # Store SCRIP data for lat matches
+      if load_scrip:
+        isite.lat_areas = np.append(isite.lat_areas, src_grid.area[lids[0]])
+        isite.lat_imasks = np.append(isite.lat_imasks, src_grid.imask[lids[0]])
+        if len(src_grid.corner_lat) > 0:
+          if len(isite.lat_corner_lats) == 0:
+            isite.lat_corner_lats = src_grid.corner_lat[lids[0],:]
+            isite.lat_corner_lons = src_grid.corner_lon[lids[0],:]
+          else:
+            isite.lat_corner_lats = np.vstack([isite.lat_corner_lats, src_grid.corner_lat[lids[0],:]])
+            isite.lat_corner_lons = np.vstack([isite.lat_corner_lons, src_grid.corner_lon[lids[0],:]])
+            
   # Consilidate the gids for each site
   for idx, isite in enumerate(remap_sites.m_sites):
       print("Setting gids for site: %s\n    with bounds [%f,%f] x [%f,%f]" %(isite.name,isite.lon_bnds[0],isite.lon_bnds[1],isite.lat_bnds[0],isite.lat_bnds[1]))
-      isite.filter_gids()
+      isite.filter_gids(filter_scrip=load_scrip)
   # Construct output files
   construct_remap(m_args.casename,remap_sites.m_sites,src_grid)
+  
+  # Construct regional grid file if requested
+  if m_args.output_regional_grid:
+    if src_grid.grid_type == "scrip":
+      construct_regional_grid(m_args.casename,remap_sites.m_sites,src_grid)
+    else:
+      print("Warning: --output-regional-grid only supported for SCRIP format grid files. Skipping.")
 
 if __name__ == '__main__':
     main()
