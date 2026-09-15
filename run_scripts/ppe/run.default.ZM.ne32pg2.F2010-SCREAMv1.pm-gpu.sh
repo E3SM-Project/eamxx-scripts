@@ -344,6 +344,8 @@ runtime_options() {
     ./atmchange -b set_cld_frac_r_to_one=True
 	./atmchange -b pgrad_correction=0
 	./atmchange -b theta_advect_form=2
+	./atmchange -b tom_sponge_start=15
+	./atmchange -b nu_top=5e-7
 
     #set sst inputs   
     ./xmlchange --file env_run.xml --id SSTICE_DATA_FILENAME --val "${input_data_dir}/atm/cam/sst/sst_ostia_ukmo-l4_ghrsst_3600x7200_20190731_20210309_c20240506.nc"
