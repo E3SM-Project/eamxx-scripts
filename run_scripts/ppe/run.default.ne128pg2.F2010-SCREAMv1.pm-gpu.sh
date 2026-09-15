@@ -32,7 +32,7 @@ githash_eamxx=`git --git-dir ${CODE_ROOT}/.git rev-parse HEAD`
 
 readonly CASE_NAME=PPEensemble_16node.${RESOLUTION}.${COMPSET}.${CHECKOUT}
 
-readonly CASE_ROOT="${SCRATCH}/e3sm_scratch/pm-gpu/ne128_ppe/${CASE_NAME}"
+readonly CASE_ROOT="${SCRATCH}/e3sm_scratch/pm-gpu/ne128_ppe_prod/${CASE_NAME}"
 
 readonly CASE_GROUP=""
 
@@ -59,7 +59,7 @@ readonly CASE_SCRIPTS_DIR=${CASE_ROOT}/case_scripts
 readonly CASE_RUN_DIR=${CASE_ROOT}/run
 
 readonly PELAYOUT="64x1"
-readonly WALLTIME="12:00:00"
+readonly WALLTIME="30:00:00"
 readonly STOP_OPTION="nmonths"
 readonly STOP_N="13"
 readonly REST_OPTION="nmonths"
@@ -336,6 +336,8 @@ runtime_options() {
     #updated spa file
     ./atmchange spa_data_file="${input_data_dir}/atm/scream/init/spa_v3.LR.F2010.2011-2025.c_20240405.nc"
 
+    ./atmchange set_cld_frac_r_to_one=True
+
     #set sst inputs   
       ./xmlchange --file env_run.xml --id SSTICE_DATA_FILENAME --val "${input_data_dir}/atm/cam/sst/sst_ostia_ukmo-l4_ghrsst_3600x7200_20190731_20210309_c20240506.nc"
 
@@ -347,7 +349,7 @@ runtime_options() {
     
     #./atmchange BfbHash=1
     #./atmchange --all internal_diagnostics_level=1 atmosphere_processes::internal_diagnostics_level=1
-    ./atmchange ANY::internal_diagnostics_level=1
+    #./atmchange ANY::internal_diagnostics_level=1
     
 #land
 #cat <<EOF > user_nl_elm

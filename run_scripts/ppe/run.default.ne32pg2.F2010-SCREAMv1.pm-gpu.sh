@@ -7,24 +7,24 @@ main() {
 do_fetch_code=false
 do_create_newcase=true
 do_case_setup=true
-do_case_build=false
+do_case_build=true
 do_case_submit=true
 
 readonly MACHINE="pm-gpu"
-readonly CHECKOUT="20260515"
+readonly CHECKOUT="20260608"
 readonly BRANCH="master"
 readonly CHERRY=( )
 readonly COMPILER="gnugpu"
 readonly DEBUG_COMPILE=FALSE
-#readonly Q=debug
-readonly Q=regular
+readonly Q=debug
+#readonly Q=regular
 
 # Simulation
 readonly COMPSET="F2010-SCREAMv1"
 readonly RESOLUTION="ne32pg2_ne32pg2"
 
 readonly SCREAMDOCS_ROOT="/global/homes/t/terai/scream-docs"
-readonly CODE_ROOT="/pscratch/sd/b/beydoun/e3sm_repo_05152026/E3SM"
+readonly CODE_ROOT="/pscratch/sd/b/beydoun/e3sm_repo_07202026/E3SM"
 readonly PROJECT="e3sm"
 
 githash_eamxx=`git --git-dir ${CODE_ROOT}/.git rev-parse HEAD`
@@ -32,7 +32,7 @@ githash_eamxx=`git --git-dir ${CODE_ROOT}/.git rev-parse HEAD`
 
 readonly CASE_NAME=PPEensemble_1node.${RESOLUTION}.${COMPSET}.${CHECKOUT}
 
-readonly CASE_ROOT="${SCRATCH}/e3sm_scratch/pm-gpu/ne32_ppe_prod/${CASE_NAME}"
+readonly CASE_ROOT="${SCRATCH}/e3sm_scratch/pm-gpu/ne32_ppe_prod_v2_no_rain_frac/${CASE_NAME}"
 
 readonly CASE_GROUP=""
 
@@ -59,7 +59,7 @@ readonly CASE_SCRIPTS_DIR=${CASE_ROOT}/case_scripts
 readonly CASE_RUN_DIR=${CASE_ROOT}/run
 
 readonly PELAYOUT="4x1"
-readonly WALLTIME="15:00:00"
+readonly WALLTIME="00:30:00"
 readonly STOP_OPTION="nmonths"
 readonly STOP_N="13"
 readonly REST_OPTION="nmonths"
@@ -331,6 +331,9 @@ runtime_options() {
 
     #updated spa file
     ./atmchange spa_data_file="${input_data_dir}/atm/scream/init/spa_v3.LR.F2010.2011-2025.c_20240405.nc"
+
+    ./atmchange set_cld_frac_r_to_one=True
+
     #set sst inputs   
     ./xmlchange --file env_run.xml --id SSTICE_DATA_FILENAME --val "${input_data_dir}/atm/cam/sst/sst_ostia_ukmo-l4_ghrsst_3600x7200_20190731_20210309_c20240506.nc"
 
@@ -342,7 +345,7 @@ runtime_options() {
     
     #./atmchange BfbHash=1
     #./atmchange --all internal_diagnostics_level=1 atmosphere_processes::internal_diagnostics_level=1
-    ./atmchange ANY::internal_diagnostics_level=1
+    #./atmchange ANY::internal_diagnostics_level=1
     
 
     #specify land IC file

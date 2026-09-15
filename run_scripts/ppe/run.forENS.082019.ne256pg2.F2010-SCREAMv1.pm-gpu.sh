@@ -11,7 +11,7 @@ do_case_build="${do_case_build:-false}"
 do_case_submit="${do_case_submit:-false}"
 
 readonly MACHINE="pm-gpu"
-readonly CHECKOUT="20260515"
+readonly CHECKOUT="20260910"
 readonly BRANCH="master"
 readonly CHERRY=( )
 readonly COMPILER="gnugpu"
@@ -24,7 +24,7 @@ readonly COMPSET="F2010-SCREAMv1"
 readonly RESOLUTION="ne256pg2_ne256pg2"
 
 readonly SCREAMDOCS_ROOT="/global/homes/t/terai/scream-docs"
-readonly CODE_ROOT="/pscratch/sd/b/beydoun/e3sm_repo_05152026/E3SM"
+readonly CODE_ROOT="/pscratch/sd/b/beydoun/e3sm_repo_09082026/E3SM"
 readonly PROJECT="e3sm"
 
 # Add required member id (or provide default)
@@ -33,9 +33,9 @@ MEMBER_ID="${MEMBER_ID:-m000}"
 githash_eamxx=`git --git-dir ${CODE_ROOT}/.git rev-parse HEAD`
 #githash_screamdocs=`git --git-dir ${SCREAMDOCS_ROOT}/.git rev-parse HEAD`
 
-CASE_NAME="${CASE_NAME:-PPEensemble_16node_full256.${RESOLUTION}.${COMPSET}.${CHECKOUT}.${MEMBER_ID}}"
+CASE_NAME="${CASE_NAME:-PPEensemble_64node_full256.${RESOLUTION}.${COMPSET}.${CHECKOUT}.${MEMBER_ID}}"
 
-CASE_ROOT_BASE="${CASE_ROOT_BASE:-/pscratch/sd/b/beydoun/e3sm_scratch/pm-gpu/ne256_ppe_prod}"
+CASE_ROOT_BASE="${CASE_ROOT_BASE:-/pscratch/sd/b/beydoun/e3sm_scratch/pm-gpu/ne256_ppe_prod_tests}"
 CASE_ROOT="${CASE_ROOT:-${CASE_ROOT_BASE}/${CASE_NAME}}"
 
 
@@ -61,8 +61,8 @@ readonly CASE_ARCHIVE_DIR=${CASE_ROOT}/archive
 readonly CASE_SCRIPTS_DIR=${CASE_ROOT}/case_scripts
 readonly CASE_RUN_DIR=${CASE_ROOT}/run
 
-readonly PELAYOUT="64x1"
-readonly WALLTIME="00:30:00"
+readonly PELAYOUT="256x1"
+readonly WALLTIME="30:00:00"
 readonly STOP_OPTION="nmonths"
 readonly STOP_N="13"
 readonly REST_OPTION="nmonths"
@@ -330,7 +330,7 @@ runtime_options() {
     
     #./atmchange BfbHash=1
     #./atmchange --all internal_diagnostics_level=1 atmosphere_processes::internal_diagnostics_level=1
-    ./atmchange ANY::internal_diagnostics_level=1
+    #./atmchange ANY::internal_diagnostics_level=1
    
      # SECTION TO MAKE CHANGES FOR ENSEMBLES
 

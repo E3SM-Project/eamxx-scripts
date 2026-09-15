@@ -11,7 +11,7 @@ do_case_build="${do_case_build:-false}"
 do_case_submit="${do_case_submit:-false}"
 
 readonly MACHINE="pm-gpu"
-readonly CHECKOUT="20260515"
+readonly CHECKOUT="20260608"
 readonly BRANCH="master"
 readonly CHERRY=( )
 readonly COMPILER="gnugpu"
@@ -22,7 +22,7 @@ readonly Q=regular
 readonly COMPSET="F2010-SCREAMv1"
 readonly RESOLUTION="ne32pg2_ne32pg2"
 
-readonly CODE_ROOT="/pscratch/sd/b/beydoun/e3sm_repo_05152026/E3SM"
+readonly CODE_ROOT="/pscratch/sd/b/beydoun/e3sm_repo_07202026/E3SM"
 readonly PROJECT="e3sm"
 
 # Add required member id (or provide default)
@@ -30,9 +30,9 @@ MEMBER_ID="${MEMBER_ID:-m000}"
 
 githash_eamxx=`git --git-dir ${CODE_ROOT}/.git rev-parse HEAD`
 
-CASE_NAME="${CASE_NAME:-PPEensemble_1node_full1024.${RESOLUTION}.${COMPSET}.${CHECKOUT}.${MEMBER_ID}}"
+CASE_NAME="${CASE_NAME:-PPEensemble_1node_full1024.no.rain.frac.${RESOLUTION}.${COMPSET}.${CHECKOUT}.${MEMBER_ID}}"
 
-CASE_ROOT_BASE="${CASE_ROOT_BASE:-/pscratch/sd/b/beydoun/e3sm_scratch/pm-gpu/ne32_ppe_prod}"
+CASE_ROOT_BASE="${CASE_ROOT_BASE:-/pscratch/sd/b/beydoun/e3sm_scratch/pm-gpu/ne32_ppe_prod_v2_no_rain_frac}"
 CASE_ROOT="${CASE_ROOT:-${CASE_ROOT_BASE}/${CASE_NAME}}"
 
 readonly CASE_GROUP=""
@@ -315,6 +315,7 @@ runtime_options() {
      #updated spa file
     ./atmchange spa_data_file="${input_data_dir}/atm/scream/init/spa_v3.LR.F2010.2011-2025.c_20240405.nc"
 
+    ./atmchange set_cld_frac_r_to_one=True
     #set sst inputs   
     ./xmlchange --file env_run.xml --id SSTICE_DATA_FILENAME --val "${input_data_dir}/atm/cam/sst/sst_ostia_ukmo-l4_ghrsst_3600x7200_20190731_20210309_c20240506.nc"
 
@@ -379,7 +380,7 @@ runtime_options() {
     
     #./atmchange BfbHash=1
    # ./atmchange --all internal_diagnostics_level=1 atmosphere_processes::internal_diagnostics_level=1
-    ./atmchange ANY::internal_diagnostics_level=1
+   # ./atmchange ANY::internal_diagnostics_level=1
     
 
     #specify land IC file
@@ -531,7 +532,7 @@ fields:
     - U_at_850hPa
     - V_at_850hPa
     - LW_flux_up_at_model_top
-max_snapshots_per_file: 40
+max_snapshots_per_file: 8
 filename_prefix: 3ha_ne32pg2
 iotype: pnetcdf
 output_control:

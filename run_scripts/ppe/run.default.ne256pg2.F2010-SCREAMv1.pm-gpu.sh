@@ -7,11 +7,11 @@ main() {
 do_fetch_code=false
 do_create_newcase=true
 do_case_setup=true
-do_case_build=false
+do_case_build=true
 do_case_submit=true
 
 readonly MACHINE="pm-gpu"
-readonly CHECKOUT="20260515"
+readonly CHECKOUT="20260910"
 readonly BRANCH="master"
 readonly CHERRY=( )
 readonly COMPILER="gnugpu"
@@ -24,15 +24,15 @@ readonly COMPSET="F2010-SCREAMv1"
 readonly RESOLUTION="ne256pg2_ne256pg2"
 
 readonly SCREAMDOCS_ROOT="/global/homes/t/terai/scream-docs"
-readonly CODE_ROOT="/pscratch/sd/b/beydoun/e3sm_repo_05152026/E3SM"
+readonly CODE_ROOT="/pscratch/sd/b/beydoun/e3sm_repo_09082026/E3SM"
 readonly PROJECT="e3sm"
 
 githash_eamxx=`git --git-dir ${CODE_ROOT}/.git rev-parse HEAD`
 #githash_screamdocs=`git --git-dir ${SCREAMDOCS_ROOT}/.git rev-parse HEAD`
 
-readonly CASE_NAME=PPEensemble_16node.${RESOLUTION}.${COMPSET}.${CHECKOUT}
+readonly CASE_NAME=PPEensemble_32node.${RESOLUTION}.${COMPSET}.${CHECKOUT}
 
-readonly CASE_ROOT="${SCRATCH}/e3sm_scratch/pm-gpu/ne256_ppe_prod/${CASE_NAME}"
+readonly CASE_ROOT="${SCRATCH}/e3sm_scratch/pm-gpu/ne256_ppe_prod_tests/${CASE_NAME}"
 
 readonly CASE_GROUP=""
 
@@ -345,7 +345,7 @@ runtime_options() {
     
     #./atmchange BfbHash=1
     #./atmchange --all internal_diagnostics_level=1 atmosphere_processes::internal_diagnostics_level=1
-    ./atmchange ANY::internal_diagnostics_level=1
+    #./atmchange ANY::internal_diagnostics_level=1
     
 #land
 
