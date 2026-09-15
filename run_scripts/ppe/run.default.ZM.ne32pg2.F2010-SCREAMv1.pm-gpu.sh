@@ -4,36 +4,35 @@
 
 main() {
 
-do_fetch_code="${do_fetch_code:-false}"
-do_create_newcase="${do_create_newcase:-true}"
-do_case_setup="${do_case_setup:-true}"
-do_case_build="${do_case_build:-false}"
-do_case_submit="${do_case_submit:-false}"
+do_fetch_code=false
+do_create_newcase=true
+do_case_setup=true
+do_case_build=true
+do_case_submit=true
 
 readonly MACHINE="pm-gpu"
-readonly CHECKOUT="20260410"
+readonly CHECKOUT="20260608"
 readonly BRANCH="master"
 readonly CHERRY=( )
 readonly COMPILER="gnugpu"
 readonly DEBUG_COMPILE=FALSE
-readonly Q=regular
+readonly Q=debug
+#readonly Q=regular
 
 # Simulation
 readonly COMPSET="F2010-SCREAMv1"
 readonly RESOLUTION="ne32pg2_ne32pg2"
 
-readonly CODE_ROOT="/pscratch/sd/b/beydoun/e3sm_repo_03302026/E3SM"
+readonly SCREAMDOCS_ROOT="/global/homes/t/terai/scream-docs"
+readonly CODE_ROOT="/pscratch/sd/b/beydoun/e3sm_repo_07202026/E3SM"
 readonly PROJECT="e3sm"
 
-# Add required member id (or provide default)
-MEMBER_ID="${MEMBER_ID:-m000}"
-
 githash_eamxx=`git --git-dir ${CODE_ROOT}/.git rev-parse HEAD`
+#githash_screamdocs=`git --git-dir ${SCREAMDOCS_ROOT}/.git rev-parse HEAD`
 
-CASE_NAME="${CASE_NAME:-PPEensemble_1node_full256.${RESOLUTION}.${COMPSET}.${CHECKOUT}.${MEMBER_ID}}"
+readonly CASE_NAME=PPEensemble_1node.${RESOLUTION}.${COMPSET}.${CHECKOUT}
 
-CASE_ROOT_BASE="${CASE_ROOT_BASE:-/pscratch/sd/b/beydoun/e3sm_scratch/pm-gpu/ne32_ppe_2}"
-CASE_ROOT="${CASE_ROOT:-${CASE_ROOT_BASE}/${CASE_NAME}}"
+readonly CASE_ROOT="${SCRATCH}/e3sm_scratch/pm-gpu/ne32_ppe_prod_v2_no_rain_frac/${CASE_NAME}"
 
 readonly CASE_GROUP=""
 
@@ -43,7 +42,7 @@ readonly HIST_N="1"
 
 # Run options
 readonly MODEL_START_TYPE="initial"  # "initial", "continue", "branch", "hybrid"
-readonly START_DATE="2020-01-01"     # "" for default, or explicit "0001-01-01"
+readonly START_DATE="2019-08-01"     # "" for default, or explicit "0001-01-01"
 
 # Additional options for 'branch' and 'hybrid'
 readonly GET_REFCASE=false
@@ -60,15 +59,17 @@ readonly CASE_SCRIPTS_DIR=${CASE_ROOT}/case_scripts
 readonly CASE_RUN_DIR=${CASE_ROOT}/run
 
 readonly PELAYOUT="4x1"
-readonly WALLTIME="20:00:00"
-readonly STOP_OPTION="nyears"
-readonly STOP_N="2"
+readonly WALLTIME="00:30:00"
+readonly STOP_OPTION="nmonths"
+readonly STOP_N="13"
 readonly REST_OPTION="nmonths"
-readonly REST_N="6"
+readonly REST_N="3"
 readonly RESUBMIT="0"
 readonly DO_SHORT_TERM_ARCHIVING=false
 
-OLD_EXECUTABLE="${OLD_EXECUTABLE:-}"
+# Leave empty (unless you understand what it does)
+readonly OLD_EXECUTABLE=""
+
 # --- Now, do the work ---
 
 # Make directories created by this script world-readable
@@ -251,6 +252,7 @@ case_setup() {
 
     # Save provenance invfo
     echo "branch hash for EAMxx: $githash_eamxx" > GIT_INFO.txt
+    echo "master hash for output files: $githash_screamdocs" >> GIT_INFO.txt
 
     popd
 }
@@ -263,30 +265,45 @@ case_build() {
     # do_case_build = false
     if [ "${do_case_build,,}" != "true" ]; then
 
-        echo $'\n----- case_build -----\n'
+	echo $'\n----- case_build -----\n'
 
-        # Assumes that OLD_EXECUTABLE is provided 
-        ./xmlchange EXEROOT=${OLD_EXECUTABLE}
+	if [ "${OLD_EXECUTABLE}" == "" ]; then
+	    # Ues previously built executable, make sure it exists
+	    if [ -x ${CASE_BUILD_DIR}/e3sm.exe ]; then
+		echo 'Skipping build because $do_case_build = '${do_case_build}
+	    else
+		echo 'ERROR: $do_case_build = '${do_case_build}' but no executable exists for this case.'
+		exit 297
+	    fi
+	else
+	    # If absolute pathname exists and is executable, reuse pre-exiting executable
+	    if [ -x ${OLD_EXECUTABLE} ]; then
+		echo 'Using $OLD_EXECUTABLE = '${OLD_EXECUTABLE}
+		cp -fp ${OLD_EXECUTABLE} ${CASE_BUILD_DIR}/
+	    else
+		echo 'ERROR: $OLD_EXECUTABLE = '$OLD_EXECUTABLE' does not exist or is not an executable file.'
+		exit 297
+	    fi
+	fi
+	echo 'WARNING: Setting BUILD_COMPLETE = TRUE.  This is a little risky, but trusting the user.'
+	./xmlchange BUILD_COMPLETE=TRUE
 
-        echo 'WARNING: Setting BUILD_COMPLETE = TRUE.  This is a little risky, but trusting the user.'
-        ./case.setup --reset
-        ./xmlchange BUILD_COMPLETE=TRUE
-
+    # do_case_build = true
     else
 
-        echo $'\n----- Starting case_build -----\n'
+	echo $'\n----- Starting case_build -----\n'
 
-        # Turn on debug compilation option if requested
-        if [ "${DEBUG_COMPILE}" == "TRUE" ]; then
-            ./xmlchange DEBUG=${DEBUG_COMPILE}
-        fi
+	# Turn on debug compilation option if requested
+	if [ "${DEBUG_COMPILE}" == "TRUE" ]; then
+	    ./xmlchange DEBUG=${DEBUG_COMPILE}
+	fi
 
-        # Run CIME case.build
-        ./case.build
+	# Run CIME case.build
+	./case.build
 
-        # Some user_nl settings won't be updated to *_in files under the run directory
-        # Call preview_namelists to make sure *_in and user_nl files are consistent.
-        ./preview_namelists
+	# Some user_nl settings won't be updated to *_in files under the run directory
+	# Call preview_namelists to make sure *_in and user_nl files are consistent.
+	./preview_namelists
 
     fi
 
@@ -299,6 +316,8 @@ runtime_options() {
     echo $'\n----- Starting runtime_options -----\n'
     pushd ${CASE_SCRIPTS_DIR}
 
+    local input_data_dir=`./xmlquery DIN_LOC_ROOT --value`
+
     # Set simulation start date
     if [ ! -z "${START_DATE}" ]; then
 	./xmlchange RUN_STARTDATE=${START_DATE}
@@ -307,61 +326,26 @@ runtime_options() {
     ./atmchange vtheta_thresh=180
     ./atmquery vtheta_thresh
 
-    # SECTION TO MAKE CHANGES FOR ENSEMBLES
+    # Set atmos IC file
+    ./atmchange initial_conditions::filename="/global/cfs/projectdirs/e3sm/whannah/HICCUP/HICCUP.atm_era5.2019-08-01.ne32np4.L128.nc"
 
-    : "${SHOC_THL2TUNE:?Missing SHOC_THL2TUNE}"
-    : "${SHOC_QW2TUNE:?Missing SHOC_QW2TUNE}"
-    : "${SHOC_LENGTH_FAC:?Missing SHOC_LENGTH_FAC}"
-    : "${SHOC_C_DIAG_3RD_MOM:?Missing SHOC_C_DIAG_3RD_MOM}"
-    : "${SHOC_COEFF_KH:?Missing SHOC_COEFF_KH}"
-    : "${SHOC_COEFF_KM:?Missing SHOC_COEFF_KM}"
-    : "${SHOC_LAMBDA_LOW:?Missing SHOC_LAMBDA_LOW}"
-    : "${SHOC_LAMBDA_HIGH:?Missing SHOC_LAMBDA_HIGH}"
+    #updated spa file
+    ./atmchange spa_data_file="${input_data_dir}/atm/scream/init/spa_v3.LR.F2010.2011-2025.c_20240405.nc"
 
-    : "${P3_SPA_CCN_TO_NC_FACTOR:?Missing P3_SPA_CCN_TO_NC_FACTOR}"
-    : "${P3_CLDLIQ_TO_ICE_COLLECTION_FACTOR:?Missing P3_CLDLIQ_TO_ICE_COLLECTION_FACTOR}"
-    : "${P3_RAIN_TO_ICE_COLLECTION_FACTOR:?Missing P3_RAIN_TO_ICE_COLLECTION_FACTOR}"
-    : "${P3_ACCRETION_PREFACTOR:?Missing P3_ACCRETION_PREFACTOR}"
-    : "${P3_DEPOSITION_NUCLEATION_EXPONENT:?Missing P3_DEPOSITION_NUCLEATION_EXPONENT}"
-    : "${P3_MAX_TOTAL_NI:?Missing P3_MAX_TOTAL_NI}"
-    : "${P3_ICE_SEDIMENTATION_FACTOR:?Missing P3_ICE_SEDIMENTATION_FACTOR}"
-    : "${P3_RAIN_SELFCOLLECTION_BREAKUP_DIAMETER:?Missing P3_RAIN_SELFCOLLECTION_BREAKUP_DIAMETER}"
-    : "${P3_AUTOCONVERSION_QC_EXPONENT:?Missing P3_AUTOCONVERSION_QC_EXPONENT}"
-    : "${P3_AUTOCONVERSION_PREFACTOR:?Missing P3_AUTOCONVERSION_PREFACTOR}"
-    : "${P3_AUTOCONVERSION_RADIUS:?Missing P3_AUTOCONVERSION_RADIUS}"
+    ./atmchange set_cld_frac_r_to_one=True
 
-    ./atmchange -b shoc::thl2tune="${SHOC_THL2TUNE}"
-    ./atmchange -b shoc::qw2tune="${SHOC_QW2TUNE}"
-    ./atmchange -b shoc::length_fac="${SHOC_LENGTH_FAC}"
-    ./atmchange -b shoc::c_diag_3rd_mom="${SHOC_C_DIAG_3RD_MOM}"
-    ./atmchange -b shoc::coeff_kh="${SHOC_COEFF_KH}"
-    ./atmchange -b shoc::coeff_km="${SHOC_COEFF_KM}"
-    ./atmchange -b shoc::lambda_low="${SHOC_LAMBDA_LOW}"
-    ./atmchange -b shoc::lambda_high="${SHOC_LAMBDA_HIGH}"
+    #set sst inputs   
+    ./xmlchange --file env_run.xml --id SSTICE_DATA_FILENAME --val "${input_data_dir}/atm/cam/sst/sst_ostia_ukmo-l4_ghrsst_3600x7200_20190731_20210309_c20240506.nc"
 
-    ./atmchange -b p3::spa_ccn_to_nc_factor="${P3_SPA_CCN_TO_NC_FACTOR}"
-    ./atmchange -b p3::cldliq_to_ice_collection_factor="${P3_CLDLIQ_TO_ICE_COLLECTION_FACTOR}"
-    ./atmchange -b p3::rain_to_ice_collection_factor="${P3_RAIN_TO_ICE_COLLECTION_FACTOR}"
-    ./atmchange -b p3::accretion_prefactor="${P3_ACCRETION_PREFACTOR}"
-    ./atmchange -b p3::deposition_nucleation_exponent="${P3_DEPOSITION_NUCLEATION_EXPONENT}"
-    ./atmchange -b p3::max_total_ni="${P3_MAX_TOTAL_NI}"
-    ./atmchange -b p3::ice_sedimentation_factor="${P3_ICE_SEDIMENTATION_FACTOR}"
-    ./atmchange -b p3::rain_selfcollection_breakup_diameter="${P3_RAIN_SELFCOLLECTION_BREAKUP_DIAMETER}"
-    ./atmchange -b p3::autoconversion_qc_exponent="${P3_AUTOCONVERSION_QC_EXPONENT}"
-    ./atmchange -b p3::autoconversion_prefactor="${P3_AUTOCONVERSION_PREFACTOR}"
-    ./atmchange -b p3::autoconversion_radius="${P3_AUTOCONVERSION_RADIUS}"
-
-    # SECTION TO MAKE CHANGES FOR ENSEMBLES
-   
-    #apply random perturbations
-    ./atmchange initial_conditions::perturbed_fields='T_mid'
-    ./atmchange initial_conditions::perturbation_random_seed='2'
- 
+    ./xmlchange --file env_run.xml --id SSTICE_GRID_FILENAME --val "${input_data_dir}/ocn/docn7/domain.ocn.3600x7200.230522.nc" 
+    ./xmlchange --file env_run.xml --id SSTICE_YEAR_ALIGN --val 2019
+    ./xmlchange --file env_run.xml --id SSTICE_YEAR_START --val 2019
+    ./xmlchange --file env_run.xml --id SSTICE_YEAR_END --val 2021
     # use GHG levels more appropriate for 2019
     
     #./atmchange BfbHash=1
-   # ./atmchange --all internal_diagnostics_level=1 atmosphere_processes::internal_diagnostics_level=1
-    ./atmchange ANY::internal_diagnostics_level=1
+    #./atmchange --all internal_diagnostics_level=1 atmosphere_processes::internal_diagnostics_level=1
+    #./atmchange ANY::internal_diagnostics_level=1
     
 
     #specify land IC file
@@ -503,7 +487,6 @@ output_control:
 restart:
   force_new_file: true
 EOF
-
 cat <<EOF >> 3ha_ne32pg2.yaml
 averaging_type: average
 fields:
@@ -513,17 +496,16 @@ fields:
     - U_at_850hPa
     - V_at_850hPa
     - LW_flux_up_at_model_top
-max_snapshots_per_file: 40
+max_snapshots_per_file: 8
 filename_prefix: 3ha_ne32pg2
 iotype: pnetcdf
 output_control:
   frequency: 3
   frequency_units: nhours
 restart:
-  force_new_file: true
+  force_new_file: false
 EOF
-
-cat <<EOF >> 51hi_ne32pg2.yaml
+cat <<EOF >> 51hi.yaml
 averaging_type: instant
 fields:
   physics_pg2:
@@ -543,13 +525,11 @@ output_control:
   frequency: 51
   frequency_units: nhours
 restart:
-  force_new_file: true
+  force_new_file: false
 EOF
-
     ./atmchange output_yaml_files="./1ma_ne32pg2.yaml"
     ./atmchange output_yaml_files+="./3ha_ne32pg2.yaml"
-    ./atmchange output_yaml_files+="./51hi_ne32pg2.yaml"
-    
+    ./atmchange output_yaml_files+="./51hi.yaml" 
     
     popd
 }
@@ -566,7 +546,7 @@ case_submit() {
     pushd ${CASE_SCRIPTS_DIR}
 
     # Run CIME case.submit
-    ./case.submit -a="-t ${WALLTIME} --qos=${Q} --mail-type=ALL --mail-user=terai1@llnl.gov"
+    ./case.submit -a="-t ${WALLTIME} --qos=${Q} --mail-type=ALL --mail-user=beydoun1@llnl.gov"
     #./case.submit -a="--qos=${Q}"
 
     popd
