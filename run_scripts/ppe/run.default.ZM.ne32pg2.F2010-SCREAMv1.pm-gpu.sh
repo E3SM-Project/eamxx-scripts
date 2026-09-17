@@ -7,11 +7,11 @@ main() {
 do_fetch_code=false
 do_create_newcase=true
 do_case_setup=true
-do_case_build=true
+do_case_build=false
 do_case_submit=true
 
 readonly MACHINE="pm-gpu"
-readonly CHECKOUT="20260608"
+readonly CHECKOUT="152dcd1ccbbbd99a54c9db5b49a261e57016268e"
 readonly BRANCH="master"
 readonly CHERRY=( )
 readonly COMPILER="gnugpu"
@@ -24,7 +24,7 @@ readonly COMPSET="F2010-SCREAMv1"
 readonly RESOLUTION="ne32pg2_ne32pg2"
 
 readonly SCREAMDOCS_ROOT="/global/homes/t/terai/scream-docs"
-readonly CODE_ROOT="/pscratch/sd/b/beydoun/e3sm_repo_07202026/E3SM"
+readonly CODE_ROOT="/pscratch/sd/b/beydoun/e3sm_repo_09082026/E3SM"
 readonly PROJECT="e3sm"
 
 githash_eamxx=`git --git-dir ${CODE_ROOT}/.git rev-parse HEAD`
@@ -32,7 +32,7 @@ githash_eamxx=`git --git-dir ${CODE_ROOT}/.git rev-parse HEAD`
 
 readonly CASE_NAME=PPEensemble_1node.${RESOLUTION}.${COMPSET}.${CHECKOUT}
 
-readonly CASE_ROOT="${SCRATCH}/e3sm_scratch/pm-gpu/ne32_ppe_prod_v2_no_rain_frac/${CASE_NAME}"
+readonly CASE_ROOT="${SCRATCH}/e3sm_scratch/pm-gpu/ne32_ppe_v4_tuning/${CASE_NAME}"
 
 readonly CASE_GROUP=""
 
@@ -339,6 +339,8 @@ runtime_options() {
 
     #updated spa file
     ./atmchange -b spa_data_file="${input_data_dir}/atm/scream/init/spa_v3.LR.F2010.2011-2025.c_20240405.nc"
+
+   ./atmchange -b spc_remap_file="${input_data_dir}/atm/scream/maps/map_ne30pg2_to_ne32pg2_traave.20251124.nc"
 
 	# various other parameter updates
     ./atmchange -b set_cld_frac_r_to_one=True
