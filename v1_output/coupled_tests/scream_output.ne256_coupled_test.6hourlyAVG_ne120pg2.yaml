@@ -1,0 +1,45 @@
+averaging_type: average
+fields:
+  physics_pg2:
+    field_names:
+    - MeridionalVapFlux
+    - ZonalVapFlux
+    - surf_sens_flux
+    - surf_evap
+    - surface_upward_latent_heat_flux
+    - ps
+    - SeaLevelPressure
+    - precip_liq_surf_mass_flux
+    - precip_ice_surf_mass_flux
+    - precip_total_surf_mass_flux
+    - surf_radiative_T
+    - T_2m
+    - omega_at_500hPa
+    - T_mid_at_model_bot
+    - U_at_850hPa
+    - V_at_850hPa
+    - U_at_200hPa
+    - V_at_200hPa
+    - T_mid_at_200hPa
+    - T_mid_at_500hPa
+    - z_mid_at_700hPa
+    - geopotential_mid_at_700hPa
+    - U_at_model_bot
+    - V_at_model_bot
+    - SW_flux_dn_at_model_bot
+    - SW_flux_up_at_model_bot
+    - LW_flux_dn_at_model_bot
+    - LW_flux_up_at_model_bot
+    - SW_flux_up_at_model_top
+    - SW_flux_dn_at_model_top
+    - LW_flux_up_at_model_top
+max_snapshots_per_file: 4
+restart:
+  force_new_file: true
+filename_prefix: output.scream.ne256_coupled_test.6hourlyAVG_ne120pg2
+horiz_remap_file: ${DIN_LOC_ROOT}/atm/scream/maps/map_ne256pg2_to_ne120pg2_traave.20240206.nc
+iotype: pnetcdf
+output_control:
+  frequency: 6
+  mpi_ranks_in_filename: false
+  frequency_units: nhours
