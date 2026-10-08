@@ -252,16 +252,16 @@ runtime_options() {
 	
 	# override the default IC file to be consistent with the Aug 1 start date
 	if [[ "$RESOLUTION" == "ne32pg2_ne32pg2" ]]; then
-		./atmchange initial_conditions::filename="/global/cfs/projectdirs/e3sm/whannah/HICCUP/HICCUP.atm_era5.2019-08-01.ne32np4.L128.20261006.nc"
+		./atmchange initial_conditions::filename="/global/cfs/projectdirs/e3sm/whannah/HICCUP/HICCUP.atm_era5.2019-08-01.ne32np4.L128v4.20261006.nc"
 	fi
 	if [[ "$RESOLUTION" == "ne64pg2_ne64pg2" ]]; then
-		./atmchange initial_conditions::filename="/global/cfs/projectdirs/e3sm/whannah/HICCUP/HICCUP.atm_era5.2019-08-01.ne64np4.L128.20261006.nc"
+		./atmchange initial_conditions::filename="/global/cfs/projectdirs/e3sm/whannah/HICCUP/HICCUP.atm_era5.2019-08-01.ne64np4.L128v4.20261006.nc"
 	fi
 	if [[ "$RESOLUTION" == "ne128pg2_ne128pg2" ]]; then
-		./atmchange initial_conditions::filename="/global/cfs/projectdirs/e3sm/whannah/HICCUP/HICCUP.atm_era5.2019-08-01.ne128np4.L128.20261006.nc"
+		./atmchange initial_conditions::filename="/global/cfs/projectdirs/e3sm/whannah/HICCUP/HICCUP.atm_era5.2019-08-01.ne128np4.L128v4.20261006.nc"
 	fi
 	if [[ "$RESOLUTION" == "ne256pg2_ne256pg2" ]]; then
-		./atmchange initial_conditions::filename="/global/cfs/projectdirs/e3sm/whannah/HICCUP/HICCUP.atm_era5.2019-08-01.ne256np4.L128.20261006.nc"
+		./atmchange initial_conditions::filename="/global/cfs/projectdirs/e3sm/whannah/HICCUP/HICCUP.atm_era5.2019-08-01.ne256np4.L128v4.20261006.nc"
 	fi
 	
 	# Add ZM and SPC
