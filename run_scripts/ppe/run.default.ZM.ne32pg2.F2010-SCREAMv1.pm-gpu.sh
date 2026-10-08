@@ -4,7 +4,6 @@
 
 main() {
 
-	do_fetch_code=false
 	do_create_newcase=true
 	do_case_setup=true
 	do_case_build=true
@@ -65,8 +64,6 @@ main() {
 	# --- Now, do the work ---	
 	# Make directories created by this script world-readable
 	umask 022
-	# Fetch code from Github
-	fetch_code
 	# Create case
 	create_newcase
 	# Setup
@@ -87,45 +84,6 @@ main() {
 ######################################################
 ### Most users won't need to change anything below ###
 ######################################################
-#-----------------------------------------------------
-fetch_code() {
-    if [ "${do_fetch_code,,}" != "true" ]; then
-	echo $'\n----- Skipping fetch_code -----\n'
-	return
-    fi
-    echo $'\n----- Starting fetch_code -----\n'
-    local path=${CODE_ROOT}
-    local repo=scream
-    echo "Cloning $repo repository branch $BRANCH under $path"
-    if [ -d "${path}" ]; then
-	echo "ERROR: Directory already exists. Not overwriting"
-	exit 20
-    fi
-    mkdir -p ${path}
-    pushd ${path}
-    # This will put repository, with all code
-    git clone git@github.com:E3SM-Project/${repo}.git .
-    # Q: DO WE NEED THIS FOR EAMXX?
-    # Setup git hooks
-    rm -rf .git/hooks
-    git clone git@github.com:E3SM-Project/E3SM-Hooks.git .git/hooks
-    git config commit.template .git/hooks/commit.template
-    # Check out desired branch
-    git checkout ${BRANCH}
-    # Custom addition
-    if [ "${CHERRY}" != "" ]; then
-	echo ----- WARNING: adding git cherry-pick -----
-	for commit in "${CHERRY[@]}"
-	do
-	    echo ${commit}
-	    git cherry-pick ${commit}
-	done
-	echo -------------------------------------------
-    fi
-    # Bring in all submodule components
-    git submodule update --init --recursive
-    popd
-}
 #-----------------------------------------------------
 create_newcase() {
     if [ "${do_create_newcase,,}" != "true" ]; then
