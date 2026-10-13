@@ -227,6 +227,9 @@ runtime_options() {
 	./atmchange -b physics::atm_procs_list="zm,mac_aero_mic,spc,rrtmgp"
     # use updated spa file
     ./atmchange -b spa_data_file="${input_data_dir}/atm/scream/init/spa_from_v3LRamip_CMIP6_2010_clim_ne30pg2_c20260928.nc"
+    if [[ "$RESOLUTION" == "ne32pg2_ne32pg2" ]]; then
+       ./atmchange -b spc_remap_file="/global/cfs/cdirs/e3sm/inputdata/atm/scream/maps/map_ne30pg2_to_ne32pg2_traave.20251124.nc"
+    fi
 	# various other parameter updates
     ./atmchange -b set_cld_frac_r_to_one=True
 	# disable split-form - despite being helpful at high-resolution, it can be problematic for low-res and we don't understand why
