@@ -6,7 +6,7 @@ main() {
 
 	do_create_newcase=true
 	do_case_setup=true
-	do_case_build=true
+	do_case_build=false
 	do_case_submit=true
 	
 	readonly MACHINE="pm-gpu"
@@ -221,7 +221,8 @@ runtime_options() {
 	if [[ "$RESOLUTION" == "ne256pg2_ne256pg2" ]]; then
 		./atmchange initial_conditions::filename="/global/cfs/projectdirs/e3sm/whannah/HICCUP/HICCUP.atm_era5.2019-08-01.ne256np4.L128v4.20261006.nc"
 	fi
-	
+
+    ./atmchange -b vertical_coordinate_filename="${input_data_dir}/atm/scream/init/vertical_coordinates_L128v4_c20260820.nc"	
 	# Add ZM and SPC
 	./atmchange -b physics::atm_procs_list="zm,mac_aero_mic,spc,rrtmgp"
     # use updated spa file
