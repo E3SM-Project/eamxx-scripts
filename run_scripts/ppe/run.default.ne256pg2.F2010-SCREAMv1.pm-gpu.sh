@@ -11,7 +11,7 @@ do_case_build=true
 do_case_submit=true
 
 readonly MACHINE="pm-gpu"
-readonly CHECKOUT="20260910"
+readonly CHECKOUT="3b2bf57e0a18841254d61889109463537fdaa5ac"
 readonly BRANCH="master"
 readonly CHERRY=( )
 readonly COMPILER="gnugpu"
@@ -24,15 +24,15 @@ readonly COMPSET="F2010-SCREAMv1"
 readonly RESOLUTION="ne256pg2_ne256pg2"
 
 readonly SCREAMDOCS_ROOT="/global/homes/t/terai/scream-docs"
-readonly CODE_ROOT="/pscratch/sd/b/beydoun/e3sm_repo_09082026/E3SM"
+readonly CODE_ROOT="/pscratch/sd/b/beydoun/e3sm_repo_ppe/E3SM"
 readonly PROJECT="e3sm"
 
 githash_eamxx=`git --git-dir ${CODE_ROOT}/.git rev-parse HEAD`
 #githash_screamdocs=`git --git-dir ${SCREAMDOCS_ROOT}/.git rev-parse HEAD`
 
-readonly CASE_NAME=PPEensemble_32node.${RESOLUTION}.${COMPSET}.${CHECKOUT}
+readonly CASE_NAME=PPEensemble_64node.${RESOLUTION}.${COMPSET}.${CHECKOUT}
 
-readonly CASE_ROOT="${SCRATCH}/e3sm_scratch/pm-gpu/ne256_ppe_prod_tests/${CASE_NAME}"
+readonly CASE_ROOT="${SCRATCH}/e3sm_scratch/pm-gpu/ne256_ppe_prod_cont/${CASE_NAME}"
 
 readonly CASE_GROUP=""
 
@@ -58,7 +58,7 @@ readonly CASE_ARCHIVE_DIR=${CASE_ROOT}/archive
 readonly CASE_SCRIPTS_DIR=${CASE_ROOT}/case_scripts
 readonly CASE_RUN_DIR=${CASE_ROOT}/run
 
-readonly PELAYOUT="128x1"
+readonly PELAYOUT="256x1"
 readonly WALLTIME="00:30:00"
 readonly STOP_OPTION="nmonths"
 readonly STOP_N="13"

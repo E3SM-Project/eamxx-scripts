@@ -337,6 +337,10 @@ runtime_options() {
 	# Add ZM and SPC
 	./atmchange -b physics::atm_procs_list="zm,mac_aero_mic,spc,rrtmgp"
 
+    # Set temperature cut off in dycore threshold to 180K
+    #./atmchange vtheta_thresh=180
+    #./atmquery vtheta_thresh
+
     #updated spa file
     ./atmchange -b spa_data_file="${input_data_dir}/atm/scream/init/spa_v3.LR.F2010.2011-2025.c_20240405.nc"
 

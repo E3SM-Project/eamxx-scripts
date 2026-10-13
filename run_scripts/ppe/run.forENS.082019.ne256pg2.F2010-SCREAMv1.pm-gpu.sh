@@ -24,7 +24,7 @@ readonly COMPSET="F2010-SCREAMv1"
 readonly RESOLUTION="ne256pg2_ne256pg2"
 
 readonly SCREAMDOCS_ROOT="/global/homes/t/terai/scream-docs"
-readonly CODE_ROOT="/pscratch/sd/b/beydoun/e3sm_repo_09082026/E3SM"
+readonly CODE_ROOT="/pscratch/sd/b/beydoun/e3sm_repo_ppe/E3SM"
 readonly PROJECT="e3sm"
 
 # Add required member id (or provide default)
@@ -35,7 +35,7 @@ githash_eamxx=`git --git-dir ${CODE_ROOT}/.git rev-parse HEAD`
 
 CASE_NAME="${CASE_NAME:-PPEensemble_64node_full256.${RESOLUTION}.${COMPSET}.${CHECKOUT}.${MEMBER_ID}}"
 
-CASE_ROOT_BASE="${CASE_ROOT_BASE:-/pscratch/sd/b/beydoun/e3sm_scratch/pm-gpu/ne256_ppe_prod_tests}"
+CASE_ROOT_BASE="${CASE_ROOT_BASE:-/pscratch/sd/b/beydoun/e3sm_scratch/pm-gpu/ne256_ppe_prod_near_balance}"
 CASE_ROOT="${CASE_ROOT:-${CASE_ROOT_BASE}/${CASE_NAME}}"
 
 
