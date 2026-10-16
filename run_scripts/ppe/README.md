@@ -1,16 +1,14 @@
-# Description of files and workflow
-
 # Multiresolution PPE Workflow
 
 These scripts set up and launch nested multiresolution SCREAM PPEs on `pm-gpu`.
 
-The current multiresolution PPE design uses appendable nested LHS JSON files:
+The PPE design uses appendable nested LHS JSON files:
 
-| Resolution | Members | JSON file                          | Ensemble template                                     |
-| ---------- | ------: | ---------------------------------- | ----------------------------------------------------- |
-| ne32       |    1024 | `append_nested_ne32_1024_lhs.json` | `run.forENS.082019.ne32pg2.F2010-SCREAMv1.pm-gpu.sh`  |
-| ne128      |     256 | `append_nested_ne128_256_lhs.json` | `run.forENS.082019.ne128pg2.F2010-SCREAMv1.pm-gpu.sh` |
-| ne256      |     128 | `append_nested_ne256_128_lhs.json` | `run.forENS.082019.ne256pg2.F2010-SCREAMv1.pm-gpu.sh` |
+| Resolution | Members | Nodes per member | JSON file                          |
+| ---------- | ------: | ---------------: | ---------------------------------- |
+| ne32       |    1024 |                1 | `append_nested_ne32_1024_lhs.json` |
+| ne128      |     256 |               16 | `append_nested_ne128_256_lhs.json` |
+| ne256      |     128 |               64 | `append_nested_ne256_128_lhs.json` |
 
 The nested design satisfies:
 
@@ -20,7 +18,139 @@ ne256 subset ⊂ ne128 subset ⊂ ne32 full ensemble
 
 This allows direct comparison of identical parameter sets across resolutions.
 
+There are two workflows in this directory:
+
+* **ZM workflow (current):** one script, `run.ZM.082019.F2010-SCREAMv1.pm-gpu.sh`, for every resolution, used for both the control run and the ensemble members.
+* **Previous workflow:** separate `run.default...` and `run.forENS...` scripts per resolution, kept as the record of the earlier PPE. See [Previous workflow](#previous-workflow-per-resolution-scripts) at the end of this file.
+
 ---
+
+# ZM workflow
+
+`run.ZM.082019.F2010-SCREAMv1.pm-gpu.sh` (ZM + SPC, L128v4, Aug 2019 start) covers ne32, ne128 and ne256, as either the control or an ensemble member:
+
+* **Resolution** comes from the first argument (`ne32`, `ne128` or `ne256`) or from `RES` in the environment. `create_ensembles.py` passes no arguments, so set `RES` when calling it.
+* **Mode:** if `MEMBER_ID` is set, which `create_ensembles.py` always does, the script creates an ensemble member. Otherwise it creates the control.
+* Everything that differs between resolutions (PE layout, walltime, SPC remap, output remap, land initial conditions, `ATM_NCPL`) is in `resolution_settings()` in the script.
+
+Case locations, set by `CONTROL_ROOT_BASE` in the script:
+
+```text
+control: $SCRATCH/e3sm_scratch/pm-gpu/<res>_ppe_v4_config_new_workflow/PPEensemble_<N>node.<res>pg2_<res>pg2.F2010-SCREAMv1.<CHECKOUT>
+members: $SCRATCH/e3sm_scratch/pm-gpu/<res>_ppe_v4_config_new_workflow_ens/<control case name>.mXXX
+```
+
+## 1. Run the control
+
+The control builds the executable that every member of that resolution reuses.
+
+```bash
+./run.ZM.082019.F2010-SCREAMv1.pm-gpu.sh ne128
+```
+
+By default the control builds and submits to `regular` with the walltime from `resolution_settings()`. Useful overrides:
+
+```bash
+Q=debug WALLTIME=00:30:00 ./run.ZM.082019.F2010-SCREAMv1.pm-gpu.sh ne32   # quick test
+do_case_build=false ./run.ZM.082019.F2010-SCREAMv1.pm-gpu.sh ne32         # reuse this control's existing build
+```
+
+Don't re-run a control while its job is active: it edits and resubmits the same case.
+
+## 2. Create member cases
+
+Create members with `create_ensembles.py`, with `--old-exe` pointing at the control's `build` directory:
+
+```bash
+RES=ne128 python create_ensembles.py \
+  --template ./run.ZM.082019.F2010-SCREAMv1.pm-gpu.sh \
+  --json ./append_nested_ne128_256_lhs.json \
+  --old-exe <ne128 control case>/build \
+  --start 0 \
+  --count 32
+```
+
+`--start` is the first member index and `--count` is the number of members. Member IDs are zero-indexed, so `--start 0 --count 32` gives `m000` through `m031`.
+
+Members are created but not submitted. To submit each member as its own job instead of bundling, put `do_case_submit=true` in front of the command.
+
+Member creation stops with an error if `RES` is missing, if `--old-exe` has no `e3sm.exe`, if `--old-exe` is not a build for that resolution, or if `atmchange` rejects a PPE parameter name. Each member's log (`ensemble_logs/mXXX.log`) ends with the process list and the 19 parameter values actually in its namelist.
+
+### Creating members in parallel
+
+Each member takes about a minute to create. Members are independent, so run several `create_ensembles.py` processes on non-overlapping ranges. For example, all 1024 ne32 members in 32 chunks:
+
+```bash
+export RES=ne32
+B=<ne32 control case>/build
+N=32                                # chunks running at once
+STEP=$(( (1024 + N - 1) / N ))      # members per chunk
+mkdir -p chunk_logs
+for s in $(seq 0 $STEP 1023); do
+  python create_ensembles.py --template ./run.ZM.082019.F2010-SCREAMv1.pm-gpu.sh \
+    --json ./append_nested_ne32_1024_lhs.json --old-exe $B \
+    --start $s --count $STEP > chunk_logs/chunk_$s.log 2>&1 &
+done
+wait
+```
+
+On a login node, keep `N` around 8. For more, run the loop on an interactive CPU node, for example `salloc -N 1 -C cpu -q interactive -t 01:00:00 -A e3sm`. Make sure `python` is available in that shell (`module load python`).
+
+### Checking progress
+
+```bash
+grep -l "All done" $(grep -l "MODE=ensemble" ensemble_logs/m*.log) | wc -l   # members finished
+tail -qn1 chunk_logs/chunk_*.log                                              # member each chunk is on
+grep -l RuntimeError chunk_logs/*.log                                         # chunks that stopped on a failure
+grep -L "All done" ensemble_logs/m*.log                                       # members that did not finish
+```
+
+### Notes on member creation
+
+* `create_ensembles.py` writes `ensemble_logs/<member>.log` into the directory it is run from, named by member ID only. Use a separate working directory per resolution, or move `ensemble_logs/` before starting the next resolution, so logs are not overwritten.
+* To redo a member, delete its case directory first. CIME's `create_newcase` refuses an existing case directory.
+* A chunk stops at its first failed member while the other chunks keep going. Fix the problem, delete the failed member's case directory, and rerun that range.
+
+## 3. Submit members
+
+Submit members in bundles with a csh batch script that runs `./case.submit --no-batch` in each member's `case_scripts` directory inside one allocation. `submit_ensemble_ne32_ZM.sh` submits ne32 `m000` through `m127` on 128 nodes:
+
+```bash
+sbatch submit_ensemble_ne32_ZM.sh
+```
+
+For other resolutions or member ranges, update:
+
+* `#SBATCH -N`: nodes per member × members in the bundle
+* walltime
+* `base`: the members directory (`<res>_ppe_v4_config_new_workflow_ens`)
+* `caseprefix`: the control case name
+* the member range in the `foreach` loop
+
+Before a large bundle, run one member on debug:
+
+```bash
+cd <members directory>/<control case name>.m000/case_scripts
+./case.submit -a="-t 00:30:00 --qos=debug"
+```
+
+## Notes
+
+* `PPE_PARAMS` in the script must match `PARAMS` in `create_ensembles.py`: same names, same order.
+* At this code checkout `spc_remap_file` has no default for ne32 or ne128, so the script sets it explicitly for every resolution.
+* All resolutions use `set_cld_frac_r_to_one=True`. The previous ne256 scripts did not set it.
+
+---
+
+# Previous workflow (per-resolution scripts)
+
+The earlier PPE used one control script (`run.default...`) and one ensemble template (`run.forENS...`) per resolution:
+
+| Resolution | Ensemble template                                     |
+| ---------- | ----------------------------------------------------- |
+| ne32       | `run.forENS.082019.ne32pg2.F2010-SCREAMv1.pm-gpu.sh`  |
+| ne128      | `run.forENS.082019.ne128pg2.F2010-SCREAMv1.pm-gpu.sh` |
+| ne256      | `run.forENS.082019.ne256pg2.F2010-SCREAMv1.pm-gpu.sh` |
 
 ## 1. Build or prepare a baseline executable
 
@@ -182,4 +312,3 @@ The number of allocated nodes should match the number of concurrent member cases
 * The `--old-exe` argument should point to a valid prebuilt executable directory.
 * The append-nested JSON files are the preferred multiresolution sampling files.
 * Resolution-specific output YAMLs and remapping choices are defined inside the corresponding `run.forENS...` template scripts.
-
