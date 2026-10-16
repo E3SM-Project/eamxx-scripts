@@ -18,53 +18,79 @@ ne256 subset ⊂ ne128 subset ⊂ ne32 full ensemble
 
 This allows direct comparison of identical parameter sets across resolutions.
 
-There are two workflows in this directory:
+There are three sets of scripts in this directory:
 
-* **ZM workflow (current):** one script, `run.ZM.082019.F2010-SCREAMv1.pm-gpu.sh`, for every resolution, used for both the control run and the ensemble members.
+* **Unified workflow (current):** one run script, `run.unified.F2010-SCREAMv1.pm-gpu.sh`, for every resolution and for both the control and the ensemble members, used with `create_ensembles_unified.py`, `make_json_files_multires_unified.py` and the shared parameter list `ppe_parameters.py`. Any JSON file works: SHOC + P3, ZM only, or combined.
+* **First ZM scripts:** `run.ZM.082019.F2010-SCREAMv1.pm-gpu.sh` with `create_ensembles.py` and `make_json_files_multires_append.py`. They vary the fixed 19 SHOC + P3 parameters only, and are kept until the unified scripts replace them.
 * **Previous workflow:** separate `run.default...` and `run.forENS...` scripts per resolution, kept as the record of the earlier PPE. See [Previous workflow](#previous-workflow-per-resolution-scripts) at the end of this file.
 
 ---
 
-# ZM workflow
+# Unified workflow
 
-`run.ZM.082019.F2010-SCREAMv1.pm-gpu.sh` (ZM + SPC, L128v4, Aug 2019 start) covers ne32, ne128 and ne256, as either the control or an ensemble member:
+`run.unified.F2010-SCREAMv1.pm-gpu.sh` (ZM + SPC, L128v4, Aug 2019 start) covers ne32, ne128 and ne256, as either the control or an ensemble member:
 
-* **Resolution** comes from the first argument (`ne32`, `ne128` or `ne256`) or from `RES` in the environment. `create_ensembles.py` passes no arguments, so set `RES` when calling it.
-* **Mode:** if `MEMBER_ID` is set, which `create_ensembles.py` always does, the script creates an ensemble member. Otherwise it creates the control.
+* **Resolution** comes from the first argument (`ne32`, `ne128` or `ne256`) or from `RES` in the environment. `create_ensembles_unified.py` passes no arguments, so set `RES` when calling it.
+* **Mode:** if `MEMBER_ID` is set, which `create_ensembles_unified.py` always does, the script creates an ensemble member. Otherwise it creates the control.
 * Everything that differs between resolutions (PE layout, walltime, SPC remap, output remap, land initial conditions, `ATM_NCPL`) is in `resolution_settings()` in the script.
 
 Case locations, set by `CONTROL_ROOT_BASE` in the script:
 
 ```text
-control: $SCRATCH/e3sm_scratch/pm-gpu/<res>_ppe_v4_config_new_workflow/PPEensemble_<N>node.<res>pg2_<res>pg2.F2010-SCREAMv1.<CHECKOUT>
-members: $SCRATCH/e3sm_scratch/pm-gpu/<res>_ppe_v4_config_new_workflow_ens/<control case name>.mXXX
+control: $SCRATCH/e3sm_scratch/pm-gpu/<res>_ppe_v4_config_new_workflow_unified/PPEensemble_<N>node.<res>pg2_<res>pg2.F2010-SCREAMv1.<CHECKOUT>
+members: $SCRATCH/e3sm_scratch/pm-gpu/<res>_ppe_v4_config_new_workflow_unified_ens/<control case name>.mXXX
 ```
 
-## 1. Run the control
+## 1. Choose the parameters and make the JSON files
+
+Every parameter the PPE can vary is listed in `ppe_parameters.py`, with its namelist key, range, scale, kind and code default. `python ppe_parameters.py` prints the list. Which parameters an ensemble actually varies is decided by its JSON file: anything not in the file runs at its code default.
+
+Generate a nested set of JSON files (ne256 ⊂ ne128 ⊂ ne32) for any selection of schemes and parameters:
+
+```bash
+python make_json_files_multires_unified.py --schemes zm --tag zm_v1
+python make_json_files_multires_unified.py --schemes shoc,p3,zm --exclude p3::max_total_ni,shoc::c_diag_3rd_mom --tag combined_v1
+```
+
+This writes `append_nested_ne32_1024_lhs_<tag>.json`, `append_nested_ne128_256_lhs_<tag>.json`, `append_nested_ne256_128_lhs_<tag>.json` and `append_nested_lhs_metadata_<tag>.json`. Existing files are not overwritten unless you pass `--force`.
+
+The files carry their parameter names:
+
+```json
+{"parameters": ["zm::tau", "zm::alfa", "..."], "samples": [[...], [...]]}
+```
+
+Integer parameters, such as `zm::num_cin`, are sampled as equal-probability integer levels between their minimum and maximum.
+
+The original 19-column files (SHOC + P3, plain lists of values) still work everywhere. `--schemes shoc,p3 --tag v2 --legacy-format --force` reproduces the `_v2` files exactly.
+
+To make a new parameter available, add one line to `ppe_parameters.py`. No other script needs to change.
+
+## 2. Run the control
 
 The control builds the executable that every member of that resolution reuses.
 
 ```bash
-./run.ZM.082019.F2010-SCREAMv1.pm-gpu.sh ne128
+./run.unified.F2010-SCREAMv1.pm-gpu.sh ne128
 ```
 
 By default the control builds and submits to `regular` with the walltime from `resolution_settings()`. Useful overrides:
 
 ```bash
-Q=debug WALLTIME=00:30:00 ./run.ZM.082019.F2010-SCREAMv1.pm-gpu.sh ne32   # quick test
-do_case_build=false ./run.ZM.082019.F2010-SCREAMv1.pm-gpu.sh ne32         # reuse this control's existing build
+Q=debug WALLTIME=00:30:00 ./run.unified.F2010-SCREAMv1.pm-gpu.sh ne32   # quick test
+do_case_build=false ./run.unified.F2010-SCREAMv1.pm-gpu.sh ne32         # reuse this control's existing build
 ```
 
 Don't re-run a control while its job is active: it edits and resubmits the same case.
 
-## 2. Create member cases
+## 3. Create member cases
 
-Create members with `create_ensembles.py`, with `--old-exe` pointing at the control's `build` directory:
+Create members with `create_ensembles_unified.py`, with `--old-exe` pointing at the control's `build` directory:
 
 ```bash
-RES=ne128 python create_ensembles.py \
-  --template ./run.ZM.082019.F2010-SCREAMv1.pm-gpu.sh \
-  --json ./append_nested_ne128_256_lhs.json \
+RES=ne128 python create_ensembles_unified.py \
+  --template ./run.unified.F2010-SCREAMv1.pm-gpu.sh \
+  --json ./append_nested_ne128_256_lhs_zm_v1.json \
   --old-exe <ne128 control case>/build \
   --start 0 \
   --count 32
@@ -74,11 +100,28 @@ RES=ne128 python create_ensembles.py \
 
 Members are created but not submitted. To submit each member as its own job instead of bundling, put `do_case_submit=true` in front of the command.
 
-Member creation stops with an error if `RES` is missing, if `--old-exe` has no `e3sm.exe`, if `--old-exe` is not a build for that resolution, or if `atmchange` rejects a PPE parameter name. Each member's log (`ensemble_logs/mXXX.log`) ends with the process list and the 19 parameter values actually in its namelist.
+To hold some parameters in the file at their defaults, or to check a file first:
+
+```bash
+--exclude-scheme p3              # hold every p3:: parameter at its default
+--exclude zm::mcsp_q_coeff       # hold one parameter at its default (repeatable, or comma-separated)
+--dry-run                        # check the file and print each member's changes; creates nothing
+```
+
+Before creating anything, `create_ensembles_unified.py` checks the selected rows:
+
+* every parameter name is in `ppe_parameters.py`;
+* every row has the right length;
+* integer parameters are whole numbers;
+* values are inside the ranges in `ppe_parameters.py`. This is an error for named files unless you pass `--allow-out-of-range`, and a warning for the original 19-column files, since earlier designs used wider ranges.
+
+It then prints which parameters vary and which are held at their defaults. Each member receives its changes as one string, `PPE_CHANGES="key=value ..."`.
+
+Member creation stops with an error if `RES` is missing, if `--old-exe` has no `e3sm.exe`, if `--old-exe` is not a build for that resolution, or if `atmchange` rejects a PPE parameter name. Each member's log (`ensemble_logs/mXXX.log`) ends with the process list and the parameter values actually in its namelist, and each case records its changes in `case_scripts/PPE_PARAMETERS.txt`.
 
 ### Creating members in parallel
 
-Each member takes about a minute to create. Members are independent, so run several `create_ensembles.py` processes on non-overlapping ranges. For example, all 1024 ne32 members in 32 chunks:
+Each member takes about a minute to create. Members are independent, so run several `create_ensembles_unified.py` processes on non-overlapping ranges. For example, all 1024 ne32 members in 32 chunks:
 
 ```bash
 export RES=ne32
@@ -87,7 +130,7 @@ N=32                                # chunks running at once
 STEP=$(( (1024 + N - 1) / N ))      # members per chunk
 mkdir -p chunk_logs
 for s in $(seq 0 $STEP 1023); do
-  python create_ensembles.py --template ./run.ZM.082019.F2010-SCREAMv1.pm-gpu.sh \
+  python create_ensembles_unified.py --template ./run.unified.F2010-SCREAMv1.pm-gpu.sh \
     --json ./append_nested_ne32_1024_lhs.json --old-exe $B \
     --start $s --count $STEP > chunk_logs/chunk_$s.log 2>&1 &
 done
@@ -107,11 +150,11 @@ grep -L "All done" ensemble_logs/m*.log                                       # 
 
 ### Notes on member creation
 
-* `create_ensembles.py` writes `ensemble_logs/<member>.log` into the directory it is run from, named by member ID only. Use a separate working directory per resolution, or move `ensemble_logs/` before starting the next resolution, so logs are not overwritten.
+* `create_ensembles_unified.py` writes `ensemble_logs/<member>.log` into the directory it is run from, named by member ID only. Use a separate working directory per resolution, or move `ensemble_logs/` before starting the next resolution, so logs are not overwritten.
 * To redo a member, delete its case directory first. CIME's `create_newcase` refuses an existing case directory.
 * A chunk stops at its first failed member while the other chunks keep going. Fix the problem, delete the failed member's case directory, and rerun that range.
 
-## 3. Submit members
+## 4. Submit members
 
 Submit members in bundles with a csh batch script that runs `./case.submit --no-batch` in each member's `case_scripts` directory inside one allocation. `submit_ensemble_ne32_ZM.sh` submits ne32 `m000` through `m127` on 128 nodes:
 
@@ -123,7 +166,7 @@ For other resolutions or member ranges, update:
 
 * `#SBATCH -N`: nodes per member × members in the bundle
 * walltime
-* `base`: the members directory (`<res>_ppe_v4_config_new_workflow_ens`)
+* `base`: the members directory (`<res>_ppe_v4_config_new_workflow_unified_ens`)
 * `caseprefix`: the control case name
 * the member range in the `foreach` loop
 
@@ -136,7 +179,8 @@ cd <members directory>/<control case name>.m000/case_scripts
 
 ## Notes
 
-* `PPE_PARAMS` in the script must match `PARAMS` in `create_ensembles.py`: same names, same order.
+* The run script has no parameter list of its own. It applies whatever `create_ensembles_unified.py` passes in `PPE_CHANGES`.
+* The run script changes `physics::atm_procs_list` without `-b`, so the namelist contains `zm` and `spc` right away. Otherwise `zm::` parameters can't be checked when they're applied.
 * At this code checkout `spc_remap_file` has no default for ne32 or ne128, so the script sets it explicitly for every resolution.
 * All resolutions use `set_cld_frac_r_to_one=True`. The previous ne256 scripts did not set it.
 
@@ -308,7 +352,7 @@ The number of allocated nodes should match the number of concurrent member cases
 
 ## 7. Notes
 
-* The ensemble templates expect all 19 PPE parameter environment variables to be provided by `create_ensembles.py`.
+* The ensemble templates expect all 19 PPE parameter environment variables to be provided by `create_ensembles.py`. `create_ensembles_unified.py` also sets them for the original 19-column files, so these templates work with it too.
 * The `--old-exe` argument should point to a valid prebuilt executable directory.
 * The append-nested JSON files are the preferred multiresolution sampling files.
 * Resolution-specific output YAMLs and remapping choices are defined inside the corresponding `run.forENS...` template scripts.
